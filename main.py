@@ -3,6 +3,7 @@ from jinja2 import Environment, FileSystemLoader
 from src.renderer import Renderer
 from src.meaning_tree import to_dict
 
+
 environment = Environment(
     loader=FileSystemLoader("templates/")
 )
@@ -14,6 +15,24 @@ def program_entry_point(node):
     template = environment.get_template("base.html")
     body = [r.render(child) for child in node["body"]]
     return template.render(body=body)
+
+
+@r.node(type="if_statement")
+def if_statement(node):
+    lines = []
+
+    for i, branch in enumerate(node["branches"]):
+        if i == 0:
+            lines.append("<div>if (%s) {</div>" % r.render(node["condition"]))
+        elif "condition" in branch:
+            lines.append("<div>} else if (%s) {</div>" % r.render(node["condition"]))
+        else:
+            lines.append("<div>} else {</div>")
+
+        lines.append(r.render(node["body"]))
+        lines.append("<div>}</div>")
+    
+    return "".join(lines)
 
 
 @r.node(type="add_operator")
@@ -42,7 +61,7 @@ def int_literal(node):
 
 @r.node(type="compound_statement")
 def compound_statement(node):
-    return [f"<div>{r.render(i)}</div>" for i in node["statements"]]
+    return "".join(f"<div>{r.render(i)}</div>" for i in node["statements"])
 
 
 @r.node(type="assignment_statement")

@@ -1,6 +1,3 @@
-from functools import wraps
-
-
 class Renderer:
     """Рендер узлов meaning-tree в json-форме.
 
@@ -24,8 +21,8 @@ class Renderer:
             node_type = node_attrs.get("type")
             if node_type is None:
                 raise ValueError("You need to provide node type")
+            
             self.render_funcs[node_type] = func
-
             return func
 
         return decorator

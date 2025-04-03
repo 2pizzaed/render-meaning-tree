@@ -12,7 +12,8 @@ r = Renderer()
 @r.node(type="program_entry_point")
 def program_entry_point(node):
     template = environment.get_template("base.html")
-    return template.render()
+    body = [r.render(child) for child in node["body"]]
+    return template.render(body=body)
 
 
 @r.node(type="add_operator")

@@ -4,11 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Трасса программы</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+        }
+    </style>
 </head>
 <body>
     <div class="task">
         <div class="task_description">
             Постройте трассу программы, нажмиая на начало и конец операторов в порядке их выполения.
+        </div>
+        <div class="task_program">
+            {% for statement in body %}
+            {{ statement }}
+            {% endfor %}
         </div>
     </div>
 </body>

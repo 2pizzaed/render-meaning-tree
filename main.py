@@ -1,7 +1,7 @@
 from jinja2 import Environment, FileSystemLoader
 
 from src.renderer import Renderer
-
+from src.meaning_tree import to_dict
 
 environment = Environment(
     loader=FileSystemLoader("templates/")
@@ -59,53 +59,10 @@ def save_as_html(node):
 
 
 if __name__ == '__main__':
-    save_as_html(
-        {
-        "type": "program_entry_point",
-        "body": [
-            {
-                "type": "if_statement",
-                "branches": [
-                    {
-                        "condition": {
-                            "type": "lt_operator",
-                            "left_operand": {
-                                "type": "identifier",
-                                "name": "a"
-                            },
-                            "right_operand": {
-                                "type": "int_literal",
-                                "value": 3,
-                                "repr": "DECIMAL"
-                            }
-                        },
-                        "body": {
-                            "type": "compound_statement",
-                            "statements": [
-                                {
-                                    "type": "assignment_statement",
-                                    "target": {
-                                        "type": "identifier",
-                                        "name": "b"
-                                    },
-                                    "value": {
-                                        "type": "add_operator",
-                                        "left_operand": {
-                                            "type": "identifier",
-                                            "name": "b"
-                                        },
-                                        "right_operand": {
-                                            "type": "int_literal",
-                                            "value": 1,
-                                            "repr": "DECIMAL"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        ]
+    code = """
+    if (a < 3) {
+        b = b + 6;
     }
-)
+    """
+    
+    save_as_html(to_dict("java", code))

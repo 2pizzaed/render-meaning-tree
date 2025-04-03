@@ -1,0 +1,3 @@
+[submodule "meaning_tree"]
+	path = meaning_tree
+	url = git@github.com:samedit66/meaning_tree.git

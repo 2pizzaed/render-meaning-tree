@@ -15,8 +15,14 @@ def program_entry_point(node):
     return template.render()
 
 
+def save_as_html(node):
+    content = r.render(node)
+    with open("result.html", "w") as output_file:
+        output_file.write(content)
+
+
 if __name__ == '__main__':
-    print(r.render(
+    save_as_html(
         {
         "type": "program_entry_point",
         "body": [
@@ -65,4 +71,4 @@ if __name__ == '__main__':
             }
         ]
     }
-    ))
+)

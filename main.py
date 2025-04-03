@@ -1,6 +1,6 @@
 from jinja2 import Environment, FileSystemLoader
 
-from renderer import Renderer
+from src.renderer import Renderer
 
 
 environment = Environment(

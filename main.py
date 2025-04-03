@@ -15,6 +15,13 @@ def program_entry_point(node):
     return template.render()
 
 
+@r.node(type="add_operator")
+def add_operator(node):
+    left = r.render(node["left_operand"])
+    right = r.render(node["right_operand"])
+    return f"{left} + {right}"
+
+
 def save_as_html(node):
     content = r.render(node)
     with open("result.html", "w") as output_file:

@@ -39,6 +39,11 @@ def int_literal(node):
     return node["value"]
 
 
+@r.node(type="compound_statement")
+def compound_statement(node):
+    return [f"<div>{r.render(i)}</div>" for i in node["statements"]]
+
+
 def save_as_html(node):
     content = r.render(node)
     with open("result.html", "w") as output_file:

@@ -44,6 +44,13 @@ def compound_statement(node):
     return [f"<div>{r.render(i)}</div>" for i in node["statements"]]
 
 
+@r.node(type="assignment_statement")
+def assignment_statement(node):
+    target = r.render(node["target"])
+    value = r.render(node["value"])
+    return f"{target} = {value}"
+
+
 def save_as_html(node):
     content = r.render(node)
     with open("result.html", "w") as output_file:

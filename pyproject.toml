@@ -7,4 +7,5 @@ requires-python = ">=3.13"
 dependencies = [
     "jinja2>=3.1.6",
     "mypy>=1.15.0",
+    "pytest>=8.3.5",
 ]

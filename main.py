@@ -23,13 +23,13 @@ def if_statement(node):
 
     for i, branch in enumerate(node["branches"]):
         if i == 0:
-            lines.append("<div>if (%s) {</div>" % r.render(node["condition"]))
+            lines.append("<div>if (%s) {</div>" % r.render(branch["condition"]))
         elif "condition" in branch:
-            lines.append("<div>} else if (%s) {</div>" % r.render(node["condition"]))
+            lines.append("<div>} else if (%s) {</div>" % r.render(branch["condition"]))
         else:
             lines.append("<div>} else {</div>")
 
-        lines.append(r.render(node["body"]))
+        lines.append(r.render(branch["body"]))
         lines.append("<div>}</div>")
     
     return "".join(lines)

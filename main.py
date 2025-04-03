@@ -34,6 +34,11 @@ def identifier(node):
     return node["name"]
 
 
+@r.node(type="int_literal")
+def int_literal(node):
+    return node["value"]
+
+
 def save_as_html(node):
     content = r.render(node)
     with open("result.html", "w") as output_file:

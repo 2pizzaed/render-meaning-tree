@@ -29,6 +29,11 @@ def lt_operator(node):
     return f"{left} < {right}"
 
 
+@r.node(type="identifier")
+def identifier(node):
+    return node["name"]
+
+
 def save_as_html(node):
     content = r.render(node)
     with open("result.html", "w") as output_file:

@@ -20,6 +20,60 @@
             border: 1px solid #ddd;
             border-radius: 6px;
             overflow-x: auto;
+            position: relative;
+            margin-bottom: 4px;
+        }
+
+        .icon-container {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            vertical-align: middle;
+            margin-right: 6px;
+            padding: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .icon-container:hover {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+
+        .icon-container:active {
+            transform: scale(0.95);
+            background-color: rgba(0, 123, 255, 0.2);
+        }
+
+        .play-icon {
+            width: 18px;
+            height: 18px;
+            display: inline-block;
+            background: url("https://icons.bootstrap-4.ru/assets/icons/play-fill.svg") no-repeat center center;
+            background-size: contain;
+            transition: opacity 0.2s;
+        }
+
+        .icon-container:hover .play-icon {
+            opacity: 0.8;
+        }
+        
+        .icon-container.success {
+            background-color: rgba(40, 167, 69, 0.2);
+            box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.4);
+        }
+        
+        .icon-container.success .play-icon {
+            background-image: url("https://icons.bootstrap-4.ru/assets/icons/check-circle-fill.svg");
+        }
+        
+        .icon-container.error {
+            background-color: rgba(220, 53, 69, 0.2);
+            box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.4);
+        }
+        
+        .icon-container.error .play-icon {
+            background-image: url("https://icons.bootstrap-4.ru/assets/icons/x-circle-fill.svg");
         }
     </style>
 </head>
@@ -35,6 +89,31 @@
             {% endfor %}
         </div>
     </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all icon containers
+            const iconContainers = document.querySelectorAll('.icon-container');
+
+            function determineStatus(container) {
+                // Keep it always success as far as we don't have a backend
+                return 'success';
+            }
+            
+            iconContainers.forEach(container => {
+                container.addEventListener('click', function() {
+                    // Toggle active state
+                    if (this.classList.contains('success') || this.classList.contains('error')) {
+                        this.classList.remove('success', 'error');
+                        
+                    } else {
+                        const status = determineStatus(this);
+                        this.classList.add(status);
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>

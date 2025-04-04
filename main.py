@@ -4,6 +4,7 @@ from src.renderer import Renderer
 from src.meaning_tree import to_dict
 from src.html_utils import make_codeline
 
+from pprint import pprint
 
 environment = Environment(
     loader=FileSystemLoader("templates/")
@@ -22,19 +23,21 @@ def program_entry_point(node):
 def if_statement(node):
     lines = []
 
+    play_btn = environment.get_template("utils/play-btn.html")
+    
     for i, branch in enumerate(node["branches"]):
         if i == 0:
             lines.append(
-                make_codeline("if (%s) {") % r.render(branch["condition"]))
+                make_codeline("%sif (%s) {") % (play_btn.render(), r.render(branch["condition"])))
         elif "condition" in branch:
             lines.append(
-                make_codeline("else if (%s) {") % r.render(branch["condition"]))
+                make_codeline("%selse if (%s) {") % (play_btn.render(), r.render(branch["condition"])))
         else:
             lines.append(
-                make_codeline("} else {"))
+                make_codeline("%selse {") % (play_btn.render()))
 
         lines.append(r.render(branch["body"]))
-        lines.append(make_codeline("}"))
+        lines.append(make_codeline("%s}") % (play_btn.render()))
     
     return "".join(lines)
 
@@ -250,7 +253,9 @@ def int_literal(node):
 
 @r.node(type="compound_statement")
 def compound_statement(node):
-    return "".join(r.render(i) for i in node["statements"])
+    play_btn = environment.get_template("utils/play-btn.html")
+    
+    return "".join(play_btn.render() + r.render(stmt) for stmt in node["statements"])
 
 
 @r.node(type="assignment_statement")
@@ -268,12 +273,16 @@ def save_as_html(node):
 
 if __name__ == '__main__':
     code = """
-    for (int i = 0; i < 10; i++) {
-        b = i + 20;
-
-        if (a < b) {
-            a = b + 10;
+    if (a < 3) {
+        b = b + 6;
+    } else if (a < 12) {
+        if (b < 13) {
+            a = a + 2;
+        } else {
+            a = a + 1;
         }
+    } else {
+        a = a + 1;
     }
     """
     

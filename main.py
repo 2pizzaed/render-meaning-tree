@@ -73,7 +73,7 @@ def compound_statement(node):
 def assignment_statement(node):
     target = r.render(node["target"])
     value = r.render(node["value"])
-    return f"{target} = {value}"
+    return f"{target} = {value};"
 
 
 def save_as_html(node):

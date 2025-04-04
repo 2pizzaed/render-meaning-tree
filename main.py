@@ -78,7 +78,6 @@ def for_statement(node):
         r.render(node["body"]),
         make_codeline("}")
     ]
-    print(r.render(node["body"]))
     return "".join(lines)
 
 

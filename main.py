@@ -2,6 +2,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.renderer import Renderer
 from src.meaning_tree import to_dict
+from src.html_utils import make_codeline
 
 
 environment = Environment(
@@ -23,14 +24,17 @@ def if_statement(node):
 
     for i, branch in enumerate(node["branches"]):
         if i == 0:
-            lines.append("<div>if (%s) {</div>" % r.render(branch["condition"]))
+            lines.append(
+                make_codeline("if (%s) {") % r.render(branch["condition"]))
         elif "condition" in branch:
-            lines.append("<div>} else if (%s) {</div>" % r.render(branch["condition"]))
+            lines.append(
+                make_codeline("else if (%s) {") % r.render(branch["condition"]))
         else:
-            lines.append("<div>} else {</div>")
+            lines.append(
+                make_codeline("} else {"))
 
         lines.append(r.render(branch["body"]))
-        lines.append("<div>}</div>")
+        lines.append(make_codeline("}"))
     
     return "".join(lines)
 
@@ -61,7 +65,8 @@ def int_literal(node):
 
 @r.node(type="compound_statement")
 def compound_statement(node):
-    return "".join(f"<div>{r.render(i)}</div>" for i in node["statements"])
+    return "".join(
+        make_codeline(r.render(i)) for i in node["statements"])
 
 
 @r.node(type="assignment_statement")

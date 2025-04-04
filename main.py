@@ -39,6 +39,49 @@ def if_statement(node):
     return "".join(lines)
 
 
+@r.node(type="while_statement")
+def while_statement(node):
+    lines = [
+        make_codeline("while (%s) {") % r.render(node["condition"]),
+        r.render(node["body"]),
+        make_codeline("}")
+    ]
+    return "".join(lines)
+
+
+@r.node(type="range_for_loop")
+def for_statement(node):
+    identifier = r.render(node["identifier"])
+    
+    range_obj = node["range"]
+    start = r.render(range_obj["start"])
+    stop = r.render(range_obj["stop"])
+    step = r.render(range_obj["step"])
+    range_type = range_obj["rangeType"]
+    
+    if range_type == "up" or range_type == "unknown":
+        # Если неизвестен тип, по умолчанию считаем, что инкремент идёт вверх
+        condition = f"{identifier} < {stop}"
+        increment = f"{identifier} += {step}"
+    elif range_type == "down":
+        condition = f"{identifier} > {stop}"
+        increment = f"{identifier} -= {step}"
+    else:
+        # На случай непредвиденного значения
+        condition = f"{identifier} < {stop}"
+        increment = f"{identifier} += {step}"
+    
+    initialization = f"int {identifier} = {start}"
+    
+    lines = [
+        make_codeline("for (%s; %s; %s) {" % (initialization, condition, increment)),
+        r.render(node["body"]),
+        make_codeline("}")
+    ]
+    print(r.render(node["body"]))
+    return "".join(lines)
+
+
 @r.node(type="add_operator")
 def add_operator(node):
     left = r.render(node["left_operand"])
@@ -65,15 +108,14 @@ def int_literal(node):
 
 @r.node(type="compound_statement")
 def compound_statement(node):
-    return "".join(
-        make_codeline(r.render(i)) for i in node["statements"])
+    return "".join(r.render(i) for i in node["statements"])
 
 
 @r.node(type="assignment_statement")
 def assignment_statement(node):
     target = r.render(node["target"])
     value = r.render(node["value"])
-    return f"{target} = {value};"
+    return make_codeline(f"{target} = {value};")
 
 
 def save_as_html(node):
@@ -84,8 +126,12 @@ def save_as_html(node):
 
 if __name__ == '__main__':
     code = """
-    if (a < 3) {
-        b = b + 6;
+    for (int i = 0; i < 10; i++) {
+        b = i + 20;
+
+        if (a < b) {
+            a = b + 10;
+        }
     }
     """
     

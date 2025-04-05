@@ -1,10 +1,8 @@
 from jinja2 import Environment, FileSystemLoader
 
-from src.renderer import Renderer
+from src.renderer import Renderer, CodeBlock
 from src.meaning_tree import to_dict
-from src.html_utils import make_codeline
 
-from pprint import pprint
 
 environment = Environment(
     loader=FileSystemLoader("templates/")
@@ -15,41 +13,46 @@ r = Renderer()
 @r.node(type="program_entry_point")
 def program_entry_point(node):
     template = environment.get_template("base.html")
-    body = [r.render(child) for child in node["body"]]
-    return template.render(body=body)
+
+    block = CodeBlock(r.indenter)
+    for child in node["body"]:
+        block.add(r.render(child))
+
+    codeline_template = environment.get_template("utils/codeline.html")
+    codelines = [codeline_template.render(line=line) for line in block.lines]
+    return template.render(body=codelines)
 
 
 @r.node(type="if_statement")
 def if_statement(node):
-    lines = []
+    block = CodeBlock(r.indenter)
 
-    play_btn = environment.get_template("utils/play-btn.html")
-    
     for i, branch in enumerate(node["branches"]):
         if i == 0:
-            lines.append(
-                make_codeline("%sif (%s) {") % (play_btn.render(), r.render(branch["condition"])))
+            header = "if (%s) {" % r.render(branch["condition"])
         elif "condition" in branch:
-            lines.append(
-                make_codeline("%selse if (%s) {") % (play_btn.render(), r.render(branch["condition"])))
+            header = "} else if (%s) {" % r.render(branch["condition"])
         else:
-            lines.append(
-                make_codeline("%selse {") % (play_btn.render()))
+            header = "} else {"
 
-        lines.append(r.render(branch["body"]))
-        lines.append(make_codeline("%s}") % (play_btn.render()))
+        block.add(header)
+        block.add_with_indent(r.render(branch["body"]))
     
-    return "".join(lines)
+    block.add("}")
+    return block.lines
 
 
-@r.node(type="while_statement")
+@r.node(type="while_loop")
 def while_statement(node):
-    lines = [
-        make_codeline("while (%s) {") % r.render(node["condition"]),
-        r.render(node["body"]),
-        make_codeline("}")
-    ]
-    return "".join(lines)
+    header = "while (%s) {" % r.render(node["condition"])
+    footer = "}"
+
+    block = CodeBlock(r.indenter)
+    block.add(header)
+    block.add_with_indent(r.render(node["body"]))
+    block.add(footer)
+
+    return block.lines
 
 
 @r.node(type="range_for_loop")
@@ -75,13 +78,30 @@ def for_statement(node):
         increment = f"{identifier} += {step}"
     
     initialization = f"int {identifier} = {start}"
-    
-    lines = [
-        make_codeline("for (%s; %s; %s) {" % (initialization, condition, increment)),
-        r.render(node["body"]),
-        make_codeline("}")
-    ]
-    return "".join(lines)
+    header = "for (%s; %s; %s) {" % (initialization, condition, increment)
+    footer = "}"
+
+    block = CodeBlock(r.indenter)
+    block.add(header)
+    block.add_with_indent(r.render(node["body"]))
+    block.add(footer)
+
+    return block.lines
+
+
+@r.node(type="compound_statement")
+def compound_statement(node):
+    block = CodeBlock(r.indenter)
+    for statement in node["statements"]:
+        block.add(r.render(statement))
+    return block.lines
+
+
+@r.node(type="assignment_statement")
+def assignment_statement(node):
+    target = r.render(node["target"])
+    value = r.render(node["value"])
+    return f"{target} = {value};"
 
 
 @r.node(type="add_operator")
@@ -251,18 +271,12 @@ def int_literal(node):
     return node["value"]
 
 
-@r.node(type="compound_statement")
-def compound_statement(node):
-    play_btn = environment.get_template("utils/play-btn.html")
-    
-    return "".join(play_btn.render() + r.render(stmt) for stmt in node["statements"])
-
 
 @r.node(type="assignment_statement")
 def assignment_statement(node):
     target = r.render(node["target"])
     value = r.render(node["value"])
-    return make_codeline(f"{target} = {value};")
+    return f"{target} = {value};"
 
 
 def save_as_html(node):
@@ -273,6 +287,7 @@ def save_as_html(node):
 
 if __name__ == '__main__':
     code = """
+    while (a == 10)
     if (a < 3) {
         b = b + 6;
     } else if (a < 12) {

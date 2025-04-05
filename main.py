@@ -97,13 +97,6 @@ def compound_statement(node):
     return block.lines
 
 
-@r.node(type="assignment_statement")
-def assignment_statement(node):
-    target = r.render(node["target"])
-    value = r.render(node["value"])
-    return f"{target} = {value};"
-
-
 @r.node(type="add_operator")
 def add_operator(node):
     left = r.render(node["left_operand"])

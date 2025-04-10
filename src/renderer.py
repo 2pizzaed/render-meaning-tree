@@ -2,9 +2,11 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from src.html_utils import make_codeline
-from src.types import NodeType
+from src.types import NodeType, Node
+from src.serializers.serializer import Serializer
 
-class Renderer:
+
+class Renderer(Serializer):
     """Рендер узлов meaning-tree в json-форме.
 
     Пример использования:
@@ -19,22 +21,11 @@ class Renderer:
     """
 
     def __init__(self, indent_count: int = 4) -> None:
-        self.render_funcs: Dict[NodeType, Any] = {}
+        super().__init__()
         self.indenter = Indenter(indent_count)
 
-    def node(self, *, type: NodeType):
-        def decorator(func):
-            self.render_funcs[type] = func
-            return func
-
-        return decorator
-
-    def render(self, node) -> str:
-        node_type = node.get("type")
-        if node_type in self.render_funcs:
-            return self.render_funcs[node_type](node)
-        
-        raise ValueError(f"No renderer found for '{node_type}'")
+    def render(self, node: Node) -> Any:
+        return self.serialize(node)
 
 
 class Indenter:

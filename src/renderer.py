@@ -1,7 +1,8 @@
 from __future__ import annotations
+from typing import Any, Dict
 
 from src.html_utils import make_codeline
-
+from src.types import NodeType
 
 class Renderer:
     """Рендер узлов meaning-tree в json-форме.
@@ -18,17 +19,12 @@ class Renderer:
     """
 
     def __init__(self, indent_count: int = 4) -> None:
-        self.render_funcs = {}
+        self.render_funcs: Dict[NodeType, Any] = {}
         self.indenter = Indenter(indent_count)
 
-    def node(self, **node_attrs):
-        
+    def node(self, *, type: NodeType):
         def decorator(func):
-            node_type = node_attrs.get("type")
-            if node_type is None:
-                raise ValueError("You need to provide node type")
-            
-            self.render_funcs[node_type] = func
+            self.render_funcs[type] = func
             return func
 
         return decorator

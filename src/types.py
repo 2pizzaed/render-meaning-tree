@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Dict, Any
 
 NodeType = Literal[
     "program_entry_point",
@@ -33,3 +33,7 @@ NodeType = Literal[
     "int_literal",
     "assignment_statement"
 ]
+
+NodeField = Literal["id", "type"] | str
+
+Node = Dict[NodeField, Any]

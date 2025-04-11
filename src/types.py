@@ -1,5 +1,6 @@
 from typing import Literal, Dict, Any
 
+
 NodeType = Literal[
     "program_entry_point",
     "if_statement",
@@ -15,7 +16,7 @@ NodeType = Literal[
     "pow_operator",
     "eq_operator",
     "ge_operator",
-    "gt_operator", 
+    "gt_operator",
     "le_operator",
     "lt_operator",
     "not_eq_operator",
@@ -31,7 +32,7 @@ NodeType = Literal[
     "unary_prefix_dec_operator",
     "identifier",
     "int_literal",
-    "assignment_statement"
+    "assignment_statement",
 ]
 
 NodeField = Literal["id", "type"] | str

@@ -1,8 +1,7 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any
 
-from src.html_utils import make_codeline
-from src.types import NodeType, Node
+from src.types import Node
 from src.serializers.serializer import Serializer
 
 

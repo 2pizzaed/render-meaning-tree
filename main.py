@@ -2,6 +2,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.renderer import Renderer, CodeBlock
 from src.meaning_tree import to_dict
+from src.html_utils import add_indent_lines
 
 
 environment = Environment(
@@ -18,8 +19,10 @@ def program_entry_point(node):
     for child in node["body"]:
         block.add(r.render(child))
 
+    lines = add_indent_lines(block.lines)
+
     codeline_template = environment.get_template("utils/codeline.html")
-    codelines = [codeline_template.render(line=line) for line in block.lines]
+    codelines = [codeline_template.render(line=line) for line in lines]
     return template.render(body=codelines)
 
 

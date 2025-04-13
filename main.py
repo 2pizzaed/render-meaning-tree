@@ -5,9 +5,7 @@ from src.meaning_tree import to_dict
 from src.html_utils import add_indent_lines
 
 
-environment = Environment(
-    loader=FileSystemLoader("templates/")
-)
+environment = Environment(loader=FileSystemLoader("templates/"))
 r = Renderer()
 
 
@@ -40,7 +38,7 @@ def if_statement(node):
 
         block.add(header)
         block.add_with_indent(r.render(branch["body"]))
-    
+
     block.add("}")
     return block.lines
 
@@ -61,13 +59,13 @@ def while_statement(node):
 @r.node(type="range_for_loop")
 def for_statement(node):
     identifier = r.render(node["identifier"])
-    
+
     range_obj = node["range"]
     start = r.render(range_obj["start"])
     stop = r.render(range_obj["stop"])
     step = r.render(range_obj["step"])
     range_type = range_obj["rangeType"]
-    
+
     if range_type == "up" or range_type == "unknown":
         # Если неизвестен тип, по умолчанию считаем, что инкремент идёт вверх
         condition = f"{identifier} < {stop}"
@@ -79,7 +77,7 @@ def for_statement(node):
         # На случай непредвиденного значения
         condition = f"{identifier} < {stop}"
         increment = f"{identifier} += {step}"
-    
+
     initialization = f"int {identifier} = {start}"
     header = "for (%s; %s; %s) {" % (initialization, condition, increment)
     footer = "}"
@@ -267,7 +265,6 @@ def int_literal(node):
     return node["value"]
 
 
-
 @r.node(type="assignment_statement")
 def assignment_statement(node):
     target = r.render(node["target"])
@@ -281,7 +278,7 @@ def save_as_html(node):
         output_file.write(content)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     code = """
     while (a == 10)
     if (a < 3) {
@@ -296,5 +293,5 @@ if __name__ == '__main__':
         a = a + 1;
     }
     """
-    
+
     save_as_html(to_dict("java", code))

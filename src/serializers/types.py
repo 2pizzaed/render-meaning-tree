@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from src.types import NodeType, Node
 
 
-Verb = Literal["parent_of", "type", "value", "body", "cond", "branch", "next_sibling"]
+Verb = Literal[
+    "parent_of", "type", "body", "cond", "branches_item", "next_sibling"
+]
 
 
 @dataclass(init=False)

@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from src.types import Node, NodeType
 
@@ -14,6 +14,13 @@ class Serializer:
     def node(self, *, type: NodeType):
         def decorator(func):
             self.serizlize_funcs[type] = func
+            return func
+
+        return decorator
+
+    def nodes(self, *, types: List[NodeType]):
+        def decorator(func):
+            [self.node(type=type)(func) for type in types]
             return func
 
         return decorator

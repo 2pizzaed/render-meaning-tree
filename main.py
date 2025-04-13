@@ -2,11 +2,19 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.renderer import Renderer, CodeBlock
 from src.meaning_tree import to_dict
-from src.html_utils import add_indent_lines
+from src.html_utils import add_indent_lines, syntax_highlight
 
 
 environment = Environment(loader=FileSystemLoader("templates/"))
 r = Renderer()
+
+JAVA_SYNTAX_HIGHTLIGHT = {
+    "keywords": ("if", "else", "for", "while"),
+    "special": "{}()=<>;+-/*",
+    "comment": ("//",),
+    "string": ('"', "'"),
+    "multiline_comments": (("/*", "*/"),),
+}
 
 
 @r.node(type="program_entry_point")
@@ -17,7 +25,9 @@ def program_entry_point(node):
     for child in node["body"]:
         block.add(r.render(child))
 
-    lines = add_indent_lines(block.lines)
+    lines = syntax_highlight(block.lines, **JAVA_SYNTAX_HIGHTLIGHT)
+
+    lines = add_indent_lines(lines)
 
     codeline_template = environment.get_template("utils/codeline.html")
     codelines = [codeline_template.render(line=line) for line in lines]

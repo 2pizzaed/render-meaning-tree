@@ -33,6 +33,7 @@ NodeType = Literal[
     "identifier",
     "int_literal",
     "assignment_statement",
+    "condition_branch",
 ]
 
 NodeField = Literal["id", "type"] | str

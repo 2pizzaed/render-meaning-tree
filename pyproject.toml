@@ -8,6 +8,8 @@ dependencies = [
     "jinja2>=3.1.6",
     "mypy>=1.15.0",
     "pytest>=8.3.5",
+    "networkx>=3.2.1",
+    "matplotlib>=3.8.4",
 ]
 
 [dependency-groups]

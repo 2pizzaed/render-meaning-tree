@@ -1,2 +1,3 @@
-# CRAP: Code Rendering AST Processor
-CRAP is a bold and dynamic utility that transforms your JSON-based abstract syntax tree (AST) into a sleek HTML representation. With CRAP, you can effortlessly visualize and navigate the structure of your code, making debugging, analysis, and presentation a breeze.
+# render-meaning-tree
+
+**render-meaning-tree** — это расширение для проекта meaning_tree, позволяющее преобразовать ваше JSON‑представление абстрактного синтаксического дерева сразу в наглядный HTML‑интерфейс. В основе визуализации лежит класс StatementFact из репозитория [CompPrehension](https://github.com/CompPrehension/CompPrehension), который собирает детальную информацию о каждом операторе (statement) в дереве.

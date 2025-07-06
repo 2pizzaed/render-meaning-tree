@@ -74,7 +74,7 @@ def _run_translator(
                 "translate",
                 "--from",
                 source_lang,
-                "--to",
+                "--serialize",
                 target_lang,
                 str(input_file),
             ],

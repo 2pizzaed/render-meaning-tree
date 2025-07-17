@@ -1,14 +1,17 @@
 from typing import Iterable
 import re
 
+INDENT_STEP_PX = 25.7
+INDENT_OFFSET_PX = 2.6
 
-def add_indent_line(line: str, left_level: int = 0, left_px: int = 26.8) -> str:
-    left_style = f"left: {left_level * left_px}px;"
+
+def add_indent_line(line: str, left_level: int = 0, left_px: int = INDENT_STEP_PX, left_offset_px: int = INDENT_OFFSET_PX) -> str:
+    left_style = f"left: {left_offset_px + left_level * left_px}px;"
     return f"<span class='indent-line' style='{left_style}'></span>{line}"
 
 
 def add_indent_lines(
-    lines: Iterable[str], left_level: int = 0, left_px: int = 26.8
+    lines: Iterable[str], left_level: int = 0, left_px: int = INDENT_STEP_PX
 ) -> Iterable[str]:
     for line in lines:
         first_nonspace = -1
@@ -21,7 +24,7 @@ def add_indent_lines(
             left_level = (first_nonspace + 1) // 4
 
             for i in range(1, left_level + 1):
-                line = add_indent_line(line, left_level=i)
+                line = add_indent_line(line, left_level=i, left_px=left_px)
 
         yield line
 

@@ -76,6 +76,11 @@ CompPrehensionQuestion(type='',
                                                       object_type='condition_branch')])
 ```
 
+### Пример с глубокой вложенностью
+```bash
+python  main.py -c "a = 10; if (b > 10) if (X) if (Y) if (Z) if (W) if (N) if(M) { a = b; c = 10; }"
+````
+
 ---
 
 ## Архитектура

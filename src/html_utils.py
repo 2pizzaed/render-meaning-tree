@@ -6,6 +6,7 @@ INDENT_OFFSET_PX = 2.6
 
 
 def add_indent_line(line: str, left_level: int = 0, left_px: int = INDENT_STEP_PX, left_offset_px: int = INDENT_OFFSET_PX) -> str:
+    """ Adds to a line of text a span tag that shows vertical line for given level of indent. """
     left_style = f"left: {left_offset_px + left_level * left_px}px;"
     return f"<span class='indent-line' style='{left_style}'></span>{line}"
 
@@ -13,6 +14,13 @@ def add_indent_line(line: str, left_level: int = 0, left_px: int = INDENT_STEP_P
 def add_indent_lines(
     lines: Iterable[str], left_level: int = 0, left_px: int = INDENT_STEP_PX
 ) -> Iterable[str]:
+    """
+    Returns a generator that adds indent lines to all the given code lines.
+    Args:
+        lines: iterable of code lines
+        left_level: not used (?!)
+        left_px: inner constant
+    """
     for line in lines:
         first_nonspace = -1
         for i, char in enumerate(line):

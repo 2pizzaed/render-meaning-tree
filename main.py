@@ -1,11 +1,6 @@
-from jinja2 import Environment, FileSystemLoader
-
 from src.meaning_tree import to_dict
 from src.cfg import cfg
 import argparse
-
-
-environment = Environment(loader=FileSystemLoader("templates/"))
 
 
 def save_as_html(node):

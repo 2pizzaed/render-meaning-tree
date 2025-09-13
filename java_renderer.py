@@ -1,7 +1,9 @@
-from main import environment
+from jinja2 import Environment, FileSystemLoader
+
 from src.html_utils import syntax_highlight, add_indent_lines
 from src.renderer import Renderer, CodeBlock
 
+environment = Environment(loader=FileSystemLoader("templates/"))
 r = Renderer()
 JAVA_SYNTAX_HIGHLIGHT = {
     "keywords": ("if", "else", "for", "while"),

@@ -6,7 +6,7 @@ from src.renderer import Renderer, CodeBlock
 environment = Environment(loader=FileSystemLoader("templates/"))
 r = Renderer()
 PYTHON_SYNTAX_HIGHLIGHT = {
-    "keywords": ("if", "else", "for", "while", "in", "range", "True", "False", "None"),
+    "keywords": ("if", "else", "for", "while", "not", "in", "range", "True", "False", "None"),
     "special": "{}()=<>:+-*/",
     "comment": ("#",),
     "string": ('"', "'", '"""', "'''"),
@@ -210,7 +210,7 @@ def short_circuit_or_operator(node):
     return f"{left} or {right}"
 
 
-@r.node(type="not_operator")
+@r.node(type="unary_operator")
 def not_operator(node):
     operand = r.render(node["operand"])
     return f"not {operand}"

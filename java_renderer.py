@@ -6,7 +6,7 @@ from src.renderer import Renderer, CodeBlock
 environment = Environment(loader=FileSystemLoader("templates/"))
 r = Renderer()
 JAVA_SYNTAX_HIGHLIGHT = {
-    "keywords": ("if", "else", "for", "while"),
+    "keywords": ("if", "else", "for", "do", "while"),
     "special": "{}()=<>;+-/*",
     "comment": ("//",),
     "string": ('"', "'"),

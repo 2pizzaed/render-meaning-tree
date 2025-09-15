@@ -5,12 +5,12 @@ from src.renderer import Renderer, CodeBlock
 
 environment = Environment(loader=FileSystemLoader("templates/"))
 r = Renderer()
-JAVA_SYNTAX_HIGHLIGHT = {
-    "keywords": ("if", "else", "for", "while"),
-    "special": "{}()=<>;+-/*",
-    "comment": ("//",),
-    "string": ('"', "'"),
-    "multiline_comments": (("/*", "*/"),),
+PYTHON_SYNTAX_HIGHLIGHT = {
+    "keywords": ("if", "else", "for", "while", "in", "range", "True", "False", "None"),
+    "special": "{}()=<>:+-*/",
+    "comment": ("#",),
+    "string": ('"', "'", '"""', "'''"),
+    "multiline_comments": (('"""', '"""'), ("'''", "'''")),
 }
 
 
@@ -24,8 +24,7 @@ def program_entry_point(node):
         block.add(r.render(child))
 
     # Add HTML styling
-    lines = syntax_highlight(block.lines, **JAVA_SYNTAX_HIGHLIGHT)
-
+    lines = syntax_highlight(block.lines, **PYTHON_SYNTAX_HIGHLIGHT)
     lines = add_indent_lines(lines)
 
     codeline_template = environment.get_template("utils/codeline.html")
@@ -39,28 +38,25 @@ def if_statement(node):
 
     for i, branch in enumerate(node["branches"]):
         if i == 0:
-            header = "if (%s) {" % r.render(branch["condition"])
+            header = "if %s:" % r.render(branch["condition"])
         elif "condition" in branch:
-            header = "} else if (%s) {" % r.render(branch["condition"])
+            header = "elif %s:" % r.render(branch["condition"])
         else:
-            header = "} else {"
+            header = "else:"
 
         block.add(header)
         block.add_with_indent(r.render(branch["body"]))
 
-    block.add("}")
     return block.lines
 
 
 @r.node(type="while_loop")
 def while_statement(node):
-    header = "while (%s) {" % r.render(node["condition"])
-    footer = "}"
+    header = "while %s:" % r.render(node["condition"])
 
     block = CodeBlock(r.indenter)
     block.add(header)
     block.add_with_indent(r.render(node["body"]))
-    block.add(footer)
 
     return block.lines
 
@@ -68,33 +64,28 @@ def while_statement(node):
 @r.node(type="range_for_loop")
 def for_statement(node):
     identifier = r.render(node["identifier"])
-
     range_obj = node["range"]
+    
     start = r.render(range_obj["start"])
     stop = r.render(range_obj["stop"])
     step = r.render(range_obj["step"])
     range_type = range_obj["rangeType"]
 
     if range_type == "up" or range_type == "unknown":
-        # Если неизвестен тип, по умолчанию считаем, что инкремент идёт вверх
-        condition = f"{identifier} < {stop}"
-        increment = f"{identifier} += {step}"
+        # For forward ranges, we use range(start, stop, step)
+        range_expr = f"range({start}, {stop}, {step})"
     elif range_type == "down":
-        condition = f"{identifier} > {stop}"
-        increment = f"{identifier} -= {step}"
+        # For backward ranges, we still use range() but with negative step
+        range_expr = f"range({start}, {stop}, -{step})"
     else:
-        # На случай непредвиденного значения
-        condition = f"{identifier} < {stop}"
-        increment = f"{identifier} += {step}"
+        # Default case
+        range_expr = f"range({start}, {stop}, {step})"
 
-    initialization = f"int {identifier} = {start}"
-    header = "for (%s; %s; %s) {" % (initialization, condition, increment)
-    footer = "}"
+    header = f"for {identifier} in {range_expr}:"
 
     block = CodeBlock(r.indenter)
     block.add(header)
     block.add_with_indent(r.render(node["body"]))
-    block.add(footer)
 
     return block.lines
 
@@ -132,7 +123,7 @@ def mul_operator(node):
 def div_operator(node):
     left = r.render(node["left_operand"])
     right = r.render(node["right_operand"])
-    return f"{left} / {right}"
+    return f"{left} / {right}"  # In Python 3, / is true division
 
 
 @r.node(type="mod_operator")
@@ -146,16 +137,14 @@ def mod_operator(node):
 def floor_div_operator(node):
     left = r.render(node["left_operand"])
     right = r.render(node["right_operand"])
-    # В Java деление с округлением вниз выглядит как: Math.floorDiv(a, b)
-    return f"Math.floorDiv({left}, {right})"
+    return f"{left} // {right}"  # Python's floor division operator
 
 
 @r.node(type="pow_operator")
 def pow_operator(node):
     left = r.render(node["left_operand"])
     right = r.render(node["right_operand"])
-    # В Java возведение в степень реализуется через Math.pow(a, b)
-    return f"Math.pow({left}, {right})"
+    return f"{left} ** {right}"  # Python's power operator
 
 
 @r.node(type="eq_operator")
@@ -204,28 +193,27 @@ def not_eq_operator(node):
 def reference_eq_operator(node):
     left = r.render(node["left_operand"])
     right = r.render(node["right_operand"])
-    # Для проверки ссылочной эквивалентности в Java обычно используется ==.
-    return f"{left} == {right}"
+    return f"{left} is {right}"  # Python's identity comparison operator
 
 
 @r.node(type="short_circuit_and_operator")
 def short_circuit_and_operator(node):
     left = r.render(node["left_operand"])
     right = r.render(node["right_operand"])
-    return f"{left} && {right}"
+    return f"{left} and {right}"
 
 
 @r.node(type="short_circuit_or_operator")
 def short_circuit_or_operator(node):
     left = r.render(node["left_operand"])
     right = r.render(node["right_operand"])
-    return f"{left} || {right}"
+    return f"{left} or {right}"
 
 
-@r.node(type="unary_operator")
+@r.node(type="not_operator")
 def not_operator(node):
     operand = r.render(node["operand"])
-    return f"!{operand}"
+    return f"not {operand}"
 
 
 @r.node(type="unary_minus_operator")
@@ -240,28 +228,32 @@ def unary_plus_operator(node):
     return f"+{operand}"
 
 
-@r.node(type="unary_postfix_inc_operator")
+@r.node(type="postfix_increment_operator")
 def postfix_increment_operator(node):
+    # Python doesn't have increment operators, so we'll use += 1
     operand = r.render(node["operand"])
-    return f"{operand}++"
+    return f"{operand} += 1"
 
 
-@r.node(type="unary_postfix_dec_operator")
+@r.node(type="postfix_decrement_operator")
 def postfix_decrement_operator(node):
+    # Python doesn't have decrement operators, so we'll use -= 1
     operand = r.render(node["operand"])
-    return f"{operand}--"
+    return f"{operand} -= 1"
 
 
-@r.node(type="unary_prefix_inc_operator")
+@r.node(type="prefix_increment_operator")
 def prefix_increment_operator(node):
+    # Python doesn't have increment operators, so we'll use += 1
     operand = r.render(node["operand"])
-    return f"++{operand}"
+    return f"{operand} += 1"
 
 
-@r.node(type="unary_prefix_dec_operator")
+@r.node(type="prefix_decrement_operator")
 def prefix_decrement_operator(node):
+    # Python doesn't have decrement operators, so we'll use -= 1
     operand = r.render(node["operand"])
-    return f"--{operand}"
+    return f"{operand} -= 1"
 
 
 @r.node(type="identifier")
@@ -271,7 +263,7 @@ def identifier(node):
 
 @r.node(type="int_literal")
 def int_literal(node):
-    return node["value"]
+    return str(node["value"])
 
 
 @r.node(type="assignment_statement")

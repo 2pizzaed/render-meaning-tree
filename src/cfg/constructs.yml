@@ -1,0 +1,160 @@
+# ================================
+# Универсальные контрольные структуры
+# ================================
+
+# --------------------------------
+# Условный оператор (if / else-if / else)
+# --------------------------------
+if_structure:
+  kind: alternative              # тип действия (ветвление)
+  actions:
+    - role: alt_cond             # условие ветвления
+      kind: expr
+      result: evaluatesTo        # true / false
+    - role: alt_branch           # ветка при true
+      kind: sequence
+    - role: alt_branch           # ветка при false
+      kind: sequence
+  transitions:
+    - from: alt_cond
+      to: alt_branch
+      on_expr_value: true        # если условие истинно → переход в "true"-ветку
+    - from: alt_cond
+      to: alt_branch
+      on_expr_value: false       # если ложно → в "false"-ветку
+    - from: alt_branch
+      to_when_absent: next_in_list   # если ветка отсутствует, переход вперёд
+
+# --------------------------------
+# Цикл while
+# --------------------------------
+while_structure:
+  kind: loop
+  actions:
+    - role: loop_cond
+      kind: expr
+    - role: loop_body
+      kind: sequence
+  transitions:
+    - from: loop_cond
+      to: loop_body
+      on_expr_value: true        # если условие истинно → выполняем тело
+    - from: loop_cond
+      to_when_absent: next_in_list
+      on_expr_value: false       # если ложно → выходим из цикла
+    - from: loop_body
+      to: loop_cond              # после тела возвращаемся к условию
+
+# --------------------------------
+# Цикл do-while
+# --------------------------------
+do_while_structure:
+  kind: loop
+  actions:
+    - role: loop_body
+      kind: sequence
+    - role: loop_cond
+      kind: expr
+  transitions:
+    - from: loop_body
+      to: loop_cond              # сначала выполняем тело
+    - from: loop_cond
+      to: loop_body
+      on_expr_value: true        # если условие истинно → снова тело
+    - from: loop_cond
+      to_when_absent: next_in_list
+      on_expr_value: false       # иначе → выход
+
+# --------------------------------
+# Цикл for (универсальная форма)
+# --------------------------------
+for_structure:
+  kind: loop
+  actions:
+    - role: loop_init
+      kind: stmt
+    - role: loop_cond
+      kind: expr
+    - role: loop_body
+      kind: sequence
+    - role: loop_update
+      kind: stmt
+  transitions:
+    - from: loop_init
+      to: loop_cond
+    - from: loop_cond
+      to: loop_body
+      on_expr_value: true
+    - from: loop_cond
+      to_when_absent: next_in_list
+      on_expr_value: false
+    - from: loop_body
+      to: loop_update
+    - from: loop_update
+      to: loop_cond
+
+# --------------------------------
+# Блок операторов { ... }
+# --------------------------------
+block_structure:
+  kind: sequence
+  actions:
+    - role: sequence_element
+      kind: stmt
+      role_in_list: first_in_list
+    - role: sequence_element
+      kind: stmt
+      role_in_list: next_in_list
+  transitions:
+    - from: sequence_element
+      to: sequence_element       # переход к следующему элементу
+      to_when_absent: next_in_list
+
+# --------------------------------
+# Вызов функции
+# --------------------------------
+call_structure:
+  kind: call
+  actions:
+    - role: func_call
+      kind: expr
+    - role: func_body
+      kind: sequence
+  transitions:
+    - from: func_call
+      to: func_body
+      do: add_stack_frame        # при входе в функцию создаём стековый фрейм
+    - from: func_body
+      to_when_absent: return_action
+      do: drop_stack_frame       # при выходе убираем фрейм
+
+# --------------------------------
+# return
+# --------------------------------
+return_action:
+  kind: stmt
+  transitions:
+    - from: self
+      to: interruption_target
+      interrupt_up_to: func_body
+      do: drop_stack_frame
+
+# --------------------------------
+# break
+# --------------------------------
+break_action:
+  kind: stmt
+  transitions:
+    - from: self
+      to: interruption_target
+      interrupt_up_to: loop_body
+
+# --------------------------------
+# continue
+# --------------------------------
+continue_action:
+  kind: stmt
+  transitions:
+    - from: self
+      to: loop_cond              # перескок сразу к проверке условия цикла
+      interrupt_up_to: loop_body

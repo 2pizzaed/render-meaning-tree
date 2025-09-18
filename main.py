@@ -1,10 +1,11 @@
 from src.meaning_tree import to_dict
-from src.cfg import cfg
+from src.cfg_tools import cfg
 import argparse
 
 
 def save_as_html(node):
-    from java_renderer import program_entry_point
+    # from java_renderer import program_entry_point
+    from python_renderer import program_entry_point
 
     html = program_entry_point(node)
     with open("result.html", "w", encoding='utf8') as f:

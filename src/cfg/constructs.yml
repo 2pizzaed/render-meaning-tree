@@ -1,160 +1,239 @@
 # ================================
 # Универсальные контрольные структуры
 # ================================
+# --------------------------------
+# Условный оператор (if / else-if / else)
+# --------------------------------
+simple_ifelse_structure:
+  kind: alternative_0              # тип действия (ветвление)
+  actions:
+    - role: cond             # условие ветвления
+      kind: condition        # true / false
+    - role: if_branch           # ветка при true
+      kind: compound
+      generalization: branch
+    - role: else_branch           # ветка при false
+      kind: compound
+      generalization: branch
+  transitions:
+    - from: BEGIN
+      to: cond
+    - from: cond
+      to: if_branch
+      condition_value: true        # если условие истинно → переход в "true"-ветку
+    - from: cond
+      to: else_branch
+      condition_value: false       # если ложно → в "false"-ветку
+    - from: branch
+      to: END
 
 # --------------------------------
 # Условный оператор (if / else-if / else)
 # --------------------------------
 if_structure:
   kind: alternative              # тип действия (ветвление)
+  ast_node: if_statement
   actions:
-    - role: alt_cond             # условие ветвления
-      kind: expr
-      result: evaluatesTo        # true / false
-    - role: alt_branch           # ветка при true
-      kind: sequence
-    - role: alt_branch           # ветка при false
-      kind: sequence
+    - role: first_cond             # первое условие ветвления
+      kind: condition        # true / false
+      identified_by: parent
+      role_in_list: first_in_list
+      generalization: cond
+    - role: next_cond             # следующее условие ветвления
+      kind: condition
+      identified_by: previous
+      role_in_list: next_in_list
+      generalization: cond
+    - role: if_branch           # ветка при true
+      kind: compound
+      identified_by: previous
+      identified_by_relation: body
+      generalization: branch
+    - role: else_branch           # ветка при false
+      kind: compound
+      generalization: branch
   transitions:
-    - from: alt_cond
-      to: alt_branch
-      on_expr_value: true        # если условие истинно → переход в "true"-ветку
-    - from: alt_cond
-      to: alt_branch
-      on_expr_value: false       # если ложно → в "false"-ветку
-    - from: alt_branch
-      to_when_absent: next_in_list   # если ветка отсутствует, переход вперёд
+    - from: BEGIN
+      to: first_cond
+    - from: cond
+      to: if_branch                # → переход в "true"-ветку
+      condition_value: true        # если условие истинно
+    - from: cond
+      to: next_cond
+      to_after_last: else_branch   # → в "false"-ветку
+      condition_value: false       # если ложно
+    - from: branch
+      to: END   # если ветка отсутствует, переход вперёд
 
 # --------------------------------
 # Цикл while
 # --------------------------------
 while_structure:
   kind: loop
+  ast_node: while_loop
+  effects:
+    - interruption_stop: break
   actions:
-    - role: loop_cond
-      kind: expr
-    - role: loop_body
-      kind: sequence
+    - role: cond
+      kind: condition
+    - role: body
+      kind: compound
+      effects:
+        - interruption_stop: continue
   transitions:
-    - from: loop_cond
-      to: loop_body
-      on_expr_value: true        # если условие истинно → выполняем тело
-    - from: loop_cond
-      to_when_absent: next_in_list
-      on_expr_value: false       # если ложно → выходим из цикла
-    - from: loop_body
-      to: loop_cond              # после тела возвращаемся к условию
+    - from: BEGIN
+      to: cond
+    - from: cond
+      to: body
+      condition_value: true        # если условие истинно → выполняем тело
+    - from: cond
+      to: END
+      condition_value: false       # если ложно → выходим из цикла
+    - from: body
+      to: cond                   # после тела возвращаемся к условию
 
 # --------------------------------
 # Цикл do-while
 # --------------------------------
 do_while_structure:
   kind: loop
+  ast_node: do_while_loop  # TODO !!??
+  effects:
+    - interruption_stop: break
   actions:
-    - role: loop_body
-      kind: sequence
-    - role: loop_cond
-      kind: expr
+    - role: body
+      kind: compound
+      effects:
+        - interruption_stop: continue
+    - role: cond
+      kind: condition
   transitions:
-    - from: loop_body
-      to: loop_cond              # сначала выполняем тело
-    - from: loop_cond
-      to: loop_body
-      on_expr_value: true        # если условие истинно → снова тело
-    - from: loop_cond
-      to_when_absent: next_in_list
-      on_expr_value: false       # иначе → выход
+    - from: BEGIN
+      to: body
+    - from: body
+      to: cond              # сначала выполняем тело
+    - from: cond
+      to: body
+      condition_value: true        # если условие истинно → снова тело
+    - from: cond
+      to: END
+      condition_value: false       # иначе → выход
 
 # --------------------------------
 # Цикл for (универсальная форма)
 # --------------------------------
 for_structure:
   kind: loop
+  ast_node: general_for_loop
+  effects:
+    - interruption_stop: break
   actions:
-    - role: loop_init
-      kind: stmt
-    - role: loop_cond
-      kind: expr
-    - role: loop_body
-      kind: sequence
-    - role: loop_update
-      kind: stmt
+    - role: init
+      kind: atom
+    - role: cond
+      kind: condition
+      assumed_value: true
+    - role: body
+      kind: compound
+      effects:
+        - interruption_stop: continue
+    - role: update
+      kind: atom
   transitions:
-    - from: loop_init
-      to: loop_cond
-    - from: loop_cond
-      to: loop_body
-      on_expr_value: true
-    - from: loop_cond
-      to_when_absent: next_in_list
-      on_expr_value: false
-    - from: loop_body
-      to: loop_update
-    - from: loop_update
-      to: loop_cond
+    - from: BEGIN
+      to: init
+    - from: init
+      to: cond
+    - from: cond
+      to: body
+      condition_value: true
+    - from: cond
+      to: END
+      condition_value: false       # false → выход
+    - from: body
+      to: update
+    - from: update
+      to: cond
 
 # --------------------------------
 # Блок операторов { ... }
 # --------------------------------
 block_structure:
   kind: sequence
+  ast_node: compound_statement
   actions:
-    - role: sequence_element
-      kind: stmt
+    - role: first
+      kind: action
+      identified_by: parent
       role_in_list: first_in_list
-    - role: sequence_element
-      kind: stmt
+      generalization: item
+    - role: next
+      kind: action
+      identified_by: previous
       role_in_list: next_in_list
+      generalization: item
   transitions:
-    - from: sequence_element
-      to: sequence_element       # переход к следующему элементу
-      to_when_absent: next_in_list
+    - from: BEGIN
+      to: first
+    - from: item
+      to: next       # переход к следующему элементу
+      to_after_last: END
 
 # --------------------------------
 # Вызов функции
 # --------------------------------
 call_structure:
   kind: call
+  ast_node: call  # TODO !!??
   actions:
-    - role: func_call
-      kind: expr
+#    - role: func_call
+#      kind: expression
     - role: func_body
-      kind: sequence
+      kind: compound
+      effects:
+        - interruption_stop: return
   transitions:
-    - from: func_call
+    - from: BEGIN
       to: func_body
       do: add_stack_frame        # при входе в функцию создаём стековый фрейм
     - from: func_body
-      to_when_absent: return_action
+      to: END
       do: drop_stack_frame       # при выходе убираем фрейм
 
 # --------------------------------
 # return
 # --------------------------------
 return_action:
-  kind: stmt
-  transitions:
-    - from: self
-      to: interruption_target
-      interrupt_up_to: func_body
-      do: drop_stack_frame
+  kind: atom
+  ast_node: return  # TODO !!??
+  effects:
+    - interruption_start: return
 
 # --------------------------------
 # break
 # --------------------------------
 break_action:
-  kind: stmt
-  transitions:
-    - from: self
-      to: interruption_target
-      interrupt_up_to: loop_body
+  kind: atom
+  ast_node: break  # TODO !!??
+  effects:
+    - interruption_start: break
 
 # --------------------------------
 # continue
 # --------------------------------
 continue_action:
-  kind: stmt
-  transitions:
-    - from: self
-      to: loop_cond              # перескок сразу к проверке условия цикла
-      interrupt_up_to: loop_body
+  kind: atom
+  ast_node: continue  # TODO !!??
+  effects:
+    - interruption_start: continue
+
+# --------------------------------
+# labeled break
+# --------------------------------
+labeled_break_action:
+  kind: atom
+  ast_node: labeled_break  # TODO !!??
+  effects:
+    - interruption_start: break
+  params:
+    - label_name

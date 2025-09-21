@@ -9,11 +9,11 @@ class SerializerNotFoundError(Exception):
 
 class Serializer:
     def __init__(self) -> None:
-        self.serizlize_funcs: Dict[NodeType, Any] = {}
+        self.serialize_funcs: Dict[NodeType, Any] = {}
 
     def node(self, *, type: NodeType):
         def decorator(func):
-            self.serizlize_funcs[type] = func
+            self.serialize_funcs[type] = func
             return func
 
         return decorator
@@ -27,7 +27,7 @@ class Serializer:
 
     def serialize(self, node: Node) -> Any:
         node_type = node.get("type")
-        if node_type in self.serizlize_funcs:
-            return self.serizlize_funcs[node_type](node)
+        if node_type in self.serialize_funcs:
+            return self.serialize_funcs[node_type](node)
 
         raise SerializerNotFoundError(f"No serializer function found for '{node_type}'")

@@ -5,7 +5,7 @@ from src.serializers.serializer import Serializer
 
 
 class Renderer(Serializer):
-    """Рендер узлов meaning-tree в json-форме.
+    """Рендер узлов meaning-tree, представленных в json-форме.
 
     Пример использования:
 

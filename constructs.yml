@@ -39,20 +39,22 @@ if_structure:
     - role: first_cond             # первое условие ветвления
       kind: condition        # true / false
       identification:
-        identified_by: parent
+        origin: parent
+        property: cond
         role_in_list: first_in_list
       generalization: cond
     - role: next_cond             # следующее условие ветвления
       kind: condition
       identification:
-        identified_by: previous
+        origin: previous
+        property: cond
         role_in_list: next_in_list
       generalization: cond
     - role: if_branch           # ветка при true
       kind: compound
       identification:
-        identified_by: previous
-        identified_by_relation: body
+        origin: previous
+        property: body
       generalization: branch
     - role: else_branch           # ветка при false
       kind: compound
@@ -212,13 +214,13 @@ block_structure:
     - role: first
       kind: action
       identification:
-        identified_by: parent
+        origin: parent
         role_in_list: first_in_list
       generalization: item
     - role: next
       kind: action
       identification:
-        identified_by: previous
+        origin: previous
         role_in_list: next_in_list
       generalization: item
   transitions:

@@ -20,10 +20,12 @@ simple_ifelse_structure:
       to: cond
     - from: cond
       to: if_branch
-      condition_value: true        # если условие истинно → переход в "true"-ветку
+      constraints:
+        condition_value: true        # если условие истинно → переход в "true"-ветку
     - from: cond
       to: else_branch
-      condition_value: false       # если ложно → в "false"-ветку
+      constraints:
+        condition_value: false       # если ложно → в "false"-ветку
     - from: branch
       to: END
 
@@ -36,18 +38,21 @@ if_structure:
   actions:
     - role: first_cond             # первое условие ветвления
       kind: condition        # true / false
-      identified_by: parent
-      role_in_list: first_in_list
+      identification:
+        identified_by: parent
+        role_in_list: first_in_list
       generalization: cond
     - role: next_cond             # следующее условие ветвления
       kind: condition
-      identified_by: previous
-      role_in_list: next_in_list
+      identification:
+        identified_by: previous
+        role_in_list: next_in_list
       generalization: cond
     - role: if_branch           # ветка при true
       kind: compound
-      identified_by: previous
-      identified_by_relation: body
+      identification:
+        identified_by: previous
+        identified_by_relation: body
       generalization: branch
     - role: else_branch           # ветка при false
       kind: compound
@@ -57,13 +62,15 @@ if_structure:
       to: first_cond
     - from: cond
       to: if_branch                # → переход в "true"-ветку
-      condition_value: true        # если условие истинно
+      constraints:
+        condition_value: true        # если условие истинно
     - from: cond
       to: next_cond
       to_after_last: else_branch   # → в "false"-ветку
-      condition_value: false       # если ложно
+      constraints:
+        condition_value: false       # если ложно
     - from: branch
-      to: END   # если ветка отсутствует, переход вперёд
+      to: END   # если ветка отсутствует, сразу окончание
 
 # --------------------------------
 # Цикл while
@@ -85,12 +92,47 @@ while_structure:
       to: cond
     - from: cond
       to: body
-      condition_value: true        # если условие истинно → выполняем тело
+      constraints:
+        condition_value: true        # если условие истинно → выполняем тело
     - from: cond
       to: END
-      condition_value: false       # если ложно → выходим из цикла
+      constraints:
+        condition_value: false       # если ложно → выходим из цикла
     - from: body
       to: cond                   # после тела возвращаемся к условию
+
+# --------------------------------
+# Цикл while+else (Python only)
+# --------------------------------
+while_else_structure:
+  kind: loop
+  ast_node: while_else_loop
+  effects:
+    - interruption_stop: break
+  actions:
+    - role: cond
+      kind: condition
+    - role: body
+      kind: compound
+      effects:
+        - interruption_stop: continue
+    - role: else
+      kind: compound
+  transitions:
+    - from: BEGIN
+      to: cond
+    - from: cond
+      to: body
+      constraints:
+        condition_value: true      # если условие истинно → выполняем тело
+    - from: body
+      to: cond                   # после тела возвращаемся к условию
+    - from: cond
+      to: else
+      constraints:
+        condition_value: false     # если ложно → выходим в else
+    - from: else
+      to: END
 
 # --------------------------------
 # Цикл do-while
@@ -114,10 +156,12 @@ do_while_structure:
       to: cond              # сначала выполняем тело
     - from: cond
       to: body
-      condition_value: true        # если условие истинно → снова тело
+      constraints:
+        condition_value: true        # если условие истинно → снова тело
     - from: cond
       to: END
-      condition_value: false       # иначе → выход
+      constraints:
+        condition_value: false       # иначе → выход
 
 # --------------------------------
 # Цикл for (универсальная форма)
@@ -132,7 +176,8 @@ for_structure:
       kind: atom
     - role: cond
       kind: condition
-      assumed_value: true
+      metadata:
+        assumed_value: true
     - role: body
       kind: compound
       effects:
@@ -146,10 +191,12 @@ for_structure:
       to: cond
     - from: cond
       to: body
-      condition_value: true
+      constraints:
+        condition_value: true
     - from: cond
       to: END
-      condition_value: false       # false → выход
+      constraints:
+        condition_value: false       # false → выход
     - from: body
       to: update
     - from: update
@@ -164,13 +211,15 @@ block_structure:
   actions:
     - role: first
       kind: action
-      identified_by: parent
-      role_in_list: first_in_list
+      identification:
+        identified_by: parent
+        role_in_list: first_in_list
       generalization: item
     - role: next
       kind: action
-      identified_by: previous
-      role_in_list: next_in_list
+      identification:
+        identified_by: previous
+        role_in_list: next_in_list
       generalization: item
   transitions:
     - from: BEGIN
@@ -195,10 +244,12 @@ call_structure:
   transitions:
     - from: BEGIN
       to: func_body
-      do: add_stack_frame        # при входе в функцию создаём стековый фрейм
+      effects:
+        call_stack: add_frame        # при входе в функцию создаём стековый фрейм
     - from: func_body
       to: END
-      do: drop_stack_frame       # при выходе убираем фрейм
+      effects:
+        call_stack: drop_frame       # при выходе убираем фрейм
 
 # --------------------------------
 # return
@@ -228,6 +279,18 @@ continue_action:
     - interruption_start: continue
 
 # --------------------------------
+# throw / raise
+# --------------------------------
+throw_action:
+  kind: atom
+  ast_node: throw_action  # TODO !!??
+  effects:
+    - interruption_start: exception
+  params:
+    - exception_type
+
+
+# --------------------------------
 # labeled break
 # --------------------------------
 labeled_break_action:
@@ -237,3 +300,45 @@ labeled_break_action:
     - interruption_start: break
   params:
     - label_name
+
+
+# --------------------------------
+# Блок try-except c нетипизированной (неизбирательной) ловлей исключений
+# --------------------------------
+try_except_structure:
+  kind: try
+  ast_node: try_except_statement  # TODO !!??
+  effects:
+    - interruption_stop: break
+  actions:
+    - role: try
+      kind: compound
+      effects:
+        - interruption_stop: continue
+    - role: catch
+      kind: compound
+    - role: else     # entered if no exception was raised. Python only.
+      kind: compound
+    - role: finally
+      kind: compound
+  transitions:
+    - from: BEGIN
+      to: try
+    - from: try
+      to: catch                     # в блок catch, если
+      constraints:
+        interruption_mode: exception  # были исключения
+      effects:
+        - interruption_stop: exception
+    - from: try
+      to: else                 # в блок else, если
+    - from: catch
+      to: finally
+      constraints:
+        interruption_mode: any  # В любом случае
+    - from: else
+      to: finally
+      constraints:
+        interruption_mode: any  # В любом случае
+    - from: finally
+      to: END

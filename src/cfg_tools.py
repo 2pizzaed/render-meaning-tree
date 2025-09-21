@@ -113,8 +113,8 @@ class ControlFlowGraph(Serializer):
             
         node_type = node.get("type", "")
         
-        if node_type in self.serizlize_funcs:
-            handler = self.serizlize_funcs[cast(NodeType, node_type)]
+        if node_type in self.serialize_funcs:
+            handler = self.serialize_funcs[cast(NodeType, node_type)]
             return handler(self, node, entry_block, exit_block)
         else:
             if entry_block is not None and not entry_block.is_entry: 

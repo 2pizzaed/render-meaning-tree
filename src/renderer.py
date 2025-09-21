@@ -1,5 +1,4 @@
-from __future__ import annotations
-from typing import Any
+from typing import Any, Self
 
 from src.types import Node
 from src.serializers.serializer import Serializer
@@ -62,7 +61,7 @@ class Indenter:
         indentation = self._fill_value * (self._indent_level * self._count)
         return f"{indentation}{s}"
 
-    def __enter__(self) -> Indenter:
+    def __enter__(self) -> Self:
         self._indent_level += 1
         return self
 

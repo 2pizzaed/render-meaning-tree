@@ -6,9 +6,8 @@
 from dataclasses import dataclass, field
 from operator import index
 from typing import Dict, List, Optional, Any, Callable, Tuple, Self
-import yaml
-import os
-import itertools
+import yaml, os, itertools, copy
+
 
 from adict import adict
 
@@ -29,41 +28,6 @@ class ASTNodeWrapper:
 
     def get(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
         return access_property.get(self, role, identification, previous_action_data)
-
-    def get_0(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
-        """ Extracts data according to requested method of access. """
-        if not identification:
-            # direct parent-based lookup
-            child = self.children.get(role, None)
-            if child is None:
-                ...  # make a wrapper for new node
-            return child
-        else:
-            # identification = identification
-            property_ = identification.get('property', role)
-            if 'role_in_list' not in identification:
-                if (origin := identification.get('origin')) and origin == 'previous':
-                    # relative to recent action
-                    assert previous_action_data, (self.__dict__, property_)
-                    return previous_action_data.get(property_)
-                else:
-                    return self.children.get(property_, None)
-            else:
-                # introspecting list
-                lst = self.children if ('property' not in identification) and isinstance(self.children, list) else self.children.get(property_)
-                assert isinstance(lst, list), lst
-
-                role_in_list = identification.get('role_in_list')
-                if role_in_list == 'first_in_list':
-                    # get 1st (or None)
-                    return next(iter(lst), None)
-                if role_in_list == 'next_in_list':
-                    # get next (or None)
-                    assert previous_action_data in lst, previous_action_data
-                    i = lst.index(previous_action_data)
-                    i += 1  # move to next element
-                    return lst[i] if i < len(lst) else None
-                raise ValueError(role_in_list)
 
 
 # Define dataclasses matching the constructs structure
@@ -202,16 +166,17 @@ class Edge:
     constraints: Optional[Dict[str, Any]] = None
     metadata: adict[str, Any] = field(default_factory=adict)
 
+
 class CFG:
     def __init__(self, name="cfg"):
         self.name = name
         self.nodes: Dict[str, Node] = {}
         self.edges: List[Edge] = []
         # init boundaries
-        self.begin_node = self.create(BEGIN, BEGIN)
-        self.end_node = self.create(END, END)
+        self.begin_node = self.add_node(BEGIN, BEGIN)
+        self.end_node = self.add_node(END, END)
 
-    def create(self, kind: str, role: str=None, metadata: dict=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
+    def add_node(self, kind: str, role: str=None, metadata: dict=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
         if not subgraph:
             # Node is an atom.
             nid = idgen.next(kind)
@@ -279,7 +244,7 @@ def make_cfg_for_construct(construct: ConstructSpec, node_data: ASTNodeWrapper) 
                 node.metadata.node_data)
             if target_action_data_primary:
                 target_action, data, primary = target_action_data_primary
-                node23 = cfg.create(
+                node23 = cfg.add_node(
                     kind=target_action.kind,
                     role=target_action.role,
                     metadata=adict(abstract_construct=action, node_data=data),
@@ -330,3 +295,202 @@ def make_cfg_for_construct(construct: ConstructSpec, node_data: ASTNodeWrapper) 
 # # Show constructs_raw head for user's info
 # print("\nconstructs.yml head (first 2000 chars):\n")
 # print(raw_yaml[:2000])
+
+
+# cfg_builder.py
+# ---------- парсер constructs.yml -> внутренние структуры ----------
+
+
+# ---------- CFG structures ----------
+
+# @dataclass
+# class Node:
+#     id: str
+#     kind: str
+#     role: Optional[str] = None
+#     attrs: Dict[str, Any] = field(default_factory=dict)
+#
+# @dataclass
+# class Edge:
+#     src: str
+#     dst: str
+#     cond: Optional[Dict[str, Any]] = None
+#     metadata: Dict[str, Any] = field(default_factory=dict)
+
+class CFG_gpt:
+    def __init__(self, name="cfg"):
+        self.name = name
+        self.nodes: Dict[str, Node] = {}
+        self.edges: List[Edge] = []
+        self._idc = itertools.count(1)
+    def new_id(self, prefix="n"):
+        return f"{prefix}_{next(self._idc)}"
+    def add_node(self, kind, role=None, attrs=None):
+        nid = self.new_id(kind)
+        node = Node(id=nid, kind=kind, role=role, attrs=attrs or {})
+        self.nodes[nid] = node
+        return node
+    def add_edge(self, src, dst, cond=None, metadata=None):
+        src_id = src.id if isinstance(src, Node) else src
+        dst_id = dst.id if isinstance(dst, Node) else dst
+        e = Edge(src=src_id, dst=dst_id, cond=cond, metadata=metadata or {})
+        self.edges.append(e)
+        return e
+    def merge(self, other: "CFG") -> Tuple[Dict[str,str], str, str]:
+        id_map = {}
+        entry_old = None; exit_old = None
+        for oid, onode in other.nodes.items():
+            nid = self.new_id(onode.kind)
+            id_map[oid] = nid
+            self.nodes[nid] = Node(id=nid, kind=onode.kind, role=onode.role, attrs=copy.deepcopy(onode.attrs))
+            if onode.role == "BEGIN": entry_old = oid
+            if onode.role == "END": exit_old = oid
+        for e in other.edges:
+            self.edges.append(Edge(src=id_map[e.src], dst=id_map[e.dst], cond=copy.deepcopy(e.cond), metadata=copy.deepcopy(e.metadata)))
+        entry_new = id_map[entry_old] if entry_old else None
+        exit_new = id_map[exit_old] if exit_old else None
+        return id_map, entry_new, exit_new
+
+# ---------- CFGBuilder ----------
+class CFGBuilder:
+    def __init__(self, constructs_map: Dict[str, ConstructSpec]):
+        self.constructs = constructs_map
+
+    def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
+        v = ast_node_wrapper.value
+        if isinstance(v, dict):
+            node_type = v.get("type")
+            for cs in self.constructs.values():
+                if cs.ast_node and cs.ast_node == node_type:
+                    return cs
+        return None
+
+    def make_cfg_for_construct(self, node_wrapper: ASTNodeWrapper, construct: ConstructSpec) -> CFG:
+        cfg = CFG(name=f"construct_{construct.name}")
+        begin = cfg.add_node(kind="BEGIN", role="BEGIN")
+        end = cfg.add_node(kind="END", role="END")
+        action_nodes_map: Dict[str, List[str]] = {}
+
+        for aid, action in construct.actions.items():
+            role = action.raw.get("role") or aid
+            kind = action.raw.get("kind") or "atom"
+            prop = action.raw.get("property") or role
+            prop_path = action.raw.get("property_path")
+            identification = {}
+            if prop_path:
+                identification['property_path'] = prop_path
+            else:
+                identification['property'] = prop
+                if action.raw.get("identified_by"):
+                    identification['origin'] = action.raw.get("identified_by")
+                if action.raw.get("role_in_list"):
+                    identification['role_in_list'] = action.raw.get("role_in_list")
+
+            fetched = node_wrapper.get(role, identification=identification)
+            nodes_for_action: List[str] = []
+            if fetched is None:
+                action_nodes_map[aid] = []
+                continue
+
+            if isinstance(fetched.value, list):
+                if fetched.children is None or not isinstance(fetched.children, list):
+                    fetched.children = [None]*len(fetched.value)
+                for idx, elem in enumerate(fetched.value):
+                    if fetched.children[idx] is None:
+                        fetched.children[idx] = ASTNodeWrapper(elem, parent=fetched)
+                    child_wrapper = fetched.children[idx]
+                    if kind == "compound" or (action.raw.get("generalization")=="branch" and action.raw.get("kind")=="compound"):
+                        subconstruct = self.find_construct_for_astnode(child_wrapper)
+                        if subconstruct:
+                            subcfg = self.make_cfg_for_construct(child_wrapper, subconstruct)
+                            idmap, entry_new, exit_new = cfg.merge(subcfg)
+                            # we represent the action by its entry node (transitions target entry),
+                            # exit node is available via exit_new in attrs if needed later
+                            nodes_for_action.append(entry_new)
+                        else:
+                            an = cfg.add_node(kind="atom", role=role, attrs={"source": child_wrapper.value})
+                            nodes_for_action.append(an.id)
+                    else:
+                        an = cfg.add_node(kind=kind, role=role, attrs={"source": child_wrapper.value})
+                        nodes_for_action.append(an.id)
+            else:
+                child_wrapper = fetched
+                if kind == "compound" or action.raw.get("kind")=="compound":
+                    subconstruct = self.find_construct_for_astnode(child_wrapper)
+                    if subconstruct:
+                        subcfg = self.make_cfg_for_construct(child_wrapper, subconstruct)
+                        idmap, entry_new, exit_new = cfg.merge(subcfg)
+                        nodes_for_action.append(entry_new)
+                    else:
+                        an = cfg.add_node(kind="atom", role=role, attrs={"source": child_wrapper.value})
+                        nodes_for_action.append(an.id)
+                else:
+                    an = cfg.add_node(kind=kind, role=role, attrs={"source": child_wrapper.value})
+                    nodes_for_action.append(an.id)
+
+            action_nodes_map[aid] = nodes_for_action
+
+        # Create transitions
+        for tr in construct.transitions:
+            trr = tr.raw
+            fr = trr.get("from")
+            to = trr.get("to") or trr.get("to_after_last") or trr.get("to_when_absent") or trr.get("to_after")
+            cond = None
+            if "condition_value" in trr:
+                cond = {"on_expr_value": trr["condition_value"]}
+            metadata = {}
+            if "effects" in trr:
+                metadata["effects"] = trr["effects"]
+
+            src_ids = []
+            if fr in ("BEGIN","start"):
+                src_ids = [begin.id]
+            elif fr in ("END",):
+                src_ids = [end.id]
+            else:
+                for aid, action in construct.actions.items():
+                    if aid == fr or action.raw.get("generalization")==fr or action.raw.get("role")==fr:
+                        src_ids.extend(action_nodes_map.get(aid, []))
+
+            dst_ids = []
+            if to in ("END","END_LAST"):
+                dst_ids = [end.id]
+            elif to in ("BEGIN",):
+                dst_ids = [begin.id]
+            else:
+                for aid, action in construct.actions.items():
+                    if aid == to or action.raw.get("generalization")==to or action.raw.get("role")==to:
+                        dst_ids.extend(action_nodes_map.get(aid, []))
+
+            if not dst_ids and ("to_after_last" in trr or trr.get("to_after")):
+                dst_ids = [end.id]
+            if not dst_ids and ("to_when_absent" in trr):
+                dst_ids = [end.id]
+
+            for s in src_ids:
+                for d in dst_ids:
+                    cfg.add_edge(s, d, cond=cond, metadata=metadata)
+
+        # If no transition produced, create simple linear chain (fallback)
+        if not cfg.edges:
+            prev = begin
+            for aid in construct.actions.keys():
+                nodes = action_nodes_map.get(aid, [])
+                for nid in nodes:
+                    cfg.add_edge(prev.id, nid)
+                    prev = cfg.nodes[nid]
+            cfg.add_edge(prev.id, end.id)
+
+        return cfg
+
+    def build(self, ast_root: ASTNodeWrapper) -> CFG:
+        cs = self.find_construct_for_astnode(ast_root)
+        if cs:
+            return self.make_cfg_for_construct(ast_root, cs)
+        # fallback empty
+        cfg = CFG("fallback")
+        b = cfg.add_node("BEGIN", role="BEGIN")
+        e = cfg.add_node("END", role="END")
+        cfg.add_edge(b.id, e.id)
+        return cfg
+

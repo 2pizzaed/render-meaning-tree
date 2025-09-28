@@ -15,6 +15,8 @@
 ```bash
 # 0. Склонируйте репозиторий
 git clone --recurse-submodules -j8 https://github.com/2pizzaed/render-meaning-tree.git
+  # или ...
+git clone --recurse-submodules -j8 git@github.com:2pizzaed/render-meaning-tree.git
 cd render-meaning-tree
 
 # 1. Сборка core‑модуля meaning_tree

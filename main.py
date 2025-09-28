@@ -38,9 +38,9 @@ if __name__ == "__main__":
         parser.print_help()
         exit(1)
 
-    # ast = to_dict("java", code)
+    ast = to_dict("java", code)
     # ast = to_dict("c++", code)
-    ast = to_dict("python", code)
+    # ast = to_dict("python", code)
 
     if not ast:
         print("Failed to parse the code")
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     if 1:
         # save json
-        with open("ast3.json", "w") as f:
+        with open("ast.json", "w") as f:
            json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"

@@ -1,3 +1,3 @@
 [submodule "meaning_tree"]
 	path = meaning_tree
-	url = https://github.com/2pizzaed/meaning_tree.git
+	url = git@github.com:2pizzaed/meaning_tree.git

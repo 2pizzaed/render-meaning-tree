@@ -1,3 +1,5 @@
+import json
+
 from src.meaning_tree import to_dict
 from src.cfg_tools import cfg
 import argparse
@@ -24,9 +26,9 @@ if __name__ == "__main__":
     parser.add_argument("--cfg", "-g", action="store_true", help="Generate control flow graph")
     parser.add_argument("--output", "-o", default="result", help="Output filename (without extension)")
     parser.add_argument("--analyze", "-a", action="store_true", help="Print CFG analysis information")
-    
+
     args = parser.parse_args()
-    
+
     if args.file:
         with open(args.file, "r") as f:
             code = f.read()
@@ -35,23 +37,30 @@ if __name__ == "__main__":
     else:
         parser.print_help()
         exit(1)
-    
-    ast = to_dict("java", code)
-    
+
+    # ast = to_dict("java", code)
+    # ast = to_dict("c++", code)
+    ast = to_dict("python", code)
+
     if not ast:
         print("Failed to parse the code")
         exit(1)
-    
+
+    if 1:
+        # save json
+        with open("ast3.json", "w") as f:
+           json.dump(ast, f, indent=2)
+
     html_output = f"{args.output}.html"
     save_as_html(ast)
     print(f"HTML output saved to {html_output}")
-    
+
     if args.cfg:
         cfg_output = f"{args.output}_cfg.png"
         cfg_graph = cfg.generate_cfg(ast)
         cfg.visualize(cfg_output)
         print(f"Control flow graph saved to {cfg_output}")
-        
+
         if args.analyze:
             print("\nCFG Analysis:")
             print(f"- Number of basic blocks: {len(cfg.blocks)}")
@@ -61,10 +70,10 @@ if __name__ == "__main__":
             print(f"- Back edges: {len(cfg.back_edges)}")
             print(f"- Critical edges: {len(cfg.critical_edges)}")
             print(f"- Impossible edges: {len(cfg.impossible_edges)}")
-    
+
     from src.serializers.compprehension_serializer import serialize
     from pprint import pprint
-    pprint(serialize(ast)) 
+    pprint(serialize(ast))
     
     
     

@@ -12,7 +12,8 @@ import itertools
 
 from adict import adict
 
-from src.types import NodeType
+from src.types import Node
+import src.cfg.access_property
 
 BEGIN = 'BEGIN'
 END = 'END'
@@ -20,16 +21,23 @@ END = 'END'
 
 @dataclass
 class ASTNodeWrapper:
-    value: NodeType
+    value: Node | dict[str, Node] | List[Node]  # AST dict (from json) having at least 'type' and 'id' keys.
+    parent: Self | None = None  # parent node that sees this node as a child.
     children: Dict[str, Self] | List[Self] | None = None
-    related: Optional[Dict[str, Self]] = None
+    related: Dict[str, Self] | None = None
     metadata: adict[str, Any] = field(default_factory=adict)
 
-    def get(self, role, identification: dict = None, previous_action_data: Self = None):
+    def get(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
+        return access_property.get(self, role, identification, previous_action_data)
+
+    def get_0(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
         """ Extracts data according to requested method of access. """
         if not identification:
             # direct parent-based lookup
-            return self.children.get(role, None)
+            child = self.children.get(role, None)
+            if child is None:
+                ...  # make a wrapper for new node
+            return child
         else:
             # identification = identification
             property_ = identification.get('property', role)
@@ -48,7 +56,7 @@ class ASTNodeWrapper:
                 role_in_list = identification.get('role_in_list')
                 if role_in_list == 'first_in_list':
                     # get 1st (or None)
-                    return next(lst, None)
+                    return next(iter(lst), None)
                 if role_in_list == 'next_in_list':
                     # get next (or None)
                     assert previous_action_data in lst, previous_action_data
@@ -66,41 +74,12 @@ class ActionSpec:
     kind: str = ''
     generalization: str | None = None  # general role
     effects: Dict[str, Any] = field(default_factory=dict)
-    identification: Dict[str, Any] = field(default_factory=dict)
+    identification: Dict[str, Any] = field(default_factory=dict)  # Fields: property (str), role_in_list (=> first_in_list | next_in_list), origin (=> previous | parent), property_path (=> ex. 'branches / [0] / cond' , '^ / [next] / cond' , '^ / body', etc.)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def find_node_data(self, node_data: ASTNodeWrapper, previous_action_data: ASTNodeWrapper=None) -> ASTNodeWrapper | None:
         """ Extracts data according to requested method of access. """
         return node_data.get(self.role, self.identification, previous_action_data)
-        # if not self.identification:
-        #     # direct parent-based lookup
-        #     return node_data.get(self.role, None)
-        # else:
-        #     idn = self.identification
-        #     property_ = idn.get('property', self.role)
-        #     if 'role_in_list' not in idn:
-        #         if (origin := idn.get('origin')) and origin == 'previous':
-        #             # relative to recent action
-        #             assert previous_action_data, (self.__dict__, node_data)
-        #             return previous_action_data.get(property_, None)
-        #         else:
-        #             return node_data.get(property_, None)
-        #     else:
-        #         # introspecting list
-        #         lst = node_data if ('property' not in idn) and isinstance(node_data, list) else node_data.get(property_)
-        #         assert isinstance(node_data, list), lst
-        #
-        #         role_in_list = idn.get('role_in_list')
-        #         if role_in_list == 'first_in_list':
-        #             # get 1st (or None)
-        #             return next(lst, None)
-        #         if role_in_list == 'next_in_list':
-        #             # get next (or None)
-        #             assert previous_action_data in lst, previous_action_data
-        #             i = lst.index(previous_action_data)
-        #             i += 1  # move to next element
-        #             return lst[i] if i < len(lst) else None
-        #         raise ValueError(role_in_list)
 
 
 @dataclass

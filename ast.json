@@ -1,0 +1,61 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "assignment_statement",
+      "target": {
+        "type": "identifier",
+        "name": "a",
+        "id": 1
+      },
+      "value": {
+        "type": "int_literal",
+        "value": 10,
+        "repr": "DECIMAL",
+        "id": 2
+      },
+      "id": 4
+    },
+    {
+      "type": "if_statement",
+      "branches": [
+        {
+          "condition": {
+            "type": "gt_operator",
+            "left_operand": {
+              "type": "identifier",
+              "name": "b",
+              "id": 5
+            },
+            "right_operand": {
+              "type": "int_literal",
+              "value": 10,
+              "repr": "DECIMAL",
+              "id": 6
+            },
+            "id": 7
+          },
+          "body": {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "b",
+              "id": 8
+            },
+            "value": {
+              "type": "int_literal",
+              "value": 10,
+              "repr": "DECIMAL",
+              "id": 9
+            },
+            "id": 11
+          },
+          "id": 24,
+          "type": "condition_branch"
+        }
+      ],
+      "id": 23
+    }
+  ],
+  "id": 25
+}

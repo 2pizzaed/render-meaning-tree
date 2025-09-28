@@ -41,13 +41,17 @@ if_structure:
       identification:
         origin: parent
         property: cond
+        property_path: 'branches / [0] / condition'
         role_in_list: first_in_list
       generalization: cond
+      metadata:
+        assumed_value: true
     - role: next_cond             # следующее условие ветвления
       kind: condition
       identification:
         origin: previous
         property: cond
+        property_path: '^ / [next] / condition'
         role_in_list: next_in_list
       generalization: cond
     - role: if_branch           # ветка при true
@@ -55,6 +59,7 @@ if_structure:
       identification:
         origin: previous
         property: body
+        property_path: '^ / body'
       generalization: branch
     - role: else_branch           # ветка при false
       kind: compound

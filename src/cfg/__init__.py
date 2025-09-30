@@ -44,8 +44,8 @@ class ActionSpec:
     def find_node_data(self, wrapped_ast: ASTNodeWrapper, previous_action_data: ASTNodeWrapper=None) -> ASTNodeWrapper | None:
         """ Extracts data according to requested method of access. """
         if self.role == END:  ### in (BEGIN, END):
-            # parent can be considered as data for END
-            return wrapped_ast.parent
+            # the construction itself should be returned as data for END
+            return wrapped_ast
 
         return wrapped_ast.get(self.role, self.identification, previous_action_data)
 

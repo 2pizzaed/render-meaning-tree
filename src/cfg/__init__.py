@@ -235,9 +235,9 @@ class CFG:
         return e
 
     def debug(self):
-        print(f"CFG {self.name}: nodes={len(self.nodes)} edges={len(self.edges)}")
+        print(f"CFG {self.name}: nodes={len(self.nodes)} edges={len(self.edges)}", )
         for nid,n in self.nodes.items():
-            print(" ○", nid, n.kind, n.role, )#("(subgraph)" if n.subgraph else ""))
+            print(" ○", nid, n.kind, n.role, n.metadata or "", )#("(subgraph)" if n.subgraph else ""))
         for e in self.edges:
             print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")
 

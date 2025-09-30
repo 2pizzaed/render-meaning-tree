@@ -34,7 +34,7 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 value.parent = parent_wrapper
             return value
 
-        w = cfg.ASTNodeWrapper(value=value, parent=parent_wrapper)
+        w = cfg.ASTNodeWrapper(ast_node=value, parent=parent_wrapper)
         # кеширование: если parent.children — dict, попробуем подобрать ключ; если список — добавить при наличии
         if parent_wrapper is not None:
             pc = parent_wrapper.children
@@ -46,10 +46,10 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
             elif isinstance(pc, list):
                 # если value уже представлен в parent.value (list), привяжем wrapper к соответствующей позиции
                 try:
-                    if isinstance(parent_wrapper.value, list):
-                        idx = parent_wrapper.value.index(value)
+                    if isinstance(parent_wrapper.ast_node, list):
+                        idx = parent_wrapper.ast_node.index(value)
                         # ensure list of wrappers length
-                        while len(pc) < len(parent_wrapper.value):
+                        while len(pc) < len(parent_wrapper.ast_node):
                             pc.append(None)
                         pc[idx] = w
                 except Exception:
@@ -62,10 +62,10 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
            в зависимости от self.value (dict->dict, list->list), иначе dict."""
         if self.children is not None:
             return
-        if isinstance(self.value, dict):
+        if isinstance(self.ast_node, dict):
             self.children = {}
-        elif isinstance(self.value, list):
-            self.children = [None] * len(self.value)
+        elif isinstance(self.ast_node, list):
+            self.children = [None] * len(self.ast_node)
         else:
             self.children = {}
 
@@ -79,8 +79,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
             if child_wrapper is not None:
                 return child_wrapper
             # попробуем взять из self.value если это dict
-            if isinstance(self.value, dict) and role in self.value:
-                val = self.value[role]
+            if isinstance(self.ast_node, dict) and role in self.ast_node:
+                val = self.ast_node[role]
                 w = make_wrapper_for(val, self)
                 # кешируем под ключом role
                 self.children[role] = w
@@ -100,8 +100,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                             w = self.children[idx]
                             if w is None:
                                 # try to wrap underlying value
-                                if isinstance(self.value, list) and idx < len(self.value):
-                                    w = make_wrapper_for(self.value[idx], self)
+                                if isinstance(self.ast_node, list) and idx < len(self.ast_node):
+                                    w = make_wrapper_for(self.ast_node[idx], self)
                                     self.children[idx] = w
                             return w
                 # else: no sensible mapping
@@ -145,8 +145,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 # ensure parent's children wrappers exist
                 if parent.children is None:
                     # try to build parent.children from parent.value if it's a list
-                    if isinstance(parent.value, list):
-                        parent.children = [None] * len(parent.value)
+                    if isinstance(parent.ast_node, list):
+                        parent.children = [None] * len(parent.ast_node)
                     else:
                         return None
                 # find current index in parent's children (by wrapper identity or by matching value in parent.value)
@@ -156,9 +156,9 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                         idx = parent.children.index(current)
                     except ValueError:
                         # not present in cached wrappers: try to find by matching value in parent.value
-                        if isinstance(parent.value, list):
+                        if isinstance(parent.ast_node, list):
                             try:
-                                idx = parent.value.index(current.value)
+                                idx = parent.ast_node.index(current.ast_node)
                             except ValueError:
                                 idx = None
                 else:
@@ -177,8 +177,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 wnext = parent.children[nxt]
                 if wnext is None:
                     # try to wrap underlying value
-                    if isinstance(parent.value, list) and nxt < len(parent.value):
-                        wnext = cfg.ASTNodeWrapper(value=parent.value[nxt], parent=parent)
+                    if isinstance(parent.ast_node, list) and nxt < len(parent.ast_node):
+                        wnext = cfg.ASTNodeWrapper(ast_node=parent.ast_node[nxt], parent=parent)
                         parent.children[nxt] = wnext
                     else:
                         return None
@@ -189,13 +189,13 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 inner = comp[1:-1].strip()
                 if inner.isdigit():
                     idx = int(inner)
-                    if isinstance(current.value, list) and 0 <= idx < len(current.value):
+                    if isinstance(current.ast_node, list) and 0 <= idx < len(current.ast_node):
                         # ensure current.children is list and has wrapper
                         if current.children is None:
-                            current.children = [None] * len(current.value)
+                            current.children = [None] * len(current.ast_node)
                         if isinstance(current.children, list):
                             if current.children[idx] is None:
-                                current.children[idx] = cfg.ASTNodeWrapper(value=current.value[idx], parent=current)
+                                current.children[idx] = cfg.ASTNodeWrapper(ast_node=current.ast_node[idx], parent=current)
                             current = current.children[idx]
                             continue
                         else:
@@ -205,7 +205,7 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 return None
             # normal property name: access dict key
             # if current.value is dict, get by key
-            if isinstance(current.value, dict):
+            if isinstance(current.ast_node, dict):
                 key = comp
                 # try to use cached wrapper in current.children (dict) if available
                 if current.children is None:
@@ -214,10 +214,10 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                     current = current.children[key]
                     continue
                 # otherwise get raw value and wrap
-                raw = current.value.get(key)
+                raw = current.ast_node.get(key)
                 if raw is None:
                     return None
-                w = cfg.ASTNodeWrapper(value=raw, parent=current)
+                w = cfg.ASTNodeWrapper(ast_node=raw, parent=current)
                 if isinstance(current.children, dict):
                     current.children[key] = w
                 current = w
@@ -237,8 +237,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 return None
             # list container could be parent.children (list) or parent.value[property]
             target_list = None
-            if identification.get('property') and isinstance(parent.value, dict):
-                target_list = parent.value.get(identification['property'])
+            if identification.get('property') and isinstance(parent.ast_node, dict):
+                target_list = parent.ast_node.get(identification['property'])
             elif isinstance(parent.children, list):
                 target_list = parent.children
             if not isinstance(target_list, list):
@@ -251,7 +251,7 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 if len(target_list) == 0:
                     return None
                 if parent.children[0] is None:
-                    parent.children[0] = cfg.ASTNodeWrapper(value=target_list[0], parent=parent)
+                    parent.children[0] = cfg.ASTNodeWrapper(ast_node=target_list[0], parent=parent)
                 return parent.children[0]
             if identification.get('role_in_list') == 'next_in_list':
                 # previous_action_data must be a wrapper present in that list
@@ -264,9 +264,9 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                         idx = parent.children.index(previous_action_data)
                     except ValueError:
                         # try to find by matching underlying value in parent.value list
-                        if isinstance(parent.value, list):
+                        if isinstance(parent.ast_node, list):
                             try:
-                                idx = parent.value.index(previous_action_data.value)
+                                idx = parent.ast_node.index(previous_action_data.ast_node)
                             except Exception:
                                 idx = None
                 if idx is None:
@@ -276,8 +276,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                     return None
                 if parent.children[nx] is None:
                     # create wrapper from parent.value if available
-                    if isinstance(parent.value, list) and nx < len(parent.value):
-                        parent.children[nx] = cfg.ASTNodeWrapper(value=parent.value[nx], parent=parent)
+                    if isinstance(parent.ast_node, list) and nx < len(parent.ast_node):
+                        parent.children[nx] = cfg.ASTNodeWrapper(ast_node=parent.ast_node[nx], parent=parent)
                     else:
                         return None
                 return parent.children[nx]
@@ -286,8 +286,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
         else:
             # origin not parent => look in self
             target_list = None
-            if identification.get('property') and isinstance(self.value, dict):
-                target_list = self.value.get(identification['property'])
+            if identification.get('property') and isinstance(self.ast_node, dict):
+                target_list = self.ast_node.get(identification['property'])
             elif isinstance(self.children, list):
                 target_list = self.children
             if not isinstance(target_list, list):
@@ -300,14 +300,14 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                     return None
                 if self.children[0] is None:
                     # wrap underlying value if exists
-                    if isinstance(self.value, list) and 0 < len(self.value):
-                        self.children[0] = cfg.ASTNodeWrapper(value=self.value[0], parent=self)
+                    if isinstance(self.ast_node, list) and 0 < len(self.ast_node):
+                        self.children[0] = cfg.ASTNodeWrapper(ast_node=self.ast_node[0], parent=self)
                     else:
                         # if target_list already contains wrappers, use them
                         if isinstance(target_list[0], cfg.ASTNodeWrapper):
                             self.children[0] = target_list[0]
                         else:
-                            self.children[0] = cfg.ASTNodeWrapper(value=target_list[0], parent=self)
+                            self.children[0] = cfg.ASTNodeWrapper(ast_node=target_list[0], parent=self)
                 return self.children[0]
             if role_in_list == 'next_in_list':
                 if previous_action_data is None:
@@ -318,9 +318,9 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 except Exception:
                     # try locate in underlying list
                     idx = None
-                    if isinstance(self.value, list):
+                    if isinstance(self.ast_node, list):
                         try:
-                            idx = self.value.index(previous_action_data.value)
+                            idx = self.ast_node.index(previous_action_data.ast_node)
                         except Exception:
                             idx = None
                 if idx is None:
@@ -329,8 +329,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 if nx >= len(self.children):
                     return None
                 if self.children[nx] is None:
-                    if isinstance(self.value, list) and nx < len(self.value):
-                        self.children[nx] = cfg.ASTNodeWrapper(value=self.value[nx], parent=self)
+                    if isinstance(self.ast_node, list) and nx < len(self.ast_node):
+                        self.children[nx] = cfg.ASTNodeWrapper(ast_node=self.ast_node[nx], parent=self)
                     else:
                         return None
                 return self.children[nx]
@@ -350,8 +350,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
             if isinstance(parent.children, dict) and prop in parent.children and parent.children[prop] is not None:
                 return parent.children[prop]
             # otherwise try to wrap parent's underlying value[prop]
-            if isinstance(parent.value, dict) and prop in parent.value:
-                w = cfg.ASTNodeWrapper(value=parent.value[prop], parent=parent)
+            if isinstance(parent.ast_node, dict) and prop in parent.ast_node:
+                w = cfg.ASTNodeWrapper(ast_node=parent.ast_node[prop], parent=parent)
                 if isinstance(parent.children, dict):
                     parent.children[prop] = w
                 return w
@@ -362,8 +362,8 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 self.children = {}
             if isinstance(self.children, dict) and prop in self.children and self.children[prop] is not None:
                 return self.children[prop]
-            if isinstance(self.value, dict) and prop in self.value:
-                w = cfg.ASTNodeWrapper(value=self.value[prop], parent=self)
+            if isinstance(self.ast_node, dict) and prop in self.ast_node:
+                w = cfg.ASTNodeWrapper(ast_node=self.ast_node[prop], parent=self)
                 if isinstance(self.children, dict):
                     self.children[prop] = w
                 return w

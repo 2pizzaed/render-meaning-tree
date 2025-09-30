@@ -8,15 +8,15 @@ def test_astnodewrapper_1():
     with open("ast.json") as f:
        ast_json = json.load(f)
 
-    root = ASTNodeWrapper(value=ast_json["body"][1])
+    root = ASTNodeWrapper(ast_node=ast_json["body"][1])
 
     res = root.get('branches', {'property_path':'branches/[0]/condition'})
     assert res is not None, "Result should not be None"
-    assert res.value == ast_json["body"][1]["branches"][0]["condition"]
+    assert res.ast_node == ast_json["body"][1]["branches"][0]["condition"]
 
     res2 = res.get('branches', {'property_path':'^ / [next] / condition'})
-    assert res2.value == ast_json["body"][1]["branches"][1]["condition"]
+    assert res2.ast_node == ast_json["body"][1]["branches"][1]["condition"]
 
     res3 = res2.get('branches', {'property_path':'^ / [next] / condition'})
-    assert res3.value == ast_json["body"][1]["branches"][1]["condition"]
+    assert res3.ast_node == ast_json["body"][1]["branches"][1]["condition"]
 

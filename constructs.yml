@@ -64,6 +64,7 @@ if_structure:
     - role: else_branch           # ветка при false
       kind: compound
       identification:
+        origin: parent
         property: elseBranch
       generalization: branch
   transitions:
@@ -222,12 +223,14 @@ block_structure:
       kind: action
       identification:
         origin: parent
+        property_path: 'statements / [0]'
         role_in_list: first_in_list
       generalization: item
     - role: next
       kind: action
       identification:
         origin: previous
+        property_path: '^ / [next]'
         role_in_list: next_in_list
       generalization: item
   transitions:

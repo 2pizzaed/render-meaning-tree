@@ -3,7 +3,8 @@ import unittest
 
 from src.cfg import ASTNodeWrapper
 from src.cfg import CFGBuilder
-from src.cfg import load_constructs
+from src.cfg.abstractions import load_constructs
+
 
 class TestCfgBuilder(unittest.TestCase):
 

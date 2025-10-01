@@ -1,4 +1,5 @@
-from src.cfg import load_constructs, CFG
+from src.cfg import CFG
+from src.cfg.abstractions import load_constructs
 from src.cfg.cfg_builder import CfgBuilder
 from src.cfg_tools import *
 

@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any, List, Self
 
 from adict import adict
 
+from src.serializers.types import FactSerializable
 from src.types import Node
 
 # CFG classes implemented using constructs.
@@ -22,20 +23,23 @@ class IDGen:
 idgen = IDGen(100)
 
 
-@dataclass
-class Node:
+@dataclass(kw_only=True)
+class Node(FactSerializable):
     id: str
     role: str
     kind: Optional[str] = None
+    cfg: 'CFG' = None
     metadata: adict = field(default_factory=adict)
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
 
 
-@dataclass
-class Edge:
+@dataclass(kw_only=True)
+class Edge(FactSerializable):
+    id: str
     src: str
     dst: str
+    cfg: 'CFG' = None
     constraints: Optional[Dict[str, Any]] = None
     metadata: adict = field(default_factory=adict)
 
@@ -43,6 +47,7 @@ class Edge:
 class CFG:
     def __init__(self, name="cfg"):
         """ Init a CFG and create BEGIN and END nodes """
+        self.id = idgen.next(name)
         self.name = name
         self.nodes: Dict[str, Node] = {}
         self.edges: List[Edge] = []
@@ -56,20 +61,20 @@ class CFG:
         if not subgraph:
             # Node is an atom.
             nid = idgen.next(kind)
-            node = Node(id=nid, kind=kind, role=role, metadata=metadata or adict())
+            node = Node(id=nid, kind=kind, role=role, metadata=metadata or adict(), cfg=self)
             self.nodes[nid] = node
             return node
         else:
             # Node is a wrapper over a compound.
             kind = 'enter-' + subgraph.name
             nid = idgen.next(kind)
-            enter_node = Node(id=nid, kind=kind, role=role,
+            enter_node = Node(id=nid, kind=kind, role=role, cfg=self,
                               # metadata=metadata or {}  # No effects on enter!?
                               )
             self.nodes[nid] = enter_node
             kind = 'leave-' + subgraph.name
             nid = idgen.next(kind)
-            leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or adict())
+            leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or adict(), cfg=self)
             self.nodes[nid] = leave_node
             # add everything from subgraph
             self.nodes |= subgraph.nodes
@@ -83,7 +88,7 @@ class CFG:
     def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata=None):
         src_id = src.id if isinstance(src, Node) else src
         dst_id = dst.id if isinstance(dst, Node) else dst
-        e = Edge(src=src_id, dst=dst_id, constraints=constraints, metadata=metadata or {})
+        e = Edge(id=idgen.next(), src=src_id, dst=dst_id, constraints=constraints, metadata=metadata or {}, cfg=self)
         self.edges.append(e)
         return e
 

@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Self
+from typing import Optional, Any, Self
 
 from adict import adict
 
@@ -40,7 +40,7 @@ class Edge(FactSerializable):
     src: str
     dst: str
     cfg: 'CFG' = None
-    constraints: Optional[Dict[str, Any]] = None
+    constraints: Optional[dict[str, Any]] = None
     metadata: adict = field(default_factory=adict)
 
 
@@ -49,8 +49,8 @@ class CFG:
         """ Init a CFG and create BEGIN and END nodes """
         self.id = idgen.next(name)
         self.name = name
-        self.nodes: Dict[str, Node] = {}
-        self.edges: List[Edge] = []
+        self.nodes: dict[str, Node] = {}
+        self.edges: list[Edge] = []
         # init boundaries
         self.begin_node = self.add_node(BEGIN, BEGIN)
         self.end_node = self.add_node(END, END)

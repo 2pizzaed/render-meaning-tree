@@ -1,16 +1,15 @@
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Self
+from typing import Optional
 
-import itertools
 from adict import adict
 
 from src.cfg.abstractions import ConstructSpec
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END
 
+
 # ---------- CFGBuilder ----------
 class CFGBuilder:
-    def __init__(self, constructs_map: Dict[str, ConstructSpec]):
+    def __init__(self, constructs_map: dict[str, ConstructSpec]):
         self.constructs = constructs_map
 
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:

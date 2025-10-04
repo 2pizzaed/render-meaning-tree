@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 import yaml
 
@@ -16,9 +16,9 @@ class ActionSpec:
     role: str
     kind: str = ''
     generalization: str | None = None  # general role
-    effects: Dict[str, Any] = field(default_factory=dict)
-    identification: Dict[str, Any] = field(default_factory=dict)  # Fields: property (str), role_in_list (=> first_in_list | next_in_list), origin (=> previous | parent), property_path (=> ex. 'branches / [0] / cond' , '^ / [next] / cond' , '^ / body', etc.)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    effects: dict[str, Any] = field(default_factory=dict)
+    identification: dict[str, Any] = field(default_factory=dict)  # Fields: property (str), role_in_list (=> first_in_list | next_in_list), origin (=> previous | parent), property_path (=> ex. 'branches / [0] / cond' , '^ / [next] / cond' , '^ / body', etc.)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def find_node_data(self, wrapped_ast: ASTNodeWrapper, previous_action_data: ASTNodeWrapper=None) -> ASTNodeWrapper | None:
         """ Extracts data according to requested method of access. """
@@ -34,23 +34,23 @@ class TransitionSpec:
     from_: Optional[str] = None
     to_: Optional[str] = None
     to_after_last: Optional[str] = None
-    constraints: Optional[Dict[str, Any]] = None
-    effects: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    constraints: Optional[dict[str, Any]] = None
+    effects: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ConstructSpec:
     name: str
-    actions: Dict[str, ActionSpec] = field(default_factory=dict)
-    transitions: List[TransitionSpec] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    actions: dict[str, ActionSpec] = field(default_factory=dict)
+    transitions: list[TransitionSpec] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         for b in (BEGIN, END):
             self.actions[b] = ActionSpec(role=b, kind=b)
 
-    def find_transitions_from_action(self, action: ActionSpec) -> List[TransitionSpec]:
+    def find_transitions_from_action(self, action: ActionSpec) -> list[TransitionSpec]:
         roles = (action.role, action.generalization)
         return [tr
                 for tr in self.transitions

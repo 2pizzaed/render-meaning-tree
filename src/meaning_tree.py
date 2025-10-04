@@ -1,19 +1,18 @@
-import tempfile
-import subprocess
 import json
-import os
 import logging
-from pathlib import Path
-from typing import Dict, Optional, Any, Generator
+import subprocess
+import tempfile
+from collections.abc import Generator
 from contextlib import contextmanager
-
+from pathlib import Path
+from typing import Any
 
 JAR_PATH = Path("meaning_tree/modules/application/target/application-1.0-SNAPSHOT.jar")
 
 logger = logging.getLogger(__name__)
 
 
-def to_dict(language: str, code: str) -> Optional[Dict[str, Any]]:
+def to_dict(language: str, code: str) -> dict[str, Any] | None:
     """Convert code from language to dict representation using meaning tree
 
     Args:
@@ -24,15 +23,38 @@ def to_dict(language: str, code: str) -> Optional[Dict[str, Any]]:
         Dict representation of the code's meaning tree or None if conversion failed
     """
     with _temp_file(code, language) as temp_file_path:
-        json_output = _run_translator(temp_file_path, language)
+        json_output = _run_serialize(temp_file_path, language)
         if not json_output:
             return None
 
         return _parse_json(json_output)
 
 
+def to_tokens(from_language: str, code: str,
+              to_language: str | None = None) -> dict[str, Any] | None:
+    with _temp_file(code, from_language) as temp_file_path:
+        json_output = _run_tokenize(temp_file_path,
+                                    from_language, to_language)
+        if not json_output:
+            return None
+
+        return _parse_json(json_output)
+
+
+def convert(code: str, from_language: str, to_language: str,
+            source_map: bool = False) -> str | dict[str, Any] | None:
+    with _temp_file(code, from_language) as temp_file_path:
+        output = _run_convert(temp_file_path,
+                               from_language, to_language)
+        if not output:
+            return None
+        if source_map:
+            return _parse_json(output)
+        return output
+
+
 @contextmanager
-def _temp_file(content: str, extension: str) -> Generator[Path, None, None]:
+def _temp_file(content: str, extension: str) -> Generator[Path]:
     """Create a temporary file with the given content and extension
 
     Args:
@@ -42,17 +64,40 @@ def _temp_file(content: str, extension: str) -> Generator[Path, None, None]:
     Yields:
         Path: Path to the temporary file
     """
-    temp_path = Path(tempfile.mktemp(suffix=f".{extension}"))
+    with tempfile.NamedTemporaryFile(suffix=f".{extension}", delete=False) as tmp_file:
+        tmp_file.write(content.encode())
+        temp_path = Path(tmp_file.name)
     try:
-        temp_path.write_text(content)
         yield temp_path
     finally:
         temp_path.unlink(missing_ok=True)
 
 
-def _run_translator(
-    input_file: Path, source_lang: str, target_lang: str = "json"
-) -> Optional[str]:
+def _run_meaning_tree(*args: str) -> str | None:
+    jar_path = JAR_PATH
+
+    try:
+        result = subprocess.run(
+            [  # noqa: S607
+                "java",
+                "-jar",
+                str(jar_path),
+                *args,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        logger.exception("Error calling Java application")
+        logger.error("Error output: %s", e.stderr)
+        return None
+
+
+def _run_serialize(
+    input_file: Path, source_lang: str, target_lang: str = "json",
+) -> str | None:
     """Run the meaning tree translator on the given input file
 
     Args:
@@ -63,33 +108,56 @@ def _run_translator(
     Returns:
         Output of the translator or None if translation failed
     """
-    jar_path = JAR_PATH
-
-    try:
-        result = subprocess.run(
-            [
-                "java",
-                "-jar",
-                str(jar_path),
-                "translate",
-                "--from",
-                source_lang,
-                "--serialize",
-                target_lang,
-                str(input_file),
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error calling Java application: {e}")
-        logger.error(f"Error output: {e.stderr}")
-        return None
+    return _run_meaning_tree(
+        "translate",
+        "--from",
+        source_lang,
+        "--serialize",
+        target_lang,
+        str(input_file),
+    )
 
 
-def _parse_json(json_data: str) -> Optional[Dict[str, Any]]:
+def _run_tokenize(
+    input_file: Path, source_lang: str, target_lang: str | None = None,
+) -> str | None:
+    if target_lang is None:
+        conv_args = [
+            "--tokenize-noconvert",
+        ]
+    else:
+        conv_args = [
+            "--to",
+            target_lang,
+            "--tokenize",
+        ]
+    return _run_meaning_tree(
+        "translate",
+        "--from",
+        source_lang,
+        *conv_args,
+        str(input_file),
+    )
+
+
+def _run_convert(
+    input_file: Path,
+    source_lang: str,
+    target_lang: str,
+    source_map: bool = False,
+) -> str | None:
+    return _run_meaning_tree(
+        "translate",
+        "--from",
+        source_lang,
+        "--to",
+        target_lang,
+        *(["--source-map"] if source_map else []),
+        str(input_file),
+    )
+
+
+def _parse_json(json_data: str) -> dict[str, Any] | None:
     """Parse JSON data into a dictionary
 
     Args:
@@ -100,6 +168,6 @@ def _parse_json(json_data: str) -> Optional[Dict[str, Any]]:
     """
     try:
         return json.loads(json_data)
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing JSON output: {e}")
+    except json.JSONDecodeError:
+        logger.exception("Error parsing JSON output: %s")
         return None

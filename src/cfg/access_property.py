@@ -1,7 +1,238 @@
-from typing import Dict, List, Optional, Any, Callable, Tuple, Self
+"""
+Модуль для навигации по AST-дереву с использованием property_path.
+
+Этот модуль предоставляет функциональность для навигации по AST-дереву с помощью
+специального мини-языка property_path, который позволяет выполнять сложные переходы
+между узлами дерева.
+
+=== СПЕЦИФИКАЦИЯ мини-языка PROPERTY_PATH ===
+
+property_path - это строка, состоящая из компонентов, разделённых символом '/'.
+Пробелы вокруг слэшей игнорируются.
+
+КОМПОНЕНТЫ:
+1. '^' - переход к родительскому узлу
+2. '[next]' - переход к следующему элементу в списке (sibling next)
+3. '[N]' - доступ к элементу списка по индексу N (где N - число)
+4. 'name' - доступ к свойству словаря по ключу 'name'
+
+ПРАВИЛА:
+- Компоненты обрабатываются слева направо
+- Пустой путь ('') возвращает None
+- Путь только из пробелов ('   ') возвращает None
+- При ошибке навигации возвращается None
+
+=== ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ ===
+
+1. Простой доступ к свойству:
+   'branches' -> доступ к свойству 'branches' текущего узла
+
+2. Доступ к элементу списка:
+   'branches/[0]' -> первый элемент списка 'branches'
+   'branches/[2]' -> третий элемент списка 'branches'
+
+3. Доступ к вложенным свойствам:
+   'branches/[0]/condition' -> свойство 'condition' первого элемента 'branches'
+   'branches/[0]/condition/left_operand' -> глубоко вложенное свойство
+
+4. Навигация к родителю:
+   '^' -> переход к родительскому узлу
+   '^/^' -> переход на два уровня вверх
+
+5. Навигация к следующему элементу:
+   '[next]' -> переход к следующему элементу в списке родителей
+   '^/[next]' -> переход к родителю, затем к следующему элементу
+
+6. Сложные комбинации:
+   'branches/[0]/condition/left_operand/^/^' -> вниз, затем два уровня вверх
+   'branches/[0]/[next]/condition' -> первый элемент, следующий, затем condition
+
+=== ПРОСТЫЕ СЛУЧАИ ИСПОЛЬЗОВАНИЯ ===
+
+1. Без property_path (простой доступ по role):
+   wrapper.get('branches') -> доступ к свойству 'branches'
+   wrapper.get('condition') -> доступ к свойству 'condition'
+
+2. С property_path:
+   wrapper.get('branches', {'property_path': 'branches/[0]/condition'})
+   wrapper.get('any_role', {'property_path': '^/branches/[1]'})
+
+3. С previous_action_data (для [next]):
+   wrapper.get('branches', {'property_path': '[next]'}, previous_wrapper)
+
+=== ОБРАБОТКА ОШИБОК ===
+
+- Несуществующий путь: возвращает None
+- Несуществующий индекс: возвращает None
+- Некорректный индекс (не число): возвращает None
+- Отрицательный индекс: возвращает None
+- Пустой identification: возвращает None
+- Некорректный тип identification: возвращает None
+
+=== КЭШИРОВАНИЕ ===
+
+Модуль автоматически кэширует созданные ASTNodeWrapper объекты в parent.children
+для повышения производительности при повторных обращениях.
+
+=== РЕКУРСИВНАЯ РЕАЛИЗАЦИЯ ===
+
+Функция resolve() использует рекурсивную реализацию для обработки property_path,
+что делает код более читаемым и легким для понимания.
+"""
 
 # from src.cfg import ASTNodeWrapper
 import src.cfg as cfg
+
+
+def resolve_property_path_recursive(current: 'cfg.ASTNodeWrapper', components: list[str],
+                                  prev_data: 'cfg.ASTNodeWrapper' = None) -> 'cfg.ASTNodeWrapper | None':
+    """
+    Рекурсивно обрабатывает property_path компоненты.
+    """
+    if not components:
+        return current
+    
+    if current is None:
+        return None
+        
+    comp = components[0]
+    remaining = components[1:]
+    
+    # upward move
+    if comp == '^':
+        if not prev_data:
+            prev_data = current
+        return resolve_property_path_recursive(current.parent, remaining, prev_data)
+    
+    # next sibling: require parent present and parent.children list-like
+    if comp == '[next]':
+        parent = current.parent
+        if parent is None:
+            return None
+        # ensure parent's children wrappers exist
+        if parent.children is None:
+            # try to build parent.children from parent.value if it's a list
+            if isinstance(parent.ast_node, list):
+                parent.children = [None] * len(parent.ast_node)
+            else:
+                return None
+        # find current index in parent's children (by wrapper identity or by matching value in parent.value)
+        idx = None
+        if isinstance(parent.children, list):
+            try:
+                idx = parent.children.index(current)
+            except ValueError:
+                # not present in cached wrappers: try to find by matching value in parent.value
+                if isinstance(parent.ast_node, list):
+                    try:
+                        idx = parent.ast_node.index(current.ast_node)
+                    except ValueError:
+                        idx = None
+        else:
+            # parent's children is dict — try to find current among values
+            for k,v in (parent.children.items() if isinstance(parent.children, dict) else []):
+                if v is current:
+                    # cannot determine order in dict => cannot do [next]
+                    idx = None
+                    break
+        if idx is None:
+            return None
+        nxt = idx + 1
+        if not isinstance(parent.children, list) or nxt >= len(parent.children):
+            return None
+        # ensure wrapper for next exists
+        wnext = parent.children[nxt]
+        if wnext is None:
+            # try to wrap underlying value
+            if isinstance(parent.ast_node, list) and nxt < len(parent.ast_node):
+                wnext = cfg.ASTNodeWrapper(ast_node=parent.ast_node[nxt], parent=parent)
+                parent.children[nxt] = wnext
+            else:
+                return None
+        return resolve_property_path_recursive(wnext, remaining, prev_data)
+    
+    # array index like [N]
+    if comp.startswith('[') and comp.endswith(']'):
+        inner = comp[1:-1].strip()
+        if inner.isdigit():
+            idx = int(inner)
+            if isinstance(current.ast_node, list) and 0 <= idx < len(current.ast_node):
+                # ensure current.children is list and has wrapper
+                if current.children is None:
+                    current.children = [None] * len(current.ast_node)
+                if isinstance(current.children, list):
+                    if current.children[idx] is None:
+                        current.children[idx] = cfg.ASTNodeWrapper(ast_node=current.ast_node[idx], parent=current)
+                    return resolve_property_path_recursive(current.children[idx], remaining, prev_data)
+                else:
+                    # children not list => cannot index
+                    return None
+        # unsupported bracket content
+        return None
+    
+    # normal property name: access dict key
+    # if current.value is dict, get by key
+    if isinstance(current.ast_node, dict):
+        key = comp
+        # try to use cached wrapper in current.children (dict) if available
+        if current.children is None:
+            current.children = {}
+        if isinstance(current.children, dict) and key in current.children and current.children[key] is not None:
+            return resolve_property_path_recursive(current.children[key], remaining, prev_data)
+        # otherwise get raw value and wrap
+        raw = current.ast_node.get(key)
+        if raw is None:
+            return None
+        w = cfg.ASTNodeWrapper(ast_node=raw, parent=current)
+        if isinstance(current.children, dict):
+            current.children[key] = w
+        return resolve_property_path_recursive(w, remaining, prev_data)
+    
+    # if we get here — cannot resolve component on current.value
+    return None
+
+
+def resolve_role_in_list_recursive(target_wrapper: 'cfg.ASTNodeWrapper', role_in_list: str, 
+                                 prev_data: 'cfg.ASTNodeWrapper' = None) -> 'cfg.ASTNodeWrapper | None':
+    """
+    Рекурсивно обрабатывает role_in_list логику.
+    """
+    if role_in_list == 'first_in_list':
+        if len(target_wrapper.ast_node) == 0:
+            return None
+        if target_wrapper.children is None:
+            target_wrapper.children = [None] * len(target_wrapper.ast_node)
+        if isinstance(target_wrapper.children, list) and target_wrapper.children[0] is None:
+            target_wrapper.children[0] = cfg.ASTNodeWrapper(ast_node=target_wrapper.ast_node[0], parent=target_wrapper)
+        return target_wrapper.children[0] if isinstance(target_wrapper.children, list) else None
+    
+    if role_in_list == 'next_in_list':
+        if prev_data is None:
+            return None
+        # find index of prev_data
+        if target_wrapper.children is None:
+            target_wrapper.children = [None] * len(target_wrapper.ast_node)
+        if not isinstance(target_wrapper.children, list):
+            return None
+        try:
+            idx = target_wrapper.children.index(prev_data)
+        except ValueError:
+            # try locate in underlying list
+            try:
+                idx = target_wrapper.ast_node.index(prev_data.ast_node)
+            except ValueError:
+                return None
+        nx = idx + 1
+        if nx >= len(target_wrapper.children):
+            return None
+        if target_wrapper.children[nx] is None:
+            if nx < len(target_wrapper.ast_node):
+                target_wrapper.children[nx] = cfg.ASTNodeWrapper(ast_node=target_wrapper.ast_node[nx], parent=target_wrapper)
+            else:
+                return None
+        return target_wrapper.children[nx]
+    
+    return None
 
 
 def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, previous_action_data: 'cfg.ASTNodeWrapper' = None) -> 'cfg.ASTNodeWrapper | None':
@@ -71,7 +302,7 @@ def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, 
 
     # --- основной код ----------------------------
     # 1) простая (без identification) логика: достать из кеша или из self.value по ключу
-    if not identification:
+    if identification is None or not identification:
         ensure_children_structure()
         # если children — dict, пробуем кеш и затем value lookup
         if isinstance(self.children, dict):
@@ -109,6 +340,9 @@ def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, 
 
     # 2) identification-present logic
     # handle relative origin previous
+    if not isinstance(identification, dict):
+        return None
+    
     prop = identification.get('property') if identification else role
     origin = identification.get('origin') if identification else None
     role_in_list = identification.get('role_in_list') if identification else None
@@ -129,106 +363,9 @@ def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, 
     if prop_path:
         # normalize and split path: components separated by '/'
         comps = [c.strip() for c in prop_path.split('/') if c.strip() != ""]
-        current: cfg.ASTNodeWrapper | None = self
-        for comp in comps:
-            if current is None:
-                return None
-            # upward move
-            if comp == '^':
-                if not previous_action_data:
-                    # if going next from current, we should remember where started from (note this implementation limits us to at most one [next] in the chain).
-                    previous_action_data = current
-                current = current.parent
-                continue
-            # next sibling: require parent present and parent.children list-like
-            if comp == '[next]':
-                parent = current.parent
-                if parent is None:
-                    return None
-                # ensure parent's children wrappers exist
-                if parent.children is None:
-                    # try to build parent.children from parent.value if it's a list
-                    if isinstance(parent.ast_node, list):
-                        parent.children = [None] * len(parent.ast_node)
-                    else:
-                        return None
-                # find current index in parent's children (by wrapper identity or by matching value in parent.value)
-                idx = None
-                if isinstance(parent.children, list):
-                    try:
-                        idx = parent.children.index(current)
-                    except ValueError:
-                        # not present in cached wrappers: try to find by matching value in parent.value
-                        if isinstance(parent.ast_node, list):
-                            try:
-                                idx = parent.ast_node.index(current.ast_node)
-                            except ValueError:
-                                idx = None
-                else:
-                    # parent's children is dict — try to find current among values
-                    for k,v in (parent.children.items() if isinstance(parent.children, dict) else []):
-                        if v is current:
-                            # cannot determine order in dict => cannot do [next]
-                            idx = None
-                            break
-                if idx is None:
-                    return None
-                nxt = idx + 1
-                if not isinstance(parent.children, list) or nxt >= len(parent.children):
-                    return None
-                # ensure wrapper for next exists
-                wnext = parent.children[nxt]
-                if wnext is None:
-                    # try to wrap underlying value
-                    if isinstance(parent.ast_node, list) and nxt < len(parent.ast_node):
-                        wnext = cfg.ASTNodeWrapper(ast_node=parent.ast_node[nxt], parent=parent)
-                        parent.children[nxt] = wnext
-                    else:
-                        return None
-                current = wnext
-                continue
-            # array index like [N]
-            if comp.startswith('[') and comp.endswith(']'):
-                inner = comp[1:-1].strip()
-                if inner.isdigit():
-                    idx = int(inner)
-                    if isinstance(current.ast_node, list) and 0 <= idx < len(current.ast_node):
-                        # ensure current.children is list and has wrapper
-                        if current.children is None:
-                            current.children = [None] * len(current.ast_node)
-                        if isinstance(current.children, list):
-                            if current.children[idx] is None:
-                                current.children[idx] = cfg.ASTNodeWrapper(ast_node=current.ast_node[idx], parent=current)
-                            current = current.children[idx]
-                            continue
-                        else:
-                            # children not list => cannot index
-                            return None
-                # unsupported bracket content
-                return None
-            # normal property name: access dict key
-            # if current.value is dict, get by key
-            if isinstance(current.ast_node, dict):
-                key = comp
-                # try to use cached wrapper in current.children (dict) if available
-                if current.children is None:
-                    current.children = {}
-                if isinstance(current.children, dict) and key in current.children and current.children[key] is not None:
-                    current = current.children[key]
-                    continue
-                # otherwise get raw value and wrap
-                raw = current.ast_node.get(key)
-                if raw is None:
-                    return None
-                w = cfg.ASTNodeWrapper(ast_node=raw, parent=current)
-                if isinstance(current.children, dict):
-                    current.children[key] = w
-                current = w
-                continue
-            # if we get here — cannot resolve component on current.value
+        if not comps:  # empty path should return None
             return None
-        # finished traversal
-        return current
+        return resolve_property_path_recursive(self, comps, previous_action_data)
 
     # 3) no property_path: handle role_in_list / property / origin parent
     # If role_in_list specified, we expect the property to be a list (either in self.children or in underlying value)
@@ -250,42 +387,10 @@ def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, 
             if parent.children is None or not isinstance(parent.children, list):
                 # create wrapper list
                 parent.children = [None] * len(target_list)
-            if identification.get('role_in_list') == 'first_in_list':
-                if len(target_list) == 0:
-                    return None
-                if parent.children[0] is None:
-                    parent.children[0] = cfg.ASTNodeWrapper(ast_node=target_list[0], parent=parent)
-                return parent.children[0]
-            if identification.get('role_in_list') == 'next_in_list':
-                # previous_action_data must be a wrapper present in that list
-                if previous_action_data is None:
-                    return None
-                # find index of previous_action_data in parent.children or parent.value list
-                idx = None
-                if isinstance(parent.children, list):
-                    try:
-                        idx = parent.children.index(previous_action_data)
-                    except ValueError:
-                        # try to find by matching underlying value in parent.value list
-                        if isinstance(parent.ast_node, list):
-                            try:
-                                idx = parent.ast_node.index(previous_action_data.ast_node)
-                            except Exception:
-                                idx = None
-                if idx is None:
-                    return None
-                nx = idx + 1
-                if nx >= len(parent.children):
-                    return None
-                if parent.children[nx] is None:
-                    # create wrapper from parent.value if available
-                    if isinstance(parent.ast_node, list) and nx < len(parent.ast_node):
-                        parent.children[nx] = cfg.ASTNodeWrapper(ast_node=parent.ast_node[nx], parent=parent)
-                    else:
-                        return None
-                return parent.children[nx]
-            # unknown role_in_list
-            return None
+            # create temporary wrapper for target_list to use recursive function
+            temp_wrapper = cfg.ASTNodeWrapper(ast_node=target_list, parent=parent)
+            temp_wrapper.children = parent.children
+            return resolve_role_in_list_recursive(temp_wrapper, role_in_list, previous_action_data)
         else:
             # origin not parent => look in self
             target_list = None
@@ -298,46 +403,10 @@ def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, 
             # ensure self.children is list of wrappers
             if self.children is None or not isinstance(self.children, list):
                 self.children = [None] * len(target_list)
-            if role_in_list == 'first_in_list':
-                if len(target_list) == 0:
-                    return None
-                if self.children[0] is None:
-                    # wrap underlying value if exists
-                    if isinstance(self.ast_node, list) and 0 < len(self.ast_node):
-                        self.children[0] = cfg.ASTNodeWrapper(ast_node=self.ast_node[0], parent=self)
-                    else:
-                        # if target_list already contains wrappers, use them
-                        if isinstance(target_list[0], cfg.ASTNodeWrapper):
-                            self.children[0] = target_list[0]
-                        else:
-                            self.children[0] = cfg.ASTNodeWrapper(ast_node=target_list[0], parent=self)
-                return self.children[0]
-            if role_in_list == 'next_in_list':
-                if previous_action_data is None:
-                    return None
-                # find index of previous_action_data
-                try:
-                    idx = self.children.index(previous_action_data)
-                except Exception:
-                    # try locate in underlying list
-                    idx = None
-                    if isinstance(self.ast_node, list):
-                        try:
-                            idx = self.ast_node.index(previous_action_data.ast_node)
-                        except Exception:
-                            idx = None
-                if idx is None:
-                    return None
-                nx = idx + 1
-                if nx >= len(self.children):
-                    return None
-                if self.children[nx] is None:
-                    if isinstance(self.ast_node, list) and nx < len(self.ast_node):
-                        self.children[nx] = cfg.ASTNodeWrapper(ast_node=self.ast_node[nx], parent=self)
-                    else:
-                        return None
-                return self.children[nx]
-            return None
+            # create temporary wrapper for target_list to use recursive function
+            temp_wrapper = cfg.ASTNodeWrapper(ast_node=target_list, parent=self)
+            temp_wrapper.children = self.children
+            return resolve_role_in_list_recursive(temp_wrapper, role_in_list, previous_action_data)
 
     # 4) fallback: try to use identification['property'] direct lookup in self.value (dict)
     if identification and 'property' in identification:

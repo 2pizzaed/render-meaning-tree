@@ -76,7 +76,7 @@ if_structure:
         condition_value: true        # если условие истинно
     - from: cond
       to: next_cond
-      to_after_last: else_branch   # → в "false"-ветку
+      to_when_absent: else_branch   # → в "false"-ветку
       constraints:
         condition_value: false       # если ложно
     - from: branch
@@ -238,7 +238,7 @@ block_structure:
       to: first
     - from: item
       to: next       # переход к следующему элементу
-      to_after_last: END
+      to_when_absent: END
 
 # --------------------------------
 # Вызов функции

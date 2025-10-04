@@ -33,7 +33,7 @@ class ActionSpec:
 class TransitionSpec:
     from_: Optional[str] = None
     to_: Optional[str] = None
-    to_after_last: Optional[str] = None
+    to_when_absent: Optional[str] = None
     constraints: Optional[dict[str, Any]] = None
     effects: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -63,10 +63,10 @@ class ConstructSpec:
             previous_wrapped_ast: ASTNodeWrapper =None
     ) -> tuple[ActionSpec, ASTNodeWrapper, bool] | None:
         """  Returns related action, node data for it, and a flag:
-            True: main output used, False: `to_after_last` output used.
+            True: main output used, False: `to_when_absent` output used.
         """
         while True:
-            for target_role in (tr.to_, tr.to_after_last):
+            for target_role in (tr.to_, tr.to_when_absent):
                 if target_role:
                     action = self.actions[target_role]
                     target_wrapped_ast = action.find_node_data(wrapped_ast, previous_wrapped_ast)
@@ -83,7 +83,7 @@ class ConstructSpec:
             # not really good to just take the first.. TODO
 
         # nothing found
-        raise ValueError([tr.from_, tr.to_, tr.to_after_last, wrapped_ast, previous_wrapped_ast])
+        raise ValueError([tr.from_, tr.to_, tr.to_when_absent, wrapped_ast, previous_wrapped_ast])
         # return None
 
 

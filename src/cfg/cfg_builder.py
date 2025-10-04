@@ -66,7 +66,7 @@ class CFGBuilder:
                 assert role == END, f'{construct.name=} has no outgoing transitions for {role=}, and this is not END'
             for tr in outgoing_transitions:
                 ###
-                # print(f'DEBUG: trying transition {tr.from_} -> {tr.to_} (or > {tr.to_after_last or "-"}).')
+                # print(f'DEBUG: trying transition {tr.from_} -> {tr.to_} (or > {tr.to_when_absent or "-"}).')
                 ###
                 # resolve target action
                 target_action_data_primary = construct.find_target_action_for_transition(

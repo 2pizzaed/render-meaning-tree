@@ -30,22 +30,47 @@ def to_dict(language: str, code: str) -> dict[str, Any] | None:
         return _parse_json(json_output)
 
 
-def to_tokens(from_language: str, code: str,
-              to_language: str | None = None) -> dict[str, Any] | None:
+def to_tokens(
+    from_language: str, code: str, to_language: str | None = None
+) -> dict[str, Any] | None:
+    """Tokenize source code into a structured representation
+
+    Args:
+        from_language: The source programming language (e.g., 'java', 'python', 'cpp')
+        code: The code to tokenize
+        to_language: Optional target language to map tokens into (if supported).
+            If None, tokens remain in the source language context.
+
+    Returns:
+        Dict representation of the tokenized code, or None if tokenization failed
+    """
     with _temp_file(code, from_language) as temp_file_path:
-        json_output = _run_tokenize(temp_file_path,
-                                    from_language, to_language)
+        json_output = _run_tokenize(temp_file_path, from_language, to_language)
         if not json_output:
             return None
 
         return _parse_json(json_output)
 
 
-def convert(code: str, from_language: str, to_language: str,
-            source_map: bool = False) -> str | dict[str, Any] | None:
+def convert(
+    code: str, from_language: str, to_language: str, source_map: bool = False
+) -> str | dict[str, Any] | None:
+    """Convert code between programming languages or produce a source map
+
+    Args:
+        code: The code to convert
+        from_language: The source programming language
+        to_language: The target programming language
+        source_map: If True, return a JSON-serializable dict describing
+            the source map of code transformations instead of converted code
+
+    Returns:
+        Converted code as a string if source_map is False,
+        dict representation of the source map if source_map is True,
+        or None if conversion failed
+    """
     with _temp_file(code, from_language) as temp_file_path:
-        output = _run_convert(temp_file_path,
-                               from_language, to_language)
+        output = _run_convert(temp_file_path, from_language, to_language, source_map)
         if not output:
             return None
         if source_map:

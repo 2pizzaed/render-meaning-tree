@@ -1,18 +1,18 @@
-from typing import Iterable
 import re
+from collections.abc import Iterable
 
 INDENT_STEP_PX = 25.7
 INDENT_OFFSET_PX = 2.6
 
 
-def add_indent_line(line: str, left_level: int = 0, left_px: int = INDENT_STEP_PX, left_offset_px: int = INDENT_OFFSET_PX) -> str:
+def add_indent_line(line: str, left_level: int = 0, left_px: float = INDENT_STEP_PX, left_offset_px: float = INDENT_OFFSET_PX) -> str:
     """ Adds to a line of text a span tag that shows vertical line for given level of indent. """
     left_style = f"left: {left_offset_px + left_level * left_px}px;"
     return f"<span class='indent-line' style='{left_style}'></span>{line}"
 
 
 def add_indent_lines(
-    lines: Iterable[str], left_level: int = 0, left_px: int = INDENT_STEP_PX
+    lines: Iterable[str], left_level: int = 0, left_px: float = INDENT_STEP_PX,
 ) -> Iterable[str]:
     """
     Returns a generator that adds indent lines to all the given code lines.
@@ -72,7 +72,7 @@ def syntax_highlight(
     # Строковые литералы
     for q in string:
         ignore_patterns.append(
-            rf"{re.escape(q)}(?:\\.|[^{re.escape(q)}\\])*{re.escape(q)}"
+            rf"{re.escape(q)}(?:\\.|[^{re.escape(q)}\\])*{re.escape(q)}",
         )
 
     # Однострочные комментарии

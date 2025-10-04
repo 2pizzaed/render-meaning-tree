@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Any, Callable, Tuple, Self
 import src.cfg as cfg
 
 
-def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, previous_action_data: 'cfg.ASTNodeWrapper' = None) -> 'cfg.ASTNodeWrapper | None':
+def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, previous_action_data: 'cfg.ASTNodeWrapper' = None) -> 'cfg.ASTNodeWrapper | None':
     """
     Возвращает ASTNodeWrapper для ребёнка, соответствующего `role` или описанного в `identification`.
     Кэширует обёртки в self.children.
@@ -135,6 +135,9 @@ def get(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, prev
                 return None
             # upward move
             if comp == '^':
+                if not previous_action_data:
+                    # if going next from current, we should remember where started from (note this implementation limits us to at most one [next] in the chain).
+                    previous_action_data = current
                 current = current.parent
                 continue
             # next sibling: require parent present and parent.children list-like

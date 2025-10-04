@@ -41,9 +41,10 @@ class CFGBuilder:
         cfg = CFG(cfg_name)
 
         # Добавить метаданные: алгоритмическая конструкция и узел AST
-        for node in (cfg.begin_node, cfg.end_node):
-            node.metadata.abstract_construct = construct
-            node.metadata.wrapped_ast = wrapped_ast
+        cfg.begin_node.metadata.abstract_action = construct.actions[BEGIN]
+        cfg.begin_node.metadata.wrapped_ast = wrapped_ast
+        cfg.end_node.metadata.abstract_action = construct.actions[END]
+        cfg.end_node.metadata.wrapped_ast = wrapped_ast
 
         # Применить все переходы, попутно создавая узлы,
         # c учётом множественности и повторения ...
@@ -83,7 +84,7 @@ class CFGBuilder:
                     kind=target_action.kind,
                     role=target_action.role,
                     metadata=adict(
-                        abstract_construct=target_action,
+                        abstract_action=target_action,
                         wrapped_ast=next_wrapped_ast,
                         primary=primary ,
                     ),
@@ -94,7 +95,7 @@ class CFGBuilder:
 
                 # connect along the transition found
                 cfg.connect(node, node_pair[0], metadata=adict(
-                    abstract_construct=tr,
+                    abstract_transition=tr,
                     is_after_last = not primary,
                 ))
 

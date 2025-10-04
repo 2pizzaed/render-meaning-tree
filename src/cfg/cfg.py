@@ -69,8 +69,8 @@ class CFG:
             kind = 'enter-' + subgraph.name
             nid = idgen.next(kind)
             enter_node = Node(id=nid, kind=kind, role=role, cfg=self,
-                              # metadata=metadata or {}  # No effects on enter!?
-                              )
+                  metadata=metadata or adict()  # ?? No effects on enter!?
+            )
             self.nodes[nid] = enter_node
             kind = 'leave-' + subgraph.name
             nid = idgen.next(kind)
@@ -94,7 +94,17 @@ class CFG:
 
     def debug(self):
         print(f"CFG {self.name}: nodes={len(self.nodes)} edges={len(self.edges)}", )
-        for nid,n in self.nodes.items():
-            print(" ○", nid, n.kind, n.role, n.metadata or "", )#("(subgraph)" if n.subgraph else ""))
+        for nid, n in self.nodes.items():
+            info = adict()
+            if ac := n.metadata.get('abstract_action'):
+                info.abstract_action = ac.role
+            if wa := n.metadata.get('wrapped_ast'):
+                info.ast = wa.describe()
+            print(" ○", nid, n.kind, n.role, info)
+            # print all outgoing edges
+            for e in self.edges:
+                if e.src == nid:
+                    print("   →", e.dst, " __", e.constraints or "", e.metadata or "")
+        print()
         for e in self.edges:
             print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")

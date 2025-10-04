@@ -10,7 +10,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder(self):
 
-        with open("ast.json") as f:
+        with open("ast4.json") as f:
            ast_json = json.load(f)
 
         root = ASTNodeWrapper(ast_node=ast_json["body"][1])

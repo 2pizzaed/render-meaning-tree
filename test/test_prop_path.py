@@ -17,6 +17,13 @@ def test_astnodewrapper_1():
     res2 = res.get('branches', {'property_path':'^ / [next] / condition'})
     assert res2.ast_node == ast_json["body"][1]["branches"][1]["condition"]
 
-    res3 = res2.get('branches', {'property_path':'^ / [next] / condition'})
-    assert res3.ast_node == ast_json["body"][1]["branches"][1]["condition"]
+    res3 = root.get('branches', {'property_path':'branches / [2] / [next] / condition'}, res2)
+    assert res3.ast_node == ast_json["body"][1]["branches"][2]["condition"]
+
+
+    res3 = res2.get('branches', {'property_path':'^ / [next] / condition'}, res2)
+    assert res3.ast_node == ast_json["body"][1]["branches"][2]["condition"]
+
+    res4 = res2.get('branches', {'property_path':'^ / [next] / condition'}, None)
+    assert res4.ast_node == ast_json["body"][1]["branches"][2]["condition"]
 

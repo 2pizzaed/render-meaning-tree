@@ -1,8 +1,6 @@
 from typing import Optional
 
-from adict import adict
-
-from src.cfg.abstractions import ConstructSpec
+from src.cfg.abstractions import ConstructSpec, Metadata
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END
 
@@ -82,7 +80,7 @@ class CFGBuilder:
                 node23 = cfg.add_node(
                     kind=target_action.kind,
                     role=target_action.role,
-                    metadata=adict(
+                    metadata=Metadata(
                         abstract_action=target_action,
                         wrapped_ast=next_wrapped_ast,
                         primary=primary ,
@@ -93,7 +91,7 @@ class CFGBuilder:
                 node_pair: tuple[Node, Node] = (node23 if isinstance(node23, tuple) else (node23, node23))
 
                 # connect along the transition found
-                cfg.connect(node, node_pair[0], metadata=adict(
+                cfg.connect(node, node_pair[0], metadata=Metadata(
                     abstract_transition=tr,
                     is_after_last = not primary,
                 ))

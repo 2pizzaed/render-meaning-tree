@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Self
 
-from adict import adict
-
+from src.cfg.abstractions import Metadata
 import src.cfg.access_property as access_property
 from src.cfg.cfg import Node, CFG
 
@@ -13,7 +12,7 @@ class ASTNodeWrapper:
     parent: Self | None = None  # parent node that sees this node as a child.
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None
-    metadata: adict = field(default_factory=adict)
+    metadata: Metadata = field(default_factory=Metadata)
 
     def get(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
         return access_property.resolve(self, role, identification, previous_action_data)

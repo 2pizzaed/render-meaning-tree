@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Self
 
-from src.cfg.abstractions import Metadata
 import src.cfg.access_property as access_property
-from src.cfg.cfg import Node, CFG
+from src.cfg.cfg import Node, CFG, Metadata
 
 
 @dataclass

@@ -1,0 +1,42 @@
+from enum import Enum
+from typing import Any, Self
+
+
+class DictLikeDataclass:
+    """ Mixins for dataclasses to be used as dict """
+    __getitem__ = getattr
+    __setitem__ = object.__setattr__
+    get = getattr
+    __contains__ = hasattr
+
+    def make(self, data: dict):
+        """ Try to create instance from dict, creating children recursively using types declared for property annotations/type hints (mandatory or optional as typing.Optional) """
+        # TODO: implement for all cases of attr definition
+        for key, value in data.items():
+            if isinstance(value, dict):
+                data[key] = self.__class__.make(value)
+            elif isinstance(value, list):
+                data[key] = [self.__class__.make(v) if isinstance(v, dict) else v for v in value]
+
+        return self.__class__(**data)
+
+    @classmethod
+    def _get_type_hints(cls) -> dict[str, type, bool]:
+        """ Return dict of property names, types and optional flag """
+        return ... # TODO
+
+class SelfValidatedEnum(Enum):
+    @classmethod
+    def lookup(cls, value, raise_on_error: bool = True) -> Self | None:
+        try:
+            return cls(value)  # lookup instance by value
+        except ValueError:
+            if raise_on_error:
+                raise ValueError(f"Invalid value for enum {cls.__name__}: {value}, expected one of: {list(cls.__members__.values())}.")
+            return None
+
+    def __eq__(self, other: Self | Any):
+        """ Allow comparison with both enum instance and plain value """
+        if isinstance(other, SelfValidatedEnum):
+            return self.value == other.value
+        return self.value == other

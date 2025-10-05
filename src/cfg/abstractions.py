@@ -9,28 +9,22 @@ import yaml
 
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import END, BEGIN
+from src.common_utils import DictLikeDataclass, SelfValidatedEnum
 
 
-class DictLikeDataclass:
-    """ Mixins for dataclasses to be used as dict """
-    __getitem__ = getattr
-    __setitem__ = object.__setattr__
-    get = getattr
-
-
-class OriginType(Enum):
+class OriginType(SelfValidatedEnum):
     """Origin types for identification"""
     PARENT = "parent"
     PREVIOUS = "previous"
 
 
-class RoleInListType(Enum):
+class RoleInListType(SelfValidatedEnum):
     """Role in list types for identification"""
     FIRST_IN_LIST = "first_in_list"
     NEXT_IN_LIST = "next_in_list"
 
 
-class InterruptionType(Enum):
+class InterruptionType(SelfValidatedEnum):
     """Interruption types for effects"""
     BREAK = "break"
     CONTINUE = "continue"
@@ -38,19 +32,19 @@ class InterruptionType(Enum):
     EXCEPTION = "exception"
 
 
-class CallStackAction(Enum):
+class CallStackAction(SelfValidatedEnum):
     """Call stack actions for effects"""
     ADD_FRAME = "add_frame"
     DROP_FRAME = "drop_frame"
 
 
-class ConditionValue(Enum):
+class ConditionValue(SelfValidatedEnum):
     """Condition values for constraints"""
     TRUE = True
     FALSE = False
 
 
-class InterruptionMode(Enum):
+class InterruptionMode(SelfValidatedEnum):
     """Interruption modes for constraints"""
     EXCEPTION = "exception"
     ANY = "any"
@@ -74,15 +68,9 @@ class Identification(DictLikeDataclass):
 
 
 @dataclass
-class Metadata(DictLikeDataclass):
-    """General metadata for actions, transitions, and nodes"""
+class Behaviour(DictLikeDataclass):
+    """Behaviour for actions"""
     assumed_value: Optional[bool] = None
-    ast_node: Optional[str] = None
-    abstract_action: Optional['ActionSpec'] = None
-    wrapped_ast: Optional[ASTNodeWrapper] = None
-    primary: Optional[bool] = None
-    abstract_transition: Optional['TransitionSpec'] = None
-    is_after_last: Optional[bool] = None
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
@@ -104,7 +92,7 @@ class ActionSpec:
     generalization: str | None = None  # general role
     effects: Effects = field(default_factory=Effects)
     identification: Identification = field(default_factory=Identification)
-    metadata: Metadata = field(default_factory=Metadata)
+    behaviour: Behaviour = field(default_factory=Behaviour)
 
     def find_node_data(self, wrapped_ast: ASTNodeWrapper, previous_action_data: ASTNodeWrapper=None) -> ASTNodeWrapper | None:
         """ Extracts data according to requested method of access. """
@@ -122,7 +110,7 @@ class TransitionSpec:
     to_when_absent: Optional[str] = None
     constraints: Optional[Constraints] = None
     effects: Effects = field(default_factory=Effects)
-    metadata: Metadata = field(default_factory=Metadata)
+    # metadata: Metadata = field(default_factory=Metadata)
 
 
 @dataclass
@@ -130,7 +118,7 @@ class ConstructSpec:
     name: str
     actions: dict[str, ActionSpec] = field(default_factory=dict)
     transitions: list[TransitionSpec] = field(default_factory=list)
-    metadata: Metadata = field(default_factory=Metadata)
+    # metadata: Metadata = field(default_factory=Metadata)
 
     def __post_init__(self):
         for b in (BEGIN, END):
@@ -175,11 +163,11 @@ class ConstructSpec:
 
 def _parse_effects(effects_data: list | dict | None) -> Effects:
     """Parse effects data from YAML into Effects dataclass"""
-    if not effects_data:
-        return Effects()
-    
     effects = Effects()
-    
+
+    if not effects_data:
+        return effects
+
     if isinstance(effects_data, list):
         # Handle list format like: [{"interruption_stop": "break"}]
         for effect_item in effects_data:
@@ -268,26 +256,6 @@ def _parse_constraints(constraints_data: dict | None) -> Constraints:
     return constraints
 
 
-def _parse_metadata(metadata_data: dict | None) -> Metadata:
-    """Parse metadata data from YAML into Metadata dataclass"""
-    if not metadata_data:
-        return Metadata()
-    
-    metadata = Metadata()
-    
-    if "assumed_value" in metadata_data:
-        metadata.assumed_value = metadata_data["assumed_value"]
-    
-    if "ast_node" in metadata_data:
-        metadata.ast_node = metadata_data["ast_node"]
-    
-    # Store any additional fields in custom
-    for key, value in metadata_data.items():
-        if key not in ["assumed_value", "ast_node"]:
-            metadata.custom[key] = value
-    
-    return metadata
-
 
 def load_constructs(path="./constructs.yml", debug=False):
     """ Load constructs.yml """
@@ -305,9 +273,9 @@ def load_constructs(path="./constructs.yml", debug=False):
     constructs = {}
     for cname, cbody in constructs_raw.items():
         # Parse metadata first
-        metadata = _parse_metadata(cbody)
+        # metadata = _parse_metadata(cbody)
         
-        cs = ConstructSpec(name=cname, metadata=metadata)
+        cs = ConstructSpec(name=cname)###, metadata=metadata)
         
         # read actions
         actions = cbody.pop("actions", None) or cbody.get("nodes") or []
@@ -315,7 +283,7 @@ def load_constructs(path="./constructs.yml", debug=False):
             # Parse action fields
             action_effects = _parse_effects(abody.pop("effects", None))
             action_identification = _parse_identification(abody.pop("identification", None))
-            action_metadata = _parse_metadata(abody.pop("metadata", None))
+            # action_metadata = _parse_metadata(abody.pop("metadata", None))
             
             # Create ActionSpec with parsed fields
             role = abody.get("role", "component")
@@ -326,7 +294,7 @@ def load_constructs(path="./constructs.yml", debug=False):
                 generalization=abody.get("generalization"),
                 effects=action_effects,
                 identification=action_identification,
-                metadata=action_metadata
+                # metadata=action_metadata
             )
             cs.actions[name] = a
         
@@ -336,7 +304,7 @@ def load_constructs(path="./constructs.yml", debug=False):
             # Parse transition fields
             transition_constraints = _parse_constraints(t.pop("constraints", None))
             transition_effects = _parse_effects(t.pop("effects", None))
-            transition_metadata = _parse_metadata(t.pop("metadata", None))
+            # transition_metadata = _parse_metadata(t.pop("metadata", None))
             
             # Create TransitionSpec with parsed fields
             ts = TransitionSpec(
@@ -345,7 +313,7 @@ def load_constructs(path="./constructs.yml", debug=False):
                 to_when_absent=t.get("to_when_absent"),
                 constraints=transition_constraints,
                 effects=transition_effects,
-                metadata=transition_metadata
+                # metadata=transition_metadata
             )
             cs.transitions.append(ts)
 

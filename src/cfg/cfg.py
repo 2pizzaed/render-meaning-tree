@@ -2,9 +2,27 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
-from src.cfg.abstractions import Metadata
+from src.cfg import ASTNodeWrapper
+from src.cfg.abstractions import ActionSpec, TransitionSpec
+from src.common_utils import DictLikeDataclass
+
 from src.serializers.types import FactSerializable
 from src.types import Node
+
+
+@dataclass
+class Metadata(DictLikeDataclass):
+    """General metadata for actions, transitions, and nodes"""
+    assumed_value: Optional[bool] = None
+    ast_node: Optional[str] = None
+    abstract_action: Optional['ActionSpec'] = None
+    wrapped_ast: Optional[ASTNodeWrapper] = None
+    primary: Optional[bool] = None
+    abstract_transition: Optional['TransitionSpec'] = None
+    is_after_last: Optional[bool] = None
+    # # Additional fields can be added as needed
+    # custom: dict[str, Any] = field(default_factory=dict)
+
 
 # CFG classes implemented using constructs.
 

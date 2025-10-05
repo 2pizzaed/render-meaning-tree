@@ -1,8 +1,8 @@
 from typing import Optional
 
-from src.cfg.abstractions import ConstructSpec, Metadata
+from src.cfg.abstractions import ConstructSpec
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.cfg import Node, CFG, BEGIN, END
+from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata
 
 
 # ---------- CFGBuilder ----------

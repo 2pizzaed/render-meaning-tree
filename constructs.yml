@@ -186,7 +186,7 @@ for_structure:
       kind: atom
     - role: cond
       kind: condition
-      metadata:
+      behaviour:
         assumed_value: true
     - role: body
       kind: compound

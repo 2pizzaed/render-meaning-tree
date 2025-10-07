@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any
 
 import yaml
 
-from src.cfg.ast_wrapper import ASTNodeWrapper
+import src.cfg.ast_wrapper as aw
 from src.cfg.cfg import END, BEGIN
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
 
@@ -95,7 +95,8 @@ class ActionSpec(DictLikeDataclass):
     identification: Identification = field(default_factory=Identification)
     behaviour: Behaviour = field(default_factory=Behaviour)
 
-    def find_node_data(self, wrapped_ast: ASTNodeWrapper, previous_action_data: ASTNodeWrapper=None) -> ASTNodeWrapper | None:
+    def find_node_data(self, wrapped_ast: 'aw.ASTNodeWrapper', previous_action_data: 'aw.ASTNodeWrapper'=None) -> (
+            'aw.ASTNodeWrapper' | None):
         """ Extracts data according to requested method of access. """
         if self.role == END:  ### in (BEGIN, END):
             # the construction itself should be returned as data for END
@@ -134,9 +135,9 @@ class ConstructSpec(DictLikeDataclass):
     def find_target_action_for_transition(
             self,
             tr: TransitionSpec,
-            wrapped_ast: ASTNodeWrapper,
-            previous_wrapped_ast: ASTNodeWrapper =None
-    ) -> tuple[ActionSpec, ASTNodeWrapper, bool] | None:
+            wrapped_ast: 'aw.ASTNodeWrapper',
+            previous_wrapped_ast: 'aw.ASTNodeWrapper' =None
+    ) -> tuple[ActionSpec, 'aw.ASTNodeWrapper', bool] | None:
         """  Returns related action, node data for it, and a flag:
             True: main output used, False: `to_when_absent` output used.
         """

@@ -2,18 +2,23 @@ from dataclasses import dataclass, field
 from typing import Self
 
 import src.cfg.access_property as access_property
-from src.cfg.cfg import Node, CFG, Metadata
+import src.cfg.abstractions as a
+import src.cfg.cfg as cfg
 
 
 @dataclass
 class ASTNodeWrapper:
-    ast_node: Node | dict[str, Node] | list[Node]  # AST dict (from json) having at least 'type' and 'id' keys.
+    ast_node: 'cfg.Node' | dict[str, 'cfg.Node'] | list['cfg.Node']  # AST dict (from json) having at least 'type' and 'id' keys.
     parent: Self | None = None  # parent node that sees this node as a child.
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None
-    metadata: Metadata = field(default_factory=Metadata)
+    metadata: 'dict | cfg.Metadata' = field(default_factory=dict)
 
-    def get(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
+    def get(self,
+            role: str,
+            identification: 'dict | a.Identification' = None,
+            previous_action_data: Self = None
+           ) -> Self | None:
         return access_property.resolve(self, role, identification, previous_action_data)
 
     def describe(self) -> dict:

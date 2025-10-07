@@ -55,6 +55,9 @@ def main():
     simple_node = ASTNode.make(simple_data)
     print(f"   Результат: {simple_node}")
     print(f"   Доступ к полям: type={simple_node.type}, name={simple_node.name}, id={simple_node.id}")
+    print(f"   Dict-доступ: type={simple_node['type']}, name={simple_node['name']}, id={simple_node['id']}")
+    print(f"   Проверка наличия: 'name' in node = {'name' in simple_node}")
+    print(f"   Get метод: node.get('name') = {simple_node.get('name')}, node.get('missing') = {simple_node.get('missing', 'default')}")
     
     # Пример 2: Объект с вложенной структурой
     print("\n2. Создание объекта с вложенной структурой:")
@@ -79,6 +82,12 @@ def main():
     print(f"   Результат: {complex_node}")
     print(f"   Вложенный target: {complex_node.target}")
     print(f"   Вложенный value: {complex_node.value}")
+    
+    # Демонстрация dict-like модификации
+    print(f"\n   Dict-модификация:")
+    print(f"   До изменения: name={complex_node['name']}")
+    complex_node['name'] = "modified_assignment"
+    print(f"   После изменения: name={complex_node['name']}, name={complex_node.name}")
     
     # Пример 3: Загрузка реального AST из файла
     print("\n3. Загрузка реального AST из файла ast.json:")

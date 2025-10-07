@@ -1,8 +1,8 @@
 import json
-import pytest
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
-from enum import Enum
+
+import pytest
 
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
 
@@ -51,6 +51,11 @@ class TestDictLikeDataclass:
         assert result.id == 1
         assert result.name == "test_node"
         assert result.value == 3.14
+        
+        # Test dict-like access
+        assert result['id'] == 1
+        assert result['name'] == "test_node"
+        assert result['value'] == 3.14
     
     def test_simple_node_with_optional_field(self):
         """Test creating a simple node with optional field missing"""
@@ -64,7 +69,10 @@ class TestDictLikeDataclass:
         assert result.id == 1
         assert result.name == "test_node"
         assert result.value is None
-    
+        assert result['id'] == 1
+        assert result['name'] == "test_node"
+        assert result['value'] is None
+
     def test_simple_node_missing_mandatory_field(self):
         """Test error when mandatory field is missing"""
         data = {
@@ -268,3 +276,96 @@ class TestDictLikeDataclass:
         
         with pytest.raises(ValueError, match="Cannot convert"):
             SimpleNode.make(data)
+    
+    def test_dict_like_behavior(self):
+        """Test dict-like behavior of DictLikeDataclass instances"""
+        data = {
+            "id": 1,
+            "name": "test_node",
+            "value": 3.14
+        }
+        
+        result = SimpleNode.make(data)
+        
+        # Test __getitem__ (dict access)
+        assert result['id'] == 1
+        assert result['name'] == "test_node"
+        assert result['value'] == 3.14
+        
+        # Test __setitem__ (dict assignment)
+        result['name'] = "updated_name"
+        result['value'] = 2.71
+        assert result['name'] == "updated_name"
+        assert result['value'] == 2.71
+        assert result.name == "updated_name"  # Should also update attribute
+        assert result.value == 2.71
+        
+        # Test __delitem__ (dict deletion)
+        # Note: dataclass fields cannot be completely deleted, they become None
+        del result['value']
+        assert result.value is None  # Field becomes None after deletion
+        
+        # Test get() method
+        assert result.get('id') == 1
+        assert result.get('name') == "updated_name"
+        assert result.get('value') is None  # Deleted
+        assert result.get('missing_key') is None
+        assert result.get('missing_key', 'default') == 'default'
+        
+        # Test __contains__ (in operator)
+        assert 'id' in result
+        assert 'name' in result
+        assert 'value' in result  # Field still exists, just set to None
+        assert 'missing_key' not in result
+        
+        # Test KeyError for missing keys
+        with pytest.raises(AttributeError):
+            _ = result['missing_key']
+    
+    def test_dict_like_with_complex_objects(self):
+        """Test dict-like behavior with complex nested objects"""
+        data = {
+            "id": 1,
+            "name": "parent",
+            "children": [
+                {
+                    "id": 2,
+                    "name": "child1",
+                    "value": 1.0
+                },
+                {
+                    "id": 3,
+                    "name": "child2",
+                    "value": 2.0
+                }
+            ],
+            "metadata": {
+                "key1": "value1",
+                "key2": 42
+            }
+        }
+        
+        result = ComplexNode.make(data)
+        
+        # Test dict access to nested objects
+        assert result['id'] == 1
+        assert result['name'] == "parent"
+        assert len(result['children']) == 2
+        assert result['children'][0]['id'] == 2
+        assert result['children'][0]['name'] == "child1"
+        assert result['metadata']['key1'] == "value1"
+        
+        # Test dict modification
+        result['name'] = "updated_parent"
+        assert result['name'] == "updated_parent"
+        assert result.name == "updated_parent"
+        
+        # Test nested dict access
+        result['metadata']['key1'] = "updated_value"
+        assert result['metadata']['key1'] == "updated_value"
+        assert result.metadata['key1'] == "updated_value"
+        
+        # Test dict access to children
+        result['children'][0]['name'] = "updated_child1"
+        assert result['children'][0]['name'] == "updated_child1"
+        assert result.children[0].name == "updated_child1"

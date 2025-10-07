@@ -8,11 +8,20 @@ class DictLikeDataclass:
     """ Mixins for dataclasses to be used as dict.
     Also, automatic construction from dict using types declared for property annotations/type hints (mandatory or optional as typing.Optional) is provided.
     """
-    __getitem__ = getattr
-    __setitem__ = object.__setattr__
-    __delitem__ = object.__delattr__
-    get = getattr
-    __contains__ = hasattr
+    def __getitem__(self, key):
+        return getattr(self, key)
+    
+    def __setitem__(self, key, value):
+        object.__setattr__(self, key, value)
+    
+    def __delitem__(self, key):
+        object.__delattr__(self, key)
+    
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+    
+    def __contains__(self, key):
+        return hasattr(self, key)
 
     @classmethod
     def make(cls, data: dict):

@@ -1,9 +1,10 @@
 # Define dataclasses matching the constructs structure
 
+import json
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import yaml
 
@@ -85,7 +86,7 @@ class Constraints(DictLikeDataclass):
 
 
 @dataclass
-class ActionSpec:
+class ActionSpec(DictLikeDataclass):
     # name: str
     role: str
     kind: str = ''
@@ -104,7 +105,7 @@ class ActionSpec:
 
 
 @dataclass
-class TransitionSpec:
+class TransitionSpec(DictLikeDataclass):
     from_: Optional[str] = None
     to_: Optional[str] = None
     to_when_absent: Optional[str] = None
@@ -114,7 +115,7 @@ class TransitionSpec:
 
 
 @dataclass
-class ConstructSpec:
+class ConstructSpec(DictLikeDataclass):
     name: str
     actions: dict[str, ActionSpec] = field(default_factory=dict)
     transitions: list[TransitionSpec] = field(default_factory=list)
@@ -161,104 +162,11 @@ class ConstructSpec:
         # return None
 
 
-def _parse_effects(effects_data: list | dict | None) -> Effects:
-    """Parse effects data from YAML into Effects dataclass"""
-    effects = Effects()
-
-    if not effects_data:
-        return effects
-
-    if isinstance(effects_data, list):
-        # Handle list format like: [{"interruption_stop": "break"}]
-        for effect_item in effects_data:
-            if isinstance(effect_item, dict):
-                for key, value in effect_item.items():
-                    if key == "interruption_stop":
-                        effects.interruption_stop = InterruptionType(value)
-                    elif key == "interruption_start":
-                        effects.interruption_start = InterruptionType(value)
-                    elif key == "call_stack":
-                        effects.call_stack = CallStackAction(value)
-                    else:
-                        effects.custom[key] = value
-    elif isinstance(effects_data, dict):
-        # Handle dict format
-        for key, value in effects_data.items():
-            if key == "interruption_stop":
-                effects.interruption_stop = InterruptionType(value)
-            elif key == "interruption_start":
-                effects.interruption_start = InterruptionType(value)
-            elif key == "call_stack":
-                effects.call_stack = CallStackAction(value)
-            else:
-                effects.custom[key] = value
-    
-    return effects
-
-
-def _parse_identification(ident_data: dict | None) -> Identification:
-    """Parse identification data from YAML into Identification dataclass"""
-    if not ident_data:
-        return Identification()
-    
-    ident = Identification()
-    
-    if "origin" in ident_data:
-        try:
-            ident.origin = OriginType(ident_data["origin"])
-        except ValueError:
-            ident.custom["origin"] = ident_data["origin"]
-    
-    if "property" in ident_data:
-        ident.property = ident_data["property"]
-    
-    if "property_path" in ident_data:
-        ident.property_path = ident_data["property_path"]
-    
-    if "role_in_list" in ident_data:
-        try:
-            ident.role_in_list = RoleInListType(ident_data["role_in_list"])
-        except ValueError:
-            ident.custom["role_in_list"] = ident_data["role_in_list"]
-    
-    # Store any additional fields in custom
-    for key, value in ident_data.items():
-        if key not in ["origin", "property", "property_path", "role_in_list"]:
-            ident.custom[key] = value
-    
-    return ident
-
-
-def _parse_constraints(constraints_data: dict | None) -> Constraints:
-    """Parse constraints data from YAML into Constraints dataclass"""
-    if not constraints_data:
-        return Constraints()
-    
-    constraints = Constraints()
-    
-    if "condition_value" in constraints_data:
-        try:
-            constraints.condition_value = ConditionValue(constraints_data["condition_value"])
-        except ValueError:
-            constraints.custom["condition_value"] = constraints_data["condition_value"]
-    
-    if "interruption_mode" in constraints_data:
-        try:
-            constraints.interruption_mode = InterruptionMode(constraints_data["interruption_mode"])
-        except ValueError:
-            constraints.custom["interruption_mode"] = constraints_data["interruption_mode"]
-    
-    # Store any additional fields in custom
-    for key, value in constraints_data.items():
-        if key not in ["condition_value", "interruption_mode"]:
-            constraints.custom[key] = value
-    
-    return constraints
 
 
 
 def load_constructs(path="./constructs.yml", debug=False):
-    """ Load constructs.yml """
+    """ Load constructs.yml using DictLikeDataclass """
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} not found. Please upload constructs.yml to /mnt/data.")
 
@@ -267,62 +175,53 @@ def load_constructs(path="./constructs.yml", debug=False):
 
     constructs_raw = yaml.safe_load(raw_yaml)
     del raw_yaml
-    # return constructs_raw
 
-    # Parse constructs into dataclasses
+    # Parse constructs into dataclasses using DictLikeDataclass
     constructs = {}
     for cname, cbody in constructs_raw.items():
-        # Parse metadata first
-        # metadata = _parse_metadata(cbody)
+        # Create ConstructSpec using DictLikeDataclass.make
+        cs = ConstructSpec.make({"name": cname, **cbody})
         
-        cs = ConstructSpec(name=cname)###, metadata=metadata)
-        
-        # read actions
-        actions = cbody.pop("actions", None) or cbody.get("nodes") or []
-        for abody in actions:
-            # Parse action fields
-            action_effects = _parse_effects(abody.pop("effects", None))
-            action_identification = _parse_identification(abody.pop("identification", None))
-            # action_metadata = _parse_metadata(abody.pop("metadata", None))
-            
-            # Create ActionSpec with parsed fields
-            role = abody.get("role", "component")
-            name = role
-            a = ActionSpec(
-                role=role,
-                kind=abody.get("kind", "atom"),
-                generalization=abody.get("generalization"),
-                effects=action_effects,
-                identification=action_identification,
-                # metadata=action_metadata
-            )
-            cs.actions[name] = a
-        
-        # read transitions
-        cs.transitions = []
-        for t in cbody.pop("transitions", None) or []:
-            # Parse transition fields
-            transition_constraints = _parse_constraints(t.pop("constraints", None))
-            transition_effects = _parse_effects(t.pop("effects", None))
-            # transition_metadata = _parse_metadata(t.pop("metadata", None))
-            
-            # Create TransitionSpec with parsed fields
-            ts = TransitionSpec(
-                from_=t.pop("from"),
-                to_=t.pop("to"),
-                to_when_absent=t.get("to_when_absent"),
-                constraints=transition_constraints,
-                effects=transition_effects,
-                # metadata=transition_metadata
-            )
-            cs.transitions.append(ts)
+        # Add BEGIN and END actions if not present
+        for b in (BEGIN, END):
+            if b not in cs.actions:
+                cs.actions[b] = ActionSpec.make({"role": b, "kind": b})
 
         constructs[cname] = cs
 
     if debug:
         print("Loaded constructs (summary):")
-        for k,v in constructs.items():
+        for k, v in constructs.items():
             print("-", k, ": actions:", ', '.join(a.role for a in v.actions.values()) or 'none')
             print("   \\ transitions:", ', '.join(f'{t.from_} -> {t.to_}' for t in v.transitions) or 'none')
 
     return constructs
+
+
+def load_ast_from_json(path="ast.json"):
+    """Load AST from JSON file using DictLikeDataclass"""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} not found.")
+    
+    with open(path, "r", encoding="utf-8") as f:
+        ast_data = json.load(f)
+    
+    # Create a generic AST node dataclass for parsing
+    @dataclass
+    class ASTNode(DictLikeDataclass):
+        type: str
+        id: Optional[int] = None
+        name: Optional[str] = None
+        value: Optional[Any] = None
+        body: Optional[List[Dict[str, Any]]] = None
+        branches: Optional[List[Dict[str, Any]]] = None
+        condition: Optional[Dict[str, Any]] = None
+        target: Optional[Dict[str, Any]] = None
+        left_operand: Optional[Dict[str, Any]] = None
+        right_operand: Optional[Dict[str, Any]] = None
+        operand: Optional[Dict[str, Any]] = None
+        statements: Optional[List[Dict[str, Any]]] = None
+        elseBranch: Optional[Dict[str, Any]] = None
+        repr: Optional[str] = None
+    
+    return ASTNode.make(ast_data)

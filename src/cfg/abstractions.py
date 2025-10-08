@@ -94,7 +94,7 @@ class ActionSpec(DictLikeDataclass):
     role: str
     kind: str = ''
     generalization: str | None = None  # general role
-    effects: Effects = field(default_factory=Effects)
+    effects: List[Effects] = field(default_factory=Effects)
     identification: Identification = field(default_factory=Identification)
     behaviour: Behaviour = field(default_factory=Behaviour)
 
@@ -111,23 +111,26 @@ class ActionSpec(DictLikeDataclass):
 @dataclass
 class TransitionSpec(DictLikeDataclass):
     from_: Optional[str] = None
-    to_: Optional[str] = None
+    to: Optional[str] = None
     to_when_absent: Optional[str] = None
     constraints: Optional[Constraints] = None
-    effects: Effects = field(default_factory=Effects)
+    effects: List[Effects] = field(default_factory=Effects)
     # metadata: Metadata = field(default_factory=Metadata)
 
 
 @dataclass
 class ConstructSpec(DictLikeDataclass):
     name: str
-    actions: dict[str, ActionSpec] = field(default_factory=dict)
+    kind: str = None
+    ast_node: str = None
+    actions: list[ActionSpec] = field(default_factory=list)
     transitions: list[TransitionSpec] = field(default_factory=list)
+    effects: List[Effects] = field(default_factory=Effects)
     # metadata: Metadata = field(default_factory=Metadata)
 
     def __post_init__(self):
         for b in (BEGIN, END):
-            self.actions[b] = ActionSpec(role=b, kind=b)
+            self.actions.append(ActionSpec(role=b, kind=b))
 
     def find_transitions_from_action(self, action: ActionSpec) -> list[TransitionSpec]:
         roles = (action.role, action.generalization)
@@ -145,16 +148,16 @@ class ConstructSpec(DictLikeDataclass):
             True: main output used, False: `to_when_absent` output used.
         """
         while True:
-            for target_role in (tr.to_, tr.to_when_absent):
+            for target_role in (tr.to, tr.to_when_absent):
                 if target_role:
                     action = self.actions[target_role]
                     target_wrapped_ast = action.find_node_data(wrapped_ast, previous_wrapped_ast)
                     if target_wrapped_ast:
-                        return action, target_wrapped_ast, (target_role == tr.to_)
+                        return action, target_wrapped_ast, (target_role == tr.to)
 
             # for cases where target is absent in AST, search further along transition chain
             # TODO: use assumed value of condition & more heuristics.
-            primary_out = tr.to_
+            primary_out = tr.to
             trs = self.find_transitions_from_action(self.actions[primary_out])
             if not trs:
                 break
@@ -162,7 +165,7 @@ class ConstructSpec(DictLikeDataclass):
             # not really good to just take the first.. TODO
 
         # nothing found
-        raise ValueError([tr.from_, tr.to_, tr.to_when_absent, wrapped_ast, previous_wrapped_ast])
+        raise ValueError([tr.from_, tr.to, tr.to_when_absent, wrapped_ast, previous_wrapped_ast])
         # return None
 
 
@@ -189,7 +192,7 @@ def load_constructs(path="./constructs.yml", debug=False):
         # Add BEGIN and END actions if not present
         for b in (BEGIN, END):
             if b not in cs.actions:
-                cs.actions[b] = ActionSpec.make({"role": b, "kind": b})
+                cs.actions.append(ActionSpec.make({"role": b, "kind": b}))
 
         constructs[cname] = cs
 
@@ -197,7 +200,7 @@ def load_constructs(path="./constructs.yml", debug=False):
         print("Loaded constructs (summary):")
         for k, v in constructs.items():
             print("-", k, ": actions:", ', '.join(a.role for a in v.actions.values()) or 'none')
-            print("   \\ transitions:", ', '.join(f'{t.from_} -> {t.to_}' for t in v.transitions) or 'none')
+            print("   \\ transitions:", ', '.join(f'{t.from_} -> {t.to}' for t in v.transitions) or 'none')
 
     return constructs
 

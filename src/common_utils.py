@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any, Self, get_type_hints, get_origin, get_args, Union
+from types import UnionType
 from dataclasses import fields, is_dataclass, MISSING
 import inspect
 
@@ -40,7 +41,7 @@ class DictLikeDataclass:
         # Check for unknown keys
         unknown_keys = set(data.keys()) - set(type_hints.keys())
         if unknown_keys:
-            raise ValueError(f"Unknown keys in data: {unknown_keys}. Expected keys: {list(type_hints.keys())}")
+            raise ValueError(f"Error making an instance of {cls.__name__}: Unknown keys in data: {unknown_keys}. Expected keys: {list(type_hints.keys())}")
         
         # Process each field
         processed_data = {}
@@ -62,7 +63,8 @@ class DictLikeDataclass:
             return None
         
         # Handle Union types (including Optional)
-        if get_origin(field_type) is Union:
+        if get_origin(field_type) is Union or get_origin(field_type) is UnionType:
+        # if get_origin(field_type).__name__ == 'UnionType':
             # For Optional[T], we get Union[T, None]
             args = get_args(field_type)
             if len(args) == 2 and type(None) in args:
@@ -126,7 +128,7 @@ class DictLikeDataclass:
 
     @classmethod
     def _get_type_hints(cls) -> dict[str, tuple[type, bool]]:
-        """ Return dict of property names, types and optional flag """
+        """ Return dict of property names, types and `optional` flag """
         type_hints = {}
         
         # Get type hints from the class

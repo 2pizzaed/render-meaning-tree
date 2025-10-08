@@ -114,7 +114,7 @@ class TestAbstractionsJsonLoading:
                 
                 # Test access to actions
                 actions = construct['actions']
-                assert isinstance(actions, dict)
+                assert isinstance(actions, list)
                 
                 # Test access to transitions
                 transitions = construct['transitions']

@@ -39,7 +39,7 @@ if_structure:
     - role: first_cond             # первое условие ветвления
       kind: condition        # true / false
       identification:
-        origin: parent
+        # origin: parent
         # property: condition
         property_path: 'branches / [0] / condition'
         role_in_list: first_in_list
@@ -64,7 +64,7 @@ if_structure:
     - role: else_branch           # ветка при false
       kind: compound
       identification:
-        origin: parent
+        # origin: parent
         property: elseBranch
       generalization: branch
   transitions:

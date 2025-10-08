@@ -117,11 +117,11 @@ class CFG:
                 info['abstract_action'] = n.metadata.abstract_action.role
             if n.metadata.wrapped_ast:
                 info['ast'] = n.metadata.wrapped_ast.describe()
-            print(" ○", nid, n.kind, n.role, info)
+            print(" o", nid, n.kind, n.role, info)
             # print all outgoing edges
             for e in self.edges:
                 if e.src == nid:
-                    print("   →", e.dst, " __", e.constraints or "", e.metadata or "")
+                    print("   ->", e.dst, " __", e.constraints or "", e.metadata or "")
         print()
         for e in self.edges:
             print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")

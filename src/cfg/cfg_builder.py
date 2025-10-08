@@ -15,7 +15,7 @@ class CFGBuilder:
         if isinstance(v, dict):
             node_type = v.get("type")
             for construct in self.constructs.values():
-                if construct.metadata.get('ast_node') == node_type:
+                if construct.ast_node == node_type:
                     return construct
             ###
             print(f'Note: no construct found for ast_node {node_type=}')
@@ -38,9 +38,9 @@ class CFGBuilder:
         cfg = CFG(cfg_name)
 
         # Добавить метаданные: алгоритмическая конструкция и узел AST
-        cfg.begin_node.metadata.abstract_action = construct.actions[BEGIN]
+        cfg.begin_node.metadata.abstract_action = construct.id2action[BEGIN]
         cfg.begin_node.metadata.wrapped_ast = wrapped_ast
-        cfg.end_node.metadata.abstract_action = construct.actions[END]
+        cfg.end_node.metadata.abstract_action = construct.id2action[END]
         cfg.end_node.metadata.wrapped_ast = wrapped_ast
 
         # Применить все переходы, попутно создавая узлы,
@@ -57,36 +57,54 @@ class CFGBuilder:
 
             role = node.role
             # Построить выходящие переходы
-            action = construct.actions[role]
+            action = construct.id2action.get(role)
+            if not action:
+                print(f'Warning: no action found for role {role} in construct {construct.name}')
+                continue
             outgoing_transitions = construct.find_transitions_from_action(action)
             if not outgoing_transitions:
                 # no outgoing transitions: ensure it's END
                 assert role == END, f'{construct.name=} has no outgoing transitions for {role=}, and this is not END'
             for tr in outgoing_transitions:
-                ###
-                # print(f'DEBUG: trying transition {tr.from_} -> {tr.to_} (or > {tr.to_when_absent or "-"}).')
-                ###
                 # resolve target action
-                target_action_data_primary = construct.find_target_action_for_transition(
-                    tr, wrapped_ast,
-                    node.metadata.wrapped_ast)
-                assert target_action_data_primary, (action, wrapped_ast)
+                try:
+                    target_action_data_primary = construct.find_target_action_for_transition(
+                        tr, wrapped_ast,
+                        node.metadata.wrapped_ast)
+                except ValueError as e:
+                    print(f'Warning: could not resolve transition {tr.from_} -> {tr.to} (or {tr.to_when_absent})')
+                    print(f'  Action: {action.role}, AST: {wrapped_ast.describe()}')
+                    print(f'  Error: {e}')
+                    continue
 
-                target_action, next_wrapped_ast, primary = target_action_data_primary
+                target_action, next_wrapped_ast, primary, transition_chain = target_action_data_primary
 
-                # insert subgraph, only for compound actions
-                subgraph = self.make_cfg_for_ast(next_wrapped_ast) if target_action.kind == 'compound' else None
+                # Check if node with this role and data already exists
+                existing_node = None
+                for existing in cfg.nodes.values():
+                    if (existing.role == target_action.role and 
+                        existing.metadata.wrapped_ast and 
+                        existing.metadata.wrapped_ast.ast_node == next_wrapped_ast.ast_node):
+                        existing_node = existing
+                        break
 
-                node23 = cfg.add_node(
-                    kind=target_action.kind,
-                    role=target_action.role,
-                    metadata=Metadata(
-                        abstract_action=target_action,
-                        wrapped_ast=next_wrapped_ast,
-                        primary=primary ,
-                    ),
-                    subgraph=subgraph
-                )
+                if existing_node:
+                    node23 = existing_node
+                else:
+                    # insert subgraph, only for compound actions
+                    subgraph = self.make_cfg_for_ast(next_wrapped_ast) if target_action.kind == 'compound' else None
+
+                    node23 = cfg.add_node(
+                        kind=target_action.kind,
+                        role=target_action.role,
+                        metadata=Metadata(
+                            abstract_action=target_action,
+                            wrapped_ast=next_wrapped_ast,
+                            primary=primary ,
+                        ),
+                        subgraph=subgraph
+                    )
+
                 # Make a pair: bounds of a compound or an atom (the same node if it's an atom)
                 node_pair: tuple[Node, Node] = (node23 if isinstance(node23, tuple) else (node23, node23))
 
@@ -94,6 +112,7 @@ class CFGBuilder:
                 cfg.connect(node, node_pair[0], metadata=Metadata(
                     abstract_transition=tr,
                     is_after_last = not primary,
+                    # transition_chain=transition_chain,  # Could be added to Metadata if needed
                 ))
 
                 # последний узел (выходной) добавить в пул необработанных

@@ -6,7 +6,7 @@ import src.cfg.access_property as access_property
 
 @dataclass
 class ASTNodeWrapper:
-    ast_node: 'cfg.Node | dict[str, cfg.Node] | list[cfg.Node]'  # AST dict (from json) having at least 'type' and 'id' keys.
+    ast_node: 'src.cfg.cfg.Node | dict[str, src.cfg.cfg.Node] | list[src.cfg.cfg.Node]'  # AST dict (from json) having at least 'type' and 'id' keys.
     parent: Self | None = None  # parent node that sees this node as a child.
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None
@@ -21,8 +21,15 @@ class ASTNodeWrapper:
 
     def describe(self) -> dict:
         """ return type and id of the AST node if set """
-        return {
-            'ast_type': self.ast_node.get('type'), 
-            'ast_id': self.ast_node.get('id'),
-            # 'type': type(self.ast_node).__name__,
-        }
+        if isinstance(self.ast_node, dict):
+            return {
+                'ast_type': self.ast_node.get('type'), 
+                'ast_id': self.ast_node.get('id'),
+                # 'type': type(self.ast_node).__name__,
+            }
+        else:
+            return {
+                'ast_type': str(type(self.ast_node).__name__),
+                'ast_id': None,
+                # 'type': type(self.ast_node).__name__,
+            }

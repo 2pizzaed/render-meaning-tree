@@ -130,8 +130,10 @@ class ConstructSpec(DictLikeDataclass):
     # metadata: Metadata = field(default_factory=Metadata)
 
     def __post_init__(self):
+        # Add BEGIN and END actions if not present
         for b in (BEGIN, END):
-            self.actions.append(ActionSpec(role=b, kind=b))
+            if not any(action.role == b for action in self.actions):
+                self.actions.append(ActionSpec(role=b, kind=b))
 
         self.id2action = {
             action.role: action
@@ -148,27 +150,39 @@ class ConstructSpec(DictLikeDataclass):
             self,
             tr: TransitionSpec,
             wrapped_ast: 'aw.ASTNodeWrapper',
-            previous_wrapped_ast: 'aw.ASTNodeWrapper' =None
-    ) -> tuple[ActionSpec, 'aw.ASTNodeWrapper', bool] | None:
-        """  Returns related action, node data for it, and a flag:
+            previous_wrapped_ast: 'aw.ASTNodeWrapper' =None,
+            transition_chain: list['TransitionSpec'] = None
+    ) -> tuple[ActionSpec, 'aw.ASTNodeWrapper', bool, list['TransitionSpec']] | None:
+        """  Returns related action, node data for it, a flag, and the transition chain:
             True: main output used, False: `to_when_absent` output used.
+            transition_chain: list of transitions that led to the target action.
         """
+        if transition_chain is None:
+            transition_chain = []
+        
+        current_chain = transition_chain + [tr]
+        
         while True:
             for target_role in (tr.to, tr.to_when_absent):
                 if target_role:
-                    action = self.actions[target_role]
-                    target_wrapped_ast = action.find_node_data(wrapped_ast, previous_wrapped_ast)
-                    if target_wrapped_ast:
-                        return action, target_wrapped_ast, (target_role == tr.to)
+                    action = self.id2action.get(target_role)
+                    if action:
+                        target_wrapped_ast = action.find_node_data(wrapped_ast, previous_wrapped_ast)
+                        if target_wrapped_ast:
+                            return action, target_wrapped_ast, (target_role == tr.to), current_chain
 
             # for cases where target is absent in AST, search further along transition chain
             # TODO: use assumed value of condition & more heuristics.
             primary_out = tr.to
-            trs = self.find_transitions_from_action(self.actions[primary_out])
+            primary_action = self.id2action.get(primary_out)
+            if not primary_action:
+                break
+            trs = self.find_transitions_from_action(primary_action)
             if not trs:
                 break
             tr = trs[0]
             # not really good to just take the first.. TODO
+            current_chain.append(tr)
 
         # nothing found
         raise ValueError([tr.from_, tr.to, tr.to_when_absent, wrapped_ast, previous_wrapped_ast])
@@ -195,11 +209,6 @@ def load_constructs(path="./constructs.yml", debug=False):
         # Create ConstructSpec using DictLikeDataclass.make
         cs = ConstructSpec.make({"name": cname, **cbody})
         
-        # Add BEGIN and END actions if not present
-        for b in (BEGIN, END):
-            if b not in cs.actions:
-                cs.actions.append(ActionSpec.make({"role": b, "kind": b}))
-
         constructs[cname] = cs
 
     if debug:

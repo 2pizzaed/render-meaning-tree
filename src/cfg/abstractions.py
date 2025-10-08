@@ -124,6 +124,7 @@ class ConstructSpec(DictLikeDataclass):
     kind: str = None
     ast_node: str = None
     actions: list[ActionSpec] = field(default_factory=list)
+    id2action: dict[str, ActionSpec] = None
     transitions: list[TransitionSpec] = field(default_factory=list)
     effects: List[Effects] = field(default_factory=Effects)
     # metadata: Metadata = field(default_factory=Metadata)
@@ -131,6 +132,11 @@ class ConstructSpec(DictLikeDataclass):
     def __post_init__(self):
         for b in (BEGIN, END):
             self.actions.append(ActionSpec(role=b, kind=b))
+
+        self.id2action = {
+            action.role: action
+            for action in self.actions
+        }
 
     def find_transitions_from_action(self, action: ActionSpec) -> list[TransitionSpec]:
         roles = (action.role, action.generalization)
@@ -199,7 +205,7 @@ def load_constructs(path="./constructs.yml", debug=False):
     if debug:
         print("Loaded constructs (summary):")
         for k, v in constructs.items():
-            print("-", k, ": actions:", ', '.join(a.role for a in v.actions.values()) or 'none')
+            print("-", k, ": actions:", ', '.join(a.role for a in v.actions) or 'none')
             print("   \\ transitions:", ', '.join(f'{t.from_} -> {t.to}' for t in v.transitions) or 'none')
 
     return constructs

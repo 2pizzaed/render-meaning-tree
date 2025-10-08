@@ -2,7 +2,7 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
-from src.cfg import ASTNodeWrapper
+from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.abstractions import ActionSpec, TransitionSpec
 from src.common_utils import DictLikeDataclass
 

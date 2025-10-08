@@ -28,6 +28,8 @@ class ComplexNode(DictLikeDataclass):
     node_type: Optional[SampleEnum] = None
     parent: Optional['ComplexNode'] = None
 
+    _static_field = ('b', 'x')
+
 
 @dataclass
 class RootNode(DictLikeDataclass):
@@ -132,7 +134,10 @@ class TestDictLikeDataclass:
         assert result.metadata["key1"] == "value1"
         assert result.metadata["key2"] == 42
         assert result.node_type == SampleEnum.VALUE1
-    
+        assert result._static_field == ('b', 'x')
+        assert result['_static_field'] == ('b', 'x')
+        assert '_static_field' in result
+
     def test_enum_conversion(self):
         """Test enum value conversion"""
         data = {

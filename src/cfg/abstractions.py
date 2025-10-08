@@ -9,8 +9,11 @@ from typing import Optional, List, Dict, Any
 import yaml
 
 import src.cfg.ast_wrapper as aw
-from src.cfg.cfg import END, BEGIN
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
+
+
+BEGIN = 'BEGIN'
+END = 'END'
 
 
 class OriginType(SelfValidatedEnum):
@@ -96,7 +99,7 @@ class ActionSpec(DictLikeDataclass):
     behaviour: Behaviour = field(default_factory=Behaviour)
 
     def find_node_data(self, wrapped_ast: 'aw.ASTNodeWrapper', previous_action_data: 'aw.ASTNodeWrapper'=None) -> (
-            'aw.ASTNodeWrapper' | None):
+            'aw.ASTNodeWrapper | None'):
         """ Extracts data according to requested method of access. """
         if self.role == END:  ### in (BEGIN, END):
             # the construction itself should be returned as data for END

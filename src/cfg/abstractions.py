@@ -94,7 +94,7 @@ class ActionSpec(DictLikeDataclass):
     role: str
     kind: str = ''
     generalization: str | None = None  # general role
-    effects: List[Effects] = field(default_factory=Effects)
+    effects: List[Effects] = field(default_factory=list)
     identification: Identification = field(default_factory=Identification)
     behaviour: Behaviour = field(default_factory=Behaviour)
 
@@ -114,7 +114,7 @@ class TransitionSpec(DictLikeDataclass):
     to: Optional[str] = None
     to_when_absent: Optional[str] = None
     constraints: Optional[Constraints] = None
-    effects: List[Effects] = field(default_factory=Effects)
+    effects: List[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
 
 
@@ -126,7 +126,7 @@ class ConstructSpec(DictLikeDataclass):
     actions: list[ActionSpec] = field(default_factory=list)
     id2action: dict[str, ActionSpec] = None
     transitions: list[TransitionSpec] = field(default_factory=list)
-    effects: List[Effects] = field(default_factory=Effects)
+    effects: List[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
 
     def __post_init__(self):

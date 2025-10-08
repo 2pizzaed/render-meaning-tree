@@ -58,7 +58,7 @@ if_structure:
       kind: compound
       identification:
         origin: previous
-        property: body
+        # property: body
         property_path: '^ / body'
       generalization: branch
     - role: else_branch           # ветка при false

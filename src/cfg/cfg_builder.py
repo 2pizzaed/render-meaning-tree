@@ -92,7 +92,10 @@ class CFGBuilder:
                     node23 = existing_node
                 else:
                     # insert subgraph, only for compound actions
-                    subgraph = self.make_cfg_for_ast(next_wrapped_ast) if target_action.kind == 'compound' else None
+                    if target_action.kind == 'compound':
+                        subgraph = self.make_cfg_for_ast(next_wrapped_ast)
+                    else:
+                        subgraph = None
 
                     node23 = cfg.add_node(
                         kind=target_action.kind,

@@ -7,7 +7,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-JAR_PATH = Path("meaning_tree/modules/application/target/application-1.0-SNAPSHOT.jar")
+m2_repo = (
+    Path.home() / ".m2" / "repository" / "org" / "vstu" / "meaningtree" / "application" / "1.0-SNAPSHOT"
+)
+JAR_PATH = m2_repo / "application-1.0-SNAPSHOT.jar"
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,21 @@ def convert(
         if source_map:
             return _parse_json(output)
         return output
+
+
+def node_hierarchy() -> dict[str, list[str]]:
+    """Retrieve the node hierarchy from the meaning tree application
+
+    Returns:
+        Dict representation of the node hierarchy or None if retrieval failed
+    """
+    output = _run_meaning_tree("node-hierarchy")
+    if not output:
+        return {}
+    json = _parse_json(output)
+    if not json:
+        return {}
+    return json
 
 
 @contextmanager

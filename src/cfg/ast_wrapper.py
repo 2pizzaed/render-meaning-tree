@@ -1,19 +1,35 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Self
-
-from adict import adict
+from typing import Self
 
 import src.cfg.access_property as access_property
-from src.cfg.cfg import Node, CFG
 
 
 @dataclass
 class ASTNodeWrapper:
-    ast_node: Node | dict[str, Node] | List[Node]  # AST dict (from json) having at least 'type' and 'id' keys.
+    ast_node: 'src.cfg.cfg.Node | dict[str, src.cfg.cfg.Node] | list[src.cfg.cfg.Node]'  # AST dict (from json) having at least 'type' and 'id' keys.
     parent: Self | None = None  # parent node that sees this node as a child.
-    children: Dict[str, Self] | List[Self] | None = None
-    related: Dict[str, Self] | None = None
-    metadata: adict = field(default_factory=adict)
+    children: dict[str, Self] | list[Self] | None = None
+    # related: dict[str, Self] | None = None
+    metadata: 'dict | cfg.Metadata' = field(default_factory=dict)
 
-    def get(self, role: str, identification: dict = None, previous_action_data: Self = None) -> Self | None:
-        return access_property.get(self, role, identification, previous_action_data)
+    def get(self,
+            role: str,
+            identification: 'dict | a.Identification' = None,
+            previous_action_data: Self = None
+           ) -> Self | None:
+        return access_property.resolve(self, role, identification, previous_action_data)
+
+    def describe(self) -> dict:
+        """ return type and id of the AST node if set """
+        if isinstance(self.ast_node, dict):
+            return {
+                'ast_type': self.ast_node.get('type'), 
+                'ast_id': self.ast_node.get('id'),
+                # 'type': type(self.ast_node).__name__,
+            }
+        else:
+            return {
+                'ast_type': str(type(self.ast_node).__name__),
+                'ast_id': None,
+                # 'type': type(self.ast_node).__name__,
+            }

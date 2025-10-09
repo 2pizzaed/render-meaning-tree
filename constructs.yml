@@ -16,17 +16,17 @@ simple_ifelse_structure:
       kind: compound
       generalization: branch
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: cond
-    - from: cond
+    - from_: cond
       to: if_branch
       constraints:
         condition_value: true        # если условие истинно → переход в "true"-ветку
-    - from: cond
+    - from_: cond
       to: else_branch
       constraints:
         condition_value: false       # если ложно → в "false"-ветку
-    - from: branch
+    - from_: branch
       to: END
 
 # --------------------------------
@@ -39,7 +39,7 @@ if_structure:
     - role: first_cond             # первое условие ветвления
       kind: condition        # true / false
       identification:
-        origin: parent
+        # origin: parent
         # property: condition
         property_path: 'branches / [0] / condition'
         role_in_list: first_in_list
@@ -58,28 +58,28 @@ if_structure:
       kind: compound
       identification:
         origin: previous
-        property: body
+        # property: body
         property_path: '^ / body'
       generalization: branch
     - role: else_branch           # ветка при false
       kind: compound
       identification:
-        origin: parent
+        # origin: parent
         property: elseBranch
       generalization: branch
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: first_cond
-    - from: cond
+    - from_: cond
       to: if_branch                # → переход в "true"-ветку
       constraints:
         condition_value: true        # если условие истинно
-    - from: cond
+    - from_: cond
       to: next_cond
-      to_after_last: else_branch   # → в "false"-ветку
+      to_when_absent: else_branch   # → в "false"-ветку
       constraints:
         condition_value: false       # если ложно
-    - from: branch
+    - from_: branch
       to: END   # если ветка отсутствует, сразу окончание
 
 # --------------------------------
@@ -98,17 +98,17 @@ while_structure:
       effects:
         - interruption_stop: continue
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: cond
-    - from: cond
+    - from_: cond
       to: body
       constraints:
         condition_value: true        # если условие истинно → выполняем тело
-    - from: cond
+    - from_: cond
       to: END
       constraints:
         condition_value: false       # если ложно → выходим из цикла
-    - from: body
+    - from_: body
       to: cond                   # после тела возвращаемся к условию
 
 # --------------------------------
@@ -129,19 +129,19 @@ while_else_structure:
     - role: else
       kind: compound
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: cond
-    - from: cond
+    - from_: cond
       to: body
       constraints:
         condition_value: true      # если условие истинно → выполняем тело
-    - from: body
+    - from_: body
       to: cond                   # после тела возвращаемся к условию
-    - from: cond
+    - from_: cond
       to: else
       constraints:
         condition_value: false     # если ложно → выходим в else
-    - from: else
+    - from_: else
       to: END
 
 # --------------------------------
@@ -160,15 +160,15 @@ do_while_structure:
     - role: cond
       kind: condition
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: body
-    - from: body
+    - from_: body
       to: cond              # сначала выполняем тело
-    - from: cond
+    - from_: cond
       to: body
       constraints:
         condition_value: true        # если условие истинно → снова тело
-    - from: cond
+    - from_: cond
       to: END
       constraints:
         condition_value: false       # иначе → выход
@@ -186,7 +186,7 @@ for_structure:
       kind: atom
     - role: cond
       kind: condition
-      metadata:
+      behaviour:
         assumed_value: true
     - role: body
       kind: compound
@@ -195,21 +195,21 @@ for_structure:
     - role: update
       kind: atom
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: init
-    - from: init
+    - from_: init
       to: cond
-    - from: cond
+    - from_: cond
       to: body
       constraints:
         condition_value: true
-    - from: cond
+    - from_: cond
       to: END
       constraints:
         condition_value: false       # false → выход
-    - from: body
+    - from_: body
       to: update
-    - from: update
+    - from_: update
       to: cond
 
 # --------------------------------
@@ -234,11 +234,11 @@ block_structure:
         role_in_list: next_in_list
       generalization: item
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: first
-    - from: item
+    - from_: item
       to: next       # переход к следующему элементу
-      to_after_last: END
+      to_when_absent: END
 
 # --------------------------------
 # Вызов функции
@@ -254,14 +254,14 @@ call_structure:
       effects:
         - interruption_stop: return
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: func_body
       effects:
-        call_stack: add_frame        # при входе в функцию создаём стековый фрейм
-    - from: func_body
+        - call_stack: add_frame        # при входе в функцию создаём стековый фрейм
+    - from_: func_body
       to: END
       effects:
-        call_stack: drop_frame       # при выходе убираем фрейм
+        - call_stack: drop_frame       # при выходе убираем фрейм
 
 # --------------------------------
 # return
@@ -298,8 +298,8 @@ throw_action:
   ast_node: throw_action  # TODO !!??
   effects:
     - interruption_start: exception
-  params:
-    - exception_type
+  # params:
+  #   - exception_type  # TODO !!??
 
 
 # --------------------------------
@@ -310,8 +310,8 @@ labeled_break_action:
   ast_node: labeled_break  # TODO !!??
   effects:
     - interruption_start: break
-  params:
-    - label_name
+  # params:
+  #   - label_name  # TODO !!??
 
 
 # --------------------------------
@@ -334,23 +334,23 @@ try_except_structure:
     - role: finally
       kind: compound
   transitions:
-    - from: BEGIN
+    - from_: BEGIN
       to: try
-    - from: try
+    - from_: try
       to: catch                     # в блок catch, если
       constraints:
         interruption_mode: exception  # были исключения
       effects:
         - interruption_stop: exception
-    - from: try
+    - from_: try
       to: else                 # в блок else, если
-    - from: catch
+    - from_: catch
       to: finally
       constraints:
         interruption_mode: any  # В любом случае
-    - from: else
+    - from_: else
       to: finally
       constraints:
         interruption_mode: any  # В любом случае
-    - from: finally
+    - from_: finally
       to: END

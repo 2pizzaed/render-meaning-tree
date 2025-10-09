@@ -1,11 +1,28 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Self
+from typing import Optional, Any, Self
 
-from adict import adict
+from src.cfg.ast_wrapper import ASTNodeWrapper
+from src.cfg.abstractions import ActionSpec, TransitionSpec
+from src.common_utils import DictLikeDataclass
 
 from src.serializers.types import FactSerializable
 from src.types import Node
+
+
+@dataclass
+class Metadata(DictLikeDataclass):
+    """General metadata for actions, transitions, and nodes"""
+    assumed_value: Optional[bool] = None
+    ast_node: Optional[str] = None
+    abstract_action: Optional['ActionSpec'] = None
+    wrapped_ast: Optional[ASTNodeWrapper] = None
+    primary: Optional[bool] = None
+    abstract_transition: Optional['TransitionSpec'] = None
+    is_after_last: Optional[bool] = None
+    # # Additional fields can be added as needed
+    # custom: dict[str, Any] = field(default_factory=dict)
+
 
 # CFG classes implemented using constructs.
 
@@ -29,7 +46,7 @@ class Node(FactSerializable):
     role: str
     kind: Optional[str] = None
     cfg: 'CFG' = None
-    metadata: adict = field(default_factory=adict)
+    metadata: Metadata = field(default_factory=Metadata)
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
 
@@ -40,8 +57,8 @@ class Edge(FactSerializable):
     src: str
     dst: str
     cfg: 'CFG' = None
-    constraints: Optional[Dict[str, Any]] = None
-    metadata: adict = field(default_factory=adict)
+    constraints: Optional[dict[str, Any]] = None
+    metadata: Metadata = field(default_factory=Metadata)
 
 
 class CFG:
@@ -49,19 +66,19 @@ class CFG:
         """ Init a CFG and create BEGIN and END nodes """
         self.id = idgen.next(name)
         self.name = name
-        self.nodes: Dict[str, Node] = {}
-        self.edges: List[Edge] = []
+        self.nodes: dict[str, Node] = {}
+        self.edges: list[Edge] = []
         # init boundaries
         self.begin_node = self.add_node(BEGIN, BEGIN)
         self.end_node = self.add_node(END, END)
 
-    def add_node(self, kind: str, role: str=None, metadata: dict=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
+    def add_node(self, kind: str, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
         if not subgraph:
             # Node is an atom.
             nid = idgen.next(kind)
-            node = Node(id=nid, kind=kind, role=role, metadata=metadata or adict(), cfg=self)
+            node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
             self.nodes[nid] = node
             return node
         else:
@@ -69,12 +86,12 @@ class CFG:
             kind = 'enter-' + subgraph.name
             nid = idgen.next(kind)
             enter_node = Node(id=nid, kind=kind, role=role, cfg=self,
-                              # metadata=metadata or {}  # No effects on enter!?
-                              )
+                  metadata=metadata or Metadata()  # ?? No effects on enter!?
+            )
             self.nodes[nid] = enter_node
             kind = 'leave-' + subgraph.name
             nid = idgen.next(kind)
-            leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or adict(), cfg=self)
+            leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
             self.nodes[nid] = leave_node
             # add everything from subgraph
             self.nodes |= subgraph.nodes
@@ -85,16 +102,26 @@ class CFG:
             # return both
             return enter_node, leave_node
 
-    def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata=None):
+    def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata: Metadata=None):
         src_id = src.id if isinstance(src, Node) else src
         dst_id = dst.id if isinstance(dst, Node) else dst
-        e = Edge(id=idgen.next(), src=src_id, dst=dst_id, constraints=constraints, metadata=metadata or {}, cfg=self)
+        e = Edge(id=idgen.next(), src=src_id, dst=dst_id, constraints=constraints, metadata=metadata or Metadata(), cfg=self)
         self.edges.append(e)
         return e
 
     def debug(self):
         print(f"CFG {self.name}: nodes={len(self.nodes)} edges={len(self.edges)}", )
-        for nid,n in self.nodes.items():
-            print(" ○", nid, n.kind, n.role, n.metadata or "", )#("(subgraph)" if n.subgraph else ""))
+        for nid, n in self.nodes.items():
+            info = {}
+            if n.metadata.abstract_action:
+                info['abstract_action'] = n.metadata.abstract_action.role
+            if n.metadata.wrapped_ast:
+                info['ast'] = n.metadata.wrapped_ast.describe()
+            print(" o", nid, n.kind, n.role, info)
+            # print all outgoing edges
+            for e in self.edges:
+                if e.src == nid:
+                    print("   ->", e.dst, " __", e.constraints or "", e.metadata or "")
+        print()
         for e in self.edges:
             print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")

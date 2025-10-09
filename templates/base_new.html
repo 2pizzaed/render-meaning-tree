@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Viewer - {{ language }}</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: #f5f5f5;
+            color: #333;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .code-block {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .code-container {
+            display: flex;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .line-numbers {
+            background: #fafafa;
+            color: #999;
+            padding: 16px 12px;
+            text-align: right;
+            user-select: none;
+            border-right: 1px solid #e0e0e0;
+            min-width: 50px;
+        }
+        
+        .line-number {
+            display: block;
+            height: 1.6em;
+        }
+        
+        .code-content {
+            flex: 1;
+            padding: 16px;
+            overflow-x: auto;
+        }
+        
+        .code-line {
+            display: flex;
+            align-items: center;
+            min-height: 1.6em;
+            position: relative;
+        }
+        
+        .line-buttons {
+            display: flex;
+            gap: 4px;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        
+        .action-button {
+            background: transparent;
+            border: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            padding: 0;
+        }
+        
+        .action-button svg {
+            width: 14px;
+            height: 14px;
+            stroke-width: 2;
+        }
+        
+        .action-button:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        
+        .action-button:active {
+            transform: scale(0.95);
+        }
+        
+        /* Filled icons - иконки с заливкой */
+        .action-button.filled.play svg {
+            color: #4CAF50;
+            fill: #4CAF50;
+        }
+        
+        .action-button.filled.stop svg {
+            color: #f44336;
+            fill: #f44336;
+        }
+        
+        .action-button.filled.step-into svg {
+            color: #2196F3;
+            fill: #2196F3;
+        }
+        
+        .action-button.filled.step-out svg {
+            color: #FF9800;
+            fill: #FF9800;
+        }
+        
+        /* Outlined icons - иконки только контуром */
+        .action-button.outlined.play svg {
+            color: #4CAF50;
+            fill: none;
+        }
+        
+        .action-button.outlined.stop svg {
+            color: #f44336;
+            fill: none;
+        }
+        
+        .line-content {
+            flex: 1;
+            white-space: pre;
+        }
+        
+        /* Стили для токенов */
+        .token-keyword {
+            color: #0033B3;
+            font-weight: 600;
+        }
+        
+        .token-operator {
+            color: #000000;
+        }
+        
+        .token-const {
+            color: #067D17;
+        }
+        
+        .token-string {
+            color: #067D17;
+        }
+        
+        .token-number {
+            color: #1750EB;
+        }
+        
+        .token-callable {
+            color: #00627A;
+            font-weight: 500;
+        }
+        
+        .token-identifier {
+            color: #000000;
+        }
+        
+        .token-cast {
+            color: #0033B3;
+        }
+        
+        .token-brace {
+            color: #000000;
+            font-weight: 600;
+        }
+        
+        .token-statement {
+            color: #9876AA;
+        }
+        
+        .token-separator {
+            color: #000000;
+        }
+        
+        .token-comma {
+            color: #000000;
+        }
+        
+        .token-comment {
+            color: #8C8C8C;
+            font-style: italic;
+        }
+        
+        .token-unknown {
+            color: #000000;
+        }
+        
+        .token-whitespace {
+            /* Пробелы отображаются как есть */
+        }
+        
+        .token {
+            cursor: default;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ language }}</h1>
+        </div>
+
+        <script type="application/json" id="code-data">
+            {{ code_data | tojson | safe }}
+        </script>
+        
+        <div class="code-block">
+            <div class="code-container">
+                <div class="line-numbers">
+                    {% for line_num in range(1, total_lines + 1) %}
+                    <span class="line-number">{{ line_num }}</span>
+                    {% endfor %}
+                </div>
+                
+                <div class="code-content">
+                    {% for line in lines %}
+                    <div class="code-line" data-line="{{ loop.index0 }}">
+                        {% set outer_loop_index = loop.index %}
+                        <div class="line-content">
+                            {%- for token in line.tokens -%}
+                                {%- for button in line.buttons if button.position == 'before' and button.index == token.index -%}
+                                <button class="action-button {{ button.style }} {{ button.type }}"
+                                        data-node-id="{{ button.node_id }}"
+                                        data-line="{{ outer_loop_index }}"
+                                        data-node-type="{{ button.node_type }}"
+                                        data-action="{{ button.type }}"
+                                        title="{{ button.type | replace('-', ' ') | title }} (Node: {{ button.node_id }})">
+                                    {%- if button.type == 'play' -%}<i data-lucide="play"></i>
+                                    {%- elif button.type == 'stop' -%}<i data-lucide="square"></i>
+                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right"></i>
+                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left"></i>
+                                    {%- endif -%}
+                                </button>
+                                {%- endfor -%}
+                                <span class="token {{ token.css_class }}" {% if token.node_id %}data-node-id="{{ token.node_id }}"{% endif %} data-token-id="{{ token.id }}" title="{{ token.type }}" data-node-type="{{ token.node_type }}">{{- token.value -}}</span>
+                                {%- for button in line.buttons if button.position == 'after' and button.index == token.index -%}
+                                <button class="action-button {{ button.style }} {{ button.type }}"
+                                        data-node-id="{{ button.node_id }}"
+                                        data-line="{{ outer_loop_index }}"
+                                        data-node-type="{{ button.node_type }}"
+                                        data-action="{{ button.type }}"
+                                        title="{{ button.type | replace('-', ' ') | title }} (Node: {{ button.node_id }})">
+                                    {%- if button.type == 'play' -%}<i data-lucide="play"></i>
+                                    {%- elif button.type == 'stop' -%}<i data-lucide="square"></i>
+                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right"></i>
+                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left"></i>
+                                    {%- endif -%}
+                                </button>
+                                {%- endfor -%}
+                            {%- endfor -%}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Инициализация Lucide иконок
+        lucide.createIcons();
+        
+        // Обработчики для кнопок
+        document.querySelectorAll('.action-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const nodeId = this.getAttribute('data-node-id');
+                const lineNum = this.getAttribute('data-line');
+                const action = this.getAttribute('data-action');
+                const nodeType = this.getAttribute('data-node-type');
+                
+                alert(`Action: ${action}\nNode ID: ${nodeId}\nNode type: ${nodeType}\nLine: ${lineNum}`);
+            });
+        });
+    </script>
+</body>
+</html>

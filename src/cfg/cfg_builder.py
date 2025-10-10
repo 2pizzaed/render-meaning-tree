@@ -68,7 +68,7 @@ class CFGBuilder:
             for tr in outgoing_transitions:
                 # resolve target action
                 try:
-                    target_action_data_primary = construct.find_target_action_for_transition(
+                    step_further_tuple = construct.find_target_action_for_transition(
                         tr, wrapped_ast,
                         node.metadata.wrapped_ast)
                 except ValueError as e:
@@ -77,7 +77,7 @@ class CFGBuilder:
                     print(f'  Error: {e}')
                     continue
 
-                target_action, next_wrapped_ast, primary, transition_chain = target_action_data_primary
+                target_action, next_wrapped_ast, is_primary, transition_chain = step_further_tuple
 
                 # Check if node with this role and data already exists
                 existing_node = None
@@ -103,7 +103,7 @@ class CFGBuilder:
                         metadata=Metadata(
                             abstract_action=target_action,
                             wrapped_ast=next_wrapped_ast,
-                            primary=primary ,
+                            primary=is_primary ,
                         ),
                         subgraph=subgraph
                     )
@@ -114,7 +114,7 @@ class CFGBuilder:
                 # connect along the transition found
                 cfg.connect(node, node_pair[0], metadata=Metadata(
                     abstract_transition=tr,
-                    is_after_last = not primary,
+                    is_after_last = not is_primary,
                     # transition_chain=transition_chain,  # Could be added to Metadata if needed
                 ))
 

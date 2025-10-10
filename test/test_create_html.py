@@ -3,9 +3,10 @@ from pathlib import Path
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_tokens
 
-language, ext = "java", "java"
+language, ext = "python", "py"
+example_path = Path(__file__).parent / "examples" / f"code_example.{ext}"
 
-with Path(f"code_example.{ext}").open(encoding="utf-8") as f:
+with example_path.open(encoding="utf-8") as f:
     code = f.read()
 source_map = convert(code, language, language, source_map=True)
 if source_map is None or not isinstance(source_map, dict):

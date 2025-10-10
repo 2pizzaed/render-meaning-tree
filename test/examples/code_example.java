@@ -19,3 +19,15 @@ else if (N) {
 while (a < x) {
     x++;
 }
+
+for (int i = 0; i < k; i++) {
+    
+}
+
+for (int i = 0; ; i++) {
+    
+}
+
+for (int k : t) {
+    
+}

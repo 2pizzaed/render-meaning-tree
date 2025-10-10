@@ -343,39 +343,38 @@ def resolve(self: 'cfg.ASTNodeWrapper', role: str, identification: dict = None, 
         print(f'DEBUG: identification is not dict or object, returning None')
         return None
     
-    if isinstance(identification, dict):
+    if hasattr(identification, 'get'):
         prop = identification.get('property', role)
         origin = identification.get('origin')
         role_in_list = identification.get('role_in_list')
-        prop_path = identification.get('property_path')
+        prop_path = identification.get('property_path', None)  # None if not set.
     else:
-        # identification is an object with attributes
-        prop = getattr(identification, 'property', role)
-        origin = getattr(identification, 'origin', None)
-        role_in_list = getattr(identification, 'role_in_list', None)
-        prop_path = getattr(identification, 'property_path', None)
-    
+        # Not a dict nor a dict-like.
+        return None
+
+    # if origin == 'previous' and property requested, delegate to previous_action_data
+    if origin == 'previous':
+        if previous_action_data is None:
+            # caller error — no previous action provided
+            return None
+        # use previous_action_data.get with property
+        origin_ast_wr = previous_action_data
+    else:  # origin == 'parent' or not set
+        origin_ast_wr = self  # context is current construct
 
     # if property_path present — traverse starting from self (wrapper) or parent
-    if prop_path:
+    if prop_path is not None:
         # normalize and split path: components separated by '/'
         comps = [c.strip() for c in prop_path.split('/') if c.strip() != ""]
         if not comps:  # empty path should return None
             return None
         
-        # if origin == 'parent', start from parent
-        start_wrapper = self.parent if origin == 'parent' else self
-        
-        result = resolve_property_path_recursive(start_wrapper, comps, previous_action_data)
+        result = resolve_property_path_recursive(origin_ast_wr, comps, previous_action_data)
         return result
 
-    # if origin == 'previous' and property requested, delegate to previous_action_data
-    if identification and origin == 'previous':
-        if previous_action_data is None:
-            # caller error — no previous action provided
-            return None
-        # use previous_action_data.get with property
-        return previous_action_data.get(prop)
+    if prop:
+        # follow property
+        return origin_ast_wr.get(prop)
 
     # 3) no property_path: handle role_in_list / property / origin parent
     # If role_in_list specified, we expect the property to be a list (either in self.children or in underlying value)

@@ -25,6 +25,9 @@ def test_astnodewrapper_1():
     res4 = res2.get('branches', {'property_path':'^ / [next] / condition'}, None)
     assert res4.ast_node == ast_json["body"][1]["branches"][2]["condition"]
 
+    res5 = res2.get('body', {'property_path':'^ / body'}, res2)
+    assert res5.ast_node == ast_json["body"][1]["branches"][1]["body"]
+
 
 def test_complex_property_paths():
     """Тесты для сложных property_path с комбинациями операций"""

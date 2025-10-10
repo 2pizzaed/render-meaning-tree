@@ -220,7 +220,7 @@ def load_constructs(path="./constructs.yml", debug=False):
     return constructs
 
 
-def load_ast_from_json(path="ast.json"):
+def load_ast_from_json(path="test/ast.json"):
     """Load AST from JSON file using DictLikeDataclass"""
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} not found.")

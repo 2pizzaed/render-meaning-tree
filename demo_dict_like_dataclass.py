@@ -92,7 +92,7 @@ def main():
     # Пример 3: Загрузка реального AST из файла
     print("\n3. Загрузка реального AST из файла ast.json:")
     try:
-        with open("ast.json") as f:
+        with open("test/ast.json") as f:
             ast_data = json.load(f)
         
         print(f"   Тип корневого узла: {ast_data['type']}")

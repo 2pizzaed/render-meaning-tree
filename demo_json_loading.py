@@ -16,7 +16,7 @@ def demo_ast_loading():
     print("=" * 80)
     
     try:
-        with open("ast.json", "r") as f:
+        with open("test/ast.json", "r") as f:
             ast_data = json.load(f)
         
         # Определяем dataclass для AST узлов

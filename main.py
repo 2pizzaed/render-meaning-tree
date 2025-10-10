@@ -1,17 +1,23 @@
 import json
 
-from src.meaning_tree import to_dict
+from src.code_renderer import CodeHighlightGenerator
+from src.meaning_tree import convert, to_dict, to_tokens
 from src.cfg_tools import cfg
 import argparse
 
 
-def save_as_html(node):
-    # from java_renderer import program_entry_point
-    from python_renderer import program_entry_point
-
-    html = program_entry_point(node)
-    with open("result.html", "w", encoding='utf8') as f:
-        f.write(html)
+def save_as_html(code: str, language: str):
+    source_map = convert(code, language, language, source_map=True)
+    if not source_map or isinstance(source_map, str):
+        raise ValueError("Source map generation failure")
+    tokens = to_tokens(language, source_map["source_code"])
+    if not tokens:
+        raise ValueError("Token obtaining failure")
+    CodeHighlightGenerator().generate_html(
+        source_map,
+        tokens,
+        output_file="output.html",
+    )
 
 
 def save_cfg(node, output_file="cfg.png"):
@@ -52,7 +58,7 @@ if __name__ == "__main__":
            json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"
-    save_as_html(ast)
+    save_as_html(code, "python")
     print(f"HTML output saved to {html_output}")
 
     if args.cfg:

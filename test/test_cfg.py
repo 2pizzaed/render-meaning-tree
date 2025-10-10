@@ -10,7 +10,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder1(self):
 
-        with open("ast.json") as f:
+        with open("data/ast.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy

@@ -15,7 +15,7 @@ class TestSimpleJsonLoading:
     def test_load_ast_from_json_simple(self):
         """Test loading AST from JSON file using simple approach"""
         try:
-            with open("ast.json", "r") as f:
+            with open("data/ast.json", "r") as f:
                 ast_data = json.load(f)
             
             # Create a simple AST node dataclass

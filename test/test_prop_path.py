@@ -7,7 +7,7 @@ from src.meaning_tree import to_dict
 
 def test_astnodewrapper_1():
     """Базовые тесты для property_path с простыми операциями"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])

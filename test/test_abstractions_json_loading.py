@@ -12,7 +12,7 @@ class TestAbstractionsJsonLoading:
     def test_load_ast_from_json(self):
         """Test loading AST from JSON file"""
         try:
-            ast = load_ast_from_json("ast.json")
+            ast = load_ast_from_json("data/ast.json")
             
             # Test basic structure
             assert ast.type == "program_entry_point"

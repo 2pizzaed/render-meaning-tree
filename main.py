@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     if 1:
         # save json
-        with open("ast4.json", "w") as f:
+        with open("test/ast4.json", "w") as f:
            json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"

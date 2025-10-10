@@ -1,0 +1,123 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "if_statement",
+      "branches": [
+        {
+          "condition": {
+            "type": "int_literal",
+            "value": 1,
+            "repr": "DECIMAL",
+            "id": 1
+          },
+          "body": {
+            "type": "compound_statement",
+            "statements": [
+              {
+                "type": "expression_statement",
+                "expression": {
+                  "type": "print_values",
+                  "separator": {
+                    "type": "string_literal",
+                    "value": " "
+                  },
+                  "end": {
+                    "type": "string_literal",
+                    "value": "\n"
+                  },
+                  "arguments": [],
+                  "id": 5
+                },
+                "id": 6
+              }
+            ],
+            "id": 7
+          },
+          "id": 8,
+          "type": "condition_branch"
+        }
+      ],
+      "id": 9
+    },
+    {
+      "type": "if_statement",
+      "branches": [
+        {
+          "condition": {
+            "type": "gt_operator",
+            "left_operand": {
+              "type": "identifier",
+              "name": "b",
+              "id": 10
+            },
+            "right_operand": {
+              "type": "int_literal",
+              "value": 10,
+              "repr": "DECIMAL",
+              "id": 11
+            },
+            "id": 12
+          },
+          "body": {
+            "type": "compound_statement",
+            "statements": [
+              {
+                "type": "variable_declaration",
+                "declarators": [
+                  {
+                    "identifier": {
+                      "type": "identifier",
+                      "name": "x"
+                    },
+                    "rvalue": {
+                      "type": "function_call",
+                      "function": {
+                        "type": "identifier",
+                        "name": "f",
+                        "id": 14
+                      },
+                      "arguments": [],
+                      "id": 15
+                    }
+                  }
+                ],
+                "annotations": [],
+                "id": 17
+              }
+            ],
+            "id": 19
+          },
+          "id": 20,
+          "type": "condition_branch"
+        }
+      ],
+      "elseBranch": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "a"
+                },
+                "rvalue": {
+                  "type": "identifier",
+                  "name": "b",
+                  "id": 22
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 24
+          }
+        ],
+        "id": 26
+      },
+      "id": 27
+    }
+  ],
+  "id": 30
+}

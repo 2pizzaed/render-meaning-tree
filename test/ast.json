@@ -1,0 +1,235 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "assignment_statement",
+      "target": {
+        "type": "identifier",
+        "name": "a",
+        "id": 1
+      },
+      "value": {
+        "type": "int_literal",
+        "value": 10,
+        "repr": "DECIMAL",
+        "id": 2
+      },
+      "id": 4
+    },
+    {
+      "type": "if_statement",
+      "branches": [
+        {
+          "condition": {
+            "type": "gt_operator",
+            "left_operand": {
+              "type": "identifier",
+              "name": "b",
+              "id": 5
+            },
+            "right_operand": {
+              "type": "int_literal",
+              "value": 10,
+              "repr": "DECIMAL",
+              "id": 6
+            },
+            "id": 7
+          },
+          "body": {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "b",
+              "id": 8
+            },
+            "value": {
+              "type": "int_literal",
+              "value": 10,
+              "repr": "DECIMAL",
+              "id": 9
+            },
+            "id": 11
+          },
+          "id": 61,
+          "type": "condition_branch"
+        },
+        {
+          "condition": {
+            "type": "identifier",
+            "name": "X",
+            "id": 12
+          },
+          "body": {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "X",
+              "id": 13
+            },
+            "value": {
+              "type": "int_literal",
+              "value": 0,
+              "repr": "DECIMAL",
+              "id": 14
+            },
+            "id": 16
+          },
+          "id": 59,
+          "type": "condition_branch"
+        },
+        {
+          "condition": {
+            "type": "unary_operator",
+            "operand": {
+              "type": "identifier",
+              "name": "Y",
+              "id": 17
+            },
+            "id": 18
+          },
+          "body": {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "Y",
+              "id": 19
+            },
+            "value": {
+              "type": "int_literal",
+              "value": 1,
+              "repr": "DECIMAL",
+              "id": 20
+            },
+            "id": 22
+          },
+          "id": 57,
+          "type": "condition_branch"
+        },
+        {
+          "condition": {
+            "type": "identifier",
+            "name": "Z",
+            "id": 23
+          },
+          "body": {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "Z",
+              "id": 24
+            },
+            "value": {
+              "type": "int_literal",
+              "value": 20,
+              "repr": "DECIMAL",
+              "id": 25
+            },
+            "id": 27
+          },
+          "id": 55,
+          "type": "condition_branch"
+        },
+        {
+          "condition": {
+            "type": "identifier",
+            "name": "W",
+            "id": 28
+          },
+          "body": {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "W",
+              "id": 29
+            },
+            "value": {
+              "type": "int_literal",
+              "value": 30,
+              "repr": "DECIMAL",
+              "id": 30
+            },
+            "id": 32
+          },
+          "id": 53,
+          "type": "condition_branch"
+        },
+        {
+          "condition": {
+            "type": "identifier",
+            "name": "N",
+            "id": 33
+          },
+          "body": {
+            "type": "compound_statement",
+            "statements": [
+              {
+                "type": "assignment_statement",
+                "target": {
+                  "type": "identifier",
+                  "name": "W",
+                  "id": 34
+                },
+                "value": {
+                  "type": "int_literal",
+                  "value": 40,
+                  "repr": "DECIMAL",
+                  "id": 35
+                },
+                "id": 37
+              }
+            ],
+            "id": 38
+          },
+          "id": 51,
+          "type": "condition_branch"
+        }
+      ],
+      "elseBranch": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "a",
+              "id": 39
+            },
+            "value": {
+              "type": "identifier",
+              "name": "b",
+              "id": 40
+            },
+            "id": 42
+          },
+          {
+            "type": "assignment_statement",
+            "target": {
+              "type": "identifier",
+              "name": "c",
+              "id": 43
+            },
+            "value": {
+              "type": "lt_operator",
+              "left_operand": {
+                "type": "int_literal",
+                "value": 10,
+                "repr": "DECIMAL",
+                "id": 44
+              },
+              "right_operand": {
+                "type": "identifier",
+                "name": "a",
+                "id": 45
+              },
+              "id": 46
+            },
+            "id": 48
+          }
+        ],
+        "id": 49
+      },
+      "id": 60
+    }
+  ],
+  "id": 62
+}

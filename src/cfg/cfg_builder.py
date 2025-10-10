@@ -74,10 +74,21 @@ class CFGBuilder:
                 except ValueError as e:
                     print(f'Warning: could not resolve transition {tr.from_} -> {tr.to} (or {tr.to_when_absent})')
                     print(f'  Action: {action.role}, AST: {wrapped_ast.describe()}')
-                    print(f'  Error: {e}')
+                    print(f'  Error: {e!r}')
                     continue
 
                 target_action, next_wrapped_ast, is_primary, transition_chain = step_further_tuple
+
+                ### DEBUG.
+                if 0:
+                    print()
+                    print(f'{action = }')
+                    print(f'{wrapped_ast.ast_node['id'] = }')
+                    print(f'previous wrapped_ast->id = {node.metadata.wrapped_ast.ast_node['id']}')
+                    print(f'{tr = }')
+                    print(f'{target_action = }')
+                    print(f'{next_wrapped_ast.ast_node = }')
+                ###
 
                 # Check if node with this role and data already exists
                 existing_node = None

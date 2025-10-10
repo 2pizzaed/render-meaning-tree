@@ -1,0 +1,156 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "while_loop",
+      "condition": {
+        "type": "function_call",
+        "function": {
+          "type": "identifier",
+          "name": "g",
+          "id": 1
+        },
+        "arguments": [
+          {
+            "type": "string_literal",
+            "value": "go",
+            "id": 2
+          }
+        ],
+        "id": 3
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "a",
+                  "id": 4
+                },
+                "rvalue": {
+                  "type": "string_literal",
+                  "value": "b",
+                  "id": 5
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 7
+          },
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "d",
+                  "id": 9
+                },
+                "rvalue": {
+                  "type": "string_literal",
+                  "value": "pass",
+                  "id": 10
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 12
+          },
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "e",
+                  "id": 14
+                },
+                "rvalue": {
+                  "type": "eq_operator",
+                  "left_operand": {
+                    "type": "list_literal",
+                    "elements": [
+                      {
+                        "type": "int_literal",
+                        "value": 3,
+                        "repr": "DECIMAL",
+                        "id": 17
+                      },
+                      {
+                        "type": "int_literal",
+                        "value": 2,
+                        "repr": "DECIMAL",
+                        "id": 16
+                      },
+                      {
+                        "type": "int_literal",
+                        "value": 1,
+                        "repr": "DECIMAL",
+                        "id": 15
+                      },
+                      {
+                        "type": "unknown_type",
+                        "id": 19
+                      }
+                    ],
+                    "id": 18
+                  },
+                  "right_operand": {
+                    "type": "unmodifiable_list_literal",
+                    "elements": [
+                      {
+                        "type": "int_literal",
+                        "value": 0,
+                        "repr": "DECIMAL",
+                        "id": 22
+                      },
+                      {
+                        "type": "int_literal",
+                        "value": 0,
+                        "repr": "DECIMAL",
+                        "id": 21
+                      },
+                      {
+                        "type": "int_literal",
+                        "value": 0,
+                        "repr": "DECIMAL",
+                        "id": 20
+                      },
+                      {
+                        "type": "unknown_type",
+                        "id": 24
+                      }
+                    ],
+                    "id": 23
+                  },
+                  "id": 25
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 39
+          }
+        ],
+        "id": 41
+      },
+      "id": 42
+    },
+    {
+      "type": "comment",
+      "content": " def g(_):",
+      "is_multiline": false,
+      "id": 43
+    },
+    {
+      "type": "comment",
+      "content": "     return 'gone'",
+      "is_multiline": false,
+      "id": 44
+    }
+  ],
+  "id": 46
+}

@@ -93,8 +93,12 @@ while_structure:
   actions:
     - role: cond
       kind: condition
+      identification:
+        property: condition
     - role: body
       kind: compound
+      identification:
+        property: body
       effects:
         - interruption_stop: continue
   transitions:
@@ -230,8 +234,8 @@ block_structure:
       kind: action
       identification:
         origin: previous
-        property_path: '^ / [next]'
-        role_in_list: next_in_list
+        property_path: '[next]'
+        # role_in_list: next_in_list
       generalization: item
   transitions:
     - from_: BEGIN

@@ -28,6 +28,26 @@ def test_astnodewrapper_1():
     res5 = res2.get('body', {'property_path':'^ / body'}, res2)
     assert res5.ast_node == ast_json["body"][1]["branches"][1]["body"]
 
+def test_astnodewrapper_5():
+    """Базовые тесты для property_path с простыми операциями"""
+    with open("ast5.json") as f:
+       ast_json = json.load(f)
+
+    loop_body = ast_json["body"][0]["body"]
+
+    root = ASTNodeWrapper(ast_node=loop_body)
+
+    res = root.get('first', {'property_path':'statements / [0]'})
+    assert res is not None, "Result should not be None"
+    assert res.ast_node == loop_body["statements"][0]
+
+    res2 = res.get('next', {'property_path':'[next]', 'origin': 'previous'}, res)
+    assert res2 is not None, "Result-2 should not be None"
+    assert res2.ast_node == loop_body["statements"][1]
+
+    res3 = res2.get('next', {'property_path':'[next]'})
+    assert res3.ast_node == loop_body["statements"][2]
+
 
 def test_complex_property_paths():
     """Тесты для сложных property_path с комбинациями операций"""

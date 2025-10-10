@@ -150,17 +150,13 @@ class ConstructSpec(DictLikeDataclass):
             self,
             tr: TransitionSpec,
             wrapped_ast: 'aw.ASTNodeWrapper',
-            previous_wrapped_ast: 'aw.ASTNodeWrapper' =None,
-            transition_chain: list['TransitionSpec'] = None
+            previous_wrapped_ast: 'aw.ASTNodeWrapper' = None,
     ) -> tuple[ActionSpec, 'aw.ASTNodeWrapper', bool, list['TransitionSpec']] | None:
         """  Returns related action, node data for it, a flag, and the transition chain:
-            True: main output used, False: `to_when_absent` output used.
+            flag: True: main output used, False: `to_when_absent` output used.
             transition_chain: list of transitions that led to the target action.
         """
-        if transition_chain is None:
-            transition_chain = []
-        
-        current_chain = transition_chain + [tr]
+        current_chain = [tr]
         
         while True:
             for target_role in (tr.to, tr.to_when_absent):
@@ -182,10 +178,12 @@ class ConstructSpec(DictLikeDataclass):
                 break
             tr = trs[0]
             # not really good to just take the first.. TODO
+            if tr in current_chain:
+                break  # prevent infinite looping
             current_chain.append(tr)
 
         # nothing found
-        raise ValueError([tr.from_, tr.to, tr.to_when_absent, wrapped_ast, previous_wrapped_ast])
+        raise ValueError([tr.from_, tr.to, tr.to_when_absent, wrapped_ast.ast_node['id'], previous_wrapped_ast.ast_node['id']])
         # return None
 
 

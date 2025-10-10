@@ -50,7 +50,7 @@ class CFGBuilder:
         processed_ids = set()
 
         while unprocessed_pool:
-            node = unprocessed_pool.pop()
+            node = unprocessed_pool.pop(0)
             if node.id in processed_ids:
                 continue
             processed_ids.add(node.id)

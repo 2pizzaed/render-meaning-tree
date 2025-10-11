@@ -1,0 +1,47 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "if_statement",
+      "branches": [
+        {
+          "condition": {
+            "type": "int_literal",
+            "value": 1,
+            "repr": "DECIMAL",
+            "id": 1
+          },
+          "body": {
+            "type": "compound_statement",
+            "statements": [
+              {
+                "type": "expression_statement",
+                "expression": {
+                  "type": "print_values",
+                  "separator": {
+                    "type": "string_literal",
+                    "value": " ",
+                    "id": 4
+                  },
+                  "end": {
+                    "type": "string_literal",
+                    "value": "\n",
+                    "id": 3
+                  },
+                  "arguments": [],
+                  "id": 5
+                },
+                "id": 6
+              }
+            ],
+            "id": 7
+          },
+          "id": 8,
+          "type": "condition_branch"
+        }
+      ],
+      "id": 9
+    }
+  ],
+  "id": 12
+}

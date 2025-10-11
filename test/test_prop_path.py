@@ -30,7 +30,7 @@ def test_astnodewrapper_1():
 
 def test_astnodewrapper_5():
     """Базовые тесты для property_path с простыми операциями"""
-    with open("ast5.json") as f:
+    with open("data/ast5.json") as f:
        ast_json = json.load(f)
 
     loop_body = ast_json["body"][0]["body"]
@@ -51,7 +51,7 @@ def test_astnodewrapper_5():
 
 def test_complex_property_paths():
     """Тесты для сложных property_path с комбинациями операций"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -76,7 +76,7 @@ def test_complex_property_paths():
 
 def test_edge_cases():
     """Тесты для граничных случаев и ошибок"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -108,7 +108,7 @@ def test_edge_cases():
 
 def test_navigation_operations():
     """Тесты для операций навигации ^ и [next]"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -142,7 +142,7 @@ def test_navigation_operations():
 
 def test_dict_access():
     """Тесты для доступа к словарям"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -164,7 +164,7 @@ def test_dict_access():
 
 def test_list_access():
     """Тесты для доступа к спискам"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -187,7 +187,7 @@ def test_list_access():
 
 def test_caching_behavior():
     """Тесты для проверки кэширования"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -208,7 +208,7 @@ def test_caching_behavior():
 
 def test_previous_action_data():
     """Тесты для previous_action_data параметра"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -228,7 +228,7 @@ def test_previous_action_data():
 
 def test_mixed_operations():
     """Тесты для смешанных операций в одном пути"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -248,7 +248,7 @@ def test_mixed_operations():
 
 def test_error_handling():
     """Тесты для обработки ошибок"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])
@@ -270,7 +270,7 @@ def test_error_handling():
 
 def test_recursive_implementation():
     """Тесты для проверки рекурсивной реализации"""
-    with open("ast.json") as f:
+    with open("data/ast.json") as f:
        ast_json = json.load(f)
 
     root = ASTNodeWrapper(ast_node=ast_json["body"][1])

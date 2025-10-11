@@ -14,7 +14,7 @@ if source_map is None or not isinstance(source_map, dict):
 tokens = to_tokens(language, source_map["source_code"])
 if not tokens:
     raise ValueError("Token obtaining failure")
-CodeHighlightGenerator().generate_html(
+CodeHighlightGenerator("../templates/base_new.html").generate_html(
     source_map,
     tokens,
     output_file="output.html",

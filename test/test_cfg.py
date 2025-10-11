@@ -69,7 +69,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder4(self):
 
-        with open("ast4.json") as f:
+        with open("data/ast4.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -130,7 +130,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder5(self):
 
-        with open("ast5.json") as f:
+        with open("data/ast5.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy

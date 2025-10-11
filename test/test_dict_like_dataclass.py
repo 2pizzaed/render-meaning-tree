@@ -195,7 +195,7 @@ class TestDictLikeDataclass:
     
     def test_ast_json_parsing(self):
         """Test parsing actual AST JSON data"""
-        with open("ast.json") as f:
+        with open("data/ast.json") as f:
             ast_data = json.load(f)
         
         # Create a simple dataclass to represent AST nodes without forward references

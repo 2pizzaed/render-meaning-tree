@@ -76,14 +76,15 @@ class CFGBuilder:
             cfg.connect(cfg.begin_node, cfg.end_node)
             return cfg
         
-        # Создаем CFG для тела функции
-        func_body_cfg = self.make_cfg_for_construct(construct, wrapped_ast)
-        
-        # Сохраняем CFG функции в словаре
-        self.func_cfgs[func_name] = func_body_cfg
-        
+        # Создаем пустой CFG для функции и сохраняем его в словаре.
+        # Это нужно, чтобы рекурсивное обращение видело обёртку CFG и могло использовать границы для добавления рёбер ещё до полного определения.
+        self.func_cfgs[func_name] = func_cfg = CFG("func_" + func_name)
+
+        # Наполняем CFG для тела функции
+        self.make_cfg_for_construct(construct, wrapped_ast, cfg=func_cfg)
+
         # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
-        cfg = CFG("function_definition")
+        cfg = CFG("function_definition_registered")
         cfg.connect(cfg.begin_node, cfg.end_node)
         return cfg
 
@@ -169,11 +170,15 @@ class CFGBuilder:
         # fallback: unknown construct.
         return None
 
-    def make_cfg_for_construct(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
-        """ Предполагается, что CFG для подчинённых узлов уже подготовлены и готовы быть встроены в новый. -- будут созданы рекурсивно. """
-        ast_node = wrapped_ast.ast_node
-        cfg_name = ast_node['type'] if 'type' in ast_node else str(ast_node)
-        cfg = CFG(cfg_name)
+    def make_cfg_for_construct(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
+        """ Предполагается, что CFG для подчинённых узлов будут созданы рекурсивно и встроены в результат.
+        Если `cfg` передан, то будет использован для наполнения, иначе создан новый.
+        """
+        if not cfg:
+            # Make fresh CFG.
+            ast_node = wrapped_ast.ast_node
+            cfg_name = ast_node['type'] if 'type' in ast_node else str(ast_node)
+            cfg = CFG(cfg_name)
 
         # Добавить метаданные: алгоритмическая конструкция и узел AST
         cfg.begin_node.metadata.abstract_action = construct.id2action[BEGIN]

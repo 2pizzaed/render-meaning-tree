@@ -122,7 +122,31 @@ class CFG:
             # print all outgoing edges
             for e in self.edges:
                 if e.src == nid:
-                    print("   ->", e.dst, " __", e.constraints or "", ((m := e.metadata) and m.abstract_transition and m.abstract_transition.to) or "")
+                    print("   ->", e.dst, " __",
+                          e.constraints or "",
+                          ((m := e.metadata) and m.abstract_transition and m.abstract_transition.to) or "",
+                          ((m := e.metadata) and m.abstract_transition and m.abstract_transition.constraints) or "",
+                    )
         print()
-        for e in self.edges:
-            print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")
+        print()
+        print()
+        print('<<<<<')
+        print()
+        for nid, n in self.nodes.items():
+            # print all incoming edges
+            for e in self.edges:
+                if e.dst == nid:
+                    print("   ->>", e.src, " __",
+                          e.constraints or "",
+                          ((m := e.metadata) and m.abstract_transition and m.abstract_transition.from_ + ' >>') or "",
+                          ((m := e.metadata) and m.abstract_transition and m.abstract_transition.constraints) or "",
+                    )
+            info = {}
+            if n.metadata.abstract_action:
+                info['abstract_action'] = n.metadata.abstract_action.role
+            if n.metadata.wrapped_ast:
+                info['ast'] = n.metadata.wrapped_ast.describe()
+            print(" o", nid, n.kind, n.role, info)
+            print()
+        # for e in self.edges:
+        #     print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")

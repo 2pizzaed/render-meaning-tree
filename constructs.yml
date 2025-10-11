@@ -1,3 +1,7 @@
+# ================================
+# Универсальные управляющие структуры
+# ================================
+
 # --------------------------------
 # Глобальные операторы -- разновидность блока { ... }
 # --------------------------------
@@ -6,13 +10,13 @@ global_statements_structure:
   ast_node: program_entry_point
   actions:
     - role: first
-      kind: compound
+      kind: action
       identification:
         origin: parent
         property_path: 'body / [0]'  # statements -> body
       generalization: item
     - role: next
-      kind: compound
+      kind: action
       identification:
         origin: previous
         property_path: '[next]'
@@ -24,9 +28,6 @@ global_statements_structure:
       to: next       # переход к следующему элементу
       to_when_absent: END
 
-# ================================
-# Универсальные контрольные структуры
-# ================================
 # --------------------------------
 # Условный оператор (if / else-if / else)
 # --------------------------------
@@ -289,13 +290,13 @@ block_structure:
   ast_node: compound_statement
   actions:
     - role: first
-      kind: compound
+      kind: action
       identification:
         origin: parent
         property_path: 'statements / [0]'
       generalization: item
     - role: next
-      kind: compound
+      kind: action
       identification:
         origin: previous
         property_path: '[next]'
@@ -311,7 +312,7 @@ block_structure:
 # Определение функции
 # --------------------------------
 func_def_structure:
-  kind: call
+  kind: noop
   ast_node: function_definition
   actions:
     - role: name
@@ -358,7 +359,7 @@ func_call_structure:
 # return
 # --------------------------------
 return_action:
-  kind: atom
+  kind: atom  # this kind matters
   ast_node: return_statement
   effects:
     - interruption_start: return

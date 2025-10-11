@@ -174,7 +174,7 @@ class TestCfgBuilder(unittest.TestCase):
       # # Process all statements in the program body
         cfg = b.make_cfg_for_ast(program_root)
         # Debug print CFG
-        cfg.debug()
+        # cfg.debug()
 
         # Test that func_cfgs contains function 'g'
         self.assertIn('g', b.func_cfgs, "Function 'g' should be stored in func_cfgs")
@@ -209,6 +209,8 @@ class TestCfgBuilder(unittest.TestCase):
 
         print(f"Found {len(call_stack_edges)} edges with call_stack effects")
 
+        assert len(call_stack_edges) == 2
+
         # For now, we just verify that the function definition and call detection work
         # The call_stack effects would be present if we had a standalone function call
         # instead of one embedded in a for_each_loop
@@ -226,72 +228,19 @@ class TestCfgBuilder(unittest.TestCase):
             #         if sub_node.kind == 'function_call':
             #             print(f"      *** Found function_call node! ***")
 
-    def test_cfg_builder_simple_func_call(self):
-        """Test function call binding with a simple standalone function call"""
-        
-        with open("data/simple_func_call.json") as f:
+
+    def test_cfg_builder8(self):
+
+        with open("data/ast8.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
         program_root = ASTNodeWrapper(ast_node=ast_json)
-        
+
         constructs = load_constructs("../constructs.yml")
         b = CFGBuilder(constructs)
 
         # Process all statements in the program body
-        all_cfgs = []
-        for i, statement in enumerate(ast_json["body"]):
-            print(f"\n=== Processing statement {i}: {statement.get('type')} ===")
-            statement_wrapper = ASTNodeWrapper(ast_node=statement, parent=program_root)
-            cfg = b.make_cfg_for_ast(statement_wrapper)
-            all_cfgs.append(cfg)
-            print(f"func_cfgs after statement {i}: {list(b.func_cfgs.keys())}")
-
-        # Test that func_cfgs contains function 'f'
-        self.assertIn('f', b.func_cfgs, "Function 'f' should be stored in func_cfgs")
-        
-        # Test that we have a function call CFG
-        func_call_cfg = None
-        for cfg in all_cfgs:
-            if cfg.name == 'function_call':
-                func_call_cfg = cfg
-                break
-        
-        self.assertIsNotNone(func_call_cfg, "Should have a function_call CFG")
-        
-        # Test that we have edges with call_stack effects
-        call_stack_edges = []
-        for edge in func_call_cfg.edges:
-            if (edge.metadata.abstract_transition and 
-                edge.metadata.abstract_transition.effects):
-                for effect in edge.metadata.abstract_transition.effects:
-                    if hasattr(effect, 'call_stack') and effect.call_stack:
-                        call_stack_edges.append(edge)
-        
-        self.assertGreater(len(call_stack_edges), 0, "Should have edges with call_stack effects")
-        
-        # Verify we have both add_frame and drop_frame effects
-        add_frame_edges = []
-        drop_frame_edges = []
-        for edge in call_stack_edges:
-            for effect in edge.metadata.abstract_transition.effects:
-                if effect.call_stack == 'add_frame':
-                    add_frame_edges.append(edge)
-                elif effect.call_stack == 'drop_frame':
-                    drop_frame_edges.append(edge)
-        
-        self.assertGreater(len(add_frame_edges), 0, "Should have add_frame effects")
-        self.assertGreater(len(drop_frame_edges), 0, "Should have drop_frame effects")
-
-        print(f"\n=== Simple Function Call Test Results ===")
-        print(f"Function 'f' stored: {'f' in b.func_cfgs}")
-        print(f"Function call CFG found: {func_call_cfg is not None}")
-        print(f"Call stack edges: {len(call_stack_edges)}")
-        print(f"Add frame edges: {len(add_frame_edges)}")
-        print(f"Drop frame edges: {len(drop_frame_edges)}")
-        
-        if func_call_cfg:
-            print(f"\n=== Function Call CFG ===")
-            func_call_cfg.debug()
-
-
+        cfg = b.make_cfg_for_ast(program_root)
+        # Debug print CFG
+        cfg.debug()

@@ -282,24 +282,48 @@ block_structure:
       to_when_absent: END
 
 # --------------------------------
-# Вызов функции
+# Определение функции
 # --------------------------------
-call_structure:
+func_def_structure:
   kind: call
-  ast_node: call  # TODO !!??
+  ast_node: function_definition
   actions:
-#    - role: func_call
-#      kind: expression
+    - role: name
+      kind: identifier
+      identification:
+        property_path: 'declaration / name / name'
     - role: func_body
       kind: compound
+      identification:
+        property: 'body'
       effects:
         - interruption_stop: return
   transitions:
     - from_: BEGIN
       to: func_body
+    - from_: func_body
+      to: END
+
+# --------------------------------
+# Вызов функции
+# --------------------------------
+func_call_structure:
+  kind: call
+  ast_node: function_call
+  actions:
+    - role: name
+      kind: identifier
+      identification:
+        property_path: 'function / name'
+    - role: func
+      kind: compound
+      # identification: func def lookup (TODO)
+  transitions:
+    - from_: BEGIN
+      to: func
       effects:
         - call_stack: add_frame        # при входе в функцию создаём стековый фрейм
-    - from_: func_body
+    - from_: func
       to: END
       effects:
         - call_stack: drop_frame       # при выходе убираем фрейм

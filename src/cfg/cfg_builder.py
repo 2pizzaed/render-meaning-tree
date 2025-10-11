@@ -5,10 +5,19 @@ from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata
 
 
+# FUNC_DEF_AST_NODE = 'function_definition'
+# FUNC_CALL_AST_NODE = 'function_call'
+FUNC_DEF_CONSTRUCT = 'func_def_structure'
+FUNC_CALL_CONSTRUCT = 'func_call_structure'
+
 # ---------- CFGBuilder ----------
 class CFGBuilder:
+    constructs: dict[str, ConstructSpec]
+    func_cfgs: dict[str, CFG]
+
     def __init__(self, constructs_map: dict[str, ConstructSpec]):
         self.constructs = constructs_map
+        self.func_cfgs = {}
 
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
         v = ast_node_wrapper.ast_node

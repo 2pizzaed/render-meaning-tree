@@ -35,8 +35,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.file:
-        with open(args.file, "r") as f:
+    # file_path = args.file
+    N = 7
+    file_path = f"test/examples/code_example{N}.py"
+
+    if file_path:
+        with open(file_path, "r") as f:
             code = f.read()
     elif args.code:
         code = args.code
@@ -54,7 +58,7 @@ if __name__ == "__main__":
 
     if 1:
         # save json
-        with open("test/data/ast4.json", "w") as f:
+        with open(f"test/data/ast{N}.json", "w") as f:
            json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"

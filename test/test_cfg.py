@@ -160,4 +160,20 @@ class TestCfgBuilder(unittest.TestCase):
 
         cfg.debug()
 
+    def test_cfg_builder7(self):
+
+        with open("data/ast7.json") as f:
+           ast_json = json.load(f)
+
+        # Create the full AST hierarchy
+        program_root = ASTNodeWrapper(ast_node=ast_json)
+        # root = ASTNodeWrapper(ast_node=ast_json["body"][0], parent=program_root)
+
+        constructs = load_constructs("../constructs.yml")
+        b = CFGBuilder(constructs)
+
+        cfg = b.make_cfg_for_ast(program_root)
+
+        cfg.debug()
+
 

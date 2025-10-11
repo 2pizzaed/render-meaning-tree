@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.abstractions import ActionSpec, TransitionSpec
+from src.cfg.abstractions import ActionSpec, TransitionSpec, Effects, Constraints
 from src.common_utils import DictLikeDataclass
 
 from src.serializers.types import FactSerializable
@@ -56,8 +56,9 @@ class Edge(FactSerializable):
     id: str
     src: str
     dst: str
-    cfg: 'CFG' = None
-    constraints: Optional[dict[str, Any]] = None
+    # cfg: 'CFG' = None
+    constraints: Optional[Constraints] = None
+    effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
 
 

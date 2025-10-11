@@ -61,17 +61,34 @@ class Edge(FactSerializable):
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
 
+    def compare(self, other: Self):
+        """ Compare edges for equality of src, dst, constraints, metadata to make sure we won't add duplicates """
+        return (# self.id == other.id and
+                self.src == other.src and
+                self.dst == other.dst and
+                self.constraints == other.constraints #and
+                # self.effects == other.effects and
+                # self.metadata.ast_node is other.metadata.ast_node
+        )
+
 
 class CFG:
     def __init__(self, name="cfg"):
         """ Init a CFG and create BEGIN and END nodes """
         self.id = idgen.next(name)
-        self.name = name
+        self.name: str = name
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         # init boundaries
         self.begin_node = self.add_node(BEGIN, BEGIN)
         self.end_node = self.add_node(END, END)
+
+    def _add_edge(self, *other_edges: Edge):
+        """ Add edges to the CFG, skipping duplicates """
+        for e in other_edges:
+            if any(e.compare(e2) for e2 in self.edges):
+                continue
+            self.edges.append(e)
 
     def add_node(self, kind: str, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
@@ -94,9 +111,13 @@ class CFG:
             nid = idgen.next(kind)
             leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
             self.nodes[nid] = leave_node
-            # add everything from subgraph
-            self.nodes |= subgraph.nodes
-            self.edges += subgraph.edges
+
+            # add everything from subgraph (guard for the case of direct recursion when subgraph is the same as self)
+            if subgraph is not self:
+                self.nodes |= subgraph.nodes
+                # self.edges += subgraph.edges
+                self._add_edge(*subgraph.edges)
+
             # connect subgraph
             self.connect(enter_node, subgraph.begin_node)
             self.connect(subgraph.end_node, leave_node)
@@ -107,7 +128,7 @@ class CFG:
         src_id = src.id if isinstance(src, Node) else src
         dst_id = dst.id if isinstance(dst, Node) else dst
         e = Edge(id=idgen.next(), src=src_id, dst=dst_id, constraints=constraints, metadata=metadata or Metadata(), cfg=self)
-        self.edges.append(e)
+        self._add_edge(e)
         return e
 
     def debug(self):

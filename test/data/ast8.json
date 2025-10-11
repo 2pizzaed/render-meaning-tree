@@ -1,0 +1,195 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "function_definition",
+      "declaration": {
+        "type": "function_declaration",
+        "return_type": {
+          "type": "unknown_type",
+          "id": 2
+        },
+        "name": {
+          "type": "identifier",
+          "name": "g",
+          "id": 1
+        },
+        "annotations": [],
+        "arguments": [],
+        "id": 17
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "if_statement",
+            "branches": [
+              {
+                "condition": {
+                  "type": "function_call",
+                  "function": {
+                    "type": "identifier",
+                    "name": "g",
+                    "id": 3
+                  },
+                  "arguments": [],
+                  "id": 4
+                },
+                "body": {
+                  "type": "compound_statement",
+                  "statements": [
+                    {
+                      "type": "expression_statement",
+                      "expression": {
+                        "type": "function_call",
+                        "function": {
+                          "type": "identifier",
+                          "name": "g",
+                          "id": 5
+                        },
+                        "arguments": [],
+                        "id": 6
+                      },
+                      "id": 7
+                    }
+                  ],
+                  "id": 8
+                },
+                "id": 9,
+                "type": "condition_branch"
+              }
+            ],
+            "id": 10
+          },
+          {
+            "type": "return_statement",
+            "expression": {
+              "type": "unmodifiable_list_literal",
+              "elements": [
+                {
+                  "type": "int_literal",
+                  "value": 2,
+                  "repr": "DECIMAL",
+                  "id": 12
+                },
+                {
+                  "type": "int_literal",
+                  "value": 1,
+                  "repr": "DECIMAL",
+                  "id": 11
+                },
+                {
+                  "type": "unknown_type",
+                  "id": 14
+                }
+              ],
+              "id": 13
+            },
+            "id": 15
+          }
+        ],
+        "id": 16
+      },
+      "id": 18
+    },
+    {
+      "type": "for_each_loop",
+      "item": {
+        "type": "variable_declaration",
+        "declarators": [
+          {
+            "identifier": {
+              "type": "identifier",
+              "name": "step",
+              "id": 19
+            }
+          }
+        ],
+        "annotations": [],
+        "id": 34
+      },
+      "container": {
+        "type": "function_call",
+        "function": {
+          "type": "identifier",
+          "name": "g",
+          "id": 20
+        },
+        "arguments": [],
+        "id": 21
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "expression_statement",
+            "expression": {
+              "type": "print_values",
+              "separator": {
+                "type": "string_literal",
+                "value": " ",
+                "id": 25
+              },
+              "end": {
+                "type": "string_literal",
+                "value": "\n",
+                "id": 24
+              },
+              "arguments": [
+                {
+                  "type": "identifier",
+                  "name": "step",
+                  "id": 23
+                }
+              ],
+              "id": 26
+            },
+            "id": 27
+          },
+          {
+            "type": "expression_statement",
+            "expression": {
+              "type": "function_call",
+              "function": {
+                "type": "identifier",
+                "name": "g",
+                "id": 28
+              },
+              "arguments": [],
+              "id": 29
+            },
+            "id": 30
+          }
+        ],
+        "id": 31
+      },
+      "id": 36
+    },
+    {
+      "type": "expression_statement",
+      "expression": {
+        "type": "print_values",
+        "separator": {
+          "type": "string_literal",
+          "value": " ",
+          "id": 40
+        },
+        "end": {
+          "type": "string_literal",
+          "value": "\n",
+          "id": 39
+        },
+        "arguments": [
+          {
+            "type": "string_literal",
+            "value": "the end.",
+            "id": 38
+          }
+        ],
+        "id": 41
+      },
+      "id": 42
+    }
+  ],
+  "id": 48
+}

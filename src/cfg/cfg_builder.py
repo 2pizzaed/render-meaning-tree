@@ -268,5 +268,9 @@ class CFGBuilder:
                 next_node = node_pair[1]
                 if next_node.id not in processed_ids:
                     unprocessed_pool.append(next_node)
+
+                # начальный узел составного действия будем считать обработанным
+                if node_pair[0] is not node_pair[1]:
+                    processed_ids.add(node_pair[0].id)
             # end of for.
         return cfg

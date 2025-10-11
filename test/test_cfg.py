@@ -167,76 +167,64 @@ class TestCfgBuilder(unittest.TestCase):
 
         # Create the full AST hierarchy
         program_root = ASTNodeWrapper(ast_node=ast_json)
-        
+
         constructs = load_constructs("../constructs.yml")
         b = CFGBuilder(constructs)
 
-        # Process all statements in the program body
-        all_cfgs = []
-        for i, statement in enumerate(ast_json["body"]):
-            print(f"\n=== Processing statement {i}: {statement.get('type')} ===")
-            statement_wrapper = ASTNodeWrapper(ast_node=statement, parent=program_root)
-            cfg = b.make_cfg_for_ast(statement_wrapper)
-            all_cfgs.append(cfg)
-            print(f"func_cfgs after statement {i}: {list(b.func_cfgs.keys())}")
+      # # Process all statements in the program body
+        cfg = b.make_cfg_for_ast(program_root)
+        # Debug print CFG
+        cfg.debug()
 
         # Test that func_cfgs contains function 'g'
         self.assertIn('g', b.func_cfgs, "Function 'g' should be stored in func_cfgs")
-        
+
         # Test that we have a function call in one of the CFGs (for_each_loop contains function_call)
         # The function call is embedded as a condition in the for_each_loop, so we need to check
         # if the function 'g' is being called somewhere in the CFG
         func_call_found = False
-        for cfg in all_cfgs:
-            # Check if any node has a function_call AST type
-            for node in cfg.nodes.values():
-                if (hasattr(node, 'metadata') and 
-                    hasattr(node.metadata, 'wrapped_ast') and 
-                    node.metadata.wrapped_ast and
-                    isinstance(node.metadata.wrapped_ast.ast_node, dict) and
-                    node.metadata.wrapped_ast.ast_node.get('type') == 'function_call'):
-                    func_call_found = True
-                    print(f"Found function_call node: {node.id} with AST type: {node.metadata.wrapped_ast.ast_node.get('type')}")
-                    break
-            if func_call_found:
+        # Check if any node has a function_call AST type
+        for node in cfg.nodes.values():
+            if (hasattr(node, 'metadata') and
+                hasattr(node.metadata, 'wrapped_ast') and
+                node.metadata.wrapped_ast and
+                isinstance(node.metadata.wrapped_ast.ast_node, dict) and
+                node.metadata.wrapped_ast.ast_node.get('type') == 'function_call'):
+                func_call_found = True
+                print(f"Found function_call node: {node.id} with AST type: {node.metadata.wrapped_ast.ast_node.get('type')}")
                 break
-        
+
         self.assertTrue(func_call_found, "Should have function call nodes in one of the CFGs")
-        
+
         # Test that we have edges with call_stack effects
         # Note: Currently function calls embedded in other constructs (like for_each_loop)
         # are not processed with call_stack effects. This is a limitation of the current implementation.
         call_stack_edges = []
-        for cfg in all_cfgs:
-            for edge in cfg.edges:
-                if (edge.metadata.abstract_transition and 
-                    edge.metadata.abstract_transition.effects):
-                    for effect in edge.metadata.abstract_transition.effects:
-                        if hasattr(effect, 'call_stack') and effect.call_stack:
-                            call_stack_edges.append(edge)
-        
+        for edge in cfg.edges:
+            if (edge.metadata.abstract_transition and
+                edge.metadata.abstract_transition.effects):
+                for effect in edge.metadata.abstract_transition.effects:
+                    if hasattr(effect, 'call_stack') and effect.call_stack:
+                        call_stack_edges.append(edge)
+
         print(f"Found {len(call_stack_edges)} edges with call_stack effects")
-        
+
         # For now, we just verify that the function definition and call detection work
         # The call_stack effects would be present if we had a standalone function call
         # instead of one embedded in a for_each_loop
 
-        # Debug all CFGs
-        for i, cfg in enumerate(all_cfgs):
-            print(f"\n=== CFG {i} ===")
-            cfg.debug()
-        
         # Also check for function_call nodes in any subgraphs
-        print(f"\n=== Checking for function_call nodes in all CFGs and subgraphs ===")
-        for i, cfg in enumerate(all_cfgs):
-            print(f"CFG {i}:")
-            for node_id, node in cfg.nodes.items():
-                if hasattr(node, 'subgraph') and node.subgraph:
-                    print(f"  Node {node_id} has subgraph with {len(node.subgraph.nodes)} nodes")
-                    for sub_node_id, sub_node in node.subgraph.nodes.items():
-                        print(f"    Sub-node {sub_node_id}: kind={sub_node.kind}, role={sub_node.role}")
-                        if sub_node.kind == 'function_call':
-                            print(f"      *** Found function_call node! ***")
+        print(f"\n=== Checking for function_call nodes in CFG and subgraphs ===")
+        for node_id, node in cfg.nodes.items():
+            if node.metadata.abstract_action and node.metadata.abstract_action.kind == 'function_call':
+                print(f"      *** Found function_call node! ***")
+
+            # if hasattr(node, 'subgraph') and node.subgraph:
+            #     print(f"  Node {node_id} has subgraph with {len(node.subgraph.nodes)} nodes")
+            #     for sub_node_id, sub_node in node.subgraph.nodes.items():
+            #         print(f"    Sub-node {sub_node_id}: kind={sub_node.kind}, role={sub_node.role}")
+            #         if sub_node.kind == 'function_call':
+            #             print(f"      *** Found function_call node! ***")
 
     def test_cfg_builder_simple_func_call(self):
         """Test function call binding with a simple standalone function call"""

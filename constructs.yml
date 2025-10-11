@@ -359,7 +359,7 @@ func_call_structure:
 # --------------------------------
 return_action:
   kind: atom
-  ast_node: return  # TODO !!??
+  ast_node: return_statement
   effects:
     - interruption_start: return
 

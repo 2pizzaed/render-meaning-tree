@@ -84,13 +84,13 @@ class CFG:
             return node
         else:
             # Node is a wrapper over a compound.
-            kind = 'enter-' + subgraph.name
+            kind = 'enter__' + subgraph.name
             nid = idgen.next(kind)
             enter_node = Node(id=nid, kind=kind, role=role, cfg=self,
                   metadata=metadata or Metadata()  # ?? No effects on enter!?
             )
             self.nodes[nid] = enter_node
-            kind = 'leave-' + subgraph.name
+            kind = 'leave__' + subgraph.name
             nid = idgen.next(kind)
             leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
             self.nodes[nid] = leave_node
@@ -122,7 +122,7 @@ class CFG:
             # print all outgoing edges
             for e in self.edges:
                 if e.src == nid:
-                    print("   ->", e.dst, " __", e.constraints or "", e.metadata or "")
+                    print("   ->", e.dst, " __", e.constraints or "", ((m := e.metadata) and m.abstract_transition and m.abstract_transition.to) or "")
         print()
         for e in self.edges:
             print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")

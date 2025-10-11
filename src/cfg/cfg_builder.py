@@ -142,14 +142,14 @@ class CFGBuilder:
         
         return call_cfg
 
-    def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG:
+    def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG | None:
         """
         Make CFG for AST node.
         Args:
             wrapped_ast:
 
         Returns:
-            CFG:
+            CFG for a compound node or None for an atom.
         """
         construct = self.find_construct_for_astnode(wrapped_ast)
         if construct:
@@ -158,11 +158,16 @@ class CFGBuilder:
                 return self._handle_function_definition(construct, wrapped_ast)
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._handle_function_call(construct, wrapped_ast)
-            return self.make_cfg_for_construct(construct, wrapped_ast)
-        # fallback empty
-        cfg = CFG("atom")
-        cfg.connect(cfg.begin_node, cfg.end_node)
-        return cfg
+            # Обычные узлы
+            if construct.kind != 'atom':
+                return self.make_cfg_for_construct(construct, wrapped_ast)
+            else:
+                cfg = CFG("atom_" + construct.name)
+                cfg.connect(cfg.begin_node, cfg.end_node)
+                # cfg.begin_node.metadata.abstract_action = construct.id2action['atom']
+                return cfg
+        # fallback: unknown construct.
+        return None
 
     def make_cfg_for_construct(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
         """ Предполагается, что CFG для подчинённых узлов уже подготовлены и готовы быть встроены в новый. -- будут созданы рекурсивно. """
@@ -220,7 +225,7 @@ class CFGBuilder:
                     print(f'previous wrapped_ast->id = {node.metadata.wrapped_ast.ast_node['id']}')
                     print(f'{tr = }')
                     print(f'{target_action = }')
-                    print(f'{next_wrapped_ast.ast_node = }')
+                    print(f'{next_wrapped_ast.ast_node['id'] = }')
                 ###
 
                 # Check if node with this role and data already exists
@@ -236,10 +241,7 @@ class CFGBuilder:
                     node23 = existing_node
                 else:
                     # insert subgraph, only for compound actions
-                    if target_action.kind == 'compound':
-                        subgraph = self.make_cfg_for_ast(next_wrapped_ast)
-                    else:
-                        subgraph = None
+                    subgraph = self.make_cfg_for_ast(next_wrapped_ast)
 
                     node23 = cfg.add_node(
                         kind=target_action.kind,

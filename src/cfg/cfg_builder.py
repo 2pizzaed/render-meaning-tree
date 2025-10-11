@@ -101,7 +101,7 @@ class CFGBuilder:
         func_cfg = self.func_cfgs.get(func_name)
         if not func_cfg:
             print(f'Warning: function "{func_name}" not found in func_cfgs, treating as regular compound')
-            # Обрабатываем как обычный compound без call stack эффектов
+            # Обрабатываем как обычный compound, без эффектов call_stack
             return self.make_cfg_for_construct(construct, wrapped_ast)
         
         # Создаем CFG вызова, встраивая CFG функции
@@ -116,7 +116,7 @@ class CFGBuilder:
         
         # Встраиваем CFG функции как subgraph
         func_node_pair = call_cfg.add_node(
-            kind='compound',
+            kind='func_body',
             role='func',
             metadata=Metadata(
                 abstract_action=construct.id2action['func'],
@@ -131,14 +131,12 @@ class CFGBuilder:
         begin_to_func_transition = construct.find_transitions_from_action(construct.id2action[BEGIN])[0]
         call_cfg.connect(call_cfg.begin_node, func_node_pair[0], metadata=Metadata(
             abstract_transition=begin_to_func_transition,
-            is_after_last=False,
         ))
         
         # func -> END (с эффектом drop_frame)
         func_to_end_transition = construct.find_transitions_from_action(construct.id2action['func'])[0]
         call_cfg.connect(func_node_pair[1], call_cfg.end_node, metadata=Metadata(
             abstract_transition=func_to_end_transition,
-            is_after_last=False,
         ))
         
         return call_cfg

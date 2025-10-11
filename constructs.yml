@@ -103,7 +103,7 @@ if_structure:
         condition_value: true        # если условие истинно
     - from_: cond
       to: next_cond
-      to_when_absent: else_branch   # → в "false"-ветку
+      to_when_absent: ['else_branch', 'END']   # → в "false"-ветку
       constraints:
         condition_value: false       # если ложно
     - from_: branch

@@ -109,11 +109,17 @@ class ActionSpec(DictLikeDataclass):
 class TransitionSpec(DictLikeDataclass):
     from_: Optional[str] = None
     to: Optional[str] = None
-    to_when_absent: Optional[str] = None
+    to_when_absent: Optional[list[str] | str] = None  # Chain of fallbacks is supported as well. List is first as more specific for automatic creation/conversion.
     constraints: Optional[Constraints] = None
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
 
+    def to_when_absent_as_list(self) -> list[str]:
+        if isinstance(self.to_when_absent, list):
+            return self.to_when_absent
+        if self.to_when_absent:
+            return [self.to_when_absent]
+        return []
 
 @dataclass
 class ConstructSpec(DictLikeDataclass):
@@ -156,7 +162,7 @@ class ConstructSpec(DictLikeDataclass):
         current_chain = [tr]
         
         while True:
-            for target_role in (tr.to, tr.to_when_absent):
+            for target_role in (tr.to, *tr.to_when_absent_as_list()):
                 if target_role:
                     action = self.id2action.get(target_role)
                     if action:

@@ -1,0 +1,147 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "for_each_loop",
+      "item": {
+        "type": "variable_declaration",
+        "declarators": [
+          {
+            "identifier": {
+              "type": "identifier",
+              "name": "step",
+              "id": 1
+            }
+          }
+        ],
+        "annotations": [],
+        "id": 36
+      },
+      "container": {
+        "type": "function_call",
+        "function": {
+          "type": "identifier",
+          "name": "g",
+          "id": 2
+        },
+        "arguments": [
+          {
+            "type": "string_literal",
+            "value": "go",
+            "id": 3
+          }
+        ],
+        "id": 4
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "a",
+                  "id": 5
+                },
+                "rvalue": {
+                  "type": "string_literal",
+                  "value": "b",
+                  "id": 6
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 8
+          },
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "d",
+                  "id": 10
+                },
+                "rvalue": {
+                  "type": "string_literal",
+                  "value": "pass",
+                  "id": 11
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 13
+          },
+          {
+            "type": "variable_declaration",
+            "declarators": [
+              {
+                "identifier": {
+                  "type": "identifier",
+                  "name": "e",
+                  "id": 15
+                },
+                "rvalue": {
+                  "type": "eq_operator",
+                  "left_operand": {
+                    "type": "identifier",
+                    "name": "step",
+                    "id": 16
+                  },
+                  "right_operand": {
+                    "type": "unmodifiable_list_literal",
+                    "elements": [
+                      {
+                        "type": "int_literal",
+                        "value": 0,
+                        "repr": "DECIMAL",
+                        "id": 19
+                      },
+                      {
+                        "type": "int_literal",
+                        "value": 0,
+                        "repr": "DECIMAL",
+                        "id": 18
+                      },
+                      {
+                        "type": "int_literal",
+                        "value": 0,
+                        "repr": "DECIMAL",
+                        "id": 17
+                      },
+                      {
+                        "type": "unknown_type",
+                        "id": 21
+                      }
+                    ],
+                    "id": 20
+                  },
+                  "id": 22
+                }
+              }
+            ],
+            "annotations": [],
+            "id": 31
+          }
+        ],
+        "id": 33
+      },
+      "id": 38
+    },
+    {
+      "type": "comment",
+      "content": " def g(_):\r",
+      "is_multiline": false,
+      "id": 39
+    },
+    {
+      "type": "comment",
+      "content": "     return 'gone'\r",
+      "is_multiline": false,
+      "id": 40
+    }
+  ],
+  "id": 42
+}

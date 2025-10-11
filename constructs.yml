@@ -217,6 +217,45 @@ for_structure:
       to: cond
 
 # --------------------------------
+# Цикл for each (по контейнеру)
+# --------------------------------
+for_each_structure:
+  kind: loop
+  ast_node: for_each_loop
+  effects:
+    - interruption_stop: break
+  actions:
+    - role: cond
+      kind: condition
+      identification:
+        property: container
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: update
+      kind: atom
+      identification:
+        property: item
+  transitions:
+    - from_: BEGIN
+      to: cond
+    - from_: cond
+      to: update
+      constraints:
+        condition_value: true
+    - from_: cond
+      to: END
+      constraints:
+        condition_value: false       # false → выход
+    - from_: update
+      to: body
+    - from_: body
+      to: cond
+
+# --------------------------------
 # Блок операторов { ... }
 # --------------------------------
 block_structure:
@@ -228,14 +267,12 @@ block_structure:
       identification:
         origin: parent
         property_path: 'statements / [0]'
-        role_in_list: first_in_list
       generalization: item
     - role: next
       kind: action
       identification:
         origin: previous
         property_path: '[next]'
-        # role_in_list: next_in_list
       generalization: item
   transitions:
     - from_: BEGIN

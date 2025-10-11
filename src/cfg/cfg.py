@@ -145,8 +145,7 @@ class CFG:
                 if e.src == nid:
                     print("   ->", e.dst, " __",
                           e.constraints or "",
-                          ((m := e.metadata) and m.abstract_transition and m.abstract_transition.to) or "",
-                          ((m := e.metadata) and m.abstract_transition and m.abstract_transition.constraints) or "",
+                          e.metadata,
                     )
         print()
         print()

@@ -31,9 +31,134 @@ class CFGBuilder:
             ###
         return None
 
+    def _extract_function_name(self, wrapped_ast: ASTNodeWrapper, construct: ConstructSpec) -> Optional[str]:
+        """Извлекает имя функции из AST узла, используя action с ролью 'name' из конструкта."""
+        # Находим action с ролью 'name' в конструкте
+        name_action = None
+        for action in construct.actions:
+            if action.role == 'name':
+                name_action = action
+                break
+        
+        if not name_action:
+            print(f'Warning: no name action found in construct {construct.name}')
+            print(f'Available actions: {[a.role for a in construct.actions]}')
+            return None
+        
+        # Извлекаем данные узла с именем функции
+        name_data = name_action.find_node_data(wrapped_ast)
+        if not name_data:
+            print(f'Warning: could not extract function name from AST')
+            return None
+        
+        # Получаем имя функции из AST узла
+        if isinstance(name_data.ast_node, dict):
+            func_name = name_data.ast_node.get('name')
+        elif isinstance(name_data.ast_node, str):
+            func_name = name_data.ast_node
+        else:
+            print(f'Warning: unexpected AST node type for function name: {type(name_data.ast_node)}')
+            return None
+        
+        if not func_name:
+            print(f'Warning: function name not found in AST node')
+            return None
+        
+        return func_name
+
+    def _handle_function_definition(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
+        """Обрабатывает определение функции: создает CFG для тела функции и сохраняет в func_cfgs."""
+        # Извлекаем имя функции
+        func_name = self._extract_function_name(wrapped_ast, construct)
+        if not func_name:
+            print(f'Warning: could not extract function name, skipping function definition')
+            # Возвращаем пустой CFG
+            cfg = CFG("empty_function_def")
+            cfg.connect(cfg.begin_node, cfg.end_node)
+            return cfg
+        
+        # Создаем CFG для тела функции
+        func_body_cfg = self.make_cfg_for_construct(construct, wrapped_ast)
+        
+        # Сохраняем CFG функции в словаре
+        self.func_cfgs[func_name] = func_body_cfg
+        
+        # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
+        cfg = CFG("function_definition")
+        cfg.connect(cfg.begin_node, cfg.end_node)
+        return cfg
+
+    def _handle_function_call(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
+        """Обрабатывает вызов функции: связывает с CFG функции из func_cfgs."""
+        # Извлекаем имя функции
+        func_name = self._extract_function_name(wrapped_ast, construct)
+        if not func_name:
+            print(f'Warning: could not extract function name, treating as regular compound')
+            # Обрабатываем как обычный compound без call stack эффектов
+            return self.make_cfg_for_construct(construct, wrapped_ast)
+        
+        # Ищем CFG функции в func_cfgs
+        func_cfg = self.func_cfgs.get(func_name)
+        if not func_cfg:
+            print(f'Warning: function "{func_name}" not found in func_cfgs, treating as regular compound')
+            # Обрабатываем как обычный compound без call stack эффектов
+            return self.make_cfg_for_construct(construct, wrapped_ast)
+        
+        # Создаем CFG вызова, встраивая CFG функции
+        # Создаем CFG через конструкт, но заменяем тело функции на сохраненный CFG
+        call_cfg = CFG("function_call")
+        
+        # Добавляем метаданные к begin и end узлам
+        call_cfg.begin_node.metadata.abstract_action = construct.id2action[BEGIN]
+        call_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
+        call_cfg.end_node.metadata.abstract_action = construct.id2action[END]
+        call_cfg.end_node.metadata.wrapped_ast = wrapped_ast
+        
+        # Встраиваем CFG функции как subgraph
+        func_node_pair = call_cfg.add_node(
+            kind='compound',
+            role='func',
+            metadata=Metadata(
+                abstract_action=construct.id2action['func'],
+                wrapped_ast=wrapped_ast,
+                primary=True,
+            ),
+            subgraph=func_cfg
+        )
+        
+        # Создаем рёбра, связывая с абстрактными переходами с эффектами call_stack
+        # BEGIN -> func (с эффектом add_frame)
+        begin_to_func_transition = construct.find_transitions_from_action(construct.id2action[BEGIN])[0]
+        call_cfg.connect(call_cfg.begin_node, func_node_pair[0], metadata=Metadata(
+            abstract_transition=begin_to_func_transition,
+            is_after_last=False,
+        ))
+        
+        # func -> END (с эффектом drop_frame)
+        func_to_end_transition = construct.find_transitions_from_action(construct.id2action['func'])[0]
+        call_cfg.connect(func_node_pair[1], call_cfg.end_node, metadata=Metadata(
+            abstract_transition=func_to_end_transition,
+            is_after_last=False,
+        ))
+        
+        return call_cfg
+
     def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG:
+        """
+        Make CFG for AST node.
+        Args:
+            wrapped_ast:
+
+        Returns:
+            CFG:
+        """
         construct = self.find_construct_for_astnode(wrapped_ast)
         if construct:
+            # Проверяем специальные случаи для функций
+            if construct.name == FUNC_DEF_CONSTRUCT:
+                return self._handle_function_definition(construct, wrapped_ast)
+            elif construct.name == FUNC_CALL_CONSTRUCT:
+                return self._handle_function_call(construct, wrapped_ast)
             return self.make_cfg_for_construct(construct, wrapped_ast)
         # fallback empty
         cfg = CFG("atom")

@@ -56,7 +56,7 @@ class Edge(FactSerializable):
     id: str
     src: str
     dst: str
-    # cfg: 'CFG' = None
+    cfg: 'CFG' = None
     constraints: Optional[Constraints] = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)

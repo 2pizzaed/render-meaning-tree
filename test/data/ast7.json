@@ -1,0 +1,143 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "function_definition",
+      "declaration": {
+        "type": "function_declaration",
+        "return_type": {
+          "type": "unknown_type",
+          "id": 2
+        },
+        "name": {
+          "type": "identifier",
+          "name": "g",
+          "id": 1
+        },
+        "annotations": [],
+        "arguments": [],
+        "id": 11
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "expression_statement",
+            "expression": {
+              "type": "print_values",
+              "separator": {
+                "type": "string_literal",
+                "value": " ",
+                "id": 5
+              },
+              "end": {
+                "type": "string_literal",
+                "value": "\n",
+                "id": 4
+              },
+              "arguments": [],
+              "id": 6
+            },
+            "id": 7
+          },
+          {
+            "type": "return_statement",
+            "expression": {
+              "type": "string_literal",
+              "value": "gone",
+              "id": 8
+            },
+            "id": 9
+          }
+        ],
+        "id": 10
+      },
+      "id": 12
+    },
+    {
+      "type": "for_each_loop",
+      "item": {
+        "type": "variable_declaration",
+        "declarators": [
+          {
+            "identifier": {
+              "type": "identifier",
+              "name": "step",
+              "id": 13
+            }
+          }
+        ],
+        "annotations": [],
+        "id": 25
+      },
+      "container": {
+        "type": "function_call",
+        "function": {
+          "type": "identifier",
+          "name": "g",
+          "id": 14
+        },
+        "arguments": [],
+        "id": 15
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "expression_statement",
+            "expression": {
+              "type": "print_values",
+              "separator": {
+                "type": "string_literal",
+                "value": " ",
+                "id": 19
+              },
+              "end": {
+                "type": "string_literal",
+                "value": "\n",
+                "id": 18
+              },
+              "arguments": [
+                {
+                  "type": "identifier",
+                  "name": "step",
+                  "id": 17
+                }
+              ],
+              "id": 20
+            },
+            "id": 21
+          }
+        ],
+        "id": 22
+      },
+      "id": 27
+    },
+    {
+      "type": "expression_statement",
+      "expression": {
+        "type": "print_values",
+        "separator": {
+          "type": "string_literal",
+          "value": " ",
+          "id": 31
+        },
+        "end": {
+          "type": "string_literal",
+          "value": "\n",
+          "id": 30
+        },
+        "arguments": [
+          {
+            "type": "string_literal",
+            "value": "the end.",
+            "id": 29
+          }
+        ],
+        "id": 32
+      },
+      "id": 33
+    }
+  ],
+  "id": 38
+}

@@ -1,16 +1,13 @@
 # Define dataclasses matching the constructs structure
 
-import json
 import os
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 import yaml
 
 import src.cfg.ast_wrapper as aw
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
-
 
 BEGIN = 'BEGIN'
 END = 'END'
@@ -94,7 +91,7 @@ class ActionSpec(DictLikeDataclass):
     role: str
     kind: str = ''
     generalization: str | None = None  # general role
-    effects: List[Effects] = field(default_factory=list)
+    effects: list[Effects] = field(default_factory=list)
     identification: Identification = field(default_factory=Identification)
     behaviour: Behaviour = field(default_factory=Behaviour)
 
@@ -114,7 +111,7 @@ class TransitionSpec(DictLikeDataclass):
     to: Optional[str] = None
     to_when_absent: Optional[str] = None
     constraints: Optional[Constraints] = None
-    effects: List[Effects] = field(default_factory=list)
+    effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
 
 
@@ -126,7 +123,7 @@ class ConstructSpec(DictLikeDataclass):
     actions: list[ActionSpec] = field(default_factory=list)
     id2action: dict[str, ActionSpec] = None
     transitions: list[TransitionSpec] = field(default_factory=list)
-    effects: List[Effects] = field(default_factory=list)
+    effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
 
     def __post_init__(self):
@@ -218,30 +215,30 @@ def load_constructs(path="./constructs.yml", debug=False):
     return constructs
 
 
-def load_ast_from_json(path="test/ast.json"):
-    """Load AST from JSON file using DictLikeDataclass"""
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"{path} not found.")
-    
-    with open(path, "r", encoding="utf-8") as f:
-        ast_data = json.load(f)
-    
-    # Create a generic AST node dataclass for parsing
-    @dataclass
-    class ASTNode(DictLikeDataclass):
-        type: str
-        id: Optional[int] = None
-        name: Optional[str] = None
-        value: Optional[Any] = None
-        body: Optional[List[Dict[str, Any]]] = None
-        branches: Optional[List[Dict[str, Any]]] = None
-        condition: Optional[Dict[str, Any]] = None
-        target: Optional[Dict[str, Any]] = None
-        left_operand: Optional[Dict[str, Any]] = None
-        right_operand: Optional[Dict[str, Any]] = None
-        operand: Optional[Dict[str, Any]] = None
-        statements: Optional[List[Dict[str, Any]]] = None
-        elseBranch: Optional[Dict[str, Any]] = None
-        repr: Optional[str] = None
-    
-    return ASTNode.make(ast_data)
+# def load_ast_from_json(path="test/ast.json"):
+#     """Load AST from JSON file using DictLikeDataclass"""
+#     if not os.path.exists(path):
+#         raise FileNotFoundError(f"{path} not found.")
+#
+#     with open(path, "r", encoding="utf-8") as f:
+#         ast_data = json.load(f)
+#
+#     # Create a generic AST node dataclass for parsing
+#     @dataclass
+#     class ASTNode(DictLikeDataclass):
+#         type: str
+#         id: Optional[int] = None
+#         name: Optional[str] = None
+#         value: Optional[Any] = None
+#         body: Optional[list[dict[str, Any]]] = None
+#         branches: Optional[list[dict[str, Any]]] = None
+#         condition: Optional[dict[str, Any]] = None
+#         target: Optional[dict[str, Any]] = None
+#         left_operand: Optional[dict[str, Any]] = None
+#         right_operand: Optional[dict[str, Any]] = None
+#         operand: Optional[dict[str, Any]] = None
+#         statements: Optional[list[dict[str, Any]]] = None
+#         elseBranch: Optional[dict[str, Any]] = None
+#         repr: Optional[str] = None
+#
+#     return ASTNode.make(ast_data)

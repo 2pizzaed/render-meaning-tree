@@ -5,10 +5,9 @@ from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata
 
 
-# FUNC_DEF_AST_NODE = 'function_definition'
-# FUNC_CALL_AST_NODE = 'function_call'
 FUNC_DEF_CONSTRUCT = 'func_def_structure'
 FUNC_CALL_CONSTRUCT = 'func_call_structure'
+
 
 # ---------- CFGBuilder ----------
 class CFGBuilder:

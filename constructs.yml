@@ -1,3 +1,29 @@
+# --------------------------------
+# Глобальные операторы -- разновидность блока { ... }
+# --------------------------------
+global_statements_structure:
+  kind: sequence
+  ast_node: program_entry_point
+  actions:
+    - role: first
+      kind: compound
+      identification:
+        origin: parent
+        property_path: 'body / [0]'  # statements -> body
+      generalization: item
+    - role: next
+      kind: compound
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+  transitions:
+    - from_: BEGIN
+      to: first
+    - from_: item
+      to: next       # переход к следующему элементу
+      to_when_absent: END
+
 # ================================
 # Универсальные контрольные структуры
 # ================================
@@ -263,13 +289,13 @@ block_structure:
   ast_node: compound_statement
   actions:
     - role: first
-      kind: action
+      kind: compound
       identification:
         origin: parent
         property_path: 'statements / [0]'
       generalization: item
     - role: next
-      kind: action
+      kind: compound
       identification:
         origin: previous
         property_path: '[next]'
@@ -317,7 +343,7 @@ func_call_structure:
         property_path: 'function / name'
     - role: func
       kind: compound
-      # identification: func def lookup (TODO)
+      # identification: func def lookup (see Python code)
   transitions:
     - from_: BEGIN
       to: func

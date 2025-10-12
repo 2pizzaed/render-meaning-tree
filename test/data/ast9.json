@@ -1,0 +1,129 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "function_definition",
+      "declaration": {
+        "type": "function_declaration",
+        "return_type": {
+          "type": "unknown_type",
+          "id": 2
+        },
+        "name": {
+          "type": "identifier",
+          "name": "g",
+          "id": 1
+        },
+        "annotations": [],
+        "arguments": [],
+        "id": 21
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "if_statement",
+            "branches": [
+              {
+                "condition": {
+                  "type": "sub_operator",
+                  "left_operand": {
+                    "type": "function_call",
+                    "function": {
+                      "type": "identifier",
+                      "name": "g",
+                      "id": 3
+                    },
+                    "arguments": [],
+                    "id": 4
+                  },
+                  "right_operand": {
+                    "type": "int_literal",
+                    "value": 1,
+                    "repr": "DECIMAL",
+                    "id": 5
+                  },
+                  "id": 6
+                },
+                "body": {
+                  "type": "compound_statement",
+                  "statements": [
+                    {
+                      "type": "expression_statement",
+                      "expression": {
+                        "type": "mul_operator",
+                        "left_operand": {
+                          "type": "function_call",
+                          "function": {
+                            "type": "identifier",
+                            "name": "g",
+                            "id": 7
+                          },
+                          "arguments": [],
+                          "id": 8
+                        },
+                        "right_operand": {
+                          "type": "int_literal",
+                          "value": 2,
+                          "repr": "DECIMAL",
+                          "id": 9
+                        },
+                        "id": 10
+                      },
+                      "id": 11
+                    }
+                  ],
+                  "id": 12
+                },
+                "id": 13,
+                "type": "condition_branch"
+              }
+            ],
+            "id": 14
+          },
+          {
+            "type": "expression_statement",
+            "expression": {
+              "type": "add_operator",
+              "left_operand": {
+                "type": "int_literal",
+                "value": 3,
+                "repr": "DECIMAL",
+                "id": 15
+              },
+              "right_operand": {
+                "type": "function_call",
+                "function": {
+                  "type": "identifier",
+                  "name": "g",
+                  "id": 16
+                },
+                "arguments": [],
+                "id": 17
+              },
+              "id": 18
+            },
+            "id": 19
+          }
+        ],
+        "id": 20
+      },
+      "id": 22
+    },
+    {
+      "type": "expression_statement",
+      "expression": {
+        "type": "function_call",
+        "function": {
+          "type": "identifier",
+          "name": "g",
+          "id": 23
+        },
+        "arguments": [],
+        "id": 24
+      },
+      "id": 25
+    }
+  ],
+  "id": 34
+}

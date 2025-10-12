@@ -172,5 +172,12 @@ class CFG:
                 info['ast'] = n.metadata.wrapped_ast.describe()
             print(" o", nid, n.kind, n.role, info)
             print()
-        # for e in self.edges:
-        #     print("  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")
+
+        print()
+        node_ids = [n.id for n in self.nodes.values()]
+        for i, e in enumerate(self.edges):
+            print(f"{i+1:2}  ", e.src, "->", e.dst, e.constraints or "", e.metadata or "")
+            if e.src not in node_ids:
+                print("    FROM NOWHERE! (? ->  )")
+            if e.dst not in node_ids:
+                print("    TO NOWHERE!   (  -> ?)")

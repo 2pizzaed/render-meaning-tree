@@ -20,6 +20,7 @@ class Metadata(DictLikeDataclass):
     primary: Optional[bool] = None
     abstract_transition: Optional['TransitionSpec'] = None
     is_after_last: Optional[bool] = None
+    call_count: int = 0  # Счётчик вызовов для функций
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
@@ -146,6 +147,9 @@ class CFG:
                     print("   ->", e.dst, " __",
                           e.constraints or "",
                           e.metadata,
+                          # ((m := e.metadata) and m.abstract_transition and m.abstract_transition.to) or "",
+                          # ((m := e.metadata) and m.abstract_transition and m.abstract_transition.constraints) or "",
+                          # ((m := e.metadata) and m.primary is not None and ('primary' if m.primary else 'default-exit.')) or "",
                     )
         print()
         print()

@@ -3,6 +3,7 @@ from typing import Optional
 from src.cfg.abstractions import ConstructSpec
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata
+from src.json_search import search_bfs, search_dfs
 
 
 FUNC_DEF_CONSTRUCT = 'func_def_structure'
@@ -14,9 +15,10 @@ class CFGBuilder:
     constructs: dict[str, ConstructSpec]
     func_cfgs: dict[str, CFG]
 
-    def __init__(self, constructs_map: dict[str, ConstructSpec]):
+    def __init__(self, constructs_map: dict[str, ConstructSpec], collect_global_functions_only: bool = False):
         self.constructs = constructs_map
         self.func_cfgs = {}
+        self.collect_global_functions_only = collect_global_functions_only
 
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
         v = ast_node_wrapper.ast_node
@@ -64,6 +66,216 @@ class CFGBuilder:
             return None
         
         return func_name
+
+    def _collect_function_definitions(self, ast_node: dict) -> None:
+        """
+        Предварительно собирает все определения функций из AST дерева.
+        
+        Args:
+            ast_node: Корневой узел AST для поиска определений функций
+        """
+        # Предикат для поиска узлов определений функций
+        def is_function_definition(node):
+            return isinstance(node, dict) and node.get('type') == 'function_definition'
+        
+        if self.collect_global_functions_only:
+            # Поиск только на верхнем уровне (в body программы)
+            if isinstance(ast_node, dict) and ast_node.get('type') == 'program_entry_point':
+                body = ast_node.get('body', [])
+                if isinstance(body, list):
+                    for item in body:
+                        if is_function_definition(item):
+                            self._process_function_definition_node(item)
+        else:
+            # Поиск по всему дереву AST
+            function_def_nodes = search_bfs(ast_node, is_function_definition)
+            for func_node in function_def_nodes:
+                self._process_function_definition_node(func_node)
+
+    def _process_function_definition_node(self, func_node: dict) -> None:
+        """
+        Обрабатывает узел определения функции и создает для него CFG.
+        
+        Args:
+            func_node: AST узел определения функции
+        """
+        # Извлекаем имя функции
+        func_name = self._extract_function_name_from_node(func_node)
+        if not func_name:
+            print(f'Warning: could not extract function name from function definition node')
+            return
+        
+        # Проверяем, не была ли функция уже обработана
+        if func_name in self.func_cfgs:
+            return
+        
+        # Создаем CFG для функции
+        wrapped_ast = ASTNodeWrapper(ast_node=func_node)
+        construct = self.find_construct_for_astnode(wrapped_ast)
+        if construct:
+            self._handle_function_definition(construct, wrapped_ast)
+        else:
+            print(f'Warning: no construct found for function definition "{func_name}"')
+
+    def _extract_function_name_from_node(self, func_node: dict) -> Optional[str]:
+        """
+        Извлекает имя функции из AST узла определения функции.
+        
+        Args:
+            func_node: AST узел определения функции
+            
+        Returns:
+            Имя функции или None если не удалось извлечь
+        """
+        try:
+            # Путь к имени функции согласно структуре в constructs.yml
+            # property_path: 'declaration / name / name'
+            declaration = func_node.get('declaration')
+            if not isinstance(declaration, dict):
+                return None
+            
+            name_node = declaration.get('name')
+            if not isinstance(name_node, dict):
+                return None
+            
+            func_name = name_node.get('name')
+            if not func_name:
+                return None
+            
+            return func_name
+        except (AttributeError, KeyError, TypeError):
+            return None
+
+    def _find_function_calls_in_ast(self, ast_node: dict) -> list[dict]:
+        """
+        Находит все вызовы функций в AST узле.
+        
+        Использует поиск в глубину для получения результатов в порядке вычисления
+        (сначала самые глубокие, слева направо).
+        
+        Args:
+            ast_node: AST узел для поиска вызовов функций
+            
+        Returns:
+            Список найденных узлов вызовов функций в порядке вычисления
+        """
+        # Предикат для поиска узлов вызовов функций
+        def is_function_call(node):
+            return isinstance(node, dict) and node.get('type') == 'function_call'
+        
+        return search_dfs(ast_node, is_function_call)
+
+    def _extract_function_name_from_call_node(self, call_node: dict) -> Optional[str]:
+        """
+        Извлекает имя функции из AST узла вызова функции.
+        
+        Args:
+            call_node: AST узел вызова функции
+            
+        Returns:
+            Имя функции или None если не удалось извлечь
+        """
+        try:
+            # Путь к имени функции согласно структуре в constructs.yml
+            # property_path: 'function / name'
+            function_node = call_node.get('function')
+            if not isinstance(function_node, dict):
+                return None
+            
+            func_name = function_node.get('name')
+            if not func_name:
+                return None
+            
+            return func_name
+        except (AttributeError, KeyError, TypeError):
+            return None
+
+    def _process_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict], wrapped_ast: ASTNodeWrapper) -> CFG:
+        """
+        Обрабатывает найденные вызовы функций и встраивает их в CFG.
+        
+        Args:
+            base_cfg: Базовый (пустой) CFG для встраивания вызовов
+            function_calls: Список найденных вызовов функций в порядке вычисления
+            wrapped_ast: Обёртка AST узла
+            
+        Returns:
+            CFG с встроенными вызовами функций
+        """
+        if not function_calls:
+            return base_cfg
+        
+        # Создаем цепочку вызовов функций
+        current_node = base_cfg.begin_node
+        
+        for call_node in function_calls:
+            func_name = self._extract_function_name_from_call_node(call_node)
+            if not func_name:
+                continue
+            
+            # Проверяем наличие определения функции
+            func_cfg = self.func_cfgs.get(func_name)
+            if not func_cfg:
+                print(f'Warning: function "{func_name}" not found in func_cfgs, skipping call')
+                continue
+            
+            # Создаем CFG для вызова функции
+            call_wrapped_ast = ASTNodeWrapper(ast_node=call_node)
+            construct = self.find_construct_for_astnode(call_wrapped_ast)
+            
+            if construct and construct.name == FUNC_CALL_CONSTRUCT:
+                # Используем существующий механизм обработки вызовов
+                call_cfg = self._handle_function_call(construct, call_wrapped_ast)
+            else:
+                # Создаем простой CFG для вызова
+                call_cfg = self._create_simple_function_call_cfg(func_name, call_wrapped_ast)
+            
+            if call_cfg:
+                # Увеличиваем счётчик вызовов
+                func_cfg.begin_node.metadata.call_count += 1
+                
+                # Встраиваем CFG вызова в цепочку
+                base_cfg.connect(current_node, call_cfg.begin_node)
+                current_node = call_cfg.end_node
+        
+        # Соединяем последний вызов с концом базового CFG
+        base_cfg.connect(current_node, base_cfg.end_node)
+        
+        return base_cfg
+
+    def _create_simple_function_call_cfg(self, func_name: str, wrapped_ast: ASTNodeWrapper) -> CFG:
+        """
+        Создает простой CFG для вызова функции без использования конструкта.
+        
+        Args:
+            func_name: Имя вызываемой функции
+            wrapped_ast: Обёртка AST узла вызова
+            
+        Returns:
+            CFG для вызова функции
+        """
+        func_cfg = self.func_cfgs.get(func_name)
+        if not func_cfg:
+            return None
+        
+        call_cfg = CFG("simple_function_call")
+        
+        # Встраиваем CFG функции как subgraph
+        func_node_pair = call_cfg.add_node(
+            kind='func_body',
+            role='func',
+            metadata=Metadata(
+                wrapped_ast=wrapped_ast,
+                primary=True,
+            ),
+            subgraph=func_cfg
+        )
+        
+        # Создаем рёбра BEGIN -> func -> END
+        call_cfg.connect(call_cfg.begin_node, func_node_pair[0])
+        call_cfg.connect(func_node_pair[1], call_cfg.end_node)
+        
+        return call_cfg
 
     def _handle_function_definition(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
         """Обрабатывает определение функции: создает CFG для тела функции и сохраняет в func_cfgs."""
@@ -139,6 +351,9 @@ class CFGBuilder:
             abstract_transition=func_to_end_transition,
         ))
         
+        # Увеличиваем счётчик вызовов
+        func_cfg.begin_node.metadata.call_count += 1
+        
         return call_cfg
 
     def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG | None:
@@ -150,6 +365,10 @@ class CFGBuilder:
         Returns:
             CFG for a compound node or None for an atom.
         """
+        # Предварительный сбор определений функций, если это корневой узел программы
+        if isinstance(wrapped_ast.ast_node, dict) and wrapped_ast.ast_node.get('type') == 'program_entry_point':
+            self._collect_function_definitions(wrapped_ast.ast_node)
+        
         construct = self.find_construct_for_astnode(wrapped_ast)
         if construct:
             # Проверяем специальные случаи для функций
@@ -159,13 +378,46 @@ class CFGBuilder:
                 return self._handle_function_call(construct, wrapped_ast)
             # Обычные узлы
             if construct.kind != 'atom':
-                return self.make_cfg_for_construct(construct, wrapped_ast)
+                cfg = self.make_cfg_for_construct(construct, wrapped_ast)
+                
+                # Поиск вызовов функций в выражениях неатомарных конструктов
+                if isinstance(wrapped_ast.ast_node, dict):
+                    function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
+                    if function_calls:
+                        # Создаем новый CFG для встраивания вызовов
+                        enhanced_cfg = CFG(f"{cfg.name}_with_calls")
+                        enhanced_cfg.begin_node.metadata = cfg.begin_node.metadata
+                        enhanced_cfg.end_node.metadata = cfg.end_node.metadata
+                        
+                        # Встраиваем все узлы и рёбра из исходного CFG
+                        enhanced_cfg.nodes.update(cfg.nodes)
+                        enhanced_cfg.edges.extend(cfg.edges)
+                        
+                        # Обрабатываем найденные вызовы
+                        enhanced_cfg = self._process_function_calls_in_cfg(enhanced_cfg, function_calls, wrapped_ast)
+                        return enhanced_cfg
+                
+                return cfg
             else:
                 cfg = CFG("atom_" + construct.name)
                 cfg.connect(cfg.begin_node, cfg.end_node)
                 # cfg.begin_node.metadata.abstract_action = construct.id2action['atom']
+                
+                # Поиск вызовов функций в атомарных узлах
+                if isinstance(wrapped_ast.ast_node, dict):
+                    function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
+                    if function_calls:
+                        cfg = self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
+                
                 return cfg
         # fallback: unknown construct.
+        # Поиск вызовов функций в неклассифицированных узлах
+        if isinstance(wrapped_ast.ast_node, dict):
+            function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
+            if function_calls:
+                cfg = CFG("unknown_with_calls")
+                cfg.connect(cfg.begin_node, cfg.end_node)
+                return self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
         return None
 
     def make_cfg_for_construct(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:

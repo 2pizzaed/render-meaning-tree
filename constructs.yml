@@ -2,21 +2,23 @@
 # Универсальные управляющие структуры
 # ================================
 
+# kind: compound, inline, any
+
 # --------------------------------
 # Глобальные операторы -- разновидность блока { ... }
 # --------------------------------
 global_statements_structure:
-  kind: sequence
+  kind: compound.sequence
   ast_node: program_entry_point
   actions:
     - role: first
-      kind: action
+      kind: any
       identification:
         origin: parent
         property_path: 'body / [0]'  # statements -> body
       generalization: item
     - role: next
-      kind: action
+      kind: any
       identification:
         origin: previous
         property_path: '[next]'
@@ -32,10 +34,10 @@ global_statements_structure:
 # Условный оператор (if / else-if / else)
 # --------------------------------
 simple_ifelse_structure:
-  kind: alternative_0              # тип действия (ветвление)
+  kind: compound.alternative_0              # тип действия (ветвление)
   actions:
     - role: cond             # условие ветвления
-      kind: condition        # true / false
+      kind: inline.condition        # true / false
     - role: if_branch           # ветка при true
       kind: compound
       generalization: branch
@@ -60,11 +62,11 @@ simple_ifelse_structure:
 # Условный оператор (if / else-if / else)
 # --------------------------------
 if_structure:
-  kind: alternative              # тип действия (ветвление)
+  kind: compound.alternative              # тип действия (ветвление)
   ast_node: if_statement
   actions:
     - role: first_cond             # первое условие ветвления
-      kind: condition        # true / false
+      kind: inline.condition        # true / false
       identification:
         # origin: parent
         # property: condition
@@ -74,7 +76,7 @@ if_structure:
       # metadata:
       #   assumed_value: true
     - role: next_cond             # следующее условие ветвления
-      kind: condition
+      kind: inline.condition
       identification:
         origin: previous
         # property: condition
@@ -113,13 +115,13 @@ if_structure:
 # Цикл while
 # --------------------------------
 while_structure:
-  kind: loop
+  kind: compound.loop
   ast_node: while_loop
   effects:
     - interruption_stop: break
   actions:
     - role: cond
-      kind: condition
+      kind: inline.condition
       identification:
         property: condition
     - role: body
@@ -146,13 +148,13 @@ while_structure:
 # Цикл while+else (Python only)
 # --------------------------------
 while_else_structure:
-  kind: loop
+  kind: compound.loop
   ast_node: while_else_loop
   effects:
     - interruption_stop: break
   actions:
     - role: cond
-      kind: condition
+      kind: inline.condition
     - role: body
       kind: compound
       effects:
@@ -179,7 +181,7 @@ while_else_structure:
 # Цикл do-while
 # --------------------------------
 do_while_structure:
-  kind: loop
+  kind: compound.loop
   ast_node: do_while_loop  # TODO !!??
   effects:
     - interruption_stop: break
@@ -189,7 +191,7 @@ do_while_structure:
       effects:
         - interruption_stop: continue
     - role: cond
-      kind: condition
+      kind: inline.condition
   transitions:
     - from_: BEGIN
       to: body
@@ -208,15 +210,15 @@ do_while_structure:
 # Цикл for (универсальная форма)
 # --------------------------------
 for_structure:
-  kind: loop
+  kind: compound.loop
   ast_node: general_for_loop
   effects:
     - interruption_stop: break
   actions:
     - role: init
-      kind: atom
+      kind: inline
     - role: cond
-      kind: condition
+      kind: inline.condition
       behaviour:
         assumed_value: true
     - role: body
@@ -224,7 +226,7 @@ for_structure:
       effects:
         - interruption_stop: continue
     - role: update
-      kind: atom
+      kind: inline
   transitions:
     - from_: BEGIN
       to: init
@@ -247,13 +249,13 @@ for_structure:
 # Цикл for each (по контейнеру)
 # --------------------------------
 for_each_structure:
-  kind: loop
+  kind: compound.loop
   ast_node: for_each_loop
   effects:
     - interruption_stop: break
   actions:
     - role: cond
-      kind: condition
+      kind: inline.condition
       identification:
         property: container
     - role: body
@@ -263,7 +265,7 @@ for_each_structure:
       effects:
         - interruption_stop: continue
     - role: update
-      kind: atom
+      kind: inline
       identification:
         property: item
   transitions:
@@ -286,17 +288,17 @@ for_each_structure:
 # Блок операторов { ... }
 # --------------------------------
 block_structure:
-  kind: sequence
+  kind: compound.sequence
   ast_node: compound_statement
   actions:
     - role: first
-      kind: action
+      kind: any
       identification:
         origin: parent
         property_path: 'statements / [0]'
       generalization: item
     - role: next
-      kind: action
+      kind: any
       identification:
         origin: previous
         property_path: '[next]'
@@ -312,7 +314,7 @@ block_structure:
 # Определение функции
 # --------------------------------
 func_def_structure:
-  kind: noop
+  kind: compound.noop
   ast_node: function_definition
   actions:
     - role: name
@@ -359,7 +361,7 @@ func_call_structure:
 # return
 # --------------------------------
 return_action:
-  kind: atom  # this kind matters
+  kind: inline  # this kind matters
   ast_node: return_statement
   effects:
     - interruption_start: return
@@ -368,7 +370,7 @@ return_action:
 # break
 # --------------------------------
 break_action:
-  kind: atom
+  kind: inline
   ast_node: break  # TODO !!??
   effects:
     - interruption_start: break
@@ -377,7 +379,7 @@ break_action:
 # continue
 # --------------------------------
 continue_action:
-  kind: atom
+  kind: inline
   ast_node: continue  # TODO !!??
   effects:
     - interruption_start: continue
@@ -386,7 +388,7 @@ continue_action:
 # throw / raise
 # --------------------------------
 throw_action:
-  kind: atom
+  kind: inline
   ast_node: throw_action  # TODO !!??
   effects:
     - interruption_start: exception
@@ -398,7 +400,7 @@ throw_action:
 # labeled break
 # --------------------------------
 labeled_break_action:
-  kind: atom
+  kind: inline
   ast_node: labeled_break  # TODO !!??
   effects:
     - interruption_start: break
@@ -410,7 +412,7 @@ labeled_break_action:
 # Блок try-except c нетипизированной (неизбирательной) ловлей исключений
 # --------------------------------
 try_except_structure:
-  kind: try
+  kind: compound.try
   ast_node: try_except_statement  # TODO !!??
   effects:
     - interruption_stop: break

@@ -51,6 +51,29 @@ class InterruptionMode(SelfValidatedEnum):
     ANY = "any"
 
 
+class KindChain:
+    """Dot-chained names each of which can be queried separately"""
+    chain: list[str]
+
+    def __init__(self, chain: str | list[str] = '', sep='.'):
+        if isinstance(chain, str):
+            self.chain = chain.split(sep) if chain else []
+        if isinstance(chain, list):
+            self.chain = chain
+        raise TypeError(f'"chain" must be str or list, not {type(chain).__name__}')
+
+    def __contains__(self, item):
+        return item in self.chain
+    has = __contains__
+
+    def __iter__(self):
+        return iter(self.chain)
+
+    def __str__(self):
+        return '.'.join(self.chain)
+    __repr__ = __str__
+
+
 @dataclass
 class Effects(DictLikeDataclass):
     """Effects that can be applied to actions or transitions"""
@@ -89,7 +112,7 @@ class Constraints(DictLikeDataclass):
 class ActionSpec(DictLikeDataclass):
     # name: str
     role: str
-    kind: str = ''
+    kind: KindChain = KindChain()
     generalization: str | None = None  # general role
     effects: list[Effects] = field(default_factory=list)
     identification: Identification = field(default_factory=Identification)
@@ -124,7 +147,7 @@ class TransitionSpec(DictLikeDataclass):
 @dataclass
 class ConstructSpec(DictLikeDataclass):
     name: str
-    kind: str = None
+    kind: KindChain = KindChain()
     ast_node: str = None
     actions: list[ActionSpec] = field(default_factory=list)
     id2action: dict[str, ActionSpec] = None
@@ -136,7 +159,7 @@ class ConstructSpec(DictLikeDataclass):
         # Add BEGIN and END actions if not present
         for b in (BEGIN, END):
             if not any(action.role == b for action in self.actions):
-                self.actions.append(ActionSpec(role=b, kind=b))
+                self.actions.append(ActionSpec(role=b, kind=self.kind))
 
         self.id2action = {
             action.role: action

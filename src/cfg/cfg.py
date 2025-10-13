@@ -47,6 +47,7 @@ class Node(FactSerializable):
     role: str
     kind: Optional[str] = None
     cfg: 'CFG' = None
+    effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
@@ -95,7 +96,7 @@ class CFG:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
         if not subgraph:
-            # Node is an atom.
+            # Node is an atom (inline).
             nid = idgen.next(kind)
             node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
             self.nodes[nid] = node

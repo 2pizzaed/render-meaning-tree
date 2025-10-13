@@ -98,6 +98,9 @@ class CFGBuilder:
             for func_node in function_def_nodes:
                 self._process_function_definition_node(func_node)
 
+        if self.func_cfgs:
+            print(f'INFO: prepared {len(self.func_cfgs)} CFG(s) for func definition(s): {', '.join(self.func_cfgs.keys())}')
+
     def _process_function_definition_node(self, func_node: dict) -> None:
         """
         Обрабатывает узел определения функции и создает для него CFG.
@@ -113,6 +116,7 @@ class CFGBuilder:
         
         # Проверяем, не была ли функция уже обработана
         if func_name in self.func_cfgs:
+            raise NotImplementedError(f"Multiple definitions of function '{func_name}' encountered in input AST! This is not supported yet, aborting.")
             return
         
         # Создаем CFG для функции
@@ -233,14 +237,15 @@ class CFGBuilder:
                 # Используем существующий механизм обработки вызовов
                 call_cfg = self._handle_function_call(construct, call_wrapped_ast)
             else:
-                raise ValueError(call_wrapped_ast)
+                raise ValueError(call_node)
                 # Создаем простой CFG для вызова
                 call_cfg = self._create_simple_function_call_cfg(func_name, call_wrapped_ast)
             
             if call_cfg:
                 # Увеличиваем счётчик вызовов
                 func_cfg.begin_node.metadata.call_count += 1
-                
+                print(f'CALL++(1) of `{func_name}` =', func_cfg.begin_node.metadata.call_count)
+
                 # Встраиваем CFG вызова в цепочку
                 base_cfg.connect(current_node, call_cfg.begin_node)
                 current_node = call_cfg.end_node
@@ -306,7 +311,7 @@ class CFGBuilder:
         # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
         cfg = self._create_simple_cfg(f"function_{func_name}_definition_registered")
 
-        print(f'INFO: made CFG for def of func `{func_name}`')
+        print(f'INFO: made CFG for **DEF** of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'))
 
         return cfg
 
@@ -363,8 +368,9 @@ class CFGBuilder:
         
         # Увеличиваем счётчик вызовов
         func_cfg.begin_node.metadata.call_count += 1
+        print(f'CALL++(2) of `{func_name}` =', func_cfg.begin_node.metadata.call_count)
 
-        print(f'INFO: made CFG for call of func `{func_name}`')
+        print(f'INFO: made CFG for call of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'))
 
         return call_cfg
 
@@ -386,9 +392,9 @@ class CFGBuilder:
             # Проверяем специальные случаи для функций
             if construct.name == FUNC_DEF_CONSTRUCT:
                 return self._create_simple_cfg(f"function_def_{construct.name}")
-                # return self._handle_function_definition(construct, wrapped_ast)
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._handle_function_call(construct, wrapped_ast)
+
             # Обычные узлы
             if construct.kind != 'atom':
                 cfg = self.make_cfg_for_construct(construct, wrapped_ast)
@@ -412,8 +418,7 @@ class CFGBuilder:
                 
                 return cfg
             else:
-                cfg = CFG("atom_" + construct.name)
-                cfg.connect(cfg.begin_node, cfg.end_node)
+                cfg = self._create_simple_cfg("atom_" + construct.name)
                 # cfg.begin_node.metadata.abstract_action = construct.id2action['atom']
                 
                 # Поиск вызовов функций в атомарных узлах
@@ -428,8 +433,7 @@ class CFGBuilder:
         if isinstance(wrapped_ast.ast_node, dict):
             function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
             if function_calls:
-                cfg = CFG("unknown_with_calls")
-                cfg.connect(cfg.begin_node, cfg.end_node)
+                cfg = self._create_simple_cfg("unknown_with_calls")
                 return self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
         return None
 

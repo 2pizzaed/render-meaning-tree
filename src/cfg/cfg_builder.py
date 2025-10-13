@@ -377,6 +377,15 @@ class CFGBuilder:
     def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG | None:
         """
         Make CFG for AST node.
+        Алгоритм:
+        * определить конструкт
+        * для составных конструктов выполнить обычное построение.
+        * для атомарных однострочных структур (а также неопределённых структур, которые должны быть однострочными действиями):
+            выполнить поиск вложенных вызовов функций, создать для них обёртку в случае наличие вызовов, и простой тривиальный cfg в случае отсутствия вызовов.
+
+        Параллельно с созданием узлов CFG к ним необходимо прицеплять (копировать) эффекты и ограничения из абстракций.
+
+
         Args:
             wrapped_ast:
 
@@ -395,49 +404,42 @@ class CFGBuilder:
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._handle_function_call(construct, wrapped_ast)
 
-            # Обычные узлы
-            if construct.kind != 'atom':
-                cfg = self.make_cfg_for_construct(construct, wrapped_ast)
-                
-                # Поиск вызовов функций в выражениях неатомарных конструктов
-                if isinstance(wrapped_ast.ast_node, dict):
-                    function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
-                    if function_calls:
-                        # Создаем новый CFG для встраивания вызовов
-                        enhanced_cfg = CFG(f"{cfg.name}_with_calls")
-                        enhanced_cfg.begin_node.metadata = cfg.begin_node.metadata
-                        enhanced_cfg.end_node.metadata = cfg.end_node.metadata
-                        
-                        # Встраиваем все узлы и рёбра из исходного CFG
-                        enhanced_cfg.nodes.update(cfg.nodes)
-                        enhanced_cfg.edges.extend(cfg.edges)
-                        
-                        # Обрабатываем найденные вызовы
-                        enhanced_cfg = self._process_function_calls_in_cfg(enhanced_cfg, function_calls, wrapped_ast)
-                        return enhanced_cfg
-                
-                return cfg
-            else:
-                cfg = self._create_simple_cfg("atom_" + construct.name)
-                # cfg.begin_node.metadata.abstract_action = construct.id2action['atom']
-                
-                # Поиск вызовов функций в атомарных узлах
-                if isinstance(wrapped_ast.ast_node, dict):
-                    function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
-                    if function_calls:
-                        cfg = self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
-                
-                return cfg
-        # fallback: unknown construct.
-        # Поиск вызовов функций в неклассифицированных узлах
+        # Обычные узлы
+        cfg = self.make_cfg_for_construct(construct, wrapped_ast)
+        return cfg
+
+
+    def make_cfg_for_construct(self, construct: ConstructSpec | None, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
+        """
+        Make CFG for AST node of known construct, of when no construct exists for this AST node.
+        Алгоритм:
+        * определить конструкт
+        * для составных конструктов выполнить обычное построение.
+        * для атомарных однострочных структур (а также неопределённых структур, которые должны быть однострочными действиями):
+            выполнить поиск вложенных вызовов функций, создать для них обёртку в случае наличие вызовов, и простой тривиальный cfg в случае отсутствия вызовов.
+        """
+        if construct and construct.kind.has('compound'):
+            return self.make_cfg_for_compound(construct, wrapped_ast, cfg)
+
+        # Поиск вызовов функций в атомарных узлах
+        cfg_name = "atom_" + (construct.name if construct else 'unknown')
         if isinstance(wrapped_ast.ast_node, dict):
             function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
-            if function_calls:
-                cfg = self._create_simple_cfg("unknown_with_calls")
-                return self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
-        return None
+        else:
+            function_calls = ()
 
-    def make_cfg_for_construct(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
+        if function_calls:
+            # Create connected trivial CFG
+            cfg = self._create_simple_cfg(cfg_name)
+        else:
+            # Create empty (not connected) CFG
+            cfg = CFG(cfg_name)
+            # Fill CFG
+            cfg = self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
+        return cfg
+
+
+    def make_cfg_for_compound(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
         """ Предполагается, что CFG для подчинённых узлов будут созданы рекурсивно и встроены в результат.
         Если `cfg` передан, то будет использован для наполнения, иначе создан новый.
         """

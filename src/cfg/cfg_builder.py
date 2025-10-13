@@ -20,6 +20,12 @@ class CFGBuilder:
         self.func_cfgs = {}
         self.collect_global_functions_only = collect_global_functions_only
 
+    def _create_simple_cfg(self, name: str) -> CFG:
+        """Создает простой самосвязанный CFG из двух узлов (BEGIN и END) и одного ребра."""
+        cfg = CFG(name)
+        cfg.connect(cfg.begin_node, cfg.end_node)
+        return cfg
+
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
         v = ast_node_wrapper.ast_node
         if isinstance(v, dict):
@@ -286,9 +292,7 @@ class CFGBuilder:
         if not func_name:
             print(f'Warning: could not extract function name, skipping function definition')
             # Возвращаем пустой CFG
-            cfg = CFG("empty_function_def")
-            cfg.connect(cfg.begin_node, cfg.end_node)
-            return cfg
+            return self._create_simple_cfg("empty_function_def")
         
         # Создаем пустой CFG для функции и сохраняем его в словаре.
         # Это нужно, чтобы рекурсивное обращение видело обёртку CFG и могло использовать границы для добавления рёбер ещё до полного определения.
@@ -300,8 +304,7 @@ class CFGBuilder:
         self.make_cfg_for_construct(construct, wrapped_ast, cfg=func_cfg)
 
         # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
-        cfg = CFG(f"function_{func_name}_definition_registered")
-        cfg.connect(cfg.begin_node, cfg.end_node)
+        cfg = self._create_simple_cfg(f"function_{func_name}_definition_registered")
 
         print(f'INFO: made CFG for def of func `{func_name}`')
 
@@ -382,7 +385,8 @@ class CFGBuilder:
         if construct:
             # Проверяем специальные случаи для функций
             if construct.name == FUNC_DEF_CONSTRUCT:
-                return self._handle_function_definition(construct, wrapped_ast)
+                return self._create_simple_cfg(f"function_def_{construct.name}")
+                # return self._handle_function_definition(construct, wrapped_ast)
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._handle_function_call(construct, wrapped_ast)
             # Обычные узлы

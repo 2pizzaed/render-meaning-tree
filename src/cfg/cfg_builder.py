@@ -227,6 +227,7 @@ class CFGBuilder:
                 # Используем существующий механизм обработки вызовов
                 call_cfg = self._handle_function_call(construct, call_wrapped_ast)
             else:
+                raise ValueError(call_wrapped_ast)
                 # Создаем простой CFG для вызова
                 call_cfg = self._create_simple_function_call_cfg(func_name, call_wrapped_ast)
             
@@ -254,6 +255,7 @@ class CFGBuilder:
         Returns:
             CFG для вызова функции
         """
+        raise DeprecationWarning()
         func_cfg = self.func_cfgs.get(func_name)
         if not func_cfg:
             return None
@@ -290,14 +292,19 @@ class CFGBuilder:
         
         # Создаем пустой CFG для функции и сохраняем его в словаре.
         # Это нужно, чтобы рекурсивное обращение видело обёртку CFG и могло использовать границы для добавления рёбер ещё до полного определения.
+        if func_name in self.func_cfgs:
+            raise NotImplementedError(f"Multiple definitions of function '{func_name}' encountered in input AST! This is not supported yet, aborting.")
         self.func_cfgs[func_name] = func_cfg = CFG("func_" + func_name)
 
         # Наполняем CFG для тела функции
         self.make_cfg_for_construct(construct, wrapped_ast, cfg=func_cfg)
 
         # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
-        cfg = CFG("function_definition_registered")
+        cfg = CFG(f"function_{func_name}_definition_registered")
         cfg.connect(cfg.begin_node, cfg.end_node)
+
+        print(f'INFO: made CFG for def of func `{func_name}`')
+
         return cfg
 
     def _handle_function_call(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
@@ -353,7 +360,9 @@ class CFGBuilder:
         
         # Увеличиваем счётчик вызовов
         func_cfg.begin_node.metadata.call_count += 1
-        
+
+        print(f'INFO: made CFG for call of func `{func_name}`')
+
         return call_cfg
 
     def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG | None:

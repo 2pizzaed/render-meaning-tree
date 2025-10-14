@@ -18,22 +18,22 @@ enum OriginType {
 	TEMPLATING_ID = 3 ;
 ]
 
-enum RoleInListType {
-	first_in_list [
-		RU.localizedName = "первый в списке" ;
-		EN.localizedName = "first in list" ;
-		TEMPLATING_ID = 4 ;
-	],
-	next_in_list [
-		RU.localizedName = "следующий в списке" ;
-		EN.localizedName = "next in list" ;
-		TEMPLATING_ID = 5 ;
-	],
-} [
-	RU.localizedName = "роль в списке" ;
-	EN.localizedName = "role in list" ;
-	TEMPLATING_ID = 6 ;
-]
+// enum RoleInListType {
+// 	first_in_list [
+// 		RU.localizedName = "первый в списке" ;
+// 		EN.localizedName = "first in list" ;
+// 		TEMPLATING_ID = 4 ;
+// 	],
+// 	next_in_list [
+// 		RU.localizedName = "следующий в списке" ;
+// 		EN.localizedName = "next in list" ;
+// 		TEMPLATING_ID = 5 ;
+// 	],
+// } [
+// 	RU.localizedName = "роль в списке" ;
+// 	EN.localizedName = "role in list" ;
+// 	TEMPLATING_ID = 6 ;
+// ]
 
 enum InterruptionType {
 	break [
@@ -272,18 +272,6 @@ class ASTNodeWrapper {
 	TEMPLATING_ID = 33 ;
 ]
 
-class CFGBuilder {
-	obj prop constructs: string ;
-	obj prop func_cfgs: string ;
-	obj prop collect_global_functions_only: bool ;
-
-	rel builds(CFG) : {1 -> *} ;
-	rel uses(ConstructSpec) : {1 -> *} ;
-} [
-	RU.localizedName = "построитель CFG" ;
-	EN.localizedName = "CFG builder" ;
-	TEMPLATING_ID = 34 ;
-]
 
 //-----------------------OBJECT SECTION-----------------------
 //------------------------------------------------------------

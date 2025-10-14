@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Code Viewer - {{ language }}</title>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.545.0"></script>
     <style>
         * {
             margin: 0;
@@ -226,7 +226,7 @@
         </div>
 
         <script type="application/json" id="code-data">
-            {{ code_data | tojson | safe }}
+            {{ code_data | tojson(indent=4) | safe }}
         </script>
         
         <div class="code-block">
@@ -248,8 +248,7 @@
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
-                                        data-action="{{ button.type }}"
-                                        title="{{ button.type | replace('-', ' ') | title }} (Node: {{ button.node_id }})">
+                                        data-action="{{ button.type }}">
                                     {%- if button.type == 'play' -%}<i data-lucide="play"></i>
                                     {%- elif button.type == 'stop' -%}<i data-lucide="square"></i>
                                     {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right"></i>
@@ -257,14 +256,13 @@
                                     {%- endif -%}
                                 </button>
                                 {%- endfor -%}
-                                <span class="token {{ token.css_class }}" {% if token.node_id %}data-node-id="{{ token.node_id }}"{% endif %} data-token-id="{{ token.id }}" title="{{ token.type }}" data-node-type="{{ token.node_type }}">{{- token.value -}}</span>
+                                <span class="token {{ token.css_class }}" {% if token.node_id %}data-node-id="{{ token.node_id }}"{% endif %} data-token-id="{{ token.id }}" data-node-type="{{ token.node_type }}">{{- token.value -}}</span>
                                 {%- for button in line.buttons if button.position == 'after' and button.index == token.index -%}
                                 <button class="action-button {{ button.style }} {{ button.type }}"
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
-                                        data-action="{{ button.type }}"
-                                        title="{{ button.type | replace('-', ' ') | title }} (Node: {{ button.node_id }})">
+                                        data-action="{{ button.type }}">
                                     {%- if button.type == 'play' -%}<i data-lucide="play"></i>
                                     {%- elif button.type == 'stop' -%}<i data-lucide="square"></i>
                                     {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right"></i>

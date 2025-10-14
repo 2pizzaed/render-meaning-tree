@@ -1,10 +1,12 @@
 
 import os
+import warnings
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from jinja2 import Environment, FileSystemLoader
 
+from src.helpers.diff import make_str_diff
 from src.meaning_tree import node_hierarchy
 
 ButtonType = Literal["play", "stop", "step-into", "step-out"]
@@ -24,18 +26,21 @@ class ASTNodeAnalyzer:
     def _build_nodes_cache(self):
         """Построить кэш узлов по ID для быстрого доступа"""
 
-        def traverse(node, prev=None):
+        def traverse(node, prev=None, field=None):
             if isinstance(node, dict):
                 if "id" in node:
                     self.nodes_cache[node["id"]] = node
                     self.nodes_cache[node["id"]].setdefault(
                         "parent",
                         prev.get("id") if prev else None)
-                for value in node.values():
-                    traverse(value, node)
+                    self.nodes_cache[node["id"]].setdefault(
+                        "parent_field", field,
+                    )
+                for key, value in node.items():
+                    traverse(value, node, key)
             elif isinstance(node, list):
                 for item in node:
-                    traverse(item, prev)
+                    traverse(item, prev, field)
 
         traverse(self.ast_tree.get("root_node", {}))
 
@@ -125,6 +130,35 @@ class ASTNodeAnalyzer:
             return False
         return node.get("type", "").lower() == "compound_statement"
 
+    def is_for_loop_component(self, node_id: int | None) -> str | None:
+        if not node_id:
+            return None
+        node = self.get_node_by_id(node_id)
+        if not node:
+            return None
+        field = node.get("parent_field", "")
+        parent_id = node.get("parent")
+        if not parent_id:
+            return None
+
+        parent = self.get_node_by_id(parent_id)
+        if not parent:
+            return None
+
+        if parent.get("type", "").lower() not in {
+            "general_for_loop",
+            "range_for_loop",
+            "for_each_loop",
+        } or node.get("type", "") == "compound_statement":
+            return None
+
+        if node.get("type", "") == "identifier":
+            return None
+
+        if node.get("type", "") == "range":
+            return "range"
+
+        return field
 
     def is_loop_or_condition_header(self, node_id: int | None) -> bool:
         """Проверить, является ли узел заголовком цикла или условия"""
@@ -145,7 +179,7 @@ class ASTNodeAnalyzer:
         if not parent:
             return False
 
-        return "expression" in node_types and parent.get("type", "").lower() in {
+        return node.get("parent_field", "") == "condition" and parent.get("type", "").lower() in {
             "if_statement",
             "condition_branch",
             "switch_statement",
@@ -183,7 +217,7 @@ class CodeHighlightGenerator:
         "unknown": "token-unknown",
     }
 
-    def __init__(self, template_path: str = "templates/base_new.html"):
+    def __init__(self, template_path: os.PathLike | str = "templates/base_new.html"):
 
         self.template_path = template_path
         self.analyzer = None
@@ -249,6 +283,27 @@ class CodeHighlightGenerator:
         is_compound_statement = self.analyzer.is_compound_statement(node_id)
         is_nested_call = self.analyzer.is_nested_call(node_id)
         is_header = self.analyzer.is_loop_or_condition_header(node_id)
+        for_component = self.analyzer.is_for_loop_component(node_id)
+
+        if for_component == "range" and button_position == "start":
+            if node_token_pos == "start":
+                self._range_for = [token.get("value", "")]
+                return "play", "filled"
+            if node_token_pos == "middle" and self.language != "python":
+                if (
+                    token.get("value", "") != ";"
+                    and len(self._range_for)
+                    and self._range_for[-1] == ";"
+                ):
+                    self._range_for.append("") # dummy token as marker of processed semicolon
+                    return "play", "filled"
+                self._range_for.append(token.get("value", ""))
+            elif node_token_pos == "end":
+                self._range_for = []
+
+        if for_component and for_component != "range" and button_position == "start":
+            return "play", "filled"
+
 
         # Вложенный вызов функции
         if is_nested_call:
@@ -286,16 +341,6 @@ class CodeHighlightGenerator:
 
         return None, "filled"
 
-    def _escape_html(self, text: str) -> str:
-        """Экранировать HTML специальные символы"""
-        return (
-            text.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-            .replace("'", "&#39;")
-        )
-
     def _add_spacing_between_tokens(self, tokens: list[dict[str, Any]],
                                     buttons: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Добавить пробелы между токенами"""
@@ -311,6 +356,15 @@ class CodeHighlightGenerator:
             if i < len(tokens) - 1:
                 # Проверяем, не является ли следующий токен пробелом
                 next_token = tokens[i + 1]
+                node_types = []
+                next_node_types = []
+                if self.analyzer:
+                    node_types = self.analyzer.nodes_hierarchy_reference.get(
+                        token.get("node_type", "")
+                    , [])
+                    next_node_types = self.analyzer.nodes_hierarchy_reference.get(
+                        next_token.get("node_type", ""), [],
+                    )
 
                 need_spacing = (
                     token.get("css_class") not in ["token-whitespace"]
@@ -322,9 +376,16 @@ class CodeHighlightGenerator:
                     ]
                     and not token.get("type", "").endswith("opening_brace")
                     and not next_token.get("type", "").endswith("closing_brace")
-                    and not (token.get("node_type", "").startswith("unary")
-                             and token.get("value", "") != "not")
+                    and all("unary" not in t for t in node_types)
+                    and all("postfix" not in t for t in next_node_types)
+                ) or (
+                    (
+                        token.get("css_class") == "token-separator"
+                        and next_token.get("css_class") == "token-separator"
+                    )
+                  or token.get("value", "") == "not"
                 )
+
                 after_button = any(
                     token_i > 0 and (but["index"] == token_i) for but in buttons
                 )
@@ -429,7 +490,8 @@ class CodeHighlightGenerator:
                 )
 
                 if button_type and not any(
-                    b["position"] == "before" and b["node_id"] == node_id
+                    b["position"] == "before"
+                    and (b["node_id"] == node_id and node_type != "range")
                     for b in buttons_on_line
                 ):
                     buttons_on_line.append(
@@ -466,7 +528,7 @@ class CodeHighlightGenerator:
 
                 current_line_tokens.append(
                     {
-                        "value": self._escape_html(token_value),
+                        "value": token_value,
                         "type": token_type,
                         "css_class": css_class,
                         "node_id": node_id,
@@ -498,6 +560,16 @@ class CodeHighlightGenerator:
         if current_line_tokens or buttons_on_line:
             spaced_tokens = self._add_spacing_between_tokens(current_line_tokens, buttons_on_line)
             lines_data.append({"tokens": spaced_tokens, "buttons": buttons_on_line})
+
+        if current_byte_pos < len(self.source):
+            token_code = ""
+            for line in lines_data:
+                for token in line["tokens"]:
+                    if token["id"]:
+                        token_code += token["value"]
+                token_code += "\n"
+            diffs = make_str_diff(self.source.decode("utf-8"), token_code)
+            warnings.warn(f"Possible invalid html generation result, all tokens haven't been processed. See differences: {diffs}")
 
         if not lines_data:
             lines_data.append({"tokens": [], "buttons": []})

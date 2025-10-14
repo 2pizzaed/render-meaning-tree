@@ -415,12 +415,12 @@ try_except_structure:
   kind: compound.try
   ast_node: try_except_statement  # TODO !!??
   effects:
-    - interruption_stop: break
+    - interruption_stop: exception
   actions:
     - role: try
       kind: compound
       effects:
-        - interruption_stop: continue
+        - interruption_stop: exception
     - role: catch
       kind: compound
     - role: else     # entered if no exception was raised. Python only.

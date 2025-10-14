@@ -200,15 +200,14 @@ class CFGBuilder:
         except (AttributeError, KeyError, TypeError):
             return None
 
-    def _process_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict], wrapped_ast: ASTNodeWrapper) -> CFG:
+    def _process_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict]) -> CFG:
         """
         Обрабатывает найденные вызовы функций и встраивает их в CFG.
         
         Args:
             base_cfg: Базовый (пустой) CFG для встраивания вызовов
-            function_calls: Список найденных вызовов функций в порядке вычисления
-            wrapped_ast: Обёртка AST узла
-            
+            function_calls: Список найденных узлов AST с вызовами функций в порядке вычисления
+
         Returns:
             CFG с встроенными вызовами функций
         """
@@ -411,7 +410,7 @@ class CFGBuilder:
 
     def make_cfg_for_construct(self, construct: ConstructSpec | None, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
         """
-        Make CFG for AST node of known construct, of when no construct exists for this AST node.
+        Make CFG for AST node of known construct, or when no construct exists for this AST node.
         Алгоритм:
         * определить конструкт
         * для составных конструктов выполнить обычное построение.
@@ -429,13 +428,13 @@ class CFGBuilder:
             function_calls = ()
 
         if function_calls:
-            # Create connected trivial CFG
-            cfg = self._create_simple_cfg(cfg_name)
-        else:
             # Create empty (not connected) CFG
             cfg = CFG(cfg_name)
-            # Fill CFG
-            cfg = self._process_function_calls_in_cfg(cfg, function_calls, wrapped_ast)
+            # Fill CFG with the chain of func calls
+            cfg = self._process_function_calls_in_cfg(cfg, function_calls)
+        else:
+            # Create connected trivial CFG
+            cfg = self._create_simple_cfg(cfg_name)
         return cfg
 
 

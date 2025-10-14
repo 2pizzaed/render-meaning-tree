@@ -166,6 +166,9 @@ class ConstructSpec(DictLikeDataclass):
             for action in self.actions
         }
 
+        # Add construct's Effects to END node
+        self.id2action[END].effects += self.effects
+
     def find_transitions_from_action(self, action: ActionSpec) -> list[TransitionSpec]:
         roles = (action.role, action.generalization)
         return [tr

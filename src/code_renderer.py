@@ -1,4 +1,5 @@
 
+import hashlib
 import os
 import warnings
 from pathlib import Path
@@ -152,7 +153,7 @@ class ASTNodeAnalyzer:
         } or node.get("type", "") == "compound_statement":
             return None
 
-        if node.get("type", "") == "identifier":
+        if node.get("type", "") == "identifier" and field not in ["container", "item"]:
             return None
 
         if node.get("type", "") == "range":
@@ -216,6 +217,38 @@ class CodeHighlightGenerator:
         "comma": "token-comma",
         "unknown": "token-unknown",
     }
+
+    # Предопределенная палитра цветов для кнопок и скобок
+    COLOR_PALETTE: ClassVar[list[str]] = [
+        "#E74C3C",  # Красный
+        "#3498DB",  # Синий
+        "#9B59B6",  # Фиолетовый
+        "#E67E22",  # Темно-оранжевый
+        "#34495E",  # Темно-серый
+        "#16A085",  # Темно-бирюзовый
+        "#27AE60",  # Темно-зеленый
+        "#2980B9",  # Темно-синий
+        "#C0392B",  # Темно-красный
+        "#2C3E50",  # Полночный синий
+    ]
+
+    COLOR_PALETTE_REDUCED: ClassVar[list[str]] = [
+        "#546E7A",  # Сине-серый
+        "#78909C",  # Светло-сине-серый
+        "#607D8B",  # Средне-сине-серый
+        "#5D4037",  # Коричневый
+        "#6D4C41",  # Средне-коричневый
+        "#795548",  # Светло-коричневый
+        "#455A64",  # Темно-сине-серый
+        "#37474F",  # Очень темно-сине-серый
+        "#616161",  # Темно-серый
+        "#757575",  # Средне-серый
+        "#424242",  # Очень темно-серый
+        "#4E342E",  # Темно-коричневый
+        "#26A69A",  # Приглушенный бирюзовый
+        "#8D6E63",  # Светло-коричневый
+        "#90A4AE",  # Очень светло-сине-серый
+    ]
 
     def __init__(self, template_path: os.PathLike | str = "templates/base_new.html"):
 
@@ -341,6 +374,27 @@ class CodeHighlightGenerator:
 
         return None, "filled"
 
+    def _generate_color_from_string(
+        self, text: str | int, reduced: bool = False,
+    ) -> str:
+        """
+        Генерирует HSL цвет на основе хеша строки
+
+        Args:
+            text: Строка для генерации цвета
+
+        Returns:
+            CSS HSL цвет
+        """
+        text_str = str(text)
+        # Вычисляем хеш и берем индекс по модулю длины палитры
+        palette = self.COLOR_PALETTE_REDUCED if reduced else self.COLOR_PALETTE
+
+        hash_obj = hashlib.md5(text_str.encode("utf-8"))
+        hash_int = int(hash_obj.hexdigest(), 16)
+        color_index = hash_int % len(palette)
+        return palette[color_index]
+
     def _add_spacing_between_tokens(self, tokens: list[dict[str, Any]],
                                     buttons: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Добавить пробелы между токенами"""
@@ -433,6 +487,10 @@ class CodeHighlightGenerator:
             return "end"
         return "middle"
 
+    def is_token_color_required(self, token: dict[str, Any]):
+        return token.get("css_class", "") == "token-brace" and \
+            token.get("value", "") in ["{", "}"]
+
     def generate_html(
         self,
         source_map: dict[str, Any],
@@ -458,6 +516,9 @@ class CodeHighlightGenerator:
 
         self.language = source_map.get("language", "Unknown")
         self.token_list = tokens.get("items", [])
+
+        node_colors = {}  # {node_id: color}
+        node_type_colors = {}  # {node_type: color}
 
         lines_data = []
         current_byte_pos = 0
@@ -494,6 +555,10 @@ class CodeHighlightGenerator:
                     and (b["node_id"] == node_id and node_type != "range")
                     for b in buttons_on_line
                 ):
+                    if node_type not in node_type_colors:
+                        node_type_colors[node_type] = self._generate_color_from_string(node_type, True)
+                    if node_id and node_id not in node_colors:
+                        node_colors[node_id] = self._generate_color_from_string(node_id)
                     buttons_on_line.append(
                         {
                             "type": button_type,
@@ -502,6 +567,7 @@ class CodeHighlightGenerator:
                             "node_type": node_type,
                             "position": "before",
                             "index": token_pos,
+                            "color": node_type_colors[node_type],
                         },
                     )
 
@@ -515,6 +581,11 @@ class CodeHighlightGenerator:
                 if button_type and not any(
                     b["position"] == "after" and b["node_id"] == node_id for b in buttons_on_line
                 ):
+                    # TODO: need extracting for DRY code
+                    if node_type not in node_type_colors:
+                        node_type_colors[node_type] = self._generate_color_from_string(node_type, True)
+                    if node_id and node_id not in node_colors:
+                        node_colors[node_id] = self._generate_color_from_string(node_id)
                     buttons_on_line.append(
                         {
                             "type": button_type,
@@ -523,20 +594,22 @@ class CodeHighlightGenerator:
                             "node_type": node_type,
                             "position": "after",
                             "index": token_pos,
+                            "color": node_type_colors[node_type],
                         },
                     )
 
-                current_line_tokens.append(
-                    {
-                        "value": token_value,
-                        "type": token_type,
-                        "css_class": css_class,
-                        "node_id": node_id,
-                        "node_type": node_type,
-                        "id": token_id,
-                        "index": token_pos,
-                    },
-                )
+                tok = {
+                    "value": token_value,
+                    "type": token_type,
+                    "css_class": css_class,
+                    "node_id": node_id,
+                    "node_type": node_type,
+                    "id": token_id,
+                    "index": token_pos,
+                }
+                if self.is_token_color_required(tok):
+                    tok["color"] = node_colors.get(node_id)
+                current_line_tokens.append(tok)
 
                 current_byte_pos += len(token_value.encode("utf-8"))
                 if i + 1 < len(self.token_list) and self.token_list[i + 1].get("type", "") == "whitespace":

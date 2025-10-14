@@ -111,38 +111,21 @@
             transform: scale(0.95);
         }
         
-        /* Filled icons - иконки с заливкой */
-        .action-button.filled.play svg {
-            color: #4CAF50;
-            fill: #4CAF50;
-        }
-        
-        .action-button.filled.stop svg {
-            color: #f44336;
-            fill: #f44336;
-        }
-        
-        .action-button.filled.step-into svg {
-            color: #2196F3;
-            fill: #2196F3;
-        }
-        
+        .action-button.filled.play svg,
+        .action-button.filled.stop svg,
+        .action-button.filled.step-into svg,
         .action-button.filled.step-out svg {
-            color: #FF9800;
-            fill: #FF9800;
+            /* Цвет будет задан inline через style */
         }
-        
-        /* Outlined icons - иконки только контуром */
-        .action-button.outlined.play svg {
-            color: #4CAF50;
+
+        .action-button.outlined.play svg,
+        .action-button.outlined.stop svg,
+        .action-button.outlined.step-into svg,
+        .action-button.outlined.step-out svg {
             fill: none;
+            /* Цвет будет задан inline через style */
         }
-        
-        .action-button.outlined.stop svg {
-            color: #f44336;
-            fill: none;
-        }
-        
+
         .line-content {
             flex: 1;
             white-space: pre;
@@ -260,25 +243,27 @@
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
-                                        data-action="{{ button.type }}">
-                                    {%- if button.type == 'play' -%}<i data-lucide="play"></i>
-                                    {%- elif button.type == 'stop' -%}<i data-lucide="square"></i>
-                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right"></i>
-                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left"></i>
+                                        data-action="{{ button.type }}"
+                                        style="--button-color: {{ button.color }};"
+                                        >
+                                    {%- if button.type == 'play' -%}<i data-lucide="play" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'stop' -%}<i data-lucide="square" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- endif -%}
                                 </button>
                                 {%- endfor -%}
-                                <span class="token {{ token.css_class }}" {% if token.node_id %}data-node-id="{{ token.node_id }}"{% endif %} data-token-id="{{ token.id }}" data-node-type="{{ token.node_type }}">{{- token.value -}}</span>
+                                <span class="token {{ token.css_class }}" {% if token.node_id %}data-node-id="{{ token.node_id }}"{% endif %} data-token-id="{{ token.id }}" data-node-type="{{ token.node_type }}" {% if token.color %}style="color: {{ token.color }};"{% endif %} >{{- token.value -}}</span>
                                 {%- for button in line.buttons if button.position == 'after' and button.index == token.index -%}
                                 <button class="action-button {{ button.style }} {{ button.type }}"
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
                                         data-action="{{ button.type }}">
-                                    {%- if button.type == 'play' -%}<i data-lucide="play"></i>
-                                    {%- elif button.type == 'stop' -%}<i data-lucide="square"></i>
-                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right"></i>
-                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left"></i>
+                                    {%- if button.type == 'play' -%}<i data-lucide="play" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'stop' -%}<i data-lucide="square" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- endif -%}
                                 </button>
                                 {%- endfor -%}

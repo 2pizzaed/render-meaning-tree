@@ -208,9 +208,21 @@
         .token-unknown {
             color: #000000;
         }
-        
-        .token-whitespace {
-            /* Пробелы отображаются как есть */
+
+        /* требует поддержки :has (современные браузеры) */
+        .line-content:has(> .token-whitespace:first-child) {
+            position: relative;
+            padding-left: 8px; /* отступ, чтобы не налезало содержимое */
+        }
+
+        .line-content:has(> .token-whitespace:first-child)::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #c7c7c7;
         }
         
         .token {

@@ -288,7 +288,7 @@ for_each_structure:
 # Блок операторов { ... }
 # --------------------------------
 block_structure:
-  kind: compound.sequence
+  kind: compound.sequence.block
   ast_node: compound_statement
   actions:
     - role: first
@@ -337,7 +337,7 @@ func_def_structure:
 # Вызов функции
 # --------------------------------
 func_call_structure:
-  kind: call
+  kind: inline.call
   ast_node: function_call
   actions:
     - role: name

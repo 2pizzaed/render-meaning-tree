@@ -1,0 +1,25 @@
+# Show action buttons or not.
+profiles:
+  - minimum
+  - maximum
+  - blocks_opaque
+  - blocks_transparent
+
+
+# defaut is always "opaque"
+# inline actions should be always opaque.
+
+minimum:
+  compound: transparent
+
+maximum:
+  compound: opaque
+
+blocks_opaque:
+  compound.block: opaque
+  compound: transparent  # other than blocks
+
+blocks_transparent:
+  compound.block: transparent
+  compound: opaque  # other than blocks
+

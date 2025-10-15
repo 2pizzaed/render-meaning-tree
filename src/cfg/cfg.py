@@ -81,22 +81,23 @@ class CFG:
         self.name: str = name
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
-        
+
+        self._init_boundaries(construct)
+
+    def _init_boundaries(self, construct: ConstructSpec | None):
         # Извлекаем метаданные для BEGIN и END узлов из construct, если он передан
         begin_metadata = None
         end_metadata = None
-        
+
         if construct:
             # Получаем ActionSpec для BEGIN и END из construct
             begin_action = construct.id2action.get(BEGIN)
             end_action = construct.id2action.get(END)
-            
             if begin_action:
                 begin_metadata = Metadata(abstract_action=begin_action)
-            
             if end_action:
                 end_metadata = Metadata(abstract_action=end_action)
-        
+
         # init boundaries с метаданными
         self.begin_node = self.add_node(BEGIN, BEGIN, metadata=begin_metadata)
         self.end_node = self.add_node(END, END, metadata=end_metadata)

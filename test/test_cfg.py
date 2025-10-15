@@ -4,6 +4,7 @@ import unittest
 from src.cfg import ASTNodeWrapper
 from src.cfg import CFGBuilder
 from src.cfg.abstractions import load_constructs
+from src.cfg.cfg_visualizer import visualize_cfg
 
 
 class TestCfgBuilder(unittest.TestCase):
@@ -276,3 +277,6 @@ class TestCfgBuilder(unittest.TestCase):
         cfg = b.make_cfg_for_ast(program_root)
         # Debug print CFG
         cfg.debug()
+        visualize_cfg(cfg, "cfg_9.png")
+
+

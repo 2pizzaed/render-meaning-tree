@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.abstractions import ActionSpec, TransitionSpec, Effects, Constraints
+from src.cfg.abstractions import ActionSpec, TransitionSpec, Effects, Constraints, ConstructSpec
 from src.common_utils import DictLikeDataclass
 
 from src.serializers.types import FactSerializable
@@ -75,15 +75,31 @@ class Edge(FactSerializable):
 
 
 class CFG:
-    def __init__(self, name="cfg"):
+    def __init__(self, name="cfg", construct: ConstructSpec=None):
         """ Init a CFG and create BEGIN and END nodes """
         self.id = idgen.next(name)
         self.name: str = name
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
-        # init boundaries
-        self.begin_node = self.add_node(BEGIN, BEGIN)
-        self.end_node = self.add_node(END, END)
+        
+        # Извлекаем метаданные для BEGIN и END узлов из construct, если он передан
+        begin_metadata = None
+        end_metadata = None
+        
+        if construct:
+            # Получаем ActionSpec для BEGIN и END из construct
+            begin_action = construct.id2action.get(BEGIN)
+            end_action = construct.id2action.get(END)
+            
+            if begin_action:
+                begin_metadata = Metadata(abstract_action=begin_action)
+            
+            if end_action:
+                end_metadata = Metadata(abstract_action=end_action)
+        
+        # init boundaries с метаданными
+        self.begin_node = self.add_node(BEGIN, BEGIN, metadata=begin_metadata)
+        self.end_node = self.add_node(END, END, metadata=end_metadata)
 
     def _add_edge(self, *other_edges: Edge):
         """ Add edges to the CFG, skipping duplicates """

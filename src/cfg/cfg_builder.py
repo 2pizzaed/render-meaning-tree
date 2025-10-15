@@ -330,12 +330,10 @@ class CFGBuilder:
         
         # Создаем CFG вызова, встраивая CFG функции
         # Создаем CFG через конструкт, но заменяем тело функции на сохраненный CFG
-        call_cfg = CFG("function_call")
+        call_cfg = CFG("function_call", construct=construct)
         
-        # Добавляем метаданные к begin и end узлам
-        call_cfg.begin_node.metadata.abstract_action = construct.id2action[BEGIN]
+        # Добавляем метаданные: узел AST (abstract_action уже установлен через construct)
         call_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
-        call_cfg.end_node.metadata.abstract_action = construct.id2action[END]
         call_cfg.end_node.metadata.wrapped_ast = wrapped_ast
         
         # Встраиваем CFG функции как subgraph
@@ -444,12 +442,10 @@ class CFGBuilder:
             # Make fresh CFG.
             ast_node = wrapped_ast.ast_node
             cfg_name = ast_node['type'] if 'type' in ast_node else str(ast_node)
-            cfg = CFG(cfg_name)
+            cfg = CFG(cfg_name, construct=construct)
 
-        # Добавить метаданные: алгоритмическая конструкция и узел AST
-        cfg.begin_node.metadata.abstract_action = construct.id2action[BEGIN]
+        # Добавить метаданные: узел AST (abstract_action уже установлен через construct)
         cfg.begin_node.metadata.wrapped_ast = wrapped_ast
-        cfg.end_node.metadata.abstract_action = construct.id2action[END]
         cfg.end_node.metadata.wrapped_ast = wrapped_ast
 
         # Применить все переходы, попутно создавая узлы,

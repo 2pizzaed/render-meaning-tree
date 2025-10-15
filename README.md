@@ -9,6 +9,8 @@
 - `Java 21+`
 - [`uv`](https://github.com/astral-sh/uv)
 - `make`
+- `Python 3.8+` (для модуля визуализации CFG)
+- `NetworkX` и `matplotlib` (автоматически устанавливаются)
 
 ## Установка
 
@@ -98,7 +100,8 @@ python  main.py -c "a = 10; if (b > 10) if (X) if (Y) if (Z) if (W) if (N) if(M)
 ### Слой визуализации и инструментов (Python, `src/`, `main.py`)
 - **Рендеринг AST:** Модуль `src/renderer.py` содержит класс `Renderer`, который с помощью декоратора `@r.node(type=...)` регистрирует функции-обработчики для разных типов AST-узлов. Это позволяет гибко наращивать поддержку новых конструкций без изменения основной логики.
 - **Генерация HTML:** Для визуализации используется Jinja2 и шаблоны из папки `templates/`. Каждый узел AST преобразуется в HTML с подсветкой синтаксиса и разметкой по шаблону.
-- **Генерация CFG:** Модуль `src/cfg.py` строит граф потока управления (Control Flow Graph) на основе AST и может визуализировать его в PNG.
+- **Генерация CFG:** Модуль `src/cfg.py` строит граф потока управления (Control Flow Graph) на основе AST.
+- **Визуализация CFG:** Модуль `src/cfg/cfg_visualizer.py` создаёт наглядные изображения CFG с использованием NetworkX и matplotlib, отображая структуру графа с информацией о kind узлов, AST ID и constraints на рёбрах.
 - **Сериализация и отладка:** Модули в `src/serializers/` позволяют сериализовать AST для отладки или интеграции с внешними инструментами.
 
 ### Взаимодействие компонентов
@@ -106,3 +109,37 @@ python  main.py -c "a = 10; if (b > 10) if (X) if (Y) if (Z) if (W) if (N) if(M)
 2. Код парсится Java-модулем, AST сериализуется и передаётся в Python.
 3. Python-слой визуализирует AST, строит HTML и (опционально) CFG.
 4. Результаты сохраняются в виде HTML-файла и/или PNG-графа.
+
+## Визуализация CFG
+
+Для создания изображений графов потока управления используйте модуль `src/cfg/cfg_visualizer.py`:
+
+```python
+from src.cfg.cfg_visualizer import visualize_cfg
+from src.cfg.cfg_builder import CFGBuilder
+from src.cfg.abstractions import load_constructs
+from src.cfg.ast_wrapper import ASTNodeWrapper
+
+# Загрузка конструкций и создание CFG
+constructs = load_constructs()
+builder = CFGBuilder(constructs)
+
+# Создание CFG из AST
+wrapped_ast = ASTNodeWrapper(ast_node=your_ast_data)
+cfg = builder.make_cfg_for_ast(wrapped_ast)
+
+# Визуализация
+if cfg:
+    output_file = visualize_cfg(cfg, "my_cfg.png")
+    print(f"CFG сохранён: {output_file}")
+```
+
+### Запуск тестов визуализации
+
+```bash
+# Все тесты модуля визуализации
+python test/test_cfg_visualizer.py
+
+# Конкретный тест (воспроизводит создание example_cfg.png)
+python -m unittest test.test_cfg_visualizer.TestCFGVisualizer.test_visualize_cfg_from_ast -v
+```

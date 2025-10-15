@@ -275,6 +275,31 @@ class TestCfgBuilder(unittest.TestCase):
 
         # Process all statements in the program body
         cfg = b.make_cfg_for_ast(program_root)
+
+        print()
+        print('Before optimization:')
+        print('Nodes:', len(cfg.nodes))
+        print('Edges:', len(cfg.edges))
+        # print('Edges:', [f'{e.src}->{e.dst}' for e in cfg.edges])
+
+        # Optimize (should remove B, C, D iteratively)
+        removed = cfg.optimize()
+
+        print()
+        print('After optimization:')
+        print('Removed nodes:', removed)
+        print('Nodes:', len(cfg.nodes))
+        print('Edges:', len(cfg.edges))
+        # print('Edges:', [f'{e.src}->{e.dst}' for e in cfg.edges])
+
+        # Show optimization stats
+        print()
+        print('Optimization stats:')
+        print(f'Removed {removed} insignificant nodes')
+        print(f'Graph simplified from {len(cfg.edges) + removed} to {len(cfg.edges)} edges')
+        print(f'Reduction: {(removed) / (len(cfg.edges) + removed) * 100:.1f}% fewer edges')
+        print()
+
         # Debug print CFG
         cfg.debug()
 

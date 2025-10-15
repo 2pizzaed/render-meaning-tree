@@ -200,7 +200,7 @@ class CFGBuilder:
         except (AttributeError, KeyError, TypeError):
             return None
 
-    def _process_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict]) -> CFG:
+    def _inject_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict]) -> CFG:
         """
         Обрабатывает найденные вызовы функций и встраивает их в CFG.
         
@@ -234,17 +234,13 @@ class CFGBuilder:
             
             if construct and construct.name == FUNC_CALL_CONSTRUCT:
                 # Используем существующий механизм обработки вызовов
-                call_cfg = self._handle_function_call(construct, call_wrapped_ast)
+                call_cfg = self._make_cfg_for_function_call(construct, call_wrapped_ast)
             else:
                 raise ValueError(call_node)
                 # Создаем простой CFG для вызова
                 call_cfg = self._create_simple_function_call_cfg(func_name, call_wrapped_ast)
             
             if call_cfg:
-                # Увеличиваем счётчик вызовов
-                func_cfg.begin_node.metadata.call_count += 1
-                print(f'CALL++(1) of `{func_name}` =', func_cfg.begin_node.metadata.call_count)
-
                 # Встраиваем CFG вызова в цепочку
                 base_cfg.connect(current_node, call_cfg.begin_node)
                 current_node = call_cfg.end_node
@@ -314,7 +310,7 @@ class CFGBuilder:
 
         return cfg
 
-    def _handle_function_call(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
+    def _make_cfg_for_function_call(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
         """Обрабатывает вызов функции: связывает с CFG функции из func_cfgs."""
         # Извлекаем имя функции
         func_name = self._extract_function_name(wrapped_ast, construct)
@@ -401,7 +397,7 @@ class CFGBuilder:
             if construct.name == FUNC_DEF_CONSTRUCT:
                 return self._create_simple_cfg(f"function_def_{construct.name}")
             elif construct.name == FUNC_CALL_CONSTRUCT:
-                return self._handle_function_call(construct, wrapped_ast)
+                return self._make_cfg_for_function_call(construct, wrapped_ast)
 
         # Обычные узлы
         cfg = self.make_cfg_for_construct(construct, wrapped_ast)
@@ -431,7 +427,7 @@ class CFGBuilder:
             # Create empty (not connected) CFG
             cfg = CFG(cfg_name)
             # Fill CFG with the chain of func calls
-            cfg = self._process_function_calls_in_cfg(cfg, function_calls)
+            cfg = self._inject_function_calls_in_cfg(cfg, function_calls)
         else:
             # Create connected trivial CFG
             cfg = self._create_simple_cfg(cfg_name)

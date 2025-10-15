@@ -58,9 +58,10 @@ class KindChain:
     def __init__(self, chain: str | list[str] = '', sep='.'):
         if isinstance(chain, str):
             self.chain = chain.split(sep) if chain else []
-        if isinstance(chain, list):
+        elif isinstance(chain, list):
             self.chain = chain
-        raise TypeError(f'"chain" must be str or list, not {type(chain).__name__}')
+        else:
+            raise TypeError(f'"chain" must be str or list, not {type(chain).__name__}')
 
     def __contains__(self, item):
         return item in self.chain

@@ -76,6 +76,7 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
     """Конвертирует CFG в NetworkX DiGraph.
     
     Добавляет все узлы и рёбра из CFG в NetworkX граф.
+    Безопасно обрабатывает висячие рёбра и несуществующие узлы.
     """
     G = nx.DiGraph()
     
@@ -84,10 +85,18 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
         label = _create_node_label(node)
         G.add_node(node_id, label=label, node_obj=node)
     
-    # Добавляем рёбра
+    # Добавляем рёбра (только если оба узла существуют)
     for edge in cfg.edges:
-        label = _create_edge_label(edge)
-        G.add_edge(edge.src, edge.dst, label=label, edge_obj=edge)
+        # Проверяем, что оба узла существуют в CFG
+        if edge.src in cfg.nodes and edge.dst in cfg.nodes:
+            label = _create_edge_label(edge)
+            G.add_edge(edge.src, edge.dst, label=label, edge_obj=edge)
+        else:
+            # Логируем пропущенные рёбра для отладки
+            missing_src = edge.src not in cfg.nodes
+            missing_dst = edge.dst not in cfg.nodes
+            print(f"Warning: Skipping edge {edge.src} -> {edge.dst} "
+                  f"(missing src: {missing_src}, missing dst: {missing_dst})")
     
     return G
 
@@ -100,6 +109,42 @@ def _get_node_color(node: Node) -> str:
         return "lightcoral"  # Красный для END
     else:
         return "lightblue"   # Голубой для обычных узлов
+
+
+def diagnose_cfg(cfg: CFG) -> dict:
+    """Диагностика проблем в CFG.
+    
+    Возвращает словарь с информацией о проблемах в графе.
+    """
+    issues = {
+        'orphan_edges': [],
+        'missing_nodes': set(),
+        'disconnected_nodes': [],
+        'total_nodes': len(cfg.nodes),
+        'total_edges': len(cfg.edges)
+    }
+    
+    # Находим висячие рёбра
+    for edge in cfg.edges:
+        if edge.src not in cfg.nodes:
+            issues['orphan_edges'].append(f"Edge {edge.src} -> {edge.dst} (missing src)")
+            issues['missing_nodes'].add(edge.src)
+        if edge.dst not in cfg.nodes:
+            issues['orphan_edges'].append(f"Edge {edge.src} -> {edge.dst} (missing dst)")
+            issues['missing_nodes'].add(edge.dst)
+    
+    # Находим отключённые узлы
+    connected_nodes = set()
+    for edge in cfg.edges:
+        if edge.src in cfg.nodes and edge.dst in cfg.nodes:
+            connected_nodes.add(edge.src)
+            connected_nodes.add(edge.dst)
+    
+    for node_id in cfg.nodes:
+        if node_id not in connected_nodes:
+            issues['disconnected_nodes'].append(node_id)
+    
+    return issues
 
 
 def visualize_cfg(cfg: CFG, output_file: str = "cfg.png", 
@@ -122,6 +167,22 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
     # 1. Создать NetworkX граф
     G = _build_networkx_graph(cfg)
     
+    # Диагностика проблем в CFG
+    issues = diagnose_cfg(cfg)
+    
+    if issues['orphan_edges']:
+        print(f"Warning: Found {len(issues['orphan_edges'])} orphan edges in CFG:")
+        for edge_desc in issues['orphan_edges']:
+            print(f"  {edge_desc}")
+    
+    if issues['disconnected_nodes']:
+        print(f"Warning: Found {len(issues['disconnected_nodes'])} disconnected nodes: {issues['disconnected_nodes']}")
+    
+    if issues['missing_nodes']:
+        print(f"Warning: Missing nodes referenced in edges: {list(issues['missing_nodes'])}")
+    
+    print(f"CFG stats: {issues['total_nodes']} nodes, {issues['total_edges']} edges")
+    
     # 2. Вычислить layout
     if layout == "hierarchical":
         try:
@@ -139,8 +200,13 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
     # 4. Отрисовать узлы с цветами
     node_colors = []
     for node_id in G.nodes():
-        node_obj = G.nodes[node_id]['node_obj']
-        node_colors.append(_get_node_color(node_obj))
+        # Безопасно получаем node_obj
+        node_obj = G.nodes[node_id].get('node_obj')
+        if node_obj:
+            node_colors.append(_get_node_color(node_obj))
+        else:
+            # Fallback для узлов без node_obj
+            node_colors.append("lightgray")
     
     nx.draw_networkx_nodes(G, pos, node_color=node_colors, 
                           node_size=2000, alpha=0.8)
@@ -150,14 +216,20 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
                           edge_color='gray', alpha=0.6)
     
     # 6. Отрисовать метки узлов
-    node_labels = {node_id: G.nodes[node_id]['label'] 
-                   for node_id in G.nodes()}
+    node_labels = {}
+    for node_id in G.nodes():
+        label = G.nodes[node_id].get('label', node_id)  # Fallback к node_id
+        node_labels[node_id] = label
     nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8)
     
     # 7. Отрисовать метки рёбер
-    edge_labels = {(edge.src, edge.dst): G[edge.src][edge.dst]['label']
-                   for edge in cfg.edges
-                   if G[edge.src][edge.dst]['label']}  # Только непустые метки
+    edge_labels = {}
+    for edge in cfg.edges:
+        # Проверяем, что рёбро существует в NetworkX графе
+        if G.has_edge(edge.src, edge.dst):
+            label = G[edge.src][edge.dst].get('label', '')
+            if label:  # Только непустые метки
+                edge_labels[(edge.src, edge.dst)] = label
     
     if edge_labels:
         nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=7)

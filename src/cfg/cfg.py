@@ -14,11 +14,11 @@ from src.types import Node
 class Metadata(DictLikeDataclass):
     """General metadata for actions, transitions, and nodes"""
     assumed_value: Optional[bool] = None
-    ast_node: Optional[str] = None
+    # ast_node: Optional[str] = None
     abstract_action: Optional['ActionSpec'] = None
+    abstract_transition: Optional['TransitionSpec'] = None
     wrapped_ast: Optional[ASTNodeWrapper] = None
     primary: Optional[bool] = None
-    abstract_transition: Optional['TransitionSpec'] = None
     is_after_last: Optional[bool] = None
     call_count: int = 0  # Счётчик вызовов для функций
     # # Additional fields can be added as needed

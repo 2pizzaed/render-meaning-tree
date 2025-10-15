@@ -5,133 +5,98 @@ enum OriginType {
 	parent [
 		RU.localizedName = "родительский" ;
 		EN.localizedName = "parent" ;
-		TEMPLATING_ID = 1 ;
+	
 	],
 	previous [
 		RU.localizedName = "предыдущий" ;
 		EN.localizedName = "previous" ;
-		TEMPLATING_ID = 2 ;
+	
 	],
 } [
 	RU.localizedName = "тип происхождения" ;
 	EN.localizedName = "origin type" ;
-	TEMPLATING_ID = 3 ;
-]
 
-// enum RoleInListType {
-// 	first_in_list [
-// 		RU.localizedName = "первый в списке" ;
-// 		EN.localizedName = "first in list" ;
-// 		TEMPLATING_ID = 4 ;
-// 	],
-// 	next_in_list [
-// 		RU.localizedName = "следующий в списке" ;
-// 		EN.localizedName = "next in list" ;
-// 		TEMPLATING_ID = 5 ;
-// 	],
-// } [
-// 	RU.localizedName = "роль в списке" ;
-// 	EN.localizedName = "role in list" ;
-// 	TEMPLATING_ID = 6 ;
-// ]
+]
 
 enum InterruptionType {
 	break [
 		RU.localizedName = "прерывание" ;
 		EN.localizedName = "break" ;
-		TEMPLATING_ID = 7 ;
+	
 	],
 	continue [
 		RU.localizedName = "продолжение" ;
 		EN.localizedName = "continue" ;
-		TEMPLATING_ID = 8 ;
+	
 	],
 	return [
 		RU.localizedName = "возврат" ;
 		EN.localizedName = "return" ;
-		TEMPLATING_ID = 9 ;
+	
 	],
 	exception [
 		RU.localizedName = "исключение" ;
 		EN.localizedName = "exception" ;
-		TEMPLATING_ID = 10 ;
+	
 	],
 } [
 	RU.localizedName = "тип прерывания" ;
 	EN.localizedName = "interruption type" ;
-	TEMPLATING_ID = 11 ;
+
 ]
 
 enum CallStackAction {
 	add_frame [
 		RU.localizedName = "добавить кадр" ;
 		EN.localizedName = "add frame" ;
-		TEMPLATING_ID = 12 ;
+	
 	],
 	drop_frame [
 		RU.localizedName = "удалить кадр" ;
 		EN.localizedName = "drop frame" ;
-		TEMPLATING_ID = 13 ;
+	
 	],
 } [
 	RU.localizedName = "действие стека вызовов" ;
 	EN.localizedName = "call stack action" ;
-	TEMPLATING_ID = 14 ;
+
 ]
 
-enum ConditionValue {
-	true [
-		RU.localizedName = "истина" ;
-		EN.localizedName = "true" ;
-		TEMPLATING_ID = 15 ;
-	],
-	false [
-		RU.localizedName = "ложь" ;
-		EN.localizedName = "false" ;
-		TEMPLATING_ID = 16 ;
-	],
-} [
-	RU.localizedName = "значение условия" ;
-	EN.localizedName = "condition value" ;
-	TEMPLATING_ID = 17 ;
-]
 
 enum InterruptionMode {
 	exception [
 		RU.localizedName = "исключение" ;
 		EN.localizedName = "exception" ;
-		TEMPLATING_ID = 18 ;
+	
 	],
 	any [
 		RU.localizedName = "любое" ;
 		EN.localizedName = "any" ;
-		TEMPLATING_ID = 19 ;
+	
 	],
 } [
 	RU.localizedName = "режим прерывания" ;
 	EN.localizedName = "interruption mode" ;
-	TEMPLATING_ID = 20 ;
 ]
 
-class Effects {
+class Effect {
 	obj prop interruption_stop: InterruptionType ;
 	obj prop interruption_start: InterruptionType ;
 	obj prop call_stack: CallStackAction ;
 } [
-	RU.localizedName = "эффекты" ;
-	EN.localizedName = "effects" ;
-	TEMPLATING_ID = 21 ;
+	RU.localizedName = "эффект" ;
+	EN.localizedName = "effect" ;
+
 ]
 
 class Identification {
 	obj prop origin: OriginType ;
 	obj prop property: string ;
 	obj prop property_path: string ;
-	obj prop role_in_list: RoleInListType ;
 } [
 	RU.localizedName = "идентификация" ;
 	EN.localizedName = "identification" ;
-	TEMPLATING_ID = 22 ;
+
 ]
 
 class Behaviour {
@@ -139,16 +104,16 @@ class Behaviour {
 } [
 	RU.localizedName = "поведение" ;
 	EN.localizedName = "behaviour" ;
-	TEMPLATING_ID = 23 ;
+
 ]
 
-class Constraints {
-	obj prop condition_value: ConditionValue ;
+class Constraint {
+	obj prop condition_value: bool ;
 	obj prop interruption_mode: InterruptionMode ;
 } [
-	RU.localizedName = "ограничения" ;
-	EN.localizedName = "constraints" ;
-	TEMPLATING_ID = 24 ;
+	RU.localizedName = "ограничение" ;
+	EN.localizedName = "constraint" ;
+
 ]
 
 class KindChain {
@@ -156,120 +121,137 @@ class KindChain {
 } [
 	RU.localizedName = "цепочка типов" ;
 	EN.localizedName = "kind chain" ;
-	TEMPLATING_ID = 25 ;
+
 ]
 
 class ActionSpec {
 	obj prop role: string ;
-	obj prop kind: KindChain ;
 	obj prop generalization: string ;
-	obj prop effects: string ;
-	obj prop identification: Identification ;
-	obj prop behaviour: Behaviour ;
+
+	rel hasKind(KindChain) : {* -> 1} ;
+	rel hasEffects(Effect) ;
+	rel hasIdentification(Identification) : {* -> 1} ;
+	rel hasBehaviour(Behaviour) : {* -> 1} ;
 } [
 	RU.localizedName = "спецификация действия" ;
 	EN.localizedName = "action specification" ;
-	TEMPLATING_ID = 26 ;
+
 ]
 
 class TransitionSpec {
 	obj prop from_: string ;
-	obj prop to: string ;
+	obj prop to_: string ;
 	obj prop to_when_absent: string ;
-	obj prop constraints: Constraints ;
-	obj prop effects: string ;
+
+	rel hasConstraints(Constraint) ;
+	rel hasEffects(Effect) ;
 } [
 	RU.localizedName = "спецификация перехода" ;
 	EN.localizedName = "transition specification" ;
-	TEMPLATING_ID = 27 ;
+
 ]
 
 class ConstructSpec {
 	obj prop name: string ;
-	obj prop kind: KindChain ;
-	obj prop ast_node: string ;
-	obj prop actions: string ;
-	obj prop id2action: string ;
-	obj prop transitions: string ;
-	obj prop effects: string ;
 
-	rel hasAction(ActionSpec) : {1 -> *} ;
-	rel hasTransition(TransitionSpec) : {1 -> *} ;
+	rel hasActions(ActionSpec) ;
+	rel hasKind(KindChain) : {* -> 1} ;
+	rel hasTransitions(TransitionSpec) ;
+	rel belongsToNode(ASTNodeWrapper) : {* -> 1} ;
+	rel hasEffects(Effect) ;
 } [
 	RU.localizedName = "спецификация конструкции" ;
 	EN.localizedName = "construct specification" ;
-	TEMPLATING_ID = 28 ;
+
 ]
 
 class Metadata {
 	obj prop assumed_value: bool ;
-	obj prop ast_node: string ;
 	obj prop primary: bool ;
 	obj prop is_after_last: bool ;
-	obj prop call_count: int ;
-	obj prop abstract_action: ActionSpec ;
-	obj prop wrapped_ast: string ;
-	obj prop abstract_transition: TransitionSpec ;
+	obj prop call_count: int[0, 65536] ;
+
+	rel hasAbstractAction(ActionSpec) : {* -> 1} ;
+	rel belongsToNode(ASTNodeWrapper) : {* -> 1} ;
+	rel hasAbstractTransition(TransitionSpec) : {* -> 1} ;
 } [
 	RU.localizedName = "метаданные" ;
 	EN.localizedName = "metadata" ;
-	TEMPLATING_ID = 29 ;
+
 ]
 
 class Node {
 	obj prop id: string ;
 	obj prop role: string ;
 	obj prop kind: string ;
-	obj prop effects: string ;
-	obj prop metadata: Metadata ;
 
-	rel belongsTo(CFG) : opposite to CFG->hasNode ;
+	rel belongsTo(CFG) : opposite to CFG->hasNodes ;
+	rel hasEffects(Effect) ;
+	rel hasMetadata(Metadata) : {1 -> 1};
+
+	rel hasEdges(Edge) : opposite to Edge->hasEndpointNode ;
 } [
 	RU.localizedName = "узел" ;
 	EN.localizedName = "node" ;
-	TEMPLATING_ID = 30 ;
+]
+
+enum EdgeEndpointType {
+	source [
+		RU.localizedName = "выход" ;
+		EN.localizedName = "tail" ;
+	
+	],
+	target [
+		RU.localizedName = "вход" ;
+		EN.localizedName = "head" ;
+	
+	],
+} [
+	RU.localizedName = "тип окончания ребра" ;
+	EN.localizedName = "edge endpoint type" ;
 ]
 
 class Edge {
 	obj prop id: string ;
 	obj prop src: string ;
 	obj prop dst: string ;
-	obj prop constraints: Constraints ;
-	obj prop effects: string ;
-	obj prop metadata: Metadata ;
+	obj prop oriented: bool ;
 
-	rel belongsTo(CFG) : opposite to CFG->hasEdge ;
-	rel connects(Node, Node) : {1 -> 2} ;
+	rel belongsTo(CFG) : opposite to CFG->hasEdges ;
+	rel hasEndpointNode<type: EdgeEndpointType>(Node) : {* -> 2} ;
+	rel hasMetadata(Metadata) : {1 -> 1};
+	rel hasEffects(Effect) ;
+	rel hasConstraints(Constraint) ;
 } [
 	RU.localizedName = "ребро" ;
 	EN.localizedName = "edge" ;
-	TEMPLATING_ID = 31 ;
+
 ]
 
 class CFG {
 	obj prop id: string ;
 	obj prop name: string ;
 
-	rel hasNode(Node) : {1 -> *} ;
-	rel hasEdge(Edge) : {1 -> *} ;
+	rel hasNodes(Node) : {1 -> *} ;
+	rel hasEdges(Edge) : {1 -> *} ;
 	rel hasBegin(Node) : {1 -> 1} ;
 	rel hasEnd(Node) : {1 -> 1} ;
 } [
 	RU.localizedName = "граф потока управления" ;
 	EN.localizedName = "control flow graph" ;
-	TEMPLATING_ID = 32 ;
+
 ]
 
 class ASTNodeWrapper {
 	obj prop ast_node: string ;
-	obj prop metadata: Metadata ;
 
-	rel hasParent(ASTNodeWrapper) : {* -> 1} ;
-	rel hasChildren(ASTNodeWrapper) : {1 -> *} ;
+	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
+	rel hasChildren(ASTNodeWrapper) ;
+	rel hasMetadata(Metadata) : {1 -> 1};
 } [
 	RU.localizedName = "обёртка узла AST" ;
 	EN.localizedName = "AST node wrapper" ;
-	TEMPLATING_ID = 33 ;
+
 ]
 
 
@@ -281,59 +263,52 @@ obj defaultKindChain : KindChain {
 } [
 	RU.localizedName = "пустая цепочка типов" ;
 	EN.localizedName = "empty kind chain" ;
-	TEMPLATING_ID = 35 ;
+
 ]
 
 obj beginAction : ActionSpec {
 	role = "BEGIN" ;
-	kind = defaultKindChain ;
 	generalization = "" ;
-	effects = "" ;
-	identification = Identification() ;
-	behaviour = Behaviour() ;
+
+	hasKind(defaultKindChain) ;
 } [
 	RU.localizedName = "действие начала" ;
 	EN.localizedName = "begin action" ;
-	TEMPLATING_ID = 36 ;
+
 ]
 
 obj endAction : ActionSpec {
 	role = "END" ;
-	kind = defaultKindChain ;
 	generalization = "" ;
-	effects = "" ;
-	identification = Identification() ;
-	behaviour = Behaviour() ;
+
+	hasKind(defaultKindChain) ;
 } [
 	RU.localizedName = "действие конца" ;
 	EN.localizedName = "end action" ;
-	TEMPLATING_ID = 37 ;
+
 ]
 
 obj emptyMetadata : Metadata {
 	assumed_value = false ;
-	ast_node = "" ;
 	primary = false ;
 	is_after_last = false ;
 	call_count = 0 ;
-	abstract_action = beginAction ;
-	wrapped_ast = "" ;
-	abstract_transition = TransitionSpec() ;
+
+	hasAbstractAction(beginAction) ;
 } [
 	RU.localizedName = "пустые метаданные" ;
 	EN.localizedName = "empty metadata" ;
-	TEMPLATING_ID = 38 ;
+
 ]
 
 obj emptyIdentification : Identification {
 	origin = OriginType:parent ;
 	property = "" ;
 	property_path = "" ;
-	role_in_list = RoleInListType:first_in_list ;
 } [
 	RU.localizedName = "пустая идентификация" ;
 	EN.localizedName = "empty identification" ;
-	TEMPLATING_ID = 39 ;
+
 ]
 
 obj emptyBehaviour : Behaviour {
@@ -341,24 +316,23 @@ obj emptyBehaviour : Behaviour {
 } [
 	RU.localizedName = "пустое поведение" ;
 	EN.localizedName = "empty behaviour" ;
-	TEMPLATING_ID = 40 ;
+
 ]
 
-obj emptyConstraints : Constraints {
-	condition_value = ConditionValue:true ;
+obj emptyConstraints : Constraint {
+	condition_value = true ;
 	interruption_mode = InterruptionMode:any ;
 } [
-	RU.localizedName = "пустые ограничения" ;
-	EN.localizedName = "empty constraints" ;
-	TEMPLATING_ID = 41 ;
+	RU.localizedName = "пустое ограничение" ;
+	EN.localizedName = "empty constraint" ;
+
 ]
 
-obj emptyEffects : Effects {
+obj emptyEffect : Effect {
 	interruption_stop = InterruptionType:break ;
 	interruption_start = InterruptionType:break ;
 	call_stack = CallStackAction:add_frame ;
 } [
-	RU.localizedName = "пустые эффекты" ;
-	EN.localizedName = "empty effects" ;
-	TEMPLATING_ID = 42 ;
+	RU.localizedName = "пустой эффект" ;
+	EN.localizedName = "empty effect" ;
 ]

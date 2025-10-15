@@ -241,6 +241,8 @@ class CFGBuilder:
                 call_cfg = self._create_simple_function_call_cfg(func_name, call_wrapped_ast)
             
             if call_cfg:
+                # Добавляем содержимое CFG вызова функции в основной CFG.
+                base_cfg.merge(call_cfg)
                 # Встраиваем CFG вызова в цепочку
                 base_cfg.connect(current_node, call_cfg.begin_node)
                 current_node = call_cfg.end_node

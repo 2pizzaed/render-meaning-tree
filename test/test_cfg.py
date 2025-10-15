@@ -264,13 +264,13 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder9(self):
 
-        with open("data/ast9.json") as f:  # no `test/` prefix used
+        with open("test/data/ast9.json") as f:  # no `test/` prefix used
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
         program_root = ASTNodeWrapper(ast_node=ast_json)
 
-        constructs = load_constructs("../constructs.yml")
+        constructs = load_constructs("constructs.yml")
         b = CFGBuilder(constructs)
 
         # Process all statements in the program body

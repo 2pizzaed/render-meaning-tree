@@ -116,15 +116,18 @@ class CFG:
 
             # add everything from subgraph (guard for the case of direct recursion when subgraph is the same as self)
             if subgraph is not self:
-                self.nodes |= subgraph.nodes
-                # self.edges += subgraph.edges
-                self._add_edge(*subgraph.edges)
+                self.merge(subgraph)
 
             # connect subgraph
             self.connect(enter_node, subgraph.begin_node)
             self.connect(subgraph.end_node, leave_node)
             # return both
             return enter_node, leave_node
+
+    def merge(self, subgraph: Self | None):
+        """ add everything from subgraph, skipping duplicate edges and nodes """
+        self.nodes |= subgraph.nodes
+        self._add_edge(*subgraph.edges)
 
     def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata: Metadata=None):
         src_id = src.id if isinstance(src, Node) else src

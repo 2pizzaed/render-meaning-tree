@@ -95,23 +95,37 @@ class CFG:
     def add_node(self, kind: str, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
+        # Извлекаем effects из ActionSpec, если есть
+        final_effects = []
+        if metadata and metadata.abstract_action:
+            if metadata.abstract_action.effects:
+                final_effects = metadata.abstract_action.effects
+
         if not subgraph:
             # Node is an atom (inline).
             nid = idgen.next(kind)
-            node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
+            node = Node(id=nid, kind=kind, role=role,
+                        metadata=metadata or Metadata(), 
+                        effects=final_effects,
+                        cfg=self)
             self.nodes[nid] = node
             return node
         else:
             # Node is a wrapper over a compound.
             kind = 'enter__' + subgraph.name
             nid = idgen.next(kind)
-            enter_node = Node(id=nid, kind=kind, role=role, cfg=self,
-                  metadata=metadata or Metadata()  # ?? No effects on enter!?
-            )
+            enter_node = Node(id=nid, kind=kind, role=role, 
+                             metadata=metadata or Metadata(),
+                             effects=final_effects,
+                             cfg=self)
             self.nodes[nid] = enter_node
+            
             kind = 'leave__' + subgraph.name
             nid = idgen.next(kind)
-            leave_node = Node(id=nid, kind=kind, role=role, metadata=metadata or Metadata(), cfg=self)
+            leave_node = Node(id=nid, kind=kind, role=role, 
+                             metadata=metadata or Metadata(), 
+                             effects=final_effects,
+                             cfg=self)
             self.nodes[nid] = leave_node
 
             # add everything from subgraph (guard for the case of direct recursion when subgraph is the same as self)
@@ -132,7 +146,25 @@ class CFG:
     def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata: Metadata=None):
         src_id = src.id if isinstance(src, Node) else src
         dst_id = dst.id if isinstance(dst, Node) else dst
-        e = Edge(id=idgen.next(), src=src_id, dst=dst_id, constraints=constraints, metadata=metadata or Metadata(), cfg=self)
+        
+        # Автоматически извлекаем constraints и effects из TransitionSpec
+        final_constraints = constraints
+        final_effects = []
+        
+        if metadata and metadata.abstract_transition:
+            # Если constraints не переданы явно, берём из transition
+            if final_constraints is None and metadata.abstract_transition.constraints:
+                final_constraints = metadata.abstract_transition.constraints
+            
+            # Извлекаем effects из transition
+            if metadata.abstract_transition.effects:
+                final_effects = metadata.abstract_transition.effects
+        
+        e = Edge(id=idgen.next(), src=src_id, dst=dst_id, 
+                 constraints=final_constraints, 
+                 effects=final_effects,
+                 metadata=metadata or Metadata(), 
+                 cfg=self)
         self._add_edge(e)
         return e
 

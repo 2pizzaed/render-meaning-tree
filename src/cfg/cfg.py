@@ -24,6 +24,18 @@ class Metadata(DictLikeDataclass):
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
+    def is_empty(self) -> bool:
+        """Проверяет, содержит ли metadata значимую информацию."""
+        return (
+            self.assumed_value is None and
+            self.abstract_action is None and
+            self.abstract_transition is None and
+            self.wrapped_ast is None and
+            self.primary is None and
+            self.is_after_last is None and
+            self.call_count == 0
+        )
+
 
 # CFG classes implemented using constructs.
 
@@ -234,3 +246,108 @@ class CFG:
                 print("    FROM NOWHERE! (? ->  )")
             if e.dst not in node_ids:
                 print("    TO NOWHERE!   (  -> ?)")
+
+    def _is_node_insignificant(self, node: Node) -> bool:
+        """Проверяет, является ли узел незначимым (можно удалить)."""
+        # (!) BEGIN и END могут быть незначимы, когда промежуточны.
+        # if node.role in (BEGIN, END):
+        #     return False
+        
+        # Проверяем наличие эффектов
+        if node.effects:
+            return False
+        
+        # Проверяем метаданные
+        if not node.metadata.is_empty():
+            return False
+        
+        # Проверяем, что узел не является развилкой
+        incoming = [e for e in self.edges if e.dst == node.id]
+        outgoing = [e for e in self.edges if e.src == node.id]
+        
+        # Узел незначимый, если ровно 1 вход и 1 выход
+        return len(incoming) == 1 and len(outgoing) == 1
+
+    def _is_edge_insignificant(self, edge: Edge) -> bool:
+        """Проверяет, является ли ребро незначимым (можно удалить)."""
+        # Проверяем constraints
+        if edge.constraints is not None:
+            return False
+        
+        # Проверяем effects
+        if edge.effects:
+            return False
+        
+        # Проверяем метаданные
+        return edge.metadata.is_empty()
+
+    def optimize(self) -> int:
+        """
+        Оптимизирует CFG, удаляя незначимые транзитные узлы.
+        Возвращает количество удалённых узлов.
+        """
+        removed_count = 0
+        
+        # Повторяем, пока есть что удалять
+        while True:
+            # Находим один узел для удаления за итерацию
+            node_to_remove = None
+            
+            for node_id, node in self.nodes.items():
+                if self._is_node_insignificant(node):
+                    # Находим входящее и исходящее рёбра
+                    incoming = [e for e in self.edges if e.dst == node_id]
+                    outgoing = [e for e in self.edges if e.src == node_id]
+                    
+                    # Должно быть ровно 1 входящее и 1 исходящее (проверено в _is_node_insignificant)
+                    edge_in = incoming[0]
+                    edge_out = outgoing[0]
+                    
+                    # Проверяем, что хотя бы одно из рёбер незначимое
+                    if self._is_edge_insignificant(edge_in) or self._is_edge_insignificant(edge_out):
+                        node_to_remove = (node_id, edge_in, edge_out)
+                        break  # Обрабатываем только один узел за итерацию
+            
+            # Если нечего удалять, выходим
+            if not node_to_remove:
+                break
+            
+            # Удаляем узел и перенаправляем рёбра
+            node_id, edge_in, edge_out = node_to_remove
+            
+            # Создаём новое ребро напрямую от src edge_in к dst edge_out
+            # Если одно из рёбер значимое, сохраняем его метаданные
+            if self._is_edge_insignificant(edge_in):
+                # Входящее ребро незначимое, используем данные из исходящего
+                new_constraints = edge_out.constraints
+                new_effects = edge_out.effects
+                new_metadata = edge_out.metadata
+            else:
+                # Исходящее ребро незначимое, используем данные из входящего
+                new_constraints = edge_in.constraints
+                new_effects = edge_in.effects
+                new_metadata = edge_in.metadata
+            
+            new_edge = Edge(
+                id=idgen.next('optimized_edge'),
+                src=edge_in.src,
+                dst=edge_out.dst,
+                cfg=self,
+                constraints=new_constraints,
+                effects=new_effects,
+                metadata=new_metadata
+            )
+            
+            # Удаляем старые рёбра
+            self.edges.remove(edge_in)
+            self.edges.remove(edge_out)
+            
+            # Добавляем новое ребро
+            self._add_edge(new_edge)
+            
+            # Удаляем узел
+            del self.nodes[node_id]
+            
+            removed_count += 1
+        
+        return removed_count

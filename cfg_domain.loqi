@@ -79,6 +79,14 @@ enum InterruptionMode {
 	EN.localizedName = "interruption mode" ;
 ]
 
+
+class State {
+	obj prop interruption_state: InterruptionType ;
+	obj prop interruption_mode: InterruptionMode ;
+
+	rel hasLastConditionAction(ActionSpec) : {* -> 1}; 
+}
+
 class Effect {
 	obj prop interruption_stop: InterruptionType ;
 	obj prop interruption_start: InterruptionType ;
@@ -116,19 +124,11 @@ class Constraint {
 
 ]
 
-class KindChain {
-	obj prop chain: string ;
-} [
-	RU.localizedName = "цепочка типов" ;
-	EN.localizedName = "kind chain" ;
-
-]
-
 class ActionSpec {
 	obj prop role: string ;
 	obj prop generalization: string ;
+	obj prop kind: string ;
 
-	rel hasKind(KindChain) : {* -> 1} ;
 	rel hasEffects(Effect) ;
 	rel hasIdentification(Identification) : {* -> 1} ;
 	rel hasBehaviour(Behaviour) : {* -> 1} ;
@@ -153,9 +153,9 @@ class TransitionSpec {
 
 class ConstructSpec {
 	obj prop name: string ;
+	obj prop kind: string ;
 
 	rel hasActions(ActionSpec) ;
-	rel hasKind(KindChain) : {* -> 1} ;
 	rel hasTransitions(TransitionSpec) ;
 	rel belongsToNode(ASTNodeWrapper) : {* -> 1} ;
 	rel hasEffects(Effect) ;
@@ -190,6 +190,7 @@ class Node {
 	rel hasMetadata(Metadata) : {1 -> 1};
 
 	rel hasEdges(Edge) : opposite to Edge->hasEndpointNode ;
+	rel isAccessibleFrom(Node) : {* -> *};
 } [
 	RU.localizedName = "узел" ;
 	EN.localizedName = "node" ;
@@ -258,19 +259,12 @@ class ASTNodeWrapper {
 //-----------------------OBJECT SECTION-----------------------
 //------------------------------------------------------------
 
-obj defaultKindChain : KindChain {
-	chain = "" ;
-} [
-	RU.localizedName = "пустая цепочка типов" ;
-	EN.localizedName = "empty kind chain" ;
-
-]
 
 obj beginAction : ActionSpec {
 	role = "BEGIN" ;
 	generalization = "" ;
+	kind = "" ;
 
-	hasKind(defaultKindChain) ;
 } [
 	RU.localizedName = "действие начала" ;
 	EN.localizedName = "begin action" ;
@@ -280,8 +274,7 @@ obj beginAction : ActionSpec {
 obj endAction : ActionSpec {
 	role = "END" ;
 	generalization = "" ;
-
-	hasKind(defaultKindChain) ;
+	kind = "" ;
 } [
 	RU.localizedName = "действие конца" ;
 	EN.localizedName = "end action" ;

@@ -21,6 +21,7 @@ class Metadata(DictLikeDataclass):
     primary: Optional[bool] = None
     is_after_last: Optional[bool] = None
     call_count: int = 0  # Счётчик вызовов для функций
+    has_corresponding_end: Optional['Node'] = None
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
@@ -111,8 +112,11 @@ class CFG:
                 end_metadata = Metadata(abstract_action=end_action)
 
         # init boundaries с метаданными
-        self.begin_node = self.add_node(BEGIN, BEGIN, metadata=begin_metadata)
-        self.end_node = self.add_node(END, END, metadata=end_metadata)
+        self.begin_node = self.add_node(BEGIN, BEGIN, metadata=begin_metadata or Metadata())
+        self.end_node = self.add_node(END, END, metadata=end_metadata or Metadata())
+
+        # set has_corresponding_end
+        self.begin_node.metadata.has_corresponding_end = self.end_node
 
     def _add_edge(self, *other_edges: Edge):
         """ Add edges to the CFG, skipping duplicates """
@@ -120,6 +124,8 @@ class CFG:
             if any(e.compare(e2) for e2 in self.edges):
                 continue
             self.edges.append(e)
+            # update .cfg for newly added edge
+            e.cfg = self
 
     def add_node(self, kind: str, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
@@ -145,7 +151,7 @@ class CFG:
             nid = idgen.next(kind)
             enter_node = Node(id=nid, kind=kind, role=role, 
                              metadata=metadata or Metadata(),
-                             effects=final_effects,
+                             effects=[],  # no effects for begin node.
                              cfg=self)
             self.nodes[nid] = enter_node
             
@@ -171,6 +177,10 @@ class CFG:
         """ add everything from subgraph, skipping duplicate edges and nodes """
         self.nodes |= subgraph.nodes
         self._add_edge(*subgraph.edges)
+
+        # update .cfg for newly added nodes
+        for node in subgraph.nodes.values():
+            node.cfg = self
 
     def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata: Metadata=None):
         src_id = src.id if isinstance(src, Node) else src

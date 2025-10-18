@@ -70,6 +70,9 @@ class KindChain:
     def is_subset_of(self, other: Self | list[Self]) -> bool:
         return all((item in other) for item in self.chain)
 
+    def __hash__(self):
+        return hash(tuple(self.chain))
+
     def __iter__(self):
         return iter(self.chain)
 
@@ -270,11 +273,11 @@ class AppearanceProfile(DictLikeDataclass):
         # sort checks by specificity (len of kind chain) DESC
         self.checks.sort(key=lambda n: len(n), reverse=True)
 
-    def get_appearance(self, chain: KindChain):
+    def get_appearance_for(self, chain: KindChain):
         # sort checks by specificity (len of kind chain) DESC
         for check in self.checks:
-            for ethalon_chain, appearance in check.items():
-                if ethalon_chain.is_subset_of(chain):
+            for etalon_chain, appearance in check.items():
+                if etalon_chain.is_subset_of(chain):
                     return appearance
 
         return AppearanceType.MANDATORY # "show" for all unknown

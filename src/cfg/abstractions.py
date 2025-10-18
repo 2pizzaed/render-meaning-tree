@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Self
 
 import yaml
 
@@ -67,8 +67,14 @@ class KindChain:
         return item in self.chain
     has = __contains__
 
+    def is_subset_of(self, other: Self | list[Self]) -> bool:
+        return all((item in other) for item in self.chain)
+
     def __iter__(self):
         return iter(self.chain)
+
+    def __len__(self):
+        return len(self.chain)
 
     def __str__(self):
         return '.'.join(self.chain)
@@ -248,30 +254,49 @@ def load_constructs(path="./constructs.yml", debug=False):
     return constructs
 
 
-# def load_ast_from_json(path="test/ast.json"):
-#     """Load AST from JSON file using DictLikeDataclass"""
-#     if not os.path.exists(path):
-#         raise FileNotFoundError(f"{path} not found.")
-#
-#     with open(path, "r", encoding="utf-8") as f:
-#         ast_data = json.load(f)
-#
-#     # Create a generic AST node dataclass for parsing
-#     @dataclass
-#     class ASTNode(DictLikeDataclass):
-#         type: str
-#         id: Optional[int] = None
-#         name: Optional[str] = None
-#         value: Optional[Any] = None
-#         body: Optional[list[dict[str, Any]]] = None
-#         branches: Optional[list[dict[str, Any]]] = None
-#         condition: Optional[dict[str, Any]] = None
-#         target: Optional[dict[str, Any]] = None
-#         left_operand: Optional[dict[str, Any]] = None
-#         right_operand: Optional[dict[str, Any]] = None
-#         operand: Optional[dict[str, Any]] = None
-#         statements: Optional[list[dict[str, Any]]] = None
-#         elseBranch: Optional[dict[str, Any]] = None
-#         repr: Optional[str] = None
-#
-#     return ASTNode.make(ast_data)
+class AppearanceType(SelfValidatedEnum):
+    """Show action buttons or not."""
+    MANDATORY = "mandatory"
+    NONE = "none"
+    # OPTIONAL = "optional"
+
+
+@dataclass
+class AppearanceProfile(DictLikeDataclass):
+    name: str
+    checks: list[dict[KindChain, AppearanceType]]
+
+    def __post_init__(self):
+        # sort checks by specificity (len of kind chain) DESC
+        self.checks.sort(key=lambda n: len(n), reverse=True)
+
+    def get_appearance(self, chain: KindChain):
+        # sort checks by specificity (len of kind chain) DESC
+        for check in self.checks:
+            for ethalon_chain, appearance in check.items():
+                if ethalon_chain.is_subset_of(chain):
+                    return appearance
+
+        return AppearanceType.MANDATORY # "show" for all unknown
+
+
+def load_appearance_profiles(path="./construct_profiles.yml", debug=False):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} not found.")
+
+    with open(path, "r", encoding="utf-8") as f:
+        raw_yaml = f.read()
+
+        profiles_data_raw = yaml.safe_load(raw_yaml)
+        del raw_yaml
+
+        assert 'profiles' in profiles_data_raw
+
+        # TODO ...
+        # read
+
+        # get by priority defined else the first
+
+
+        # return  .. TODO
+

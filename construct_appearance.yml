@@ -1,25 +1,40 @@
 # Show action buttons or not.
-profiles:
-  - minimum
+
+# transparent: invisible, inaccessible, none
+# outline: visible, optional (this is considered counterintuitive)
+# opaque: visible, mandatory
+
+
+#Конфигурация, какие кнопки делать опциональными (optional) / обязательными (mandatory) / отсутствующими (none):
+#Отдельно для всех алгоритмических конструкций (if, while, for),
+#Отдельно для блоков кода с фигурными скобками.
+
+# здесь откажемся от опциональных:
+#Все кнопки либо заполненные (обязательные), либо мы их не показываем вообще. Так будет проще и нам, и студентам (меньше путаницы)
+
+
+profiles_priority:
+  - blocks_none  # for Python, 'maximum' is impossible.
   - maximum
-  - blocks_opaque
-  - blocks_transparent
+  - minimum
+  - blocks_mandatory
 
 
-# defaut is always "opaque"
+# default visibility is always "opaque" / mandatory
 # inline actions should be always opaque.
 
-minimum:
-  compound: transparent
+profiles:
+  minimum: # name of profile
+    compound: none
 
-maximum:
-  compound: opaque
+  maximum:
+    compound: mandatory
 
-blocks_opaque:
-  compound.block: opaque
-  compound: transparent  # other than blocks
+  blocks_mandatory:
+    compound.block: mandatory
+    compound: none  # other than blocks
 
-blocks_transparent:
-  compound.block: transparent
-  compound: opaque  # other than blocks
+  blocks_none:
+    compound.block: none
+    compound: mandatory  # other than blocks
 

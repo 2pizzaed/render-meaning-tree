@@ -55,6 +55,23 @@ enum InterruptionType {
 
 ]
 
+enum AppearanceType {
+	mandatory [
+		RU.localizedName = "обязательный" ;
+		EN.localizedName = "mandatory" ;
+	
+	],
+	none [
+		RU.localizedName = "не показывать" ;
+		EN.localizedName = "none" ;
+	
+	],
+} [
+	RU.localizedName = "тип отображения" ;
+	EN.localizedName = "appearance type" ;
+
+]
+
 enum CallStackAction {
 	add_frame [
 		RU.localizedName = "добавление фрейма функции" ;
@@ -241,6 +258,28 @@ class ASTNodeWrapper {
 ]
 
 
+
+class ReachInfo {
+	obj prop from_: string ;
+	obj prop to: string ;
+	obj prop ways_count: int[0, 65536] ;
+	obj prop cfg_steps: int[0, 65536] ;
+	obj prop ast_actions: int[0, 65536] ;
+	obj prop transparent_actions: int[0, 65536] ;
+	obj prop opaque_actions: int[0, 65536] ;
+	obj prop conditions: int[0, 65536] ;
+	obj prop frame_changes: int[0, 65536] ;
+	obj prop frames_added: int[0, 65536] ;
+	obj prop frames_dropped: int[0, 65536] ;
+
+	rel describesPath(Node, Node) : {1 -> 2} ;
+} [
+	RU.localizedName = "информация о достижимости" ;
+	EN.localizedName = "reachability info" ;
+
+]
+
+
 //-----------------------OBJECT SECTION-----------------------
 	// EXAMPLES !!!
 //------------------------------------------------------------
@@ -314,4 +353,41 @@ obj emptyEffect : Effect {
 } [
 	RU.localizedName = "пустой эффект" ;
 	EN.localizedName = "empty effect" ;
+]
+
+obj defaultKindChain : KindChain {
+	chain = "" ;
+} [
+	RU.localizedName = "пустая цепочка типов" ;
+	EN.localizedName = "empty kind chain" ;
+
+]
+
+obj defaultAppearanceProfile : AppearanceProfile {
+	name = "default" ;
+	checks = "" ;
+
+	hasAppearanceType(AppearanceType:mandatory) ;
+} [
+	RU.localizedName = "профиль отображения по умолчанию" ;
+	EN.localizedName = "default appearance profile" ;
+
+]
+
+obj emptyReachInfo : ReachInfo {
+	from_ = "" ;
+	to = "" ;
+	ways_count = 0 ;
+	cfg_steps = 0 ;
+	ast_actions = 0 ;
+	transparent_actions = 0 ;
+	opaque_actions = 0 ;
+	conditions = 0 ;
+	frame_changes = 0 ;
+	frames_added = 0 ;
+	frames_dropped = 0 ;
+} [
+	RU.localizedName = "пустая информация о достижимости" ;
+	EN.localizedName = "empty reachability info" ;
+
 ]

@@ -20,12 +20,12 @@ enum OriginType {
 
 enum InterruptionType {
 	break [
-		RU.localizedName = "прерывание" ;
+		RU.localizedName = "прерывание цикла" ;
 		EN.localizedName = "break" ;
 	
 	],
 	continue [
-		RU.localizedName = "продолжение" ;
+		RU.localizedName = "продолжение цикла" ;
 		EN.localizedName = "continue" ;
 	
 	],
@@ -39,6 +39,16 @@ enum InterruptionType {
 		EN.localizedName = "exception" ;
 	
 	],
+	any [
+		RU.localizedName = "любое" ;
+		EN.localizedName = "any" ;
+
+	],
+	none [
+		RU.localizedName = "нет прерывания" ;
+		EN.localizedName = "none" ;
+
+	],
 } [
 	RU.localizedName = "тип прерывания" ;
 	EN.localizedName = "interruption type" ;
@@ -47,12 +57,12 @@ enum InterruptionType {
 
 enum CallStackAction {
 	add_frame [
-		RU.localizedName = "добавить кадр" ;
+		RU.localizedName = "добавление фрейма функции" ;
 		EN.localizedName = "add frame" ;
 	
 	],
 	drop_frame [
-		RU.localizedName = "удалить кадр" ;
+		RU.localizedName = "удаление фрейма функции" ;
 		EN.localizedName = "drop frame" ;
 	
 	],
@@ -63,26 +73,8 @@ enum CallStackAction {
 ]
 
 
-enum InterruptionMode {
-	exception [
-		RU.localizedName = "исключение" ;
-		EN.localizedName = "exception" ;
-	
-	],
-	any [
-		RU.localizedName = "любое" ;
-		EN.localizedName = "any" ;
-	
-	],
-} [
-	RU.localizedName = "режим прерывания" ;
-	EN.localizedName = "interruption mode" ;
-]
-
-
 class State {
 	obj prop interruption_state: InterruptionType ;
-	obj prop interruption_mode: InterruptionMode ;
 
 	rel hasLastConditionAction(ActionSpec) : {* -> 1}; 
 }
@@ -117,7 +109,7 @@ class Behaviour {
 
 class Constraint {
 	obj prop condition_value: bool ;
-	obj prop interruption_mode: InterruptionMode ;
+	obj prop interruption_mode: InterruptionType ;
 } [
 	RU.localizedName = "ограничение" ;
 	EN.localizedName = "constraint" ;
@@ -314,7 +306,7 @@ obj emptyBehaviour : Behaviour {
 
 obj emptyConstraints : Constraint {
 	condition_value = true ;
-	interruption_mode = InterruptionMode:any ;
+	interruption_mode = InterruptionType:any ;
 } [
 	RU.localizedName = "пустое ограничение" ;
 	EN.localizedName = "empty constraint" ;

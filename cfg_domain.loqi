@@ -259,9 +259,8 @@ class ASTNodeWrapper {
 
 
 
-class ReachInfo {
-	obj prop from_: string ;
-	obj prop to: string ;
+class PathInfo {
+	obj prop exists: bool ;
 	obj prop ways_count: int[0, 65536] ;
 	obj prop cfg_steps: int[0, 65536] ;
 	obj prop ast_actions: int[0, 65536] ;
@@ -272,10 +271,13 @@ class ReachInfo {
 	obj prop frames_added: int[0, 65536] ;
 	obj prop frames_dropped: int[0, 65536] ;
 
-	rel describesPath(Node, Node) : {1 -> 2} ;
+	rel from_(Node) : {1 -> 1} ;
+	rel to(Node) : {1 -> 1} ;
+	rel via_nodes(Node) : {1 -> *} ;
+	rel via_edges(Edge) : {1 -> *} ;
 } [
-	RU.localizedName = "информация о достижимости" ;
-	EN.localizedName = "reachability info" ;
+	RU.localizedName = "Путь по графу CFG и информация о достижимости" ;
+	EN.localizedName = "Path within a CFG & reachability info" ;
 
 ]
 

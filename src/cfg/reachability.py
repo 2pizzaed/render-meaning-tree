@@ -5,7 +5,7 @@ from src.common_utils import DictLikeDataclass
 
 
 @dataclass
-class ReachInfo(DictLikeDataclass):
+class PathInfo(DictLikeDataclass):
     """General info about a finite path on CFG.
        Путь по графу: конечный, задаётся двумя узлами и представляет собой кратчайший путь между ними.
        Может замыкаться на одном действии AST, но при этом не будет на самом деле замкнутым, т.к. начало и конец действия обычно представлены различными узлами CFG.
@@ -15,7 +15,10 @@ class ReachInfo(DictLikeDataclass):
     """
     from_: str  # id узла
     to: str  # id узла
+    exists: bool # True, если `ways_count > 0`. False: пути между этой парой улов нет (никакого).
     ways_count: int  # число всевозможных нециклических путей по ориентированному графу CFG между указанными точками (0 - нет никакого пути)
+    via_nodes: list[str]  # список id узлов (Node)
+    via_edges: list[str]  # список id ребер (Edge)
     cfg_steps: int  # Число пройденных узлов CFG, без учёта их содержимого = число пройденных рёбер
     ast_actions: int  # Число узлов c непустым AST node на пути
     transparent_actions: int  # Число узлов с заданным AST node, которые считаются "прозрачными" для студента в том смысле, что он с ними не взаимодействует (вариант "может нажать, а может и не нажать" пока не рассматривается)

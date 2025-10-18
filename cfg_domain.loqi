@@ -77,7 +77,9 @@ class State {
 	obj prop interruption_state: InterruptionType ;
 
 	rel hasLastConditionAction(ActionSpec) : {* -> 1}; 
+	// + значение этого условия (T/F) ???
 }
+
 
 class Effect {
 	obj prop interruption_stop: InterruptionType ;
@@ -89,15 +91,6 @@ class Effect {
 
 ]
 
-class Identification {
-	obj prop origin: OriginType ;
-	obj prop property: string ;
-	obj prop property_path: string ;
-} [
-	RU.localizedName = "идентификация" ;
-	EN.localizedName = "identification" ;
-
-]
 
 class Behaviour {
 	obj prop assumed_value: bool ;
@@ -249,6 +242,7 @@ class ASTNodeWrapper {
 
 
 //-----------------------OBJECT SECTION-----------------------
+	// EXAMPLES !!!
 //------------------------------------------------------------
 
 

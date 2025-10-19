@@ -154,6 +154,7 @@ class ActionSpec {
 	obj prop role: string ;
 	obj prop generalization: string ;
 	obj prop kind: string ;
+	obj prop appearanceType: AppearanceType ;
 
 	rel hasEffects(Effect) ;
 	rel hasIdentification(Identification) : {* -> 1} ;

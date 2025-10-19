@@ -58,7 +58,7 @@ idgen = IDGen(100)
 class Node(FactSerializable):
     id: str
     role: str
-    kind: Optional[str] = None
+    kind: Optional[str] = None  ### TODO: to enum
     cfg: 'CFG' = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)

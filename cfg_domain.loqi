@@ -205,6 +205,7 @@ class Metadata {
 	rel hasAbstractAction(ActionSpec) : {* -> 1} ;
 	rel belongsToNode(ASTNodeWrapper) : {* -> 1} ;
 	rel hasAbstractTransition(TransitionSpec) : {* -> 1} ;
+	rel hasCorrespondingEnd(Node) : {* -> 1} ;
 } [
 	RU.localizedName = "метаданные" ;
 	EN.localizedName = "metadata" ;

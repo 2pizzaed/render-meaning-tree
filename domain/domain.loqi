@@ -279,13 +279,13 @@ class CFG {
 
 
 class PathInfo {
-	obj prop exists: bool ;
+	// obj prop exists: bool ;
 	obj prop ways_count: int[0, 65536] ;
 	obj prop cfg_steps: int[0, 65536] ;
 	obj prop ast_actions: int[0, 65536] ;
 	obj prop transparent_actions: int[0, 65536] ;
 	obj prop opaque_actions: int[0, 65536] ;
-	obj prop conditions: int[0, 65536] ;
+	obj prop conditions: int[0, 65536] ;  // Непрозрачные (TODO)
 	obj prop frame_changes: int[0, 65536] ;
 	obj prop frames_added: int[0, 65536] ;
 	obj prop frames_dropped: int[0, 65536] ;
@@ -339,100 +339,4 @@ class TraceAct {
 }
 
 
-
-
-
-//-----------------------OBJECT SECTION-----------------------
-	// EXAMPLES !!!
-//------------------------------------------------------------
-
-
-obj beginAction : ActionSpec {
-	role = "BEGIN" ;
-	generalization = "" ;
-	kind = "" ;
-
-} [
-	RU.localizedName = "действие начала" ;
-	EN.localizedName = "begin action" ;
-
-]
-
-obj endAction : ActionSpec {
-	role = "END" ;
-	generalization = "" ;
-	kind = "" ;
-} [
-	RU.localizedName = "действие конца" ;
-	EN.localizedName = "end action" ;
-
-]
-
-obj emptyMetadata : Metadata {
-	assumed_value = false ;
-	primary = false ;
-	is_after_last = false ;
-	call_count = 0 ;
-
-	hasAbstractAction(beginAction) ;
-} [
-	RU.localizedName = "пустые метаданные" ;
-	EN.localizedName = "empty metadata" ;
-
-]
-
-obj emptyIdentification : Identification {
-	origin = OriginType:parent ;
-	property = "" ;
-	property_path = "" ;
-} [
-	RU.localizedName = "пустая идентификация" ;
-	EN.localizedName = "empty identification" ;
-
-]
-
-obj emptyBehaviour : Behaviour {
-	assumed_value = false ;
-} [
-	RU.localizedName = "пустое поведение" ;
-	EN.localizedName = "empty behaviour" ;
-
-]
-
-obj emptyConstraints : Constraint {
-	condition_value = true ;
-	interruption_mode = InterruptionType:any ;
-} [
-	RU.localizedName = "пустое ограничение" ;
-	EN.localizedName = "empty constraint" ;
-
-]
-
-obj emptyEffect : Effect {
-	interruption_stop = InterruptionType:break ;
-	interruption_start = InterruptionType:break ;
-	call_stack = CallStackAction:add_frame ;
-} [
-	RU.localizedName = "пустой эффект" ;
-	EN.localizedName = "empty effect" ;
-]
-
-obj defaultKindChain : KindChain {
-	chain = "" ;
-} [
-	RU.localizedName = "пустая цепочка типов" ;
-	EN.localizedName = "empty kind chain" ;
-
-]
-
-obj defaultAppearanceProfile : AppearanceProfile {
-	name = "default" ;
-	checks = "" ;
-
-	hasAppearanceType(AppearanceType:mandatory) ;
-} [
-	RU.localizedName = "профиль отображения по умолчанию" ;
-	EN.localizedName = "default appearance profile" ;
-
-]
 

@@ -222,6 +222,8 @@ class Node {
 
 	rel hasEdges(Edge) : opposite to Edge->hasEndpointNode ;
 	rel isAccessibleFrom(Node) : {* -> *};
+	rel startsPath(PathInfo) : {1 -> *};  // opposite to PathInfo->from_
+	rel endsPath(PathInfo) : {1 -> *};  // opposite to PathInfo->to
 } [
 	RU.localizedName = "узел" ;
 	EN.localizedName = "node" ;
@@ -287,8 +289,8 @@ class PathInfo {
 	obj prop frames_added: int[0, 65536] ;
 	obj prop frames_dropped: int[0, 65536] ;
 
-	rel from_(Node) : {1 -> 1} ;
-	rel to(Node) : {1 -> 1} ;
+	rel from_(Node) : {* -> 1} ;  // opposite to Node->startsPath
+	rel to(Node) : {* -> 1} ;  // opposite to Node->endsPath
 	rel via_nodes(Node) : {1 -> *} ;
 	rel via_edges(Edge) : {1 -> *} ;
 } [

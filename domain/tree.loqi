@@ -1,0 +1,55 @@
+tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
+    // Теперь можно выбросить этот редактор...
+    ask (STATE.interruption_state != InterruptionType:none) {
+        false -> out;
+        true -> {
+            ask (A->hasCFGNode.kind == "END") out true else {
+                conclude : error [
+                    skill = "1";
+                ];
+            };
+            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == begin->hasCFGNode->hasCorrespondingEnd) }) out true else {
+                conclude : error [
+                    skill = "2";
+                ];
+            };
+
+            var P_l0_a : PathInfo = find PathInfo p { p->from_ == L0->hasCFGNode and p->to_ == A->hasCFGNode };
+
+
+            cycle and (
+                forAll Node n [p=>viaNodes(n)] {
+                    n.kind == "END" // ищем концы начавшихся действий на пути
+                        and 
+                    forAny TraceAct begin [ true ] { (n == begin->hasCFGNode->hasCorrespondingEnd) } // существует начало для этого конца
+                    n->hasMetadata->hasAbstractAction.appearanceType == AppearanceType:mandatory
+                }
+            ) with M : TraceAct {
+                conclude : error;
+            } out correct;
+
+            conclude : correct;
+        };
+    };
+
+    var P : PathInfo = (find PathInfo p { p->from_ == L0->hasCFGNode and p->to_ == A->hasCFGNode and p.opaque_actions == 0 }) out true else {
+
+        var P2 : PathInfo = (find PathInfo p { p->from_ == L0->hasCFGNode and p->to_ == A->hasCFGNode}) out true else {
+            conclude: error;
+        };
+
+        ask (P2.conditions > 0) out false else {
+
+            cycle and (forAll [P2->viaNodes(M)] {M->hasMetadata->hasAbstractAction.kind == "condition"}) with M : Node {
+                body -> { conclude : error; }
+            };
+        };
+
+        cycle and (forAll [P2->viaNodes(M)] {M->hasMetadata->hasAbstractAction.appearanceType == AppearanceType:mandatory}) with M : Node {
+            body -> { conclude : error; }
+        };
+
+    };
+
+    conclude : null;
+}

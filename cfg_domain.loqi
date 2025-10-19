@@ -1,6 +1,10 @@
 //-------------------STATIC (CLASS) SECTION-------------------
 //------------------------------------------------------------
 
+
+
+////// Общие перечисления //////
+
 enum OriginType {
 	parent [
 		RU.localizedName = "родительский" ;
@@ -90,12 +94,9 @@ enum CallStackAction {
 ]
 
 
-class State {
-	obj prop interruption_state: InterruptionType ;
 
-	rel hasLastConditionAction(ActionSpec) : {* -> 1}; 
-	// + значение этого условия (T/F) ???
-}
+
+////// Уровень абстракций управляющих конструкций //////
 
 
 class Effect {
@@ -166,6 +167,11 @@ class ConstructSpec {
 	EN.localizedName = "construct specification" ;
 
 ]
+
+
+
+////// Уровень CFG - Control Flow Graph //////
+
 
 class Metadata {
 	obj prop assumed_value: bool ;
@@ -245,19 +251,6 @@ class CFG {
 
 ]
 
-class ASTNodeWrapper {
-	obj prop ast_node: string ;
-
-	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
-	rel hasChildren(ASTNodeWrapper) ;
-	rel hasMetadata(Metadata) : {1 -> 1};
-} [
-	RU.localizedName = "обёртка узла AST" ;
-	EN.localizedName = "AST node wrapper" ;
-
-]
-
-
 
 class PathInfo {
 	obj prop exists: bool ;
@@ -280,6 +273,47 @@ class PathInfo {
 	EN.localizedName = "Path within a CFG & reachability info" ;
 
 ]
+
+
+////// Уровень условия задачи -- конкретного AST //////
+
+class ASTNodeWrapper {
+	obj prop ast_node: string ;
+
+	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
+	rel hasChildren(ASTNodeWrapper) ;
+	rel hasMetadata(Metadata) : {1 -> 1};
+} [
+	RU.localizedName = "обёртка узла AST" ;
+	EN.localizedName = "AST node wrapper" ;
+
+]
+
+// ... Что-то про цепочки значения условий ???
+
+
+
+////// Уровень выполнения задачи -- трассы //////
+
+class State {
+	obj prop interruption_state: InterruptionType ;
+
+	rel hasLastConditionAction(ActionSpec) : {* -> 1};
+	// + значение этого условия (T/F) ???
+}
+
+
+class TraceAct {
+	obj prop is_known_correct: bool ;
+	obj prop condition_value: string ;  // Optional[bool] ???
+
+	rel hasCFGNode(Node) : {* -> 1};
+	rel hasActionSpec(ActionSpec) : {* -> 1};
+	rel hasASTNode(ASTNodeWrapper) : {* -> 1} ;
+}
+
+
+
 
 
 //-----------------------OBJECT SECTION-----------------------
@@ -376,20 +410,3 @@ obj defaultAppearanceProfile : AppearanceProfile {
 
 ]
 
-obj emptyReachInfo : ReachInfo {
-	from_ = "" ;
-	to = "" ;
-	ways_count = 0 ;
-	cfg_steps = 0 ;
-	ast_actions = 0 ;
-	transparent_actions = 0 ;
-	opaque_actions = 0 ;
-	conditions = 0 ;
-	frame_changes = 0 ;
-	frames_added = 0 ;
-	frames_dropped = 0 ;
-} [
-	RU.localizedName = "пустая информация о достижимости" ;
-	EN.localizedName = "empty reachability info" ;
-
-]

@@ -157,7 +157,6 @@ class ActionSpec {
 	obj prop appearanceType: AppearanceType ;
 
 	rel hasEffects(Effect) ;
-	rel hasIdentification(Identification) : {* -> 1} ;
 	rel hasBehaviour(Behaviour) : {* -> 1} ;
 } [
 	RU.localizedName = "спецификация действия" ;

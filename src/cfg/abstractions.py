@@ -50,6 +50,24 @@ class InterruptionMode(SelfValidatedEnum):
     EXCEPTION = "exception"
     ANY = "any"
 
+class ActionKind(SelfValidatedEnum):
+    """Single values associated with kind of ActionSpec """
+    # basic types
+    compound = "compound"
+    inline = "inline"
+    # for usage as constraint
+    ANY = "any"
+    # common useful
+    CONDITION = "condition"
+    BLOCK = "block"
+    # other, TODO
+    SEQUENCE = "sequence"
+    ALTERNATIVE = "alternative"
+    LOOP = "loop"
+    NOOP = "noop"
+    CALL = "call"
+    TRY = "try"
+
 
 class KindChain:
     """Dot-chained names each of which can be queried separately"""
@@ -136,6 +154,7 @@ class ActionSpec(DictLikeDataclass):
             return wrapped_ast
 
         return wrapped_ast.get(self.role, self.identification, previous_action_data)
+
 
 
 @dataclass
@@ -273,7 +292,7 @@ class AppearanceProfile(DictLikeDataclass):
         # sort checks by specificity (len of kind chain) DESC
         self.checks.sort(key=lambda n: len(n), reverse=True)
 
-    def get_appearance_for(self, chain: KindChain):
+    def get_appearance_for_kind_chain(self, chain: KindChain):
         # sort checks by specificity (len of kind chain) DESC
         for check in self.checks:
             for etalon_chain, appearance in check.items():

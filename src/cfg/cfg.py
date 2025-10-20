@@ -3,8 +3,9 @@ from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.abstractions import ActionSpec, TransitionSpec, Effects, Constraints, ConstructSpec
-from src.common_utils import DictLikeDataclass
+from src.cfg.abstractions import ActionSpec, TransitionSpec, Effects, Constraints, ConstructSpec, AppearanceType, \
+    DEFAULT_APPEARANCE_PROFILE
+from src.common_utils import DictLikeDataclass, SelfValidatedEnum
 
 from src.serializers.types import FactSerializable
 from src.types import Node
@@ -44,6 +45,18 @@ BEGIN = 'BEGIN'
 END = 'END'
 
 
+class NodeKind(SelfValidatedEnum):
+    """Single values associated with kind of ActionSpec """
+    # bounds of compound
+    BEGIN = BEGIN
+    END = END
+    # atoms
+    CONDITION = "condition"
+    ATOM_STMT = "atom_stmt"
+    # for usage as constraint
+    ANY = "any"
+
+
 class IDGen:
     def __init__(self, start: int=1):
         self._c = itertools.count(start)
@@ -58,13 +71,22 @@ idgen = IDGen(100)
 class Node(FactSerializable):
     id: str
     role: str
-    kind: Optional[str] = None  ### TODO: to enum
+    kind: NodeKind
     cfg: 'CFG' = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
 
+    @property
+    def appearance(self) -> AppearanceType:
+        if not self.metadata.wrapped_ast:
+            return AppearanceType.NONE
+        if self.metadata.abstract_action:
+            kind = self.metadata.abstract_action
+            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(kind)
+
+        return AppearanceType.NONE
 
 @dataclass(kw_only=True)
 class Edge(FactSerializable):

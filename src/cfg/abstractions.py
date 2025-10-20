@@ -283,23 +283,64 @@ class AppearanceProfile(DictLikeDataclass):
         return AppearanceType.MANDATORY # "show" for all unknown
 
 
-def load_appearance_profiles(path="./construct_profiles.yml", debug=False):
+def load_appearance_profiles(path="./construct_appearance.yml", debug=False) -> list[AppearanceProfile]:
+    """ Loads profiles of action-button appearance from file, following config.
+    if `profiles_priority` is present in the file, it is used to reorder profiles.
+    Otherwise, result list will contain profiles exactly in the order these written under `profiles`.
+     """
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} not found.")
 
     with open(path, "r", encoding="utf-8") as f:
         raw_yaml = f.read()
 
-        profiles_data_raw = yaml.safe_load(raw_yaml)
-        del raw_yaml
+    profiles_data_raw = yaml.safe_load(raw_yaml)
+    del raw_yaml
 
-        assert 'profiles' in profiles_data_raw
+    # Extract profiles data and priority
+    profiles_data = profiles_data_raw.get('profiles', {})
+    profiles_priority = profiles_data_raw.get('profiles_priority', [])
 
-        # TODO ...
-        # read
+    # Create AppearanceProfile objects
+    profiles_list = []
+    for profile_name, profile_checks in profiles_data.items():
+        # Convert each key-value pair to {KindChain: AppearanceType}
+        checks = []
+        for kind_str, appearance_str in profile_checks.items():
+            kind_chain = KindChain(kind_str)
+            appearance_type = AppearanceType(appearance_str)
+            checks.append({kind_chain: appearance_type})
+        
+        # Create AppearanceProfile using DictLikeDataclass.make
+        profile = AppearanceProfile.make({
+            "name": profile_name,
+            "checks": checks
+        })
+        profiles_list.append(profile)
 
-        # get by priority defined else the first
+    # Apply priority ordering if specified
+    if profiles_priority:
+        # Create a mapping of profile names to profiles
+        profile_map = {profile.name: profile for profile in profiles_list}
+        
+        # Reorder according to priority
+        ordered_profiles = []
+        for priority_name in profiles_priority:
+            if priority_name in profile_map:
+                ordered_profiles.append(profile_map[priority_name])
+                del profile_map[priority_name]  # Remove to avoid duplicates
+        
+        # Add remaining profiles not in priority list
+        ordered_profiles.extend(profile_map.values())
+        profiles_list = ordered_profiles
+
+    if debug:
+        print("Loaded appearance profiles:")
+        for profile in profiles_list:
+            print(f"- {profile.name}: {len(profile.checks)} checks")
+
+    return profiles_list
 
 
-        # return  .. TODO
-
+DEFAULT_APPEARANCE_PROFILE = load_appearance_profiles()[0]
+assert DEFAULT_APPEARANCE_PROFILE is not None

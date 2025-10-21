@@ -99,6 +99,100 @@ enum AppearanceType {
 
 ]
 
+enum ActionKind {
+	compound [
+		RU.localizedName = "составное действие" ;
+		EN.localizedName = "compound" ;
+	
+	],
+	inline [
+		RU.localizedName = "внутристрочное действие" ;
+		EN.localizedName = "inline" ;
+	
+	],
+	any [
+		RU.localizedName = "любое" ;
+		EN.localizedName = "any" ;
+	
+	],
+	condition [
+		RU.localizedName = "условие" ;
+		EN.localizedName = "condition" ;
+	
+	],
+	block [
+		RU.localizedName = "блок кода" ;
+		EN.localizedName = "block" ;
+	
+	],
+	sequence [
+		RU.localizedName = "последовательность" ;
+		EN.localizedName = "sequence" ;
+	
+	],
+	alternative [
+		RU.localizedName = "развилка" ;
+		EN.localizedName = "alternative" ;
+	
+	],
+	loop [
+		RU.localizedName = "цикл" ;
+		EN.localizedName = "loop" ;
+	
+	],
+	noop [
+		RU.localizedName = "пустая операция" ;
+		EN.localizedName = "noop" ;
+	
+	],
+	call [
+		RU.localizedName = "вызов функции" ;
+		EN.localizedName = "call" ;
+	
+	],
+	try [
+		RU.localizedName = "обработка исключений" ;
+		EN.localizedName = "try" ;
+	
+	],
+} [
+	RU.localizedName = "тип действия" ;
+	EN.localizedName = "action kind" ;
+
+]
+
+enum NodeKind {
+	begin [
+		RU.localizedName = "начало" ;
+		EN.localizedName = "begin" ;
+	
+	],
+	end [
+		RU.localizedName = "конец" ;
+		EN.localizedName = "end" ;
+	
+	],
+	condition [
+		RU.localizedName = "условие" ;
+		EN.localizedName = "condition" ;
+	
+	],
+	atom_stmt [
+		RU.localizedName = "атомарная инструкция" ;
+		EN.localizedName = "atom statement" ;
+	
+	],
+	any [
+		RU.localizedName = "любое" ;
+		EN.localizedName = "any" ;
+	
+	],
+} [
+	RU.localizedName = "тип узла CFG" ;
+	EN.localizedName = "node kind" ;
+
+]
+
 enum CallStackAction {
 	add_frame [
 		RU.localizedName = "добавление фрейма функции" ;

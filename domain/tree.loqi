@@ -8,13 +8,13 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     skill = "1";
                 ];
             };
-            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == begin->hasCFGNode->hasCorrespondingEnd) }) out true else {
+            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasCorrespondingEnd) }) out true else {
                 conclude : error [
                     skill = "2";
                 ];
             };
 
-            var P_l0_a : PathInfo = find PathInfo p { p->from_ == L0->hasCFGNode and p->to_ == A->hasCFGNode };
+            var P_l0_a : PathInfo = find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode };
 
 
             cycle and (
@@ -33,23 +33,90 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         };
     };
 
-    var P : PathInfo = (find PathInfo p { p->from_ == L0->hasCFGNode and p->to_ == A->hasCFGNode and p.opaque_actions == 0 }) out true else {
+    var P : PathInfo = (find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode and $p.opaque_actions == 0 }) out true else {
 
-        var P2 : PathInfo = (find PathInfo p { p->from_ == L0->hasCFGNode and p->to_ == A->hasCFGNode}) out true else {
+        var P2 : PathInfo = (find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode}) out true else {
             conclude: error;
         };
 
-        ask (P2.conditions > 0) out false else {
-            cycle and (forAll Node m [P2=>viaNodes(m)] {m->hasMetadata->hasAbstractAction.kind == "condition"}) with Node M {
+        ask ($P2.conditions > 0) out false else {
+            cycle and (forAll Node m [$P2=>viaNodes(m)] {$m->hasMetadata->hasAbstractAction.kind == "condition"}) with Node M {
                 body -> { conclude : error; }
             };
         };
 
-        cycle and (forAll Node m [P2=>viaNodes(m)] {m->hasMetadata->hasAbstractAction.appearanceType == AppearanceType:mandatory}) with Node M {
+        cycle and (forAll Node m [$P2=>viaNodes(m)] {$m->hasMetadata->hasAbstractAction.appearanceType == AppearanceType:mandatory}) with Node M {
             body -> { conclude : error; }
         };
-
     };
 
-    conclude : null;
+    cycle and (forAll Edge CT [true] {$P=>viaEdges(CT)}) with Edge ct {
+        body -> {
+            agg mutex {
+                interruptionCatch -> {
+                    ask ($ct->hasConstraints.interruption_mode != InterruptionType:any) out true else {
+                        conclude : null;
+                    };
+                    ask (STATE.interruption_state == $ct->hasConstraints.interruption_mode) out false else {
+                        conclude: null;
+                    };
+                    // TODO: может поменять на or??
+                    cycle and (forAll Edge ET [$ct->hasSource->hasEdges] {$ET->hasConstraints.interruption_mode == InterruptionType:any or $ET->hasConstraints.interruption_mode == STATE.interruption_state}) with Edge et {
+                        null -> {conclude : error;}
+                        false -> {conclude : error;}
+                        body -> {
+                            conclude : error;
+                        }
+                    };
+                };
+
+                correctExit -> {
+                    ask (
+                         $ct->hasMetadata.is_after_last == false
+                         and
+                         $ct->hasMetadata->hasAbstractTransition.to_when_absent != ""
+                         and
+                         findAny Edge e [P=>viaNodes()] {$ct->hasMetadata->hasAbstractTransition == $ct->hasMetadata->hasAbstractTransition and 
+                                $e->hasMetadata.is_after_last == true
+                            }
+                        ) out true else {
+                        conclude : null;
+                    };
+                    ask ($ct->hasMetadata->hasAbstractTransition.to_ != "") out true else {
+                        conclude : null;
+                    };
+                    var MT : TransitionSpec = find TransitionSpec ts {$ct->hasMetadata->hasAbstractTransition.to_ == $ts.role};
+                    conclude: error;
+                };
+
+                conditionCheck -> {
+                    ask ($ct=>hasConstraints and $ct->hasConstraints->condition_value != OptionalBoolValue:none) out true else {
+                        conclude : null;
+                    };
+                    ask ($ct->hasSource->hasMetadata->belongsToASTNode.current_condition_value == $ct->hasConstraints->condition_value) 
+                    out false else {
+                        conclude : null;
+                    };
+                    var ET : TransitionSpec = find TransitionSpec ts {$ts->hasSource == $ct->hasSource 
+                        and $ts != $ct 
+                        and $ct->hasConstraints->condition_value == $ts->belongsToASTNode.current_condition_value} out true else {
+                        conclude : null;
+                    };
+                    conclude : error;
+                };
+                functionReturn -> {
+                    ask (A->hasASTNode.ast_node == "function_call" and A->hasCFGNode.kind == "END") out true else {
+                        conclude : null;
+                    };
+                    var closerCall : TraceAct = findExtreme TraceAct act [$act->hasASTNode.ast_node == "function_call"] among TraceAct func {$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode} out false else {
+                        conclude : null;
+                    };
+                    conclude : error;
+                }
+            };
+        };
+        null -> out;
+    };
+
+    conclude : correct;
 }

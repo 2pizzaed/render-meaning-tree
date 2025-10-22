@@ -277,7 +277,7 @@ class ConstructSpec {
 
 	rel hasActions(ActionSpec) ;
 	rel hasTransitions(TransitionSpec) ;
-	rel belongsToNode(ASTNodeWrapper) : {* -> 1} ;
+	rel belongsToASTNode(ASTNodeWrapper) : {* -> 1} ;
 	rel hasEffects(Effect) ;
 } [
 	RU.localizedName = "спецификация конструкции" ;
@@ -297,7 +297,7 @@ class Metadata {
 	obj prop call_count: int[0, 65536] ;
 
 	rel hasAbstractAction(ActionSpec) : {* -> 1} ;
-	rel belongsToNode(ASTNodeWrapper) : {* -> 1} ;
+	rel belongsToASTNode(ASTNodeWrapper) : {* -> 1} ;
 	rel hasAbstractTransition(TransitionSpec) : {* -> 1} ;
 	rel hasCorrespondingEnd(Node) : {* -> 1} ;
 } [

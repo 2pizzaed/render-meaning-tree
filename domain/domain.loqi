@@ -228,7 +228,7 @@ class Effect {
 
 
 class Behaviour {
-	obj prop assumed_value: bool ;
+	obj prop assumed_value: OptionalBoolValue ;
 } [
 	RU.localizedName = "поведение" ;
 	EN.localizedName = "behaviour" ;
@@ -316,28 +316,13 @@ class Node {
 	rel hasMetadata(Metadata) : {1 -> 1};
 
 	rel hasEdges(Edge) : opposite to Edge->hasEndpointNode ;
-	rel startsPath(PathInfo) : {1 -> *};  // opposite to PathInfo->from_
-	rel endsPath(PathInfo) : {1 -> *};  // opposite to PathInfo->to
+	rel startsPath(PathInfo) : opposite to PathInfo->from_
+	rel endsPath(PathInfo) : opposite to PathInfo->to_
 } [
 	RU.localizedName = "узел" ;
 	EN.localizedName = "node" ;
 ]
 
-enum EdgeEndpointType {
-	source [
-		RU.localizedName = "выход" ;
-		EN.localizedName = "tail" ;
-	
-	],
-	target [
-		RU.localizedName = "вход" ;
-		EN.localizedName = "head" ;
-	
-	],
-} [
-	RU.localizedName = "тип окончания ребра" ;
-	EN.localizedName = "edge endpoint type" ;
-]
 
 class Edge {
 	obj prop id: string ;
@@ -346,14 +331,14 @@ class Edge {
 	obj prop oriented: bool ;
 
 	rel belongsTo(CFG) : opposite to CFG->hasEdges ;
-	rel hasEndpointNode<type: EdgeEndpointType>(Node) : {* -> 2} ;
+	rel hasSource(Node) : {* -> 1} ;
+	rel hasDestination(Node) : {* -> 1} ;
 	rel hasMetadata(Metadata) : {1 -> 1};
 	rel hasEffects(Effect) ;
 	rel hasConstraints(Constraint) ;
 } [
 	RU.localizedName = "ребро" ;
 	EN.localizedName = "edge" ;
-
 ]
 
 class CFG {
@@ -367,7 +352,6 @@ class CFG {
 } [
 	RU.localizedName = "граф потока управления" ;
 	EN.localizedName = "control flow graph" ;
-
 ]
 
 
@@ -385,8 +369,8 @@ class PathInfo {
 
 	rel from_(Node) : {* -> 1} ;  // opposite to Node->startsPath
 	rel to_(Node) : {* -> 1} ;  // opposite to Node->endsPath
-	rel via_nodes(Node) : {1 -> *} ;
-	rel via_edges(Edge) : {1 -> *} ;
+	rel viaNodes(Node) : {1 -> *} ;
+	rel viaEdges(Edge) : {1 -> *} ;
 } [
 	RU.localizedName = "Путь по графу CFG и информация о достижимости" ;
 	EN.localizedName = "Path within a CFG & reachability info" ;
@@ -398,6 +382,7 @@ class PathInfo {
 
 class ASTNodeWrapper {
 	obj prop ast_node: string ;
+	obj prop current_condition_value: OptionalBoolValue = OptionalBoolValue:none ;
 
 	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
 	rel hasChildren(ASTNodeWrapper) ;
@@ -429,6 +414,15 @@ class TraceAct {
 	rel hasCFGNode(Node) : {* -> 1};
 	rel hasActionSpec(ActionSpec) : {* -> 1};
 	rel hasASTNode(ASTNodeWrapper) : {* -> 1} ;
+	
+
+	rel directlyBeforeOf(TraceAct) : linear ;
+	rel directlyAfterOf(TraceAct) : opposite to directlyBeforeOf ;
+	rel beforeOf(TraceAct) : transitive to directlyBeforeOf ;
+	rel afterOf(TraceAct) : transitive to directlyAfterOf ;
+	rel isBetween(TraceAct, TraceAct) : between to beforeOf ;
+	rel isCloserToThan(TraceAct, TraceAct) : closer to beforeOf ;
+	rel isFurtherFromThan(TraceAct, TraceAct) : further to beforeOf ;
 }
 
 

@@ -246,7 +246,8 @@ class Constraint {
 
 class ActionSpec {
 	obj prop role: string ;
-	obj prop kind: ActionKind ;
+	obj prop generalization: string ;
+	obj prop kind: string ;
 	obj prop appearanceType: AppearanceType ;
 
 	rel hasEffects(Effect) ;
@@ -258,9 +259,9 @@ class ActionSpec {
 ]
 
 class TransitionSpec {
-	obj prop from_: ActionSpec ;
-	obj prop to_: ActionSpec ;
-	obj prop to_when_absent: ActionSpec ;
+	rel from_(ActionSpec): {* -> 1};
+	rel to_(ActionSpec): {* -> 1};
+	rel to_when_absent(ActionSpec): {* -> 1};
 
 	rel hasConstraints(Constraint) ;
 	rel hasEffects(Effect) ;
@@ -314,9 +315,9 @@ class Node {
 	rel hasEffects(Effect) ;
 	rel hasMetadata(Metadata) : {1 -> 1};
 
-	rel hasEdges(Edge) : opposite to Edge->hasEndpointNode ;
-	rel startsPath(PathInfo) : opposite to PathInfo->from_
-	rel endsPath(PathInfo) : opposite to PathInfo->to_
+	rel hasEdges(Edge) : opposite to Edge->hasDestination ;
+	rel startsPath(PathInfo) : opposite to PathInfo->from_;
+	rel endsPath(PathInfo) : opposite to PathInfo->to_;
 } [
 	RU.localizedName = "узел" ;
 	EN.localizedName = "node" ;
@@ -381,7 +382,7 @@ class PathInfo {
 
 class ASTNodeWrapper {
 	obj prop ast_node: string ;
-	obj prop current_condition_value: OptionalBoolValue = OptionalBoolValue:none ;
+	obj prop current_condition_value: OptionalBoolValue ;
 
 	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
 	rel hasChildren(ASTNodeWrapper) ;

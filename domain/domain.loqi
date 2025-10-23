@@ -424,6 +424,7 @@ class TraceAct {
 	rel isBetween(TraceAct, TraceAct) : between to beforeOf ;
 	rel isCloserToThan(TraceAct, TraceAct) : closer to beforeOf ;
 	rel isFurtherFromThan(TraceAct, TraceAct) : further to beforeOf ;
+	rel hasNextTraceAct(TraceAct) : {1 -> 1} ;   // Линейное отношение "непосредственно следующий" в цепочке актов трассы
 }
 
 

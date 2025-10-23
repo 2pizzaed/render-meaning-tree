@@ -82,10 +82,16 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                         ) out true else {
                         conclude : null;
                     };
-                    ask ($ct->hasMetadata->hasAbstractTransition.to_ != "") out true else {
+
+
+                    // (Найти) / Присутствует ли в алгоритме "основное" действие перехода CT ?
+                    ask (findAny Node actual_target [] {$ct->hasMetadata->hasAbstractTransition.to_ == actual_target->hasMetadata->hasAbstractAction}) out true else {
                         conclude : null;
                     };
-                    var MT : TransitionSpec = find TransitionSpec ts {$ct->hasMetadata->hasAbstractTransition.to_ == $ts.role};
+
+
+                    var MT : TransitionSpec = $ct->from_;
+
                     conclude: error;
                 };
 

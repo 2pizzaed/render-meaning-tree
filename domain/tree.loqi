@@ -108,7 +108,13 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     ask (A->hasASTNode.ast_node == "function_call" and A->hasCFGNode.kind == "END") out true else {
                         conclude : null;
                     };
-                    var closerCall : TraceAct = findExtreme TraceAct act [$act->hasASTNode.ast_node == "function_call"] among TraceAct func {$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode} out false else {
+                    var closerCall : TraceAct = findExtreme TraceAct act [
+                    	$act->hasASTNode.ast_node == "function_call"
+                    	and
+                    	$act->hasCFGNode.kind == "BEGIN"
+                    	and
+                    	(not exists _e [] {$act->hasActAsCorrespondingEnd($_e)})  // TODO fix
+                	  ] among TraceAct func {$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode} out false else {
                         conclude : null;
                     };
                     conclude : error;

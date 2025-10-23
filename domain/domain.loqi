@@ -414,6 +414,7 @@ class TraceAct {
 	rel hasCFGNode(Node) : {* -> 1};
 	rel hasActionSpec(ActionSpec) : {* -> 1};
 	rel hasASTNode(ASTNodeWrapper) : {* -> 1} ;
+	rel hasActAsCorrespondingEnd(TraceAct) : {1 -> 1} ;
 	
 
 	rel directlyBeforeOf(TraceAct) : linear ;

@@ -52,21 +52,21 @@ class InterruptionMode(SelfValidatedEnum):
 
 class ActionKind(SelfValidatedEnum):
     """Single values associated with kind of ActionSpec """
-    # basic types
-    compound = "compound"
-    inline = "inline"
-    # for usage as constraint
-    ANY = "any"
     # common useful
     CONDITION = "condition"
     BLOCK = "block"
-    # other, TODO
+    # constructs known so far
     SEQUENCE = "sequence"
     ALTERNATIVE = "alternative"
     LOOP = "loop"
     NOOP = "noop"
     CALL = "call"
     TRY = "try"
+    # basic types
+    COMPOUND = "compound"
+    INLINE = "inline"
+    # for usage as constraint
+    ANY = "any"
 
 
 class KindChain:
@@ -91,12 +91,13 @@ class KindChain:
         return all((item in other) for item in self.chain)
 
     def to_enums(self) -> list[ActionKind]:
-        """ to list of ActionKind, filtered to retain only declared by the enum. """
+        """ to list of ActionKind instances, filtered & ordered by the enum. """
         known_kinds = []
-        for kind in self.chain:
-            enum_inst = ActionKind.lookup(kind)
-            if enum_inst is not None:
-                known_kinds.append(enum_inst)
+        # перебор в порядке определения членов ActionKind
+        for kind in ActionKind.__members__.values():
+            if kind.value in self:
+                known_kinds.append(ActionKind.lookup(kind.value))
+                # known_kinds.append(ActionKind.__members__[kind])
         return known_kinds
 
     def __hash__(self):

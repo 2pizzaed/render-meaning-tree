@@ -127,8 +127,12 @@ class ActionSpecExporter(ObjectExporter):
     def export_properties(self, obj: ActionSpec) -> Dict[str, Any]:
         properties = {
             "role": obj.role,
-            "kind": str(obj.kind)
         }
+        if obj.kind:
+            kinds = obj.kind.to_enums()
+            if kinds:
+                # взять первый, самый "смысловой" тип (раз все перечислить нельзя)
+                properties["kind"] = kinds[0].value
         if obj.generalization:
             properties["generalization"] = obj.generalization
         return properties
@@ -203,8 +207,12 @@ class ConstructSpecExporter(ObjectExporter):
     def export_properties(self, obj: ConstructSpec) -> Dict[str, Any]:
         properties = {
             "name": obj.name,
-            "kind": str(obj.kind)
         }
+        if obj.kind:
+            kinds = obj.kind.to_enums()
+            if kinds:
+                # взять первый, самый "смысловой" тип (раз все перечислить нельзя)
+                properties["kind"] = kinds[0].value
         if obj.ast_node:
             properties["ast_node"] = obj.ast_node
         return properties

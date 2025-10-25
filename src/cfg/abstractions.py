@@ -73,13 +73,15 @@ class KindChain:
     """Dot-chained names each of which can be queried separately"""
     chain: list[str]
 
-    def __init__(self, chain: str | list[str] = '', sep='.'):
+    def __init__(self, chain: str | list[str] | Self = '', sep='.'):
         if isinstance(chain, str):
             self.chain = chain.split(sep) if chain else []
         elif isinstance(chain, list):
             self.chain = chain
+        elif isinstance(chain, type(self)):
+            self.chain = chain.chain
         else:
-            raise TypeError(f'"chain" must be str or list, not {type(chain).__name__}')
+            raise TypeError(f'KindChain\'s "chain" must be str or list, not {type(chain).__name__}')
 
     def __contains__(self, item):
         return item in self.chain

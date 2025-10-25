@@ -157,6 +157,7 @@ class ActionSpec(DictLikeDataclass):
     effects: list[Effects] = field(default_factory=list)
     identification: Identification = field(default_factory=Identification)  # not exported; for CFG construction only.
     behaviour: Behaviour = field(default_factory=Behaviour)
+    construct: 'ConstructSpec' = None
 
     def find_node_data(self, wrapped_ast: 'aw.ASTNodeWrapper', previous_action_data: 'aw.ASTNodeWrapper'=None) -> (
             'aw.ASTNodeWrapper | None'):
@@ -176,6 +177,7 @@ class TransitionSpec(DictLikeDataclass):
     constraints: Optional[Constraints] = None
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
+    construct: 'ConstructSpec' = None
 
     def to_when_absent_as_list(self) -> list[str]:
         if isinstance(self.to_when_absent, list):
@@ -209,9 +211,26 @@ class ConstructSpec(DictLikeDataclass):
         for action in self.actions:
             self.role2action[action.role] = action
             action.name = self.name + "_" + action.role
+            action.construct = self
 
         # Add construct's Effects to END node
         self.role2action[END].effects += self.effects
+
+        # Bind transitions to self
+        for transition in self.transitions:
+            transition.construct = self
+
+    def find_action_by_role(self, role: str) -> Optional[ActionSpec]:
+        """ Only one action is mapped to a role.
+        But note that several actions can have the same generalization (in this case, any is returned). """
+        if role in self.role2action:
+            return self.role2action[role]
+        # actions = []
+        for action in self.actions:
+            if action.role == role or action.generalization == role:
+                return action
+                # actions.append(action)
+        return None
 
     def find_transitions_from_action(self, action: ActionSpec) -> list[TransitionSpec]:
         roles = (action.role, action.generalization)

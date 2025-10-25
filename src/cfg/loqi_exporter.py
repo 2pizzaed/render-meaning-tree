@@ -27,10 +27,9 @@ class ValueConverter:
         
         if isinstance(value, str):
             # Экранируем строки, если они содержат специальные символы
-            if any(char in value for char in ['"', "'", ';', '{', '}', '(', ')']):
-                return f'"{value}"'
-            return value
-        
+            escaped_value = value.replace("\\", "\\\\").replace("\"", "\\\"")
+            return f'"{escaped_value}"'
+
         # Обработка Enum классов
         if hasattr(value, 'value') and hasattr(value.__class__, '__name__'):
             enum_class_name = value.__class__.__name__

@@ -140,10 +140,14 @@ class ActionSpecExporter(ObjectExporter):
     def export_relationships(self, obj: ActionSpec) -> Dict[str, List[Any]]:
         relationships = {}
         
+        # ConstructSpec
+        if obj.construct:
+            relationships["hasConstruct"] = [obj.construct]
+
         # Экспортируем effects - возвращаем сами объекты
         if obj.effects:
             relationships["hasEffects"] = obj.effects
-        
+
         # Экспортируем behaviour - возвращаем сам объект
         if obj.behaviour:
             relationships["hasBehaviour"] = [obj.behaviour]
@@ -180,6 +184,10 @@ class TransitionSpecExporter(ObjectExporter):
     def export_relationships(self, obj: TransitionSpec) -> Dict[str, List[Any]]:
         relationships = {}
         
+        # ConstructSpec
+        if obj.construct:
+            relationships["hasConstruct"] = [obj.construct]
+
         # Экспортируем constraints - возвращаем сам объект
         if obj.constraints:
             relationships["hasConstraints"] = [obj.constraints]

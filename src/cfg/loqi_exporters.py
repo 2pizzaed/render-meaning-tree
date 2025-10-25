@@ -62,6 +62,9 @@ class BehaviourExporter(ObjectExporter):
         base_name = "behaviour"
         if obj.assumed_value is not None:
             base_name += f"_assumed_value_{obj.assumed_value}"
+
+        if base_name == "behaviour":
+            base_name = "empty_behaviour"
         return base_name
     
     def get_class_name(self, obj: Behaviour) -> str:
@@ -86,7 +89,7 @@ class ConstraintsExporter(ObjectExporter):
     def get_preferred_name(self, obj: Constraints) -> str:
         parts = []
         if obj.condition_value is not None:
-            parts.append(f"cond_{obj.condition_value}")
+            parts.append(f"cond_{obj.condition_value.value}")
         if obj.interruption_mode:
             parts.append(f"mode_{obj.interruption_mode.value}")
         

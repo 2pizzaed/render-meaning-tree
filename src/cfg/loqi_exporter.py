@@ -218,7 +218,7 @@ class LoqiExporter(ExporterManager):
             # Автоматически регистрируем связанные объекты (рекурсивно)
             self._add_related_objects(obj)
         else:
-            # debugging.
+            # debugging. TODO: remove this print.
             print(f"Warning: Object `{exporter.get_registered_name_for_object(obj)}` already registered, ignoring.")
             # print(f"Warning: Object `{str(obj)[:400]}` already registered, ignoring.")
 

@@ -134,8 +134,8 @@ class ObjectExporter(ExporterManager, ABC):
         pass
     
     @abstractmethod
-    def export_relationships(self, obj: Any) -> Dict[str, List[str]]:
-        """Получить отношения (ссылки на другие объекты)."""
+    def export_relationships(self, obj: Any) -> Dict[str, List[Any]]:
+        """Получить отношения (ссылки на другие объекты). Возвращает объекты, а не их имена."""
         pass
     
     def export_object(self, obj: Any) -> str:
@@ -153,10 +153,15 @@ class ObjectExporter(ExporterManager, ABC):
             if converted_value is not None:
                 lines.append(f"  {prop_name} = {converted_value};")
         
-        # Добавляем отношения
+        # Добавляем отношения: преобразуем объекты в их имена
         for rel_name, rel_objects in relationships.items():
-            for obj_name in rel_objects:
-                lines.append(f"  {rel_name}({obj_name});")
+            for rel_obj in rel_objects:
+                if rel_obj is None:
+                    continue
+                # Получаем имя зарегистрированного объекта
+                obj_name = self.get_registered_name_for_object(rel_obj)
+                if obj_name:
+                    lines.append(f"  {rel_name}({obj_name});")
         
         lines.append("}")
         return "\n".join(lines)
@@ -210,6 +215,28 @@ class LoqiExporter(ExporterManager):
             # not yet registered.
             exporter.register_object(obj)
             self.exported_objects.append(obj)
+            # Автоматически регистрируем связанные объекты (рекурсивно)
+            self._add_related_objects(obj)
+        else:
+            # debugging.
+            print(f"Warning: Object `{exporter.get_registered_name_for_object(obj)}` already registered, ignoring.")
+            # print(f"Warning: Object `{str(obj)[:400]}` already registered, ignoring.")
+
+    def _add_related_objects(self, obj: Any):
+        """Добавляет все объекты, связанные с данным объектом через relationships."""
+        exporter = self.get_exporter_for(obj)
+        if not exporter:
+            return
+        
+        # Получаем relationships - теперь это объекты, а не имена
+        relationships = exporter.export_relationships(obj)
+        
+        # Проходим по всем связанным объектам и добавляем их
+        for rel_name, rel_objects in relationships.items():
+            for rel_obj in rel_objects:
+                if rel_obj is not None:
+                    # Рекурсивный вызов add_object - он сам проверит на дубликаты
+                    self.add_object(rel_obj)
 
     def export_cfg(self, cfg, output_path: str):
         """Экспортирует CFG и все связанные объекты в файл."""

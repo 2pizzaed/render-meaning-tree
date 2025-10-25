@@ -48,7 +48,7 @@ class EffectsExporter(ObjectExporter):
             properties["call_stack"] = obj.call_stack
         return properties
     
-    def export_relationships(self, obj: Effects) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: Effects) -> Dict[str, List[Any]]:
         return {}
 
 
@@ -73,7 +73,7 @@ class BehaviourExporter(ObjectExporter):
             properties["assumed_value"] = obj.assumed_value
         return properties
     
-    def export_relationships(self, obj: Behaviour) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: Behaviour) -> Dict[str, List[Any]]:
         return {}
 
 
@@ -104,7 +104,7 @@ class ConstraintsExporter(ObjectExporter):
             properties["interruption_mode"] = obj.interruption_mode
         return properties
     
-    def export_relationships(self, obj: Constraints) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: Constraints) -> Dict[str, List[Any]]:
         return {}
 
 
@@ -130,23 +130,16 @@ class ActionSpecExporter(ObjectExporter):
             properties["generalization"] = obj.generalization
         return properties
     
-    def export_relationships(self, obj: ActionSpec) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: ActionSpec) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем effects как отдельные объекты
-        effect_names = []
-        for effect in obj.effects:
-            effect_name = self.get_registered_name_for_object(effect)
-            if effect_name:
-                effect_names.append(effect_name)
-        if effect_names:
-            relationships["hasEffects"] = effect_names
+        # Экспортируем effects - возвращаем сами объекты
+        if obj.effects:
+            relationships["hasEffects"] = obj.effects
         
-        # Экспортируем behaviour
+        # Экспортируем behaviour - возвращаем сам объект
         if obj.behaviour:
-            behaviour_name = self.get_registered_name_for_object(obj.behaviour)
-            if behaviour_name:
-                relationships["hasBehaviour"] = [behaviour_name]
+            relationships["hasBehaviour"] = [obj.behaviour]
         
         return relationships
 
@@ -177,23 +170,16 @@ class TransitionSpecExporter(ObjectExporter):
                 properties["to_when_absent"] = [obj.to_when_absent]
         return properties
     
-    def export_relationships(self, obj: TransitionSpec) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: TransitionSpec) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем constraints
+        # Экспортируем constraints - возвращаем сам объект
         if obj.constraints:
-            constraint_name = self.get_registered_name_for_object(obj.constraints)
-            if constraint_name:
-                relationships["hasConstraints"] = [constraint_name]
+            relationships["hasConstraints"] = [obj.constraints]
         
-        # Экспортируем effects
-        effect_names = []
-        for effect in obj.effects:
-            effect_name = self.get_registered_name_for_object(effect)
-            if effect_name:
-                effect_names.append(effect_name)
-        if effect_names:
-            relationships["hasEffects"] = effect_names
+        # Экспортируем effects - возвращаем сами объекты
+        if obj.effects:
+            relationships["hasEffects"] = obj.effects
         
         return relationships
 
@@ -220,35 +206,20 @@ class ConstructSpecExporter(ObjectExporter):
             properties["ast_node"] = obj.ast_node
         return properties
     
-    def export_relationships(self, obj: ConstructSpec) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: ConstructSpec) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем actions
-        action_names = []
-        for action in obj.actions:
-            action_name = self.get_registered_name_for_object(action)
-            if action_name:
-                action_names.append(action_name)
-        if action_names:
-            relationships["hasActions"] = action_names
+        # Экспортируем actions - возвращаем сами объекты
+        if obj.actions:
+            relationships["hasActions"] = obj.actions
         
-        # Экспортируем transitions
-        transition_names = []
-        for transition in obj.transitions:
-            transition_name = self.get_registered_name_for_object(transition)
-            if transition_name:
-                transition_names.append(transition_name)
-        if transition_names:
-            relationships["hasTransitions"] = transition_names
+        # Экспортируем transitions - возвращаем сами объекты
+        if obj.transitions:
+            relationships["hasTransitions"] = obj.transitions
         
-        # Экспортируем effects
-        effect_names = []
-        for effect in obj.effects:
-            effect_name = self.get_registered_name_for_object(effect)
-            if effect_name:
-                effect_names.append(effect_name)
-        if effect_names:
-            relationships["hasEffects"] = effect_names
+        # Экспортируем effects - возвращаем сами объекты
+        if obj.effects:
+            relationships["hasEffects"] = obj.effects
         
         return relationships
 
@@ -296,26 +267,20 @@ class MetadataExporter(ObjectExporter):
             properties["call_count"] = obj.call_count
         return properties
     
-    def export_relationships(self, obj: Metadata) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: Metadata) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем abstract_action
+        # Экспортируем abstract_action - возвращаем сам объект
         if obj.abstract_action:
-            action_name = self.get_registered_name_for_object(obj.abstract_action)
-            if action_name:
-                relationships["hasAbstractAction"] = [action_name]
+            relationships["hasAbstractAction"] = [obj.abstract_action]
         
-        # Экспортируем abstract_transition
+        # Экспортируем abstract_transition - возвращаем сам объект
         if obj.abstract_transition:
-            transition_name = self.get_registered_name_for_object(obj.abstract_transition)
-            if transition_name:
-                relationships["hasAbstractTransition"] = [transition_name]
+            relationships["hasAbstractTransition"] = [obj.abstract_transition]
         
-        # Экспортируем has_corresponding_end
+        # Экспортируем has_corresponding_end - возвращаем сам объект
         if obj.has_corresponding_end:
-            end_name = self.get_registered_name_for_object(obj.has_corresponding_end)
-            if end_name:
-                relationships["hasCorrespondingEnd"] = [end_name]
+            relationships["hasCorrespondingEnd"] = [obj.has_corresponding_end]
         
         return relationships
 
@@ -342,23 +307,16 @@ class NodeExporter(ObjectExporter):
         }
         return properties
     
-    def export_relationships(self, obj: Node) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: Node) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем metadata
+        # Экспортируем metadata - возвращаем сам объект
         if obj.metadata:
-            metadata_name = self.get_registered_name_for_object(obj.metadata)
-            if metadata_name:
-                relationships["hasMetadata"] = [metadata_name]
+            relationships["hasMetadata"] = [obj.metadata]
         
-        # Экспортируем effects
-        effect_names = []
-        for effect in obj.effects:
-            effect_name = self.get_registered_name_for_object(effect)
-            if effect_name:
-                effect_names.append(effect_name)
-        if effect_names:
-            relationships["hasEffects"] = effect_names
+        # Экспортируем effects - возвращаем сами объекты
+        if obj.effects:
+            relationships["hasEffects"] = obj.effects
         
         return relationships
 
@@ -385,29 +343,20 @@ class EdgeExporter(ObjectExporter):
         }
         return properties
     
-    def export_relationships(self, obj: Edge) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: Edge) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем metadata
+        # Экспортируем metadata - возвращаем сам объект
         if obj.metadata:
-            metadata_name = self.get_registered_name_for_object(obj.metadata)
-            if metadata_name:
-                relationships["hasMetadata"] = [metadata_name]
+            relationships["hasMetadata"] = [obj.metadata]
         
-        # Экспортируем constraints
+        # Экспортируем constraints - возвращаем сам объект
         if obj.constraints:
-            constraint_name = self.get_registered_name_for_object(obj.constraints)
-            if constraint_name:
-                relationships["hasConstraints"] = [constraint_name]
+            relationships["hasConstraints"] = [obj.constraints]
         
-        # Экспортируем effects
-        effect_names = []
-        for effect in obj.effects:
-            effect_name = self.get_registered_name_for_object(effect)
-            if effect_name:
-                effect_names.append(effect_name)
-        if effect_names:
-            relationships["hasEffects"] = effect_names
+        # Экспортируем effects - возвращаем сами объекты
+        if obj.effects:
+            relationships["hasEffects"] = obj.effects
         
         return relationships
 
@@ -433,36 +382,22 @@ class CFGExporter(ObjectExporter):
         }
         return properties
     
-    def export_relationships(self, obj: CFG) -> Dict[str, List[str]]:
+    def export_relationships(self, obj: CFG) -> Dict[str, List[Any]]:
         relationships = {}
         
-        # Экспортируем nodes
-        node_names = []
-        for node in obj.nodes.values():
-            node_name = self.get_registered_name_for_object(node)
-            if node_name:
-                node_names.append(node_name)
-        if node_names:
-            relationships["hasNodes"] = node_names
+        # Экспортируем nodes - возвращаем сами объекты
+        if obj.nodes:
+            relationships["hasNodes"] = list(obj.nodes.values())
         
-        # Экспортируем edges
-        edge_names = []
-        for edge in obj.edges:
-            edge_name = self.get_registered_name_for_object(edge)
-            if edge_name:
-                edge_names.append(edge_name)
-        if edge_names:
-            relationships["hasEdges"] = edge_names
+        # Экспортируем edges - возвращаем сами объекты
+        if obj.edges:
+            relationships["hasEdges"] = obj.edges
         
-        # Экспортируем begin и end nodes
+        # Экспортируем begin и end nodes - возвращаем сами объекты
         if obj.begin_node:
-            begin_name = self.get_registered_name_for_object(obj.begin_node)
-            if begin_name:
-                relationships["hasBegin"] = [begin_name]
+            relationships["hasBegin"] = [obj.begin_node]
         
         if obj.end_node:
-            end_name = self.get_registered_name_for_object(obj.end_node)
-            if end_name:
-                relationships["hasEnd"] = [end_name]
+            relationships["hasEnd"] = [obj.end_node]
         
         return relationships

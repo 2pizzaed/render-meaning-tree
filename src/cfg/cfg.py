@@ -126,8 +126,8 @@ class CFG:
 
         if construct:
             # Получаем ActionSpec для BEGIN и END из construct
-            begin_action = construct.id2action.get(BEGIN)
-            end_action = construct.id2action.get(END)
+            begin_action = construct.role2action.get(BEGIN)
+            end_action = construct.role2action.get(END)
             if begin_action:
                 begin_metadata = Metadata(abstract_action=begin_action)
             if end_action:

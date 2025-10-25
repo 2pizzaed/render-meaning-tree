@@ -191,7 +191,7 @@ class ConstructSpec(DictLikeDataclass):
     kind: KindChain = KindChain()
     ast_node: str | None = None
     actions: list[ActionSpec] = field(default_factory=list)
-    id2action: dict[str, ActionSpec] | None = None
+    role2action: dict[str, ActionSpec] | None = None
     transitions: list[TransitionSpec] = field(default_factory=list)
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
@@ -205,13 +205,13 @@ class ConstructSpec(DictLikeDataclass):
 
         # re-index actions by role,
         # & set full name based on construct name
-        self.id2action = {}
+        self.role2action = {}
         for action in self.actions:
-            self.id2action[action.role] = action
+            self.role2action[action.role] = action
             action.name = self.name + "_" + action.role
 
         # Add construct's Effects to END node
-        self.id2action[END].effects += self.effects
+        self.role2action[END].effects += self.effects
 
     def find_transitions_from_action(self, action: ActionSpec) -> list[TransitionSpec]:
         roles = (action.role, action.generalization)
@@ -234,7 +234,7 @@ class ConstructSpec(DictLikeDataclass):
         while True:
             for target_role in (tr.to, *tr.to_when_absent_as_list()):
                 if target_role:
-                    action = self.id2action.get(target_role)
+                    action = self.role2action.get(target_role)
                     if action:
                         target_wrapped_ast = action.find_node_data(wrapped_ast, previous_wrapped_ast)
                         if target_wrapped_ast:
@@ -243,7 +243,7 @@ class ConstructSpec(DictLikeDataclass):
             # for cases where target is absent in AST, search further along transition chain
             # TODO: use assumed value of condition & more heuristics.
             primary_out = tr.to
-            primary_action = self.id2action.get(primary_out)
+            primary_action = self.role2action.get(primary_out)
             if not primary_action:
                 break
             trs = self.find_transitions_from_action(primary_action)

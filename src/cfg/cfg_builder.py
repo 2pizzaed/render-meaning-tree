@@ -341,7 +341,7 @@ class CFGBuilder:
             kind='func_body',
             role='func',
             metadata=Metadata(
-                abstract_action=construct.id2action['func'],
+                abstract_action=construct.role2action['func'],
                 wrapped_ast=wrapped_ast,
                 primary=True,
             ),
@@ -350,13 +350,13 @@ class CFGBuilder:
         
         # Создаем рёбра, связывая с абстрактными переходами с эффектами call_stack
         # BEGIN -> func (с эффектом add_frame)
-        begin_to_func_transition = construct.find_transitions_from_action(construct.id2action[BEGIN])[0]
+        begin_to_func_transition = construct.find_transitions_from_action(construct.role2action[BEGIN])[0]
         call_cfg.connect(call_cfg.begin_node, func_node_pair[0], metadata=Metadata(
             abstract_transition=begin_to_func_transition,
         ))
         
         # func -> END (с эффектом drop_frame)
-        func_to_end_transition = construct.find_transitions_from_action(construct.id2action['func'])[0]
+        func_to_end_transition = construct.find_transitions_from_action(construct.role2action['func'])[0]
         call_cfg.connect(func_node_pair[1], call_cfg.end_node, metadata=Metadata(
             abstract_transition=func_to_end_transition,
         ))
@@ -462,7 +462,7 @@ class CFGBuilder:
 
             role = node.role
             # Построить выходящие переходы
-            action = construct.id2action.get(role)
+            action = construct.role2action.get(role)
             if not action:
                 print(f'Warning: no action found for role {role} in construct {construct.name}')
                 continue

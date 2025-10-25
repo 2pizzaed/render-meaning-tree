@@ -7,10 +7,12 @@ from typing import Any, ClassVar, Literal
 
 from jinja2 import Environment, FileSystemLoader
 
+from src.cfg.abstractions import AppearanceType
+from src.cfg.cfg import CFG
 from src.helpers.diff import make_str_diff
 from src.meaning_tree import node_hierarchy
 
-ButtonType = Literal["play", "stop", "step-into", "step-out"]
+ButtonType = Literal["play", "stop", "step-into", "step-out", "circle-question-mark"]
 ButtonStyle = Literal["filled", "outlined"]
 
 
@@ -310,6 +312,9 @@ class CodeHighlightGenerator:
         if not node_id or not self.analyzer:
             return None, "filled"
 
+        if node_id in self.appearance and self.appearance[node_id] == "none":
+            return None, "filled"
+
         # Проверяем, является ли узел составным statement
         is_block = self.analyzer.is_block(node_id)
         is_simple_statement = self.analyzer.is_simple_statement(node_id)
@@ -321,7 +326,7 @@ class CodeHighlightGenerator:
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
                 self._range_for = [token.get("value", "")]
-                return "play", "filled"
+                return "circle-question-mark", "filled"
             if node_token_pos == "middle" and self.language != "python":
                 if (
                     token.get("value", "") != ";"
@@ -329,13 +334,13 @@ class CodeHighlightGenerator:
                     and self._range_for[-1] == ";"
                 ):
                     self._range_for.append("") # dummy token as marker of processed semicolon
-                    return "play", "filled"
+                    return "circle-question-mark", "filled"
                 self._range_for.append(token.get("value", ""))
             elif node_token_pos == "end":
                 self._range_for = []
 
         if for_component and for_component != "range" and button_position == "start":
-            return "play", "filled"
+            return "circle-question-mark", "filled"
 
 
         # Вложенный вызов функции
@@ -358,7 +363,7 @@ class CodeHighlightGenerator:
 
         # Заголовки циклов и условий
         if is_header and button_position == "start":
-            return "play", "filled"
+            return "circle-question-mark", "filled"
 
         # Составные statements
         if is_block and token.get("value", "").strip():
@@ -491,10 +496,19 @@ class CodeHighlightGenerator:
         return token.get("css_class", "") == "token-brace" and \
             token.get("value", "") in ["{", "}"]
 
+    def load_appearance_profile(self, cfg: CFG):
+        self.appearance = {}
+        for node in cfg.nodes.values():
+            if node.metadata.wrapped_ast:
+                self.appearance[
+                    node.metadata.wrapped_ast.ast_node.get("id", "")
+                ] = node.appearance
+
     def generate_html(
         self,
         source_map: dict[str, Any],
         tokens: dict[str, Any],
+        appearance_status_map: dict[int, AppearanceType] = {},
         output_file: str | None = None,
     ) -> str:
         """
@@ -513,6 +527,7 @@ class CodeHighlightGenerator:
         self.ast_tree = source_map.get("origin", {})
         self.analyzer = ASTNodeAnalyzer(self.ast_tree, source_map)
         self.source = source_map.get("source_code", "").encode("utf-8")
+        self.appearance = appearance_status_map
 
         self.language = source_map.get("language", "Unknown")
         self.token_list = tokens.get("items", [])

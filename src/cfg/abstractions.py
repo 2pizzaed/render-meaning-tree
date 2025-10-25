@@ -286,18 +286,17 @@ class AppearanceType(SelfValidatedEnum):
 @dataclass
 class AppearanceProfile(DictLikeDataclass):
     name: str
-    checks: list[dict[KindChain, AppearanceType]]
+    checks: dict[KindChain, AppearanceType]
 
     def __post_init__(self):
         # sort checks by specificity (len of kind chain) DESC
-        self.checks.sort(key=lambda n: len(n), reverse=True)
+        self.checks = dict(sorted(self.checks.items(), key=lambda kv: len(kv[0]), reverse=True))
 
     def get_appearance_for_kind_chain(self, chain: KindChain):
         # sort checks by specificity (len of kind chain) DESC
-        for check in self.checks:
-            for etalon_chain, appearance in check.items():
-                if etalon_chain.is_subset_of(chain):
-                    return appearance
+        for etalon_chain, appearance in self.checks.items():
+            if etalon_chain.is_subset_of(chain):
+                return appearance
 
         return AppearanceType.MANDATORY # "show" for all unknown
 

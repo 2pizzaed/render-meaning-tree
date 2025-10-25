@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field
-from typing import Self
+from typing import Any, Self
 
 import src.cfg.access_property as access_property
 
 
 @dataclass
 class ASTNodeWrapper:
-    ast_node: 'src.cfg.cfg.Node | dict[str, src.cfg.cfg.Node] | list[src.cfg.cfg.Node]'  # AST dict (from json) having at least 'type' and 'id' keys.
+    ast_node: dict[str, Any]  # AST dict (from json) having at least 'type' and 'id' keys.
     parent: Self | None = None  # parent node that sees this node as a child.
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None

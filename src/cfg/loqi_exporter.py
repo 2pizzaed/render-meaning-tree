@@ -203,8 +203,10 @@ class LoqiExporter(ExporterManager):
         if obj is None:
             return
 
-        exporter = self.exporters[type(obj)]
-        if exporter and not exporter.is_object_registered(obj):
+        exporter = self.exporters.get(type(obj))
+        if not exporter:
+            return
+        if not exporter.is_object_registered(obj):
             # not yet registered.
             exporter.register_object(obj)
             self.exported_objects.append(obj)

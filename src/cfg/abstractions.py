@@ -90,6 +90,15 @@ class KindChain:
     def is_subset_of(self, other: Self | list[Self]) -> bool:
         return all((item in other) for item in self.chain)
 
+    def to_enums(self) -> list[ActionKind]:
+        """ to list of ActionKind, filtered to retain only declared by the enum. """
+        known_kinds = []
+        for kind in self.chain:
+            enum_inst = ActionKind.lookup(kind)
+            if enum_inst is not None:
+                known_kinds.append(enum_inst)
+        return known_kinds
+
     def __hash__(self):
         return hash(tuple(self.chain))
 

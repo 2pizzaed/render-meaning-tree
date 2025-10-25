@@ -61,7 +61,7 @@ class BehaviourExporter(ObjectExporter):
     def get_preferred_name(self, obj: Behaviour) -> str:
         base_name = "behaviour"
         if obj.assumed_value is not None:
-            base_name += f"_{obj.assumed_value}"
+            base_name += f"_assumed_value_{obj.assumed_value}"
         return base_name
     
     def get_class_name(self, obj: Behaviour) -> str:
@@ -261,6 +261,12 @@ class MetadataExporter(ObjectExporter):
     
     def get_preferred_name(self, obj: Metadata) -> str:
         parts = []
+        if obj.abstract_action is not None:
+            parts.append(f"a_{id(obj.abstract_action) % 1000_000}")
+        if obj.abstract_transition is not None:
+            parts.append(f"t_{id(obj.abstract_transition) % 1000_000}")
+        if obj.wrapped_ast is not None:
+            parts.append(f"w_{obj.wrapped_ast.ast_node['id']}")
         if obj.assumed_value is not None:
             parts.append(f"assumed_{obj.assumed_value}")
         if obj.primary is not None:
@@ -278,6 +284,8 @@ class MetadataExporter(ObjectExporter):
     
     def export_properties(self, obj: Metadata) -> Dict[str, Any]:
         properties = {}
+        if obj.assumed_value is not None:
+            properties["assumed_value"] = obj.assumed_value
         if obj.assumed_value is not None:
             properties["assumed_value"] = obj.assumed_value
         if obj.primary is not None:

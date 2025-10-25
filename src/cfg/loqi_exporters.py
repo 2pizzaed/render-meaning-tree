@@ -158,7 +158,7 @@ class ActionSpecExporter(ObjectExporter):
         if obj.effects:
             relationships["hasEffects"] = obj.effects
 
-        # Экспортируем behaviour - возвращаем сам объект
+        # Экспортируем behaviour
         if obj.behaviour:
             relationships["hasBehaviour"] = [obj.behaviour]
         
@@ -210,7 +210,7 @@ class TransitionSpecExporter(ObjectExporter):
         if obj.construct:
             relationships["hasConstruct"] = [obj.construct]
 
-        # Экспортируем constraints - возвращаем сам объект
+        # Экспортируем constraints
         if obj.constraints:
             relationships["hasConstraints"] = [obj.constraints]
         
@@ -312,7 +312,7 @@ class MetadataExporter(ObjectExporter):
     def export_relationships(self, obj: Metadata) -> dict[str, list[Any]]:
         relationships = {}
         
-        # Экспортируем abstract_action - возвращаем сам объект
+        # Экспортируем abstract_action
         if obj.abstract_action:
             relationships["hasAbstractAction"] = [obj.abstract_action]
         
@@ -323,7 +323,7 @@ class MetadataExporter(ObjectExporter):
         if obj.abstract_transition:
             relationships["hasAbstractTransition"] = [obj.abstract_transition]
         
-        # Экспортируем has_corresponding_end - возвращаем сам объект
+        # Экспортируем has_corresponding_end
         if obj.has_corresponding_end:
             relationships["hasCorrespondingEnd"] = [obj.has_corresponding_end]
         
@@ -358,7 +358,7 @@ class NodeExporter(ObjectExporter):
 
         # hasEdges TODO
         
-        # Экспортируем metadata - возвращаем сам объект
+        # Экспортируем metadata
         if obj.metadata:
             relationships["hasMetadata"] = [obj.metadata]
         
@@ -396,11 +396,11 @@ class EdgeExporter(ObjectExporter):
             "hasDestination": [obj.cfg.nodes[obj.dst]],
         }
         
-        # Экспортируем metadata - возвращаем сам объект
+        # Экспортируем metadata
         if obj.metadata:
             relationships["hasMetadata"] = [obj.metadata]
 
-        # Экспортируем constraints - возвращаем сам объект
+        # Экспортируем constraints
         if obj.constraints:
             relationships["hasConstraints"] = [obj.constraints]
         

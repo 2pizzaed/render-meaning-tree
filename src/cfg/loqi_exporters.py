@@ -16,6 +16,11 @@ from .cfg import Metadata, Node, Edge, CFG, NodeKind
 from src.common_utils import SelfValidatedEnum
 
 
+# use classmethod as decorator
+registered = ObjectExporter.register_class
+
+
+@registered
 class EffectsExporter(ObjectExporter):
     """Экспортер для класса Effects."""
     
@@ -52,6 +57,7 @@ class EffectsExporter(ObjectExporter):
         return {}
 
 
+@registered
 class BehaviourExporter(ObjectExporter):
     """Экспортер для класса Behaviour."""
     
@@ -80,6 +86,7 @@ class BehaviourExporter(ObjectExporter):
         return {}
 
 
+@registered
 class ConstraintsExporter(ObjectExporter):
     """Экспортер для класса Constraints."""
     
@@ -111,6 +118,7 @@ class ConstraintsExporter(ObjectExporter):
         return {}
 
 
+@registered
 class ActionSpecExporter(ObjectExporter):
     """Экспортер для класса ActionSpec."""
     
@@ -155,6 +163,7 @@ class ActionSpecExporter(ObjectExporter):
         return relationships
 
 
+@registered
 class TransitionSpecExporter(ObjectExporter):
     """Экспортер для класса TransitionSpec."""
     
@@ -210,6 +219,7 @@ class TransitionSpecExporter(ObjectExporter):
         return relationships
 
 
+@registered
 class ConstructSpecExporter(ObjectExporter):
     """Экспортер для класса ConstructSpec."""
     
@@ -254,6 +264,7 @@ class ConstructSpecExporter(ObjectExporter):
         return relationships
 
 
+@registered
 class MetadataExporter(ObjectExporter):
     """Экспортер для класса Metadata."""
     
@@ -317,6 +328,7 @@ class MetadataExporter(ObjectExporter):
         return relationships
 
 
+@registered
 class NodeExporter(ObjectExporter):
     """Экспортер для класса Node."""
     
@@ -341,6 +353,8 @@ class NodeExporter(ObjectExporter):
     
     def export_relationships(self, obj: Node) -> dict[str, list[Any]]:
         relationships = {}
+
+        # hasEdges TODO
         
         # Экспортируем metadata - возвращаем сам объект
         if obj.metadata:
@@ -353,6 +367,7 @@ class NodeExporter(ObjectExporter):
         return relationships
 
 
+@registered
 class EdgeExporter(ObjectExporter):
     """Экспортер для класса Edge."""
     
@@ -394,6 +409,7 @@ class EdgeExporter(ObjectExporter):
         return relationships
 
 
+@registered
 class CFGExporter(ObjectExporter):
     """Экспортер для класса CFG."""
     

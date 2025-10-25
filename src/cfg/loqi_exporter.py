@@ -7,7 +7,7 @@ Loqi Exporter - модуль для экспорта объектов Python в 
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 
 class ValueConverter:
@@ -81,7 +81,13 @@ class NameRegistry:
 
 
 class ExporterManager:
-    """Абстрактный базовый класс для экспортеров конкретных типов объектов."""
+    """Вспомогательный класс для управления "экспортерами" -- подклассами ObjectExporter."""
+    registered_classes: dict[str, Type['ObjectExporter']] = {}
+
+    @classmethod
+    def register_class(cls, class_type: Type['ObjectExporter']) -> Type:
+        cls.registered_classes[class_type.__name__] = class_type
+        return class_type
     
     def __init__(self, name_registry: NameRegistry = None, exporters: Dict[type, 'ObjectExporter'] = None):
         self.name_registry = name_registry or NameRegistry()
@@ -176,27 +182,17 @@ class LoqiExporter(ExporterManager):
     
     def _setup_exporters(self):
         """Настраивает экспортеры для всех поддерживаемых типов."""
-        # Импортируем экспортеры здесь, чтобы избежать циклических импортов
+        # Регистрируем экспортеры: создаём объекты зарегистрированных классов
         try:
-            from .loqi_exporters import (
-                EffectsExporter, BehaviourExporter,
-                ConstraintsExporter, ActionSpecExporter, TransitionSpecExporter,
-                ConstructSpecExporter, MetadataExporter, NodeExporter,
-                EdgeExporter, CFGExporter
-            )
+            # this triggers whole file to run thus registering all defined classes.
+            from .loqi_exporters import CFGExporter
         except ImportError as e:
-            # Если импорт не удался, создаём пустой список экспортеров
+            # Если импорт не удался, оставляем пустой список экспортеров
             print(f"Warning: Could not import exporters: {e}")
             return
-        
-        # Регистрируем экспортеры
-        exporters = [
-            EffectsExporter, BehaviourExporter,
-            ConstraintsExporter, ActionSpecExporter, TransitionSpecExporter,
-            ConstructSpecExporter, MetadataExporter, NodeExporter,
-            EdgeExporter, CFGExporter
-        ]
-        
+
+        exporters = self.registered_classes.values()
+
         for exporter_class in exporters:
             exporter = exporter_class(self.name_registry, self.exporters)
             for obj_type in exporter.get_supported_types():

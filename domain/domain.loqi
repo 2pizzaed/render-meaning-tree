@@ -295,7 +295,6 @@ class Metadata {
 	obj prop primary: bool ;
 	obj prop is_after_last: bool ;
 	obj prop call_count: int[0, 65536] ;
-	obj prop ast_node_id: int ;  // TODO ???
 
 	rel hasAbstractAction(ActionSpec) : {* -> 1} ;
 	rel belongsToASTNode(ASTNodeWrapper) : {* -> 1} ;

@@ -3,6 +3,8 @@
 """
 
 from typing import Any, Type
+
+from . import ASTNodeWrapper
 from .loqi_exporter import ObjectExporter
 
 # Импорты для типов объектов
@@ -296,9 +298,6 @@ class MetadataExporter(ObjectExporter):
     
     def export_properties(self, obj: Metadata) -> dict[str, Any]:
         properties = {}
-        if obj.wrapped_ast is not None:
-            # TODO: несистемное свойство ???
-            properties["ast_node_id"] = obj.wrapped_ast.ast_node['id']
 
         if obj.assumed_value is not None:
             properties["assumed_value"] = obj.assumed_value
@@ -317,7 +316,10 @@ class MetadataExporter(ObjectExporter):
         if obj.abstract_action:
             relationships["hasAbstractAction"] = [obj.abstract_action]
         
-        # Экспортируем abstract_transition - возвращаем сам объект
+        if obj.wrapped_ast:
+            relationships["belongsToASTNode"] = [obj.wrapped_ast]
+
+        # Экспортируем abstract_transition
         if obj.abstract_transition:
             relationships["hasAbstractTransition"] = [obj.abstract_transition]
         
@@ -449,4 +451,38 @@ class CFGExporter(ObjectExporter):
         if obj.end_node:
             relationships["hasEnd"] = [obj.end_node]
         
+        return relationships
+
+
+@registered
+class ASTNodeWrapperExporter(ObjectExporter):
+    """Экспортер для класса ASTNodeWrapper."""
+
+    def get_supported_types(self) -> list[Type]:
+        return [ASTNodeWrapper]
+
+    def get_preferred_name(self, obj: ASTNodeWrapper) -> str:
+        info = obj.describe()
+        if not info['ast_id']:
+            info['ast_id'] = id(obj) % 100_000
+        info['ast_id'] = str(info['ast_id'])
+        return 'ast_' + ('_'.join(info.values()))
+
+    def get_class_name(self, obj: ASTNodeWrapper) -> str:
+        return "ASTNodeWrapper"
+
+    def export_properties(self, obj: ASTNodeWrapper) -> dict[str, Any]:
+        # import json
+        properties = obj.describe()
+        # properties["ast_node"] = json.dumps(obj.ast_node)
+        # properties["current_condition_value"] = ???
+        return properties
+
+    def export_relationships(self, obj: ASTNodeWrapper) -> dict[str, list[Any]]:
+        relationships = {}
+
+        # Экспортируем parent
+        if obj.parent:
+            relationships["hasParent"] = [obj.parent]
+
         return relationships

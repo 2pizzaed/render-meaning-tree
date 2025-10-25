@@ -2,7 +2,7 @@
 Конкретные экспортеры для каждого типа объектов из abstractions.py и cfg.py.
 """
 
-from typing import Any, Dict, List, Type
+from typing import Any, Type
 from .loqi_exporter import ObjectExporter
 
 # Импорты для типов объектов
@@ -19,7 +19,7 @@ from src.common_utils import SelfValidatedEnum
 class EffectsExporter(ObjectExporter):
     """Экспортер для класса Effects."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [Effects]
     
     def get_preferred_name(self, obj: Effects) -> str:
@@ -38,7 +38,7 @@ class EffectsExporter(ObjectExporter):
     def get_class_name(self, obj: Effects) -> str:
         return "Effect"
     
-    def export_properties(self, obj: Effects) -> Dict[str, Any]:
+    def export_properties(self, obj: Effects) -> dict[str, Any]:
         properties = {}
         if obj.interruption_stop:
             properties["interruption_stop"] = obj.interruption_stop
@@ -48,14 +48,14 @@ class EffectsExporter(ObjectExporter):
             properties["call_stack"] = obj.call_stack
         return properties
     
-    def export_relationships(self, obj: Effects) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: Effects) -> dict[str, list[Any]]:
         return {}
 
 
 class BehaviourExporter(ObjectExporter):
     """Экспортер для класса Behaviour."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [Behaviour]
     
     def get_preferred_name(self, obj: Behaviour) -> str:
@@ -70,20 +70,20 @@ class BehaviourExporter(ObjectExporter):
     def get_class_name(self, obj: Behaviour) -> str:
         return "Behaviour"
     
-    def export_properties(self, obj: Behaviour) -> Dict[str, Any]:
+    def export_properties(self, obj: Behaviour) -> dict[str, Any]:
         properties = {}
         if obj.assumed_value is not None:
             properties["assumed_value"] = obj.assumed_value
         return properties
     
-    def export_relationships(self, obj: Behaviour) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: Behaviour) -> dict[str, list[Any]]:
         return {}
 
 
 class ConstraintsExporter(ObjectExporter):
     """Экспортер для класса Constraints."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [Constraints]
     
     def get_preferred_name(self, obj: Constraints) -> str:
@@ -99,7 +99,7 @@ class ConstraintsExporter(ObjectExporter):
     def get_class_name(self, obj: Constraints) -> str:
         return "Constraint"
     
-    def export_properties(self, obj: Constraints) -> Dict[str, Any]:
+    def export_properties(self, obj: Constraints) -> dict[str, Any]:
         properties = {}
         if obj.condition_value is not None:
             properties["condition_value"] = obj.condition_value
@@ -107,14 +107,14 @@ class ConstraintsExporter(ObjectExporter):
             properties["interruption_mode"] = obj.interruption_mode
         return properties
     
-    def export_relationships(self, obj: Constraints) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: Constraints) -> dict[str, list[Any]]:
         return {}
 
 
 class ActionSpecExporter(ObjectExporter):
     """Экспортер для класса ActionSpec."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [ActionSpec]
     
     def get_preferred_name(self, obj: ActionSpec) -> str:
@@ -124,7 +124,7 @@ class ActionSpecExporter(ObjectExporter):
     def get_class_name(self, obj: ActionSpec) -> str:
         return "ActionSpec"
     
-    def export_properties(self, obj: ActionSpec) -> Dict[str, Any]:
+    def export_properties(self, obj: ActionSpec) -> dict[str, Any]:
         properties = {
             "role": obj.role,
         }
@@ -137,7 +137,7 @@ class ActionSpecExporter(ObjectExporter):
             properties["generalization"] = obj.generalization
         return properties
     
-    def export_relationships(self, obj: ActionSpec) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: ActionSpec) -> dict[str, list[Any]]:
         relationships = {}
         
         # ConstructSpec
@@ -158,7 +158,7 @@ class ActionSpecExporter(ObjectExporter):
 class TransitionSpecExporter(ObjectExporter):
     """Экспортер для класса TransitionSpec."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [TransitionSpec]
     
     def get_preferred_name(self, obj: TransitionSpec) -> str:
@@ -173,11 +173,11 @@ class TransitionSpecExporter(ObjectExporter):
         action_obj = obj.construct.find_action_by_role(action_name)
         return action_obj
 
-    def export_properties(self, obj: TransitionSpec) -> Dict[str, Any]:
+    def export_properties(self, obj: TransitionSpec) -> dict[str, Any]:
         properties = {}
         return properties
     
-    def export_relationships(self, obj: TransitionSpec) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: TransitionSpec) -> dict[str, list[Any]]:
         relationships = {}
 
         if obj.from_:
@@ -213,7 +213,7 @@ class TransitionSpecExporter(ObjectExporter):
 class ConstructSpecExporter(ObjectExporter):
     """Экспортер для класса ConstructSpec."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [ConstructSpec]
     
     def get_preferred_name(self, obj: ConstructSpec) -> str:
@@ -223,7 +223,7 @@ class ConstructSpecExporter(ObjectExporter):
     def get_class_name(self, obj: ConstructSpec) -> str:
         return "ConstructSpec"
     
-    def export_properties(self, obj: ConstructSpec) -> Dict[str, Any]:
+    def export_properties(self, obj: ConstructSpec) -> dict[str, Any]:
         properties = {
             "name": obj.name,
         }
@@ -236,7 +236,7 @@ class ConstructSpecExporter(ObjectExporter):
             properties["ast_node"] = obj.ast_node
         return properties
     
-    def export_relationships(self, obj: ConstructSpec) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: ConstructSpec) -> dict[str, list[Any]]:
         relationships = {}
         
         # Экспортируем actions - возвращаем сами объекты
@@ -257,7 +257,7 @@ class ConstructSpecExporter(ObjectExporter):
 class MetadataExporter(ObjectExporter):
     """Экспортер для класса Metadata."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [Metadata]
     
     def get_preferred_name(self, obj: Metadata) -> str:
@@ -283,7 +283,7 @@ class MetadataExporter(ObjectExporter):
     def get_class_name(self, obj: Metadata) -> str:
         return "Metadata"
     
-    def export_properties(self, obj: Metadata) -> Dict[str, Any]:
+    def export_properties(self, obj: Metadata) -> dict[str, Any]:
         properties = {}
         if obj.wrapped_ast is not None:
             # TODO: несистемное свойство ???
@@ -299,7 +299,7 @@ class MetadataExporter(ObjectExporter):
             properties["call_count"] = obj.call_count
         return properties
     
-    def export_relationships(self, obj: Metadata) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: Metadata) -> dict[str, list[Any]]:
         relationships = {}
         
         # Экспортируем abstract_action - возвращаем сам объект
@@ -320,7 +320,7 @@ class MetadataExporter(ObjectExporter):
 class NodeExporter(ObjectExporter):
     """Экспортер для класса Node."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [Node]
     
     def get_preferred_name(self, obj: Node) -> str:
@@ -331,7 +331,7 @@ class NodeExporter(ObjectExporter):
     def get_class_name(self, obj: Node) -> str:
         return "Node"
     
-    def export_properties(self, obj: Node) -> Dict[str, Any]:
+    def export_properties(self, obj: Node) -> dict[str, Any]:
         properties = {
             "id": obj.id,
             "role": obj.role,
@@ -339,7 +339,7 @@ class NodeExporter(ObjectExporter):
         }
         return properties
     
-    def export_relationships(self, obj: Node) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: Node) -> dict[str, list[Any]]:
         relationships = {}
         
         # Экспортируем metadata - возвращаем сам объект
@@ -356,7 +356,7 @@ class NodeExporter(ObjectExporter):
 class EdgeExporter(ObjectExporter):
     """Экспортер для класса Edge."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [Edge]
     
     def get_preferred_name(self, obj: Edge) -> str:
@@ -367,19 +367,18 @@ class EdgeExporter(ObjectExporter):
     def get_class_name(self, obj: Edge) -> str:
         return "Edge"
     
-    def export_properties(self, obj: Edge) -> Dict[str, Any]:
+    def export_properties(self, obj: Edge) -> dict[str, Any]:
         properties = {
             "id": obj.id,
         }
         return properties
     
-    def export_relationships(self, obj: Edge) -> Dict[str, List[Any]]:
-        relationships = {}
+    def export_relationships(self, obj: Edge) -> dict[str, list[Any]]:
+        relationships: dict[str, list[Any]] = {
+            "hasSource": [obj.cfg.nodes[obj.src]],
+            "hasDestination": [obj.cfg.nodes[obj.dst]],
+        }
         
-        # Экспортируем metadata - возвращаем сам объект
-        relationships["hasSource"] = [obj.cfg.nodes[obj.src]]
-        relationships["hasDestination"] = [obj.cfg.nodes[obj.dst]]
-
         # Экспортируем metadata - возвращаем сам объект
         if obj.metadata:
             relationships["hasMetadata"] = [obj.metadata]
@@ -398,7 +397,7 @@ class EdgeExporter(ObjectExporter):
 class CFGExporter(ObjectExporter):
     """Экспортер для класса CFG."""
     
-    def get_supported_types(self) -> List[Type]:
+    def get_supported_types(self) -> list[Type]:
         return [CFG]
     
     def get_preferred_name(self, obj: CFG) -> str:
@@ -409,14 +408,14 @@ class CFGExporter(ObjectExporter):
     def get_class_name(self, obj: CFG) -> str:
         return "CFG"
     
-    def export_properties(self, obj: CFG) -> Dict[str, Any]:
+    def export_properties(self, obj: CFG) -> dict[str, Any]:
         properties = {
             "id": obj.id,
             "name": obj.name
         }
         return properties
     
-    def export_relationships(self, obj: CFG) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: CFG) -> dict[str, list[Any]]:
         relationships = {}
         
         # Экспортируем nodes - возвращаем сами объекты

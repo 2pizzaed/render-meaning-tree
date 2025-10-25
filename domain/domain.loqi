@@ -295,6 +295,7 @@ class Metadata {
 	obj prop primary: bool ;
 	obj prop is_after_last: bool ;
 	obj prop call_count: int[0, 65536] ;
+	obj prop ast_node_id: int ;  // TODO ???
 
 	rel hasAbstractAction(ActionSpec) : {* -> 1} ;
 	rel belongsToASTNode(ASTNodeWrapper) : {* -> 1} ;
@@ -315,7 +316,7 @@ class Node {
 	rel hasEffects(Effect) ;
 	rel hasMetadata(Metadata) : {1 -> 1};
 
-	rel hasEdges(Edge) : opposite to Edge->hasDestination ;
+	rel hasEdges(Edge) : opposite to Edge->hasSource ;
 	rel startsPath(PathInfo) : opposite to PathInfo->from_;
 	rel endsPath(PathInfo) : opposite to PathInfo->to_;
 } [
@@ -326,9 +327,6 @@ class Node {
 
 class Edge {
 	obj prop id: string ;
-	obj prop src: string ;
-	obj prop dst: string ;
-	obj prop oriented: bool ;
 
 	rel belongsTo(CFG) : opposite to CFG->hasEdges ;
 	rel hasSource(Node) : {* -> 1} ;

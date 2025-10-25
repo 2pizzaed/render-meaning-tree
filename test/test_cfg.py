@@ -5,6 +5,7 @@ from src.cfg import ASTNodeWrapper
 from src.cfg import CFGBuilder
 from src.cfg.abstractions import load_constructs
 from src.cfg.cfg_visualizer import visualize_cfg
+from src.cfg.loqi_exporter import LoqiExporter
 
 
 class TestCfgBuilder(unittest.TestCase):
@@ -302,6 +303,10 @@ class TestCfgBuilder(unittest.TestCase):
 
         # Debug print CFG
         cfg.debug()
+
+        exporter = LoqiExporter()
+        output_file = "cfg9_export.loqi"
+        exporter.export_cfg(cfg, output_file)
 
         print()
         print("CFG!")

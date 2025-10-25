@@ -175,7 +175,7 @@ class LoqiExporter(ExporterManager):
         # Импортируем экспортеры здесь, чтобы избежать циклических импортов
         try:
             from .loqi_exporters import (
-                EffectsExporter, IdentificationExporter, BehaviourExporter,
+                EffectsExporter, BehaviourExporter,
                 ConstraintsExporter, ActionSpecExporter, TransitionSpecExporter,
                 ConstructSpecExporter, MetadataExporter, NodeExporter,
                 EdgeExporter, CFGExporter
@@ -187,7 +187,7 @@ class LoqiExporter(ExporterManager):
         
         # Регистрируем экспортеры
         exporters = [
-            EffectsExporter, IdentificationExporter, BehaviourExporter,
+            EffectsExporter, BehaviourExporter,
             ConstraintsExporter, ActionSpecExporter, TransitionSpecExporter,
             ConstructSpecExporter, MetadataExporter, NodeExporter,
             EdgeExporter, CFGExporter

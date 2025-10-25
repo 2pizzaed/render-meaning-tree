@@ -7,7 +7,7 @@ from .loqi_exporter import ObjectExporter
 
 # Импорты для типов объектов
 from .abstractions import (
-    Effects, Identification, Behaviour, Constraints, ActionSpec,
+    Effects, Behaviour, Constraints, ActionSpec,
     TransitionSpec, ConstructSpec, KindChain, InterruptionType,
     CallStackAction, ConditionValue, InterruptionMode, OriginType,
     RoleInListType, AppearanceType
@@ -49,43 +49,6 @@ class EffectsExporter(ObjectExporter):
         return properties
     
     def export_relationships(self, obj: Effects) -> Dict[str, List[str]]:
-        return {}
-
-
-class IdentificationExporter(ObjectExporter):
-    """Экспортер для класса Identification."""
-    
-    def get_supported_types(self) -> List[Type]:
-        return [Identification]
-    
-    def get_preferred_name(self, obj: Identification) -> str:
-        parts = []
-        if obj.origin:
-            parts.append(obj.origin.value)
-        if obj.property:
-            parts.append(obj.property)
-        if obj.role_in_list:
-            parts.append(obj.role_in_list.value)
-        
-        base_name = "_".join(parts) if parts else "empty_identification"
-        return base_name
-    
-    def get_class_name(self, obj: Identification) -> str:
-        return "Identification"
-    
-    def export_properties(self, obj: Identification) -> Dict[str, Any]:
-        properties = {}
-        if obj.origin:
-            properties["origin"] = obj.origin
-        if obj.property:
-            properties["property"] = obj.property
-        if obj.property_path:
-            properties["property_path"] = obj.property_path
-        if obj.role_in_list:
-            properties["role_in_list"] = obj.role_in_list
-        return properties
-    
-    def export_relationships(self, obj: Identification) -> Dict[str, List[str]]:
         return {}
 
 

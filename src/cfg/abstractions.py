@@ -324,17 +324,10 @@ def load_appearance_profiles(path="./construct_appearance.yml", debug=False) -> 
     # Create AppearanceProfile objects
     profiles_list = []
     for profile_name, profile_checks in profiles_data.items():
-        # Convert each key-value pair to {KindChain: AppearanceType}
-        checks = {}
-        for kind_str, appearance_str in profile_checks.items():
-            kind_chain = KindChain(kind_str)
-            appearance_type = AppearanceType(appearance_str)
-            checks[kind_chain] = appearance_type
-        
         # Create AppearanceProfile using DictLikeDataclass.make
         profile = AppearanceProfile.make({
             "name": profile_name,
-            "checks": checks
+            "checks": profile_checks
         })
         profiles_list.append(profile)
 

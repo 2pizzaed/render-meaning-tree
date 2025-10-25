@@ -32,7 +32,7 @@ class EffectsExporter(ObjectExporter):
         if obj.call_stack:
             parts.append(f"call_{obj.call_stack.value}")
         
-        base_name = "_".join(parts) if parts else "effect"
+        base_name = "_".join(parts) if parts else "empty_effect"
         return base_name
     
     def get_class_name(self, obj: Effects) -> str:
@@ -67,7 +67,7 @@ class IdentificationExporter(ObjectExporter):
         if obj.role_in_list:
             parts.append(obj.role_in_list.value)
         
-        base_name = "_".join(parts) if parts else "identification"
+        base_name = "_".join(parts) if parts else "empty_identification"
         return base_name
     
     def get_class_name(self, obj: Identification) -> str:
@@ -127,7 +127,7 @@ class ConstraintsExporter(ObjectExporter):
         if obj.interruption_mode:
             parts.append(f"mode_{obj.interruption_mode.value}")
         
-        base_name = "_".join(parts) if parts else "constraint"
+        base_name = "_".join(parts) if parts else "empty_constraint"
         return base_name
     
     def get_class_name(self, obj: Constraints) -> str:
@@ -307,7 +307,7 @@ class MetadataExporter(ObjectExporter):
         if obj.has_corresponding_end is not None:
             parts.append(f"has_end_{obj.has_corresponding_end.id}")
         
-        base_name = "_".join(parts) if parts else "metadata"
+        base_name = "_".join(parts) if parts else "empty_metadata"
         return base_name
     
     def get_class_name(self, obj: Metadata) -> str:

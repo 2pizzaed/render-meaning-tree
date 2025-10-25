@@ -13,7 +13,7 @@ from src.types import Node
 
 @dataclass
 class Metadata(DictLikeDataclass):
-    """General metadata for actions, transitions, and nodes"""
+    """General metadata for transitions and nodes"""
     assumed_value: Optional[bool] = None
     # ast_node: Optional[str] = None
     abstract_action: Optional['ActionSpec'] = None

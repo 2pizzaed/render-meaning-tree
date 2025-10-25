@@ -140,12 +140,12 @@ class Constraints(DictLikeDataclass):
 
 @dataclass
 class ActionSpec(DictLikeDataclass):
-    # name: str
     role: str
+    name: str = None
     kind: KindChain = KindChain()
     generalization: str | None = None  # general role
     effects: list[Effects] = field(default_factory=list)
-    identification: Identification = field(default_factory=Identification)
+    identification: Identification = field(default_factory=Identification)  # not exported; for CFG construction only.
     behaviour: Behaviour = field(default_factory=Behaviour)
 
     def find_node_data(self, wrapped_ast: 'aw.ASTNodeWrapper', previous_action_data: 'aw.ASTNodeWrapper'=None) -> (
@@ -189,13 +189,16 @@ class ConstructSpec(DictLikeDataclass):
     def __post_init__(self):
         # Add BEGIN and END actions if not present
         for b in (BEGIN, END):
+            # add bounds if not defined explicitly.
             if not any(action.role == b for action in self.actions):
                 self.actions.append(ActionSpec(role=b, kind=self.kind))
 
-        self.id2action = {
-            action.role: action
-            for action in self.actions
-        }
+        # re-index actions by role,
+        # & set full name based on construct name
+        self.id2action = {}
+        for action in self.actions:
+            self.id2action[action.role] = action
+            action.name = self.name + "_" + action.role
 
         # Add construct's Effects to END node
         self.id2action[END].effects += self.effects

@@ -115,7 +115,7 @@ class ActionSpecExporter(ObjectExporter):
         return [ActionSpec]
     
     def get_preferred_name(self, obj: ActionSpec) -> str:
-        base_name = f"action_{obj.role}"
+        base_name = f"action_{obj.name}"
         return base_name
     
     def get_class_name(self, obj: ActionSpec) -> str:

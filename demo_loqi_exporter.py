@@ -57,7 +57,11 @@ def demo_cfg_export():
     # Добавляем узел
     metadata = Metadata(assumed_value=True, call_count=1)
     node = cfg.add_node(NodeKind.CONDITION, "condition_node", metadata=metadata)
-    
+
+    # Создаём эффект
+    effect = Effects(interruption_stop=InterruptionType.BREAK)
+    node.effects = [effect]
+
     # Добавляем ребро
     edge = cfg.connect(cfg.begin_node, node)
     

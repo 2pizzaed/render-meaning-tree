@@ -254,21 +254,9 @@ class LoqiExporter(ExporterManager):
     
     def _collect_cfg_objects(self, cfg):
         """Собирает все объекты из CFG для экспорта."""
-        # Добавляем сам CFG
+        # Добавляем сам CFG (и все связанные с ним объекты рекурсивно)
         self.add_object(cfg)
         
-        # Добавляем все узлы и их метаданные
-        for node in cfg.nodes.values():
-            self.add_object(node)
-            if hasattr(node, 'metadata') and node.metadata:
-                self.add_object(node.metadata)
-        
-        # Добавляем все рёбра и их метаданные
-        for edge in cfg.edges:
-            self.add_object(edge)
-            if hasattr(edge, 'metadata') and edge.metadata:
-                self.add_object(edge.metadata)
-    
     def _register_all_objects(self):
         """Регистрирует все объекты и их имена."""
         for obj in self.exported_objects:

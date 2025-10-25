@@ -7,7 +7,7 @@ Loqi Exporter - модуль для экспорта объектов Python в 
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Optional, Type
 
 
 class ValueConverter:
@@ -47,7 +47,7 @@ class NameRegistry:
     """Реестр имён объектов для обеспечения уникальности объектов в рамках одного типа."""
     
     def __init__(self):
-        self._type_name_to_uname: Dict[tuple[str, str], str] = {}
+        self._type_name_to_uname: dict[tuple[str, str], str] = {}
 
     def register_object(self, obj: Any, preferred_name: str) -> str:
         """Регистрирует объект и возвращает уникальное имя."""
@@ -89,7 +89,7 @@ class ExporterManager:
         cls.registered_classes[class_type.__name__] = class_type
         return class_type
     
-    def __init__(self, name_registry: NameRegistry = None, exporters: Dict[type, 'ObjectExporter'] = None):
+    def __init__(self, name_registry: NameRegistry = None, exporters: dict[type, 'ObjectExporter'] = None):
         self.name_registry = name_registry or NameRegistry()
         self.exporters = exporters or {}
     
@@ -109,9 +109,13 @@ class ExporterManager:
 class ObjectExporter(ExporterManager, ABC):
     """Абстрактный базовый класс для экспортеров конкретных типов объектов."""
 
-    def __init__(self, name_registry: NameRegistry = None, exporters: Dict[type, 'ObjectExporter'] = None):
+    def __init__(self, name_registry: NameRegistry = None, exporters: dict[type, 'ObjectExporter'] = None):
         super().__init__(name_registry, exporters)
 
+    @abstractmethod
+    def get_supported_types(self) -> list[Type]:
+        """ Для каких типов экспортируемых объектов предназначен "экспортёр". """
+        raise NotImplementedError
 
     @abstractmethod
     def get_preferred_name(self, obj: Any) -> str:
@@ -134,12 +138,12 @@ class ObjectExporter(ExporterManager, ABC):
         return self.name_registry.register_object(obj, preferred_name)
 
     @abstractmethod
-    def export_properties(self, obj: Any) -> Dict[str, Any]:
+    def export_properties(self, obj: Any) -> dict[str, Any]:
         """Получить скалярные свойства объекта."""
         pass
     
     @abstractmethod
-    def export_relationships(self, obj: Any) -> Dict[str, List[Any]]:
+    def export_relationships(self, obj: Any) -> dict[str, list[Any]]:
         """Получить отношения (ссылки на другие объекты). Возвращает объекты, а не их имена."""
         pass
     
@@ -177,7 +181,7 @@ class LoqiExporter(ExporterManager):
     
     def __init__(self):
         super().__init__()
-        self.exported_objects: List[Any] = []
+        self.exported_objects: list[Any] = []
         self._setup_exporters()
     
     def _setup_exporters(self):
@@ -212,10 +216,9 @@ class LoqiExporter(ExporterManager):
             self.exported_objects.append(obj)
             # Автоматически регистрируем связанные объекты (рекурсивно)
             self._add_related_objects(obj)
-        else:
+        elif 0:
             # debugging. TODO: remove this print.
             print(f"Warning: Object `{exporter.get_registered_name_for_object(obj)}` already registered, ignoring.")
-            # print(f"Warning: Object `{str(obj)[:400]}` already registered, ignoring.")
 
     def _add_related_objects(self, obj: Any):
         """Добавляет все объекты, связанные с данным объектом через relationships."""

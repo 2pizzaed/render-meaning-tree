@@ -301,12 +301,15 @@ class TestCfgBuilder(unittest.TestCase):
         print(f'Reduction: {(removed) / (len(cfg.edges) + removed) * 100:.1f}% fewer edges')
         print()
 
-        # Debug print CFG
-        cfg.debug()
-
+        # Export to LOQI
         exporter = LoqiExporter()
         output_file = "cfg9_export.loqi"
         exporter.export_cfg(cfg, output_file)
+
+        return
+
+        # Debug print CFG
+        cfg.debug()
 
         print()
         print("CFG!")

@@ -12,7 +12,7 @@ from src.cfg.cfg import CFG
 from src.helpers.diff import make_str_diff
 from src.meaning_tree import node_hierarchy
 
-ButtonType = Literal["play", "stop", "step-into", "step-out", "circle-question-mark"]
+ButtonType = Literal["play", "stop", "step-into", "step-out", "question"]
 ButtonStyle = Literal["filled", "outlined"]
 
 
@@ -326,7 +326,7 @@ class CodeHighlightGenerator:
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
                 self._range_for = [token.get("value", "")]
-                return "circle-question-mark", "filled"
+                return "question", "outlined"
             if node_token_pos == "middle" and self.language != "python":
                 if (
                     token.get("value", "") != ";"
@@ -334,13 +334,13 @@ class CodeHighlightGenerator:
                     and self._range_for[-1] == ";"
                 ):
                     self._range_for.append("") # dummy token as marker of processed semicolon
-                    return "circle-question-mark", "filled"
+                    return "question", "outlined"
                 self._range_for.append(token.get("value", ""))
             elif node_token_pos == "end":
                 self._range_for = []
 
         if for_component and for_component != "range" and button_position == "start":
-            return "circle-question-mark", "filled"
+            return "question", "outlined"
 
 
         # Вложенный вызов функции
@@ -363,7 +363,7 @@ class CodeHighlightGenerator:
 
         # Заголовки циклов и условий
         if is_header and button_position == "start":
-            return "circle-question-mark", "filled"
+            return "question", "outlined"
 
         # Составные statements
         if is_block and token.get("value", "").strip():

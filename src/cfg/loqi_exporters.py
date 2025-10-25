@@ -167,23 +167,34 @@ class TransitionSpecExporter(ObjectExporter):
     
     def get_class_name(self, obj: TransitionSpec) -> str:
         return "TransitionSpec"
-    
+
+    @classmethod
+    def _get_action(cls, obj: TransitionSpec, action_name: str) -> ActionSpec:
+        action_obj = obj.construct.find_action_by_role(action_name)
+        return action_obj
+
     def export_properties(self, obj: TransitionSpec) -> Dict[str, Any]:
         properties = {}
-        if obj.from_:
-            properties["from_"] = obj.from_
-        if obj.to:
-            properties["to"] = obj.to
-        if obj.to_when_absent:
-            if isinstance(obj.to_when_absent, list):
-                properties["to_when_absent"] = obj.to_when_absent
-            else:
-                properties["to_when_absent"] = [obj.to_when_absent]
         return properties
     
     def export_relationships(self, obj: TransitionSpec) -> Dict[str, List[Any]]:
         relationships = {}
-        
+
+        if obj.from_:
+            relationships["from_"] = [self._get_action(obj, obj.from_)]
+        if obj.to:
+            relationships["to_"] = [self._get_action(obj, obj.to)]
+        if obj.to_when_absent:
+            if isinstance(obj.to_when_absent, list):
+                to_when_absent_list = obj.to_when_absent
+            else:
+                to_when_absent_list = [obj.to_when_absent]
+
+            relationships["to_when_absent"] = [
+                self._get_action(obj, action_name)
+                for action_name in to_when_absent_list
+            ]
+
         # ConstructSpec
         if obj.construct:
             relationships["hasConstruct"] = [obj.construct]
@@ -274,8 +285,10 @@ class MetadataExporter(ObjectExporter):
     
     def export_properties(self, obj: Metadata) -> Dict[str, Any]:
         properties = {}
-        if obj.assumed_value is not None:
-            properties["assumed_value"] = obj.assumed_value
+        if obj.wrapped_ast is not None:
+            # TODO: несистемное свойство ???
+            properties["ast_node_id"] = obj.wrapped_ast.ast_node['id']
+
         if obj.assumed_value is not None:
             properties["assumed_value"] = obj.assumed_value
         if obj.primary is not None:
@@ -357,8 +370,6 @@ class EdgeExporter(ObjectExporter):
     def export_properties(self, obj: Edge) -> Dict[str, Any]:
         properties = {
             "id": obj.id,
-            "src": obj.src,
-            "dst": obj.dst
         }
         return properties
     
@@ -366,9 +377,13 @@ class EdgeExporter(ObjectExporter):
         relationships = {}
         
         # Экспортируем metadata - возвращаем сам объект
+        relationships["hasSource"] = [obj.cfg.nodes[obj.src]]
+        relationships["hasDestination"] = [obj.cfg.nodes[obj.dst]]
+
+        # Экспортируем metadata - возвращаем сам объект
         if obj.metadata:
             relationships["hasMetadata"] = [obj.metadata]
-        
+
         # Экспортируем constraints - возвращаем сам объект
         if obj.constraints:
             relationships["hasConstraints"] = [obj.constraints]

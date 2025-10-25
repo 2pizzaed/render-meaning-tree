@@ -104,7 +104,7 @@ class KindChain:
     __repr__ = __str__
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Effects(DictLikeDataclass):
     """Effects that can be applied to actions or transitions"""
     interruption_stop: Optional[InterruptionType] = None
@@ -112,7 +112,7 @@ class Effects(DictLikeDataclass):
     call_stack: Optional[CallStackAction] = None
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Identification(DictLikeDataclass):
     """Identification specification for finding nodes in AST"""
     origin: Optional[OriginType] = None
@@ -121,7 +121,7 @@ class Identification(DictLikeDataclass):
     role_in_list: Optional[RoleInListType] = None
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Behaviour(DictLikeDataclass):
     """Behaviour for actions"""
     assumed_value: Optional[bool] = None
@@ -129,7 +129,7 @@ class Behaviour(DictLikeDataclass):
     # custom: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Constraints(DictLikeDataclass):
     """Constraints for transitions"""
     condition_value: Optional[ConditionValue] = None
@@ -138,7 +138,7 @@ class Constraints(DictLikeDataclass):
     # custom: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class ActionSpec(DictLikeDataclass):
     # name: str
     role: str
@@ -158,8 +158,7 @@ class ActionSpec(DictLikeDataclass):
         return wrapped_ast.get(self.role, self.identification, previous_action_data)
 
 
-
-@dataclass
+@dataclass(unsafe_hash=True)
 class TransitionSpec(DictLikeDataclass):
     from_: Optional[str] = None
     to: Optional[str] = None
@@ -175,13 +174,14 @@ class TransitionSpec(DictLikeDataclass):
             return [self.to_when_absent]
         return []
 
-@dataclass
+
+@dataclass(unsafe_hash=True)
 class ConstructSpec(DictLikeDataclass):
     name: str
     kind: KindChain = KindChain()
-    ast_node: str = None
+    ast_node: str | None = None
     actions: list[ActionSpec] = field(default_factory=list)
-    id2action: dict[str, ActionSpec] = None
+    id2action: dict[str, ActionSpec] | None = None
     transitions: list[TransitionSpec] = field(default_factory=list)
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
@@ -217,7 +217,7 @@ class ConstructSpec(DictLikeDataclass):
             transition_chain: list of transitions that led to the target action.
         """
         current_chain = [tr]
-        
+
         while True:
             for target_role in (tr.to, *tr.to_when_absent_as_list()):
                 if target_role:
@@ -247,9 +247,6 @@ class ConstructSpec(DictLikeDataclass):
         # return None
 
 
-
-
-
 def load_constructs(path="./constructs.yml", debug=False):
     """ Load constructs.yml using DictLikeDataclass """
     if not os.path.exists(path):
@@ -266,7 +263,7 @@ def load_constructs(path="./constructs.yml", debug=False):
     for cname, cbody in constructs_raw.items():
         # Create ConstructSpec using DictLikeDataclass.make
         cs = ConstructSpec.make({"name": cname, **cbody})
-        
+
         constructs[cname] = cs
 
     if debug:
@@ -285,7 +282,7 @@ class AppearanceType(SelfValidatedEnum):
     # OPTIONAL = "optional"
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class AppearanceProfile(DictLikeDataclass):
     name: str
     checks: list[dict[KindChain, AppearanceType]]

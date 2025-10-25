@@ -50,45 +50,37 @@ class NameRegistry:
     """Реестр имён объектов для обеспечения уникальности."""
     
     def __init__(self):
-        self._used_names: Set[str] = set()
-        self._type_name_to_registered_name: Dict[tuple, str] = {}
-    
+        self._type_name_to_uname: Dict[tuple[str, str], str] = {}
+
     def register_object(self, obj: Any, preferred_name: str) -> str:
         """Регистрирует объект и возвращает уникальное имя."""
-        # Create key from type and preferred name
-        key = (type(obj), preferred_name)
-        
-        # If this (type, name) combination already exists, return existing registered name
-        if key in self._type_name_to_registered_name:
-            return self._type_name_to_registered_name[key]
-        
-        # Generate unique name
-        unique_name = self._make_unique_name(preferred_name)
-        self._used_names.add(unique_name)
-        self._type_name_to_registered_name[key] = unique_name
-        return unique_name
-    
+        # Use preferred_name as the key for content-based deduplication
+        # If this name already exists, return existing name
+        obj_type = type(obj).__name__
+        key = (obj_type, preferred_name)
+
+        if key in self._type_name_to_uname:
+            # Object of the same type with this name was already registered.
+            return self._type_name_to_uname[key]
+
+        # Check for name collision with different type
+        if preferred_name in self._type_name_to_uname.values():
+            # Name collision with different type - add type prefix
+            final_name = f"{obj_type}_{preferred_name}"
+            key = (obj_type, final_name)
+        else:
+            final_name = preferred_name
+            # key unchanged.
+
+        # Register the name
+        self._type_name_to_uname[key] = final_name
+        return final_name
+
     def get_object_name(self, obj: Any, preferred_name: str) -> Optional[str]:
         """Получает имя объекта, если он зарегистрирован."""
-        key = (type(obj), preferred_name)
-        return self._type_name_to_registered_name.get(key)
-    
-    def _make_unique_name(self, base_name: str) -> str:
-        """Создаёт уникальное имя на основе базового."""
-        # Очищаем имя от недопустимых символов
-        clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', base_name)
-        if not clean_name or clean_name[0].isdigit():
-            clean_name = f"obj_{clean_name}"
-        
-        if clean_name not in self._used_names:
-            return clean_name
-        
-        # Добавляем суффикс для уникальности
-        counter = 1
-        while f"{clean_name}_{counter}" in self._used_names:
-            counter += 1
-        
-        return f"{clean_name}_{counter}"
+        obj_type = type(obj).__name__
+        key = (obj_type, preferred_name)
+        return self._type_name_to_uname.get(key)
 
 
 class ObjectExporter(ABC):

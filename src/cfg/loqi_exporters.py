@@ -304,6 +304,8 @@ class MetadataExporter(ObjectExporter):
             parts.append(f"primary_{obj.primary}")
         if obj.call_count > 0:
             parts.append(f"calls_{obj.call_count}")
+        if obj.has_corresponding_end is not None:
+            parts.append(f"has_end_{obj.has_corresponding_end.id}")
         
         base_name = "_".join(parts) if parts else "metadata"
         return base_name

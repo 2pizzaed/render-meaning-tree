@@ -104,7 +104,7 @@ class KindChain:
     __repr__ = __str__
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class Effects(DictLikeDataclass):
     """Effects that can be applied to actions or transitions"""
     interruption_stop: Optional[InterruptionType] = None
@@ -112,7 +112,7 @@ class Effects(DictLikeDataclass):
     call_stack: Optional[CallStackAction] = None
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class Identification(DictLikeDataclass):
     """Identification specification for finding nodes in AST"""
     origin: Optional[OriginType] = None
@@ -121,7 +121,7 @@ class Identification(DictLikeDataclass):
     role_in_list: Optional[RoleInListType] = None
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class Behaviour(DictLikeDataclass):
     """Behaviour for actions"""
     assumed_value: Optional[bool] = None
@@ -129,7 +129,7 @@ class Behaviour(DictLikeDataclass):
     # custom: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class Constraints(DictLikeDataclass):
     """Constraints for transitions"""
     condition_value: Optional[ConditionValue] = None
@@ -138,7 +138,7 @@ class Constraints(DictLikeDataclass):
     # custom: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class ActionSpec(DictLikeDataclass):
     # name: str
     role: str
@@ -158,7 +158,7 @@ class ActionSpec(DictLikeDataclass):
         return wrapped_ast.get(self.role, self.identification, previous_action_data)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class TransitionSpec(DictLikeDataclass):
     from_: Optional[str] = None
     to: Optional[str] = None
@@ -174,8 +174,8 @@ class TransitionSpec(DictLikeDataclass):
             return [self.to_when_absent]
         return []
 
+@dataclass
 
-@dataclass(unsafe_hash=True)
 class ConstructSpec(DictLikeDataclass):
     name: str
     kind: KindChain = KindChain()
@@ -282,7 +282,7 @@ class AppearanceType(SelfValidatedEnum):
     # OPTIONAL = "optional"
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class AppearanceProfile(DictLikeDataclass):
     name: str
     checks: list[dict[KindChain, AppearanceType]]

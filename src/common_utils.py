@@ -18,11 +18,11 @@ class DictLikeDataclass:
     def __delitem__(self, key):
         object.__delattr__(self, key)
 
-    def __hash__(self):
-        """Generate a hash based on the dataclass fields."""
-        if not is_dataclass(self):
-            raise TypeError(f"Cannot hash non-dataclass instance of {self.__class__.__name__}")
-        return hash(tuple(getattr(self, field.name) for field in fields(self)))
+    # def __hash__(self):
+    #     """Generate a hash based on the dataclass fields."""
+    #     if not is_dataclass(self):
+    #         raise TypeError(f"Cannot hash non-dataclass instance of {self.__class__.__name__}")
+    #     return hash(tuple(getattr(self, field.name) for field in fields(self)))
 
     def get(self, key, default=None):
         return getattr(self, key, default)

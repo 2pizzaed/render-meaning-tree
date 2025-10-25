@@ -7,9 +7,7 @@ Loqi Exporter - модуль для экспорта объектов Python в 
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass
-import re
+from typing import Any, Dict, List, Optional
 
 
 class ValueConverter:
@@ -47,7 +45,7 @@ class ValueConverter:
 
 
 class NameRegistry:
-    """Реестр имён объектов для обеспечения уникальности."""
+    """Реестр имён объектов для обеспечения уникальности объектов в рамках одного типа."""
     
     def __init__(self):
         self._type_name_to_uname: Dict[tuple[str, str], str] = {}
@@ -83,13 +81,33 @@ class NameRegistry:
         return self._type_name_to_uname.get(key)
 
 
-class ObjectExporter(ABC):
+class ExporterManager:
     """Абстрактный базовый класс для экспортеров конкретных типов объектов."""
     
-    def __init__(self, name_registry: NameRegistry, exporters: Dict[type, 'ObjectExporter'] = None):
-        self.name_registry = name_registry
-        self.exporters = exporters
+    def __init__(self, name_registry: NameRegistry = None, exporters: Dict[type, 'ObjectExporter'] = None):
+        self.name_registry = name_registry or NameRegistry()
+        self.exporters = exporters or {}
     
+    def get_exporter_for(self, obj: Any) -> Optional['ObjectExporter']:
+        if self.exporters and type(obj) in self.exporters:
+            return self.exporters[type(obj)]
+        return None
+
+    def get_registered_name_for_object(self, obj: Any) -> Optional[str]:
+        """Получить зарегистрированное имя для связанного объекта (если есть экспортер для его типа)."""
+        exporter = self.get_exporter_for(obj)
+        if exporter:
+            return exporter.register_object(obj)
+        return None
+
+
+class ObjectExporter(ExporterManager, ABC):
+    """Абстрактный базовый класс для экспортеров конкретных типов объектов."""
+
+    def __init__(self, name_registry: NameRegistry = None, exporters: Dict[type, 'ObjectExporter'] = None):
+        super().__init__(name_registry, exporters)
+
+
     @abstractmethod
     def get_preferred_name(self, obj: Any) -> str:
         """Получить предпочтительное имя объекта на основе его свойств."""
@@ -100,18 +118,16 @@ class ObjectExporter(ABC):
         """Получить имя класса (типа) объекта."""
         pass
     
-    def get_object_name(self, obj: Any) -> str:
+    def is_object_registered(self, obj: Any) -> bool:
+        """Был ли объект зарегистрирован."""
+        preferred_name = self.get_preferred_name(obj)
+        return self.name_registry.get_object_name(obj, preferred_name) is not None
+
+    def register_object(self, obj: Any) -> str:
         """Получить зарегистрированное уникальное имя объекта."""
         preferred_name = self.get_preferred_name(obj)
         return self.name_registry.register_object(obj, preferred_name)
-    
-    def get_registered_name_for_object(self, obj: Any) -> Optional[str]:
-        """Получить зарегистрированное имя для связанного объекта (если есть экспортер для его типа)."""
-        if self.exporters and type(obj) in self.exporters:
-            exporter = self.exporters[type(obj)]
-            return exporter.get_object_name(obj)
-        return None
-    
+
     @abstractmethod
     def export_properties(self, obj: Any) -> Dict[str, Any]:
         """Получить скалярные свойства объекта."""
@@ -124,7 +140,7 @@ class ObjectExporter(ABC):
     
     def export_object(self, obj: Any) -> str:
         """Экспортирует объект в loqi-формат."""
-        name = self.get_object_name(obj)
+        name = self.register_object(obj)
         class_name = self.get_class_name(obj)
         properties = self.export_properties(obj)
         relationships = self.export_relationships(obj)
@@ -135,23 +151,22 @@ class ObjectExporter(ABC):
         for prop_name, prop_value in properties.items():
             converted_value = ValueConverter.convert_value(prop_value)
             if converted_value is not None:
-                lines.append(f"    {prop_name} = {converted_value};")
+                lines.append(f"  {prop_name} = {converted_value};")
         
         # Добавляем отношения
         for rel_name, rel_objects in relationships.items():
             for obj_name in rel_objects:
-                lines.append(f"    {rel_name}({obj_name});")
+                lines.append(f"  {rel_name}({obj_name});")
         
         lines.append("}")
         return "\n".join(lines)
 
 
-class LoqiExporter:
+class LoqiExporter(ExporterManager):
     """Главный класс-координатор экспорта объектов в loqi-формат."""
     
     def __init__(self):
-        self.name_registry = NameRegistry()
-        self.exporters: Dict[type, ObjectExporter] = {}
+        super().__init__()
         self.exported_objects: List[Any] = []
         self._setup_exporters()
     
@@ -184,10 +199,16 @@ class LoqiExporter:
                 self.exporters[obj_type] = exporter
     
     def add_object(self, obj: Any):
-        """Добавляет объект для экспорта."""
-        if obj is not None and type(obj) in self.exporters:
+        """Добавляет объект для экспорта, игнорируя дубликаты."""
+        if obj is None:
+            return
+
+        exporter = self.exporters[type(obj)]
+        if exporter and not exporter.is_object_registered(obj):
+            # not yet registered.
+            exporter.register_object(obj)
             self.exported_objects.append(obj)
-    
+
     def export_cfg(self, cfg, output_path: str):
         """Экспортирует CFG и все связанные объекты в файл."""
         # Собираем все объекты из CFG
@@ -222,9 +243,14 @@ class LoqiExporter:
     def _register_all_objects(self):
         """Регистрирует все объекты и их имена."""
         for obj in self.exported_objects:
-            if type(obj) in self.exporters:
-                exporter = self.exporters[type(obj)]
-                exporter.get_object_name(obj)  # Это зарегистрирует имя
+            exporter = self.get_exporter_for(obj)
+            if exporter:
+                exporter.register_object(obj)  # Это зарегистрирует имя
+
+    def get_exporter_for(self, obj: Any) -> Optional[ObjectExporter]:
+        if type(obj) in self.exporters:
+            return self.exporters[type(obj)]
+        return None
     
     def _write_to_file(self, output_path: str):
         """Записывает экспортированные объекты в файл."""

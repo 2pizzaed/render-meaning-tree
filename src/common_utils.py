@@ -30,6 +30,80 @@ class DictLikeDataclass:
     def __contains__(self, key):
         return hasattr(self, key)
 
+    def to_shallow_dict(self) -> dict:
+        """Return dictionary of all dataclass fields (non-recursive)
+         (similar to dataclasses.asdict())
+        """
+        if is_dataclass(self):
+            return {f.name: getattr(self, f.name) for f in fields(self)}
+        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+
+    def to_dict(self) -> dict:
+        """Recursively convert to dict, handling nested dataclasses, lists, dicts, and enums"""
+        if is_dataclass(self):
+            result = {}
+            for f in fields(self):
+                value = getattr(self, f.name)
+                result[f.name] = self._make_dict_value(value)
+            return result
+        return {k: self._make_dict_value(v) for k, v in self.__dict__.items() if not k.startswith('_')}
+
+    def _make_dict_value(self, value):
+        """Convert value to dict-serializable format recursively"""
+        if value is None:
+            return None
+        elif isinstance(value, (int, float, str, bool)):
+            return value
+        elif isinstance(value, list):
+            return [self._make_dict_value(item) for item in value]
+        elif isinstance(value, dict):
+            return {k: self._make_dict_value(v) for k, v in value.items()}
+        elif is_dataclass(value):
+            return value.to_dict()
+        elif hasattr(value, 'value'):  # Enum
+            return value.value
+        else:
+            return value
+
+    def __hash__(self):
+        """Return hash based on frozen representation of all fields
+        
+        Note: For non-frozen dataclasses, the @dataclass decorator sets __hash__ = None by default.
+        To use this method, either:
+        1. Use @dataclass(frozen=True), or
+        2. Manually restore: MyClass.__hash__ = MyClass.__hash__
+        """
+        if is_dataclass(self):
+            return hash(tuple(self._make_hashable(getattr(self, f.name)) for f in fields(self)))
+        return hash(tuple(self._make_hashable(v) for k, v in self.__dict__.items() if not k.startswith('_')))
+    
+    def _restore_hash_method(self):
+        """Restore the __hash__ method if it was overridden by @dataclass decorator"""
+        def hash_method(self):
+            if is_dataclass(self):
+                return hash(tuple(self._make_hashable(getattr(self, f.name)) for f in fields(self)))
+            return hash(tuple(self._make_hashable(v) for k, v in self.__dict__.items() if not k.startswith('_')))
+        
+        self.__class__.__hash__ = hash_method
+
+    def _make_hashable(self, value):
+        """Convert value to hashable format"""
+        if value is None:
+            return None
+        elif isinstance(value, (int, float, str, bool)):
+            return value
+        elif isinstance(value, list):
+            return tuple(self._make_hashable(item) for item in value)
+        elif isinstance(value, dict):
+            return tuple(sorted((self._make_hashable(k), self._make_hashable(v)) for k, v in value.items()))
+        elif is_dataclass(value):
+            # Recursively convert dataclass to hashable tuple
+            return tuple(self._make_hashable(getattr(value, f.name)) for f in fields(value))
+        elif hasattr(value, 'value'):  # Enum
+            return value.value
+        else:
+            return value
+
     @classmethod
     def make(cls, data: dict):
         """ Try to create instance from dict, creating children recursively using types declared for property annotations/type hints (mandatory or optional as typing.Optional).

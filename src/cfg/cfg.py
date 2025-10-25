@@ -149,7 +149,7 @@ class CFG:
             # update .cfg for newly added edge
             e.cfg = self
 
-    def add_node(self, kind: str, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
+    def add_node(self, kind: str | NodeKind, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
         # Извлекаем effects из ActionSpec, если есть

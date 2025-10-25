@@ -22,7 +22,7 @@ class EffectsExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Effects]
     
-    def get_object_name(self, obj: Effects) -> str:
+    def get_preferred_name(self, obj: Effects) -> str:
         # Генерируем имя на основе свойств
         parts = []
         if obj.interruption_stop:
@@ -33,7 +33,7 @@ class EffectsExporter(ObjectExporter):
             parts.append(f"call_{obj.call_stack.value}")
         
         base_name = "_".join(parts) if parts else "effect"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Effects) -> str:
         return "Effect"
@@ -58,7 +58,7 @@ class IdentificationExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Identification]
     
-    def get_object_name(self, obj: Identification) -> str:
+    def get_preferred_name(self, obj: Identification) -> str:
         parts = []
         if obj.origin:
             parts.append(obj.origin.value)
@@ -68,7 +68,7 @@ class IdentificationExporter(ObjectExporter):
             parts.append(obj.role_in_list.value)
         
         base_name = "_".join(parts) if parts else "identification"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Identification) -> str:
         return "Identification"
@@ -95,11 +95,11 @@ class BehaviourExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Behaviour]
     
-    def get_object_name(self, obj: Behaviour) -> str:
+    def get_preferred_name(self, obj: Behaviour) -> str:
         base_name = "behaviour"
         if obj.assumed_value is not None:
             base_name += f"_{obj.assumed_value}"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Behaviour) -> str:
         return "Behaviour"
@@ -120,7 +120,7 @@ class ConstraintsExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Constraints]
     
-    def get_object_name(self, obj: Constraints) -> str:
+    def get_preferred_name(self, obj: Constraints) -> str:
         parts = []
         if obj.condition_value is not None:
             parts.append(f"cond_{obj.condition_value}")
@@ -128,7 +128,7 @@ class ConstraintsExporter(ObjectExporter):
             parts.append(f"mode_{obj.interruption_mode.value}")
         
         base_name = "_".join(parts) if parts else "constraint"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Constraints) -> str:
         return "Constraint"
@@ -151,9 +151,9 @@ class ActionSpecExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [ActionSpec]
     
-    def get_object_name(self, obj: ActionSpec) -> str:
+    def get_preferred_name(self, obj: ActionSpec) -> str:
         base_name = f"action_{obj.role}"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: ActionSpec) -> str:
         return "ActionSpec"
@@ -173,7 +173,7 @@ class ActionSpecExporter(ObjectExporter):
         # Экспортируем effects как отдельные объекты
         effect_names = []
         for effect in obj.effects:
-            effect_name = self.name_registry.get_object_name(effect)
+            effect_name = self.get_registered_name_for_object(effect)
             if effect_name:
                 effect_names.append(effect_name)
         if effect_names:
@@ -181,7 +181,7 @@ class ActionSpecExporter(ObjectExporter):
         
         # Экспортируем behaviour
         if obj.behaviour:
-            behaviour_name = self.name_registry.get_object_name(obj.behaviour)
+            behaviour_name = self.get_registered_name_for_object(obj.behaviour)
             if behaviour_name:
                 relationships["hasBehaviour"] = [behaviour_name]
         
@@ -194,9 +194,9 @@ class TransitionSpecExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [TransitionSpec]
     
-    def get_object_name(self, obj: TransitionSpec) -> str:
+    def get_preferred_name(self, obj: TransitionSpec) -> str:
         base_name = f"transition_{obj.from_}_to_{obj.to}"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: TransitionSpec) -> str:
         return "TransitionSpec"
@@ -219,14 +219,14 @@ class TransitionSpecExporter(ObjectExporter):
         
         # Экспортируем constraints
         if obj.constraints:
-            constraint_name = self.name_registry.get_object_name(obj.constraints)
+            constraint_name = self.get_registered_name_for_object(obj.constraints)
             if constraint_name:
                 relationships["hasConstraints"] = [constraint_name]
         
         # Экспортируем effects
         effect_names = []
         for effect in obj.effects:
-            effect_name = self.name_registry.get_object_name(effect)
+            effect_name = self.get_registered_name_for_object(effect)
             if effect_name:
                 effect_names.append(effect_name)
         if effect_names:
@@ -241,9 +241,9 @@ class ConstructSpecExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [ConstructSpec]
     
-    def get_object_name(self, obj: ConstructSpec) -> str:
+    def get_preferred_name(self, obj: ConstructSpec) -> str:
         base_name = f"construct_{obj.name}"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: ConstructSpec) -> str:
         return "ConstructSpec"
@@ -263,7 +263,7 @@ class ConstructSpecExporter(ObjectExporter):
         # Экспортируем actions
         action_names = []
         for action in obj.actions:
-            action_name = self.name_registry.get_object_name(action)
+            action_name = self.get_registered_name_for_object(action)
             if action_name:
                 action_names.append(action_name)
         if action_names:
@@ -272,7 +272,7 @@ class ConstructSpecExporter(ObjectExporter):
         # Экспортируем transitions
         transition_names = []
         for transition in obj.transitions:
-            transition_name = self.name_registry.get_object_name(transition)
+            transition_name = self.get_registered_name_for_object(transition)
             if transition_name:
                 transition_names.append(transition_name)
         if transition_names:
@@ -281,7 +281,7 @@ class ConstructSpecExporter(ObjectExporter):
         # Экспортируем effects
         effect_names = []
         for effect in obj.effects:
-            effect_name = self.name_registry.get_object_name(effect)
+            effect_name = self.get_registered_name_for_object(effect)
             if effect_name:
                 effect_names.append(effect_name)
         if effect_names:
@@ -296,7 +296,7 @@ class MetadataExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Metadata]
     
-    def get_object_name(self, obj: Metadata) -> str:
+    def get_preferred_name(self, obj: Metadata) -> str:
         parts = []
         if obj.assumed_value is not None:
             parts.append(f"assumed_{obj.assumed_value}")
@@ -306,7 +306,7 @@ class MetadataExporter(ObjectExporter):
             parts.append(f"calls_{obj.call_count}")
         
         base_name = "_".join(parts) if parts else "metadata"
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Metadata) -> str:
         return "Metadata"
@@ -328,19 +328,19 @@ class MetadataExporter(ObjectExporter):
         
         # Экспортируем abstract_action
         if obj.abstract_action:
-            action_name = self.name_registry.get_object_name(obj.abstract_action)
+            action_name = self.get_registered_name_for_object(obj.abstract_action)
             if action_name:
                 relationships["hasAbstractAction"] = [action_name]
         
         # Экспортируем abstract_transition
         if obj.abstract_transition:
-            transition_name = self.name_registry.get_object_name(obj.abstract_transition)
+            transition_name = self.get_registered_name_for_object(obj.abstract_transition)
             if transition_name:
                 relationships["hasAbstractTransition"] = [transition_name]
         
         # Экспортируем has_corresponding_end
         if obj.has_corresponding_end:
-            end_name = self.name_registry.get_object_name(obj.has_corresponding_end)
+            end_name = self.get_registered_name_for_object(obj.has_corresponding_end)
             if end_name:
                 relationships["hasCorrespondingEnd"] = [end_name]
         
@@ -353,10 +353,10 @@ class NodeExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Node]
     
-    def get_object_name(self, obj: Node) -> str:
+    def get_preferred_name(self, obj: Node) -> str:
         # Используем существующий id как базу для имени
         base_name = obj.id
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Node) -> str:
         return "Node"
@@ -374,14 +374,14 @@ class NodeExporter(ObjectExporter):
         
         # Экспортируем metadata
         if obj.metadata:
-            metadata_name = self.name_registry.get_object_name(obj.metadata)
+            metadata_name = self.get_registered_name_for_object(obj.metadata)
             if metadata_name:
                 relationships["hasMetadata"] = [metadata_name]
         
         # Экспортируем effects
         effect_names = []
         for effect in obj.effects:
-            effect_name = self.name_registry.get_object_name(effect)
+            effect_name = self.get_registered_name_for_object(effect)
             if effect_name:
                 effect_names.append(effect_name)
         if effect_names:
@@ -396,10 +396,10 @@ class EdgeExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [Edge]
     
-    def get_object_name(self, obj: Edge) -> str:
+    def get_preferred_name(self, obj: Edge) -> str:
         # Используем существующий id как базу для имени
         base_name = obj.id
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: Edge) -> str:
         return "Edge"
@@ -417,20 +417,20 @@ class EdgeExporter(ObjectExporter):
         
         # Экспортируем metadata
         if obj.metadata:
-            metadata_name = self.name_registry.get_object_name(obj.metadata)
+            metadata_name = self.get_registered_name_for_object(obj.metadata)
             if metadata_name:
                 relationships["hasMetadata"] = [metadata_name]
         
         # Экспортируем constraints
         if obj.constraints:
-            constraint_name = self.name_registry.get_object_name(obj.constraints)
+            constraint_name = self.get_registered_name_for_object(obj.constraints)
             if constraint_name:
                 relationships["hasConstraints"] = [constraint_name]
         
         # Экспортируем effects
         effect_names = []
         for effect in obj.effects:
-            effect_name = self.name_registry.get_object_name(effect)
+            effect_name = self.get_registered_name_for_object(effect)
             if effect_name:
                 effect_names.append(effect_name)
         if effect_names:
@@ -445,10 +445,10 @@ class CFGExporter(ObjectExporter):
     def get_supported_types(self) -> List[Type]:
         return [CFG]
     
-    def get_object_name(self, obj: CFG) -> str:
+    def get_preferred_name(self, obj: CFG) -> str:
         # Используем существующий id как базу для имени
         base_name = obj.id
-        return self.name_registry.register_object(obj, base_name)
+        return base_name
     
     def get_class_name(self, obj: CFG) -> str:
         return "CFG"
@@ -466,7 +466,7 @@ class CFGExporter(ObjectExporter):
         # Экспортируем nodes
         node_names = []
         for node in obj.nodes.values():
-            node_name = self.name_registry.get_object_name(node)
+            node_name = self.get_registered_name_for_object(node)
             if node_name:
                 node_names.append(node_name)
         if node_names:
@@ -475,7 +475,7 @@ class CFGExporter(ObjectExporter):
         # Экспортируем edges
         edge_names = []
         for edge in obj.edges:
-            edge_name = self.name_registry.get_object_name(edge)
+            edge_name = self.get_registered_name_for_object(edge)
             if edge_name:
                 edge_names.append(edge_name)
         if edge_names:
@@ -483,12 +483,12 @@ class CFGExporter(ObjectExporter):
         
         # Экспортируем begin и end nodes
         if obj.begin_node:
-            begin_name = self.name_registry.get_object_name(obj.begin_node)
+            begin_name = self.get_registered_name_for_object(obj.begin_node)
             if begin_name:
                 relationships["hasBegin"] = [begin_name]
         
         if obj.end_node:
-            end_name = self.name_registry.get_object_name(obj.end_node)
+            end_name = self.get_registered_name_for_object(obj.end_node)
             if end_name:
                 relationships["hasEnd"] = [end_name]
         

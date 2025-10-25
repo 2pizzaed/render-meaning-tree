@@ -51,18 +51,27 @@ class NameRegistry:
     
     def __init__(self):
         self._used_names: Set[str] = set()
-        self._object_to_name: Dict[Any, str] = {}
+        self._type_name_to_registered_name: Dict[tuple, str] = {}
     
     def register_object(self, obj: Any, preferred_name: str) -> str:
         """Регистрирует объект и возвращает уникальное имя."""
+        # Create key from type and preferred name
+        key = (type(obj), preferred_name)
+        
+        # If this (type, name) combination already exists, return existing registered name
+        if key in self._type_name_to_registered_name:
+            return self._type_name_to_registered_name[key]
+        
+        # Generate unique name
         unique_name = self._make_unique_name(preferred_name)
         self._used_names.add(unique_name)
-        self._object_to_name[obj] = unique_name
+        self._type_name_to_registered_name[key] = unique_name
         return unique_name
     
-    def get_object_name(self, obj: Any) -> Optional[str]:
+    def get_object_name(self, obj: Any, preferred_name: str) -> Optional[str]:
         """Получает имя объекта, если он зарегистрирован."""
-        return self._object_to_name.get(obj)
+        key = (type(obj), preferred_name)
+        return self._type_name_to_registered_name.get(key)
     
     def _make_unique_name(self, base_name: str) -> str:
         """Создаёт уникальное имя на основе базового."""
@@ -85,18 +94,31 @@ class NameRegistry:
 class ObjectExporter(ABC):
     """Абстрактный базовый класс для экспортеров конкретных типов объектов."""
     
-    def __init__(self, name_registry: NameRegistry):
+    def __init__(self, name_registry: NameRegistry, exporters: Dict[type, 'ObjectExporter'] = None):
         self.name_registry = name_registry
+        self.exporters = exporters
     
     @abstractmethod
-    def get_object_name(self, obj: Any) -> str:
-        """Получить уникальное имя объекта."""
+    def get_preferred_name(self, obj: Any) -> str:
+        """Получить предпочтительное имя объекта на основе его свойств."""
         pass
     
     @abstractmethod
     def get_class_name(self, obj: Any) -> str:
         """Получить имя класса (типа) объекта."""
         pass
+    
+    def get_object_name(self, obj: Any) -> str:
+        """Получить зарегистрированное уникальное имя объекта."""
+        preferred_name = self.get_preferred_name(obj)
+        return self.name_registry.register_object(obj, preferred_name)
+    
+    def get_registered_name_for_object(self, obj: Any) -> Optional[str]:
+        """Получить зарегистрированное имя для связанного объекта (если есть экспортер для его типа)."""
+        if self.exporters and type(obj) in self.exporters:
+            exporter = self.exporters[type(obj)]
+            return exporter.get_object_name(obj)
+        return None
     
     @abstractmethod
     def export_properties(self, obj: Any) -> Dict[str, Any]:
@@ -165,7 +187,7 @@ class LoqiExporter:
         ]
         
         for exporter_class in exporters:
-            exporter = exporter_class(self.name_registry)
+            exporter = exporter_class(self.name_registry, self.exporters)
             for obj_type in exporter.get_supported_types():
                 self.exporters[obj_type] = exporter
     

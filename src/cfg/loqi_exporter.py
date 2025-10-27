@@ -31,7 +31,7 @@ class ValueConverter:
             return f'"{escaped_value}"'
 
         # Обработка Enum классов
-        if hasattr(value, 'value') and hasattr(value.__class__, '__name__'):
+        if (hasattr(value, 'value') and hasattr(value.__class__, '__name__')):
             enum_class_name = value.__class__.__name__
             enum_value = value.value
             # Преобразуем enum значение в нижний регистр для соответствия loqi
@@ -89,7 +89,7 @@ class ExporterManager:
         cls.registered_classes[class_type.__name__] = class_type
         return class_type
     
-    def __init__(self, name_registry: NameRegistry = None, exporters: dict[type, 'ObjectExporter'] = None):
+    def __init__(self, name_registry: Optional[NameRegistry] = None, exporters: Optional[dict[type, 'ObjectExporter']] = None):
         self.name_registry = name_registry or NameRegistry()
         self.exporters = exporters or {}
     
@@ -109,7 +109,7 @@ class ExporterManager:
 class ObjectExporter(ExporterManager, ABC):
     """Абстрактный базовый класс для экспортеров конкретных типов объектов."""
 
-    def __init__(self, name_registry: NameRegistry = None, exporters: dict[type, 'ObjectExporter'] = None):
+    def __init__(self, name_registry: Optional[NameRegistry] = None, exporters: Optional[dict[type, 'ObjectExporter']] = None):
         super().__init__(name_registry, exporters)
 
     @abstractmethod

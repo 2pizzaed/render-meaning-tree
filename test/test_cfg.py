@@ -1,8 +1,7 @@
 import json
 import unittest
 
-from src.cfg import ASTNodeWrapper
-from src.cfg import CFGBuilder
+from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import load_constructs
 from src.cfg.cfg_visualizer import visualize_cfg
 from src.cfg.loqi_exporter import LoqiExporter
@@ -66,7 +65,7 @@ class TestCfgBuilder(unittest.TestCase):
         #                    if e.metadata.abstract_transition.constraints.condition_value == False]
         # self.assertEqual(len(true_transitions), 1)
         # self.assertEqual(len(false_transitions), 1)
-        
+
         cfg.debug()
 
     def test_cfg_builder4(self):
@@ -218,10 +217,10 @@ class TestCfgBuilder(unittest.TestCase):
         # instead of one embedded in a for_each_loop
 
         # Also check for function_call nodes in any subgraphs
-        print(f"\n=== Checking for function_call nodes in CFG and subgraphs ===")
+        print("\n=== Checking for function_call nodes in CFG and subgraphs ===")
         for node_id, node in cfg.nodes.items():
             if node.metadata.abstract_action and node.metadata.abstract_action.kind == 'function_call':
-                print(f"      *** Found function_call node! ***")
+                print("      *** Found function_call node! ***")
 
             # if hasattr(node, 'subgraph') and node.subgraph:
             #     print(f"  Node {node_id} has subgraph with {len(node.subgraph.nodes)} nodes")
@@ -303,7 +302,7 @@ class TestCfgBuilder(unittest.TestCase):
 
         # Export to LOQI
         exporter = LoqiExporter()
-        output_file = "cfg9_export.loqi"
+        output_file = "domain/cfg9_export.loqi"
         exporter.export_cfg(cfg, output_file)
 
         return

@@ -29,7 +29,8 @@ class ValueConverter:
 
         origin = get_origin(type) or type
         if origin is not Any and isinstance(origin, builtins.type) and issubclass(origin, Enum):
-            return f"{origin.__name__}:{value.lower()}"
+            assert origin.lookup(value)  # Check if str is a valid enum entry.
+            return f"{origin.__name__}:{value}"
 
         if isinstance(value, str):
             # Экранируем строки, если они содержат специальные символы
@@ -41,8 +42,6 @@ class ValueConverter:
             enum_class_name = value.__class__.__name__
             enum_value = value.value
             # Преобразуем enum значение в нижний регистр для соответствия loqi
-            if isinstance(enum_value, str):
-                enum_value = enum_value.lower()
             return f"{enum_class_name}:{enum_value}"
 
         # Для других типов возвращаем строковое представление

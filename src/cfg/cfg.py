@@ -169,7 +169,7 @@ class CFG:
             return node
         else:
             # Node is a wrapper over a compound.
-            kind = 'enter__' + subgraph.name
+            kind = BEGIN
             nid = idgen.next(kind)
             enter_node = Node(id=nid, kind=kind, role=role, 
                              metadata=metadata or Metadata(),
@@ -177,7 +177,7 @@ class CFG:
                              cfg=self)
             self.nodes[nid] = enter_node
             
-            kind = 'leave__' + subgraph.name
+            kind = END
             nid = idgen.next(kind)
             leave_node = Node(id=nid, kind=kind, role=role, 
                              metadata=metadata or Metadata(), 

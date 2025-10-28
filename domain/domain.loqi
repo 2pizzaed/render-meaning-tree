@@ -28,23 +28,6 @@ enum OptionalBoolValue {
 ]
 
 
-enum OriginType {
-	parent [
-		RU.localizedName = "родительский" ;
-		EN.localizedName = "parent" ;
-	
-	],
-	previous [
-		RU.localizedName = "предыдущий" ;
-		EN.localizedName = "previous" ;
-	
-	],
-} [
-	RU.localizedName = "тип происхождения" ;
-	EN.localizedName = "origin type" ;
-
-]
-
 enum InterruptionType {
 	break [
 		RU.localizedName = "прерывание цикла" ;
@@ -162,19 +145,14 @@ enum ActionKind {
 ]
 
 enum NodeKind {
-	begin [
+	BEGIN [
 		RU.localizedName = "начало" ;
 		EN.localizedName = "begin" ;
 	
 	],
-	end [
+	END [
 		RU.localizedName = "конец" ;
 		EN.localizedName = "end" ;
-	
-	],
-	condition [
-		RU.localizedName = "условие" ;
-		EN.localizedName = "condition" ;
 	
 	],
 	atom_stmt [

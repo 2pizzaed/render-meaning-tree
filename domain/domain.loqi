@@ -206,7 +206,7 @@ class Effect {
 
 
 class Behaviour {
-	obj prop assumed_value: OptionalBoolValue ;
+	obj prop assumed_value: bool ;
 } [
 	RU.localizedName = "поведение" ;
 	EN.localizedName = "behaviour" ;
@@ -214,7 +214,7 @@ class Behaviour {
 ]
 
 class Constraint {
-	obj prop condition_value: OptionalBoolValue ;
+	obj prop condition_value: bool ;
 	obj prop interruption_mode: InterruptionType ;
 } [
 	RU.localizedName = "ограничение" ;
@@ -269,7 +269,6 @@ class ConstructSpec {
 
 
 class Metadata {
-	obj prop assumed_value: OptionalBoolValue ;
 	obj prop primary: bool ;
 	obj prop is_after_last: bool ;
 	obj prop call_count: int[0, 65536] ;
@@ -357,7 +356,7 @@ class PathInfo {
 
 class ASTNodeWrapper {
 	obj prop ast_node: string ;
-	obj prop current_condition_value: OptionalBoolValue ;
+	obj prop current_condition_value: bool ;
 
 	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
 	rel hasChildren(ASTNodeWrapper) ;
@@ -384,7 +383,7 @@ class State {
 
 class TraceAct {
 	obj prop is_known_correct: bool ;
-	obj prop condition_value: OptionalBoolValue ;
+	obj prop condition_value: bool ;
 
 	rel hasCFGNode(Node) : {* -> 1};
 	rel hasActionSpec(ActionSpec) : {* -> 1};

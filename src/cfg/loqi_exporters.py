@@ -11,7 +11,7 @@ from .loqi_exporter import ObjectExporter
 from .abstractions import (
     Effects, Behaviour, Constraints, ActionSpec,
     TransitionSpec, ConstructSpec, KindChain, InterruptionType,
-    CallStackAction, ConditionValue, InterruptionMode, OriginType,
+    CallStackAction, OptionalBoolValue, InterruptionMode, OriginType,
     RoleInListType, AppearanceType
 )
 from .cfg import Metadata, Node, Edge, CFG, NodeKind

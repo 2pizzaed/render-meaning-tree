@@ -39,10 +39,14 @@ class CallStackAction(SelfValidatedEnum):
     DROP_FRAME = "drop_frame"
 
 
-class ConditionValue(SelfValidatedEnum):
+class OptionalBoolValue(SelfValidatedEnum):
     """Condition values for constraints"""
-    TRUE = True
-    FALSE = False
+    true = True
+    false = False
+    # true = 'true'
+    # false = 'false'
+    any = 'any'
+    none = 'none'
 
 
 class InterruptionMode(SelfValidatedEnum):
@@ -142,7 +146,7 @@ class Behaviour(DictLikeDataclass):
 @dataclass
 class Constraints(DictLikeDataclass):
     """Constraints for transitions"""
-    condition_value: Optional[ConditionValue] = None
+    condition_value: Optional[bool] = None
     interruption_mode: Optional[InterruptionMode] = None
     # # Additional constraints can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)

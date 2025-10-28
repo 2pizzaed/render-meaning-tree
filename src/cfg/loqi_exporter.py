@@ -23,6 +23,8 @@ class ValueConverter:
 
         if isinstance(value, bool):
             return "true" if value else "false"
+        if isinstance(value, str) and (value == "true" or value == "false"):
+            return value
 
         if isinstance(value, (int, float)):
             return str(value)

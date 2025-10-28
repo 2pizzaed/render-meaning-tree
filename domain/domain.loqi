@@ -228,6 +228,7 @@ class ActionSpec {
 	obj prop kind: string ;
 	obj prop appearanceType: AppearanceType ;
 
+	rel hasConstruct(ConstructSpec) ;
 	rel hasEffects(Effect) ;
 	rel hasBehaviour(Behaviour) : {* -> 1} ;
 } [
@@ -239,8 +240,9 @@ class ActionSpec {
 class TransitionSpec {
 	rel from_(ActionSpec): {* -> 1};
 	rel to_(ActionSpec): {* -> 1};
-	rel to_when_absent(ActionSpec): {* -> 1};
+	rel to_when_absent(ActionSpec): {* -> 2};
 
+	rel hasConstruct(ConstructSpec) ;
 	rel hasConstraints(Constraint) ;
 	rel hasEffects(Effect) ;
 } [
@@ -290,7 +292,7 @@ class Node {
 
 	rel belongsTo(CFG) : opposite to CFG->hasNodes ;
 	rel hasEffects(Effect) ;
-	rel hasMetadata(Metadata) : {1 -> 1};
+	rel hasMetadata(Metadata) : {* -> 1};
 
 	rel hasEdges(Edge) : opposite to Edge->hasSource ;
 	rel startsPath(PathInfo) : opposite to PathInfo->from_;
@@ -307,7 +309,7 @@ class Edge {
 	rel belongsTo(CFG) : opposite to CFG->hasEdges ;
 	rel hasSource(Node) : {* -> 1} ;
 	rel hasDestination(Node) : {* -> 1} ;
-	rel hasMetadata(Metadata) : {1 -> 1};
+	rel hasMetadata(Metadata) : {* -> 1};
 	rel hasEffects(Effect) ;
 	rel hasConstraints(Constraint) ;
 } [
@@ -355,12 +357,13 @@ class PathInfo {
 ////// Уровень условия задачи -- конкретного AST //////
 
 class ASTNodeWrapper {
+	obj prop ast_id: int ;
 	obj prop ast_node: string ;
 	obj prop current_condition_value: bool ;
 
-	rel hasParent(ASTNodeWrapper) : {1 -> 1} ;
+	rel hasParent(ASTNodeWrapper) : {* -> 1} ;
 	rel hasChildren(ASTNodeWrapper) ;
-	rel hasMetadata(Metadata) : {1 -> 1};
+	rel hasMetadata(Metadata) : {* -> 1};
 } [
 	RU.localizedName = "обёртка узла AST" ;
 	EN.localizedName = "AST node wrapper" ;

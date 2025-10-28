@@ -23,13 +23,13 @@ class ASTNodeWrapper:
         """ return type and id of the AST node if set """
         if isinstance(self.ast_node, dict):
             return {
-                'ast_type': self.ast_node.get('type'), 
+                'ast_node': self.ast_node.get('type'),
                 'ast_id': self.ast_node.get('id'),
                 # 'type': type(self.ast_node).__name__,
             }
         else:
             return {
-                'ast_type': str(type(self.ast_node).__name__),
+                'ast_node': str(type(self.ast_node).__name__),
                 'ast_id': None,
                 # 'type': type(self.ast_node).__name__,
             }

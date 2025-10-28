@@ -98,7 +98,8 @@ class ConstraintsExporter(ObjectExporter):
     def get_preferred_name(self, obj: Constraints) -> str:
         parts = []
         if obj.condition_value is not None:
-            parts.append(f"cond_{obj.condition_value.value}")
+            parts.append(f"cond_{str(obj.condition_value).lower()}")
+            # parts.append(f"cond_{obj.condition_value.value}")
         if obj.interruption_mode:
             parts.append(f"mode_{obj.interruption_mode.value}")
         
@@ -244,8 +245,8 @@ class ConstructSpecExporter(ObjectExporter):
             if kinds:
                 # взять первый, самый "смысловой" тип (раз все перечислить нельзя)
                 properties["kind"] = kinds[0].value
-        if obj.ast_node:
-            properties["ast_node"] = obj.ast_node
+        # if obj.ast_node:   #internal.
+        #     properties["ast_node"] = obj.ast_node
         return properties
     
     def export_relationships(self, obj: ConstructSpec) -> dict[str, list[Any]]:

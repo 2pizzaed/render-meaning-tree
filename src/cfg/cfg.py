@@ -279,6 +279,9 @@ class CFG:
             if e.dst not in node_ids:
                 print("    TO NOWHERE!   (  -> ?)")
 
+    def edges_from_node(self, node: Node) -> list[Edge]:
+        return [e for e in self.edges if e.src == node.id]
+
     def _is_node_insignificant(self, node: Node) -> bool:
         """Проверяет, является ли узел незначимым (можно удалить)."""
         # (!) BEGIN и END могут быть незначимы, когда промежуточны.

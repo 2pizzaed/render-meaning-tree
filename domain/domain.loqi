@@ -345,8 +345,8 @@ class PathInfo {
 
 	rel from_(Node) : {* -> 1} ;  // opposite to Node->startsPath
 	rel to_(Node) : {* -> 1} ;  // opposite to Node->endsPath
-	rel viaNodes(Node) : {1 -> *} ;
-	rel viaEdges(Edge) : {1 -> *} ;
+	rel viaNodes(Node) : {* -> *} ;
+	rel viaEdges(Edge) : {* -> *} ;
 } [
 	RU.localizedName = "Путь по графу CFG и информация о достижимости" ;
 	EN.localizedName = "Path within a CFG & reachability info" ;

@@ -379,7 +379,7 @@ class ASTNodeWrapper {
 class State {
 	obj prop interruption_state: InterruptionType ;
 
-	rel hasLastConditionAction(ActionSpec) : {* -> 1};
+	rel hasLastConditionAction(ActionSpec);
 	// + значение этого условия (T/F) ???
 }
 
@@ -391,7 +391,7 @@ class TraceAct {
 	rel hasCFGNode(Node) : {* -> 1};
 	rel hasActionSpec(ActionSpec) : {* -> 1};
 	rel hasASTNode(ASTNodeWrapper) : {* -> 1} ;
-	rel hasActAsCorrespondingEnd(TraceAct) : {1 -> 1} ;
+	rel hasActAsCorrespondingEnd(TraceAct) : {1 -> *} ;
 	
 
 	rel directlyBeforeOf(TraceAct) : linear ;

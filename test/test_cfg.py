@@ -5,6 +5,7 @@ from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import load_constructs
 from src.cfg.cfg_visualizer import visualize_cfg
 from src.cfg.loqi_exporter import LoqiExporter
+from src.cfg.trace_builder import UserInteraction, build_trace_for
 
 
 class TestCfgBuilder(unittest.TestCase):
@@ -303,6 +304,19 @@ class TestCfgBuilder(unittest.TestCase):
         # Export to LOQI
         exporter = LoqiExporter()
         output_file = "domain/cfg9_export.loqi"
+
+        if cfg:
+            trace = build_trace_for(
+                cfg,
+                [
+                    UserInteraction(ast_node_id=24, button_type="play"),
+                    UserInteraction(ast_node_id=20, button_type="play"),
+                ],
+            )
+
+            exporter.add_trace(trace)
+            exporter.set_var("L0", "trace_act_0")
+            exporter.set_var("A", "trace_act_1")
         exporter.export_cfg(cfg, output_file)
 
         return

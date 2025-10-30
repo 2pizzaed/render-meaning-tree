@@ -155,13 +155,13 @@ class Constraints(DictLikeDataclass):
 @dataclass
 class ActionSpec(DictLikeDataclass):
     role: str
-    name: str = None
+    name: str | None = None
     kind: KindChain = KindChain()
     generalization: str | None = None  # general role
     effects: list[Effects] = field(default_factory=list)
     identification: Identification = field(default_factory=Identification)  # not exported; for CFG construction only.
     behaviour: Behaviour = field(default_factory=Behaviour)
-    construct: 'ConstructSpec' = None
+    construct: 'ConstructSpec | None' = None
 
     def find_node_data(self, wrapped_ast: 'aw.ASTNodeWrapper', previous_action_data: 'aw.ASTNodeWrapper'=None) -> (
             'aw.ASTNodeWrapper | None'):
@@ -175,13 +175,13 @@ class ActionSpec(DictLikeDataclass):
 
 @dataclass
 class TransitionSpec(DictLikeDataclass):
-    from_: Optional[str] = None
-    to: Optional[str] = None
-    to_when_absent: Optional[list[str] | str] = None  # Chain of fallbacks is supported as well. List is first as more specific for automatic creation/conversion.
-    constraints: Optional[Constraints] = None
+    from_: str | None = None
+    to: str | None = None
+    to_when_absent: list[str] | str | None = None  # Chain of fallbacks is supported as well. List is first as more specific for automatic creation/conversion.
+    constraints: Constraints | None = None
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
-    construct: 'ConstructSpec' = None
+    construct: 'ConstructSpec | None' = None
 
     def to_when_absent_as_list(self) -> list[str]:
         if isinstance(self.to_when_absent, list):
@@ -190,11 +190,11 @@ class TransitionSpec(DictLikeDataclass):
             return [self.to_when_absent]
         return []
 
-@dataclass
 
+@dataclass
 class ConstructSpec(DictLikeDataclass):
     name: str
-    kind: KindChain = KindChain()
+    kind: KindChain = field(default_factory=KindChain)
     ast_node: str | None = None
     actions: list[ActionSpec] = field(default_factory=list)
     role2action: dict[str, ActionSpec] | None = None
@@ -368,14 +368,14 @@ def load_appearance_profiles(path="./construct_appearance.yml", debug=False) -> 
     if profiles_priority:
         # Create a mapping of profile names to profiles
         profile_map = {profile.name: profile for profile in profiles_list}
-        
+
         # Reorder according to priority
         ordered_profiles = []
         for priority_name in profiles_priority:
             if priority_name in profile_map:
                 ordered_profiles.append(profile_map[priority_name])
                 del profile_map[priority_name]  # Remove to avoid duplicates
-        
+
         # Add remaining profiles not in priority list
         ordered_profiles.extend(profile_map.values())
         profiles_list = ordered_profiles

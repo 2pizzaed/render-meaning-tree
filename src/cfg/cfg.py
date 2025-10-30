@@ -1,26 +1,42 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Optional, Any, Self
+from typing import Optional, Self
 
+from src.cfg.abstractions import (
+    DEFAULT_APPEARANCE_PROFILE,
+    ActionSpec,
+    AppearanceType,
+    Constraints,
+    ConstructSpec,
+    Effects,
+    TransitionSpec,
+)
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.abstractions import ActionSpec, TransitionSpec, Effects, Constraints, ConstructSpec, AppearanceType, \
-    DEFAULT_APPEARANCE_PROFILE
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
-
 from src.serializers.types import FactSerializable
-from src.types import Node
+
+
+@dataclass
+class TraceAct(DictLikeDataclass):
+    wrapped_ast: ASTNodeWrapper
+    cfg_node: 'Node'
+    action_spec: ActionSpec | None
+    corresponding_end: 'TraceAct | None'
+
+    is_known_correct: bool
+    condition_value: bool | None = None
 
 
 @dataclass
 class Metadata(DictLikeDataclass):
     """General metadata for transitions and nodes"""
-    assumed_value: Optional[bool] = None
+    assumed_value: bool | None = None
     # ast_node: Optional[str] = None
     abstract_action: Optional['ActionSpec'] = None
     abstract_transition: Optional['TransitionSpec'] = None
-    wrapped_ast: Optional[ASTNodeWrapper] = None
-    primary: Optional[bool] = None
-    is_after_last: Optional[bool] = None
+    wrapped_ast: ASTNodeWrapper | None = None
+    primary: bool | None = None
+    is_after_last: bool | None = None
     call_count: int = 0  # Счётчик вызовов для функций
     has_corresponding_end: Optional['Node'] = None
     # # Additional fields can be added as needed
@@ -72,7 +88,7 @@ class Node(FactSerializable):
     id: str
     role: str
     kind: NodeKind
-    cfg: 'CFG' = None
+    cfg: 'CFG | None' = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
     # # If node wraps a subgraph, keep reference
@@ -93,8 +109,8 @@ class Edge(FactSerializable):
     id: str
     src: str
     dst: str
-    cfg: 'CFG' = None
-    constraints: Optional[Constraints] = None
+    cfg: 'CFG | None' = None
+    constraints: Constraints | None = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
 
@@ -162,7 +178,7 @@ class CFG:
             # Node is an atom (inline).
             nid = idgen.next(kind)
             node = Node(id=nid, kind=kind, role=role,
-                        metadata=metadata or Metadata(), 
+                        metadata=metadata or Metadata(),
                         effects=final_effects,
                         cfg=self)
             self.nodes[nid] = node
@@ -171,16 +187,16 @@ class CFG:
             # Node is a wrapper over a compound.
             kind = BEGIN
             nid = idgen.next(kind)
-            enter_node = Node(id=nid, kind=kind, role=role, 
+            enter_node = Node(id=nid, kind=kind, role=role,
                              metadata=metadata or Metadata(),
                              effects=[],  # no effects for begin node.
                              cfg=self)
             self.nodes[nid] = enter_node
-            
+
             kind = END
             nid = idgen.next(kind)
-            leave_node = Node(id=nid, kind=kind, role=role, 
-                             metadata=metadata or Metadata(), 
+            leave_node = Node(id=nid, kind=kind, role=role,
+                             metadata=metadata or Metadata(),
                              effects=final_effects,
                              cfg=self)
             self.nodes[nid] = leave_node
@@ -207,24 +223,24 @@ class CFG:
     def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata: Metadata=None):
         src_id = src.id if isinstance(src, Node) else src
         dst_id = dst.id if isinstance(dst, Node) else dst
-        
+
         # Автоматически извлекаем constraints и effects из TransitionSpec
         final_constraints = constraints
         final_effects = []
-        
+
         if metadata and metadata.abstract_transition:
             # Если constraints не переданы явно, берём из transition
             if final_constraints is None and metadata.abstract_transition.constraints:
                 final_constraints = metadata.abstract_transition.constraints
-            
+
             # Извлекаем effects из transition
             if metadata.abstract_transition.effects:
                 final_effects = metadata.abstract_transition.effects
-        
-        e = Edge(id=idgen.next(), src=src_id, dst=dst_id, 
-                 constraints=final_constraints, 
+
+        e = Edge(id=idgen.next(), src=src_id, dst=dst_id,
+                 constraints=final_constraints,
                  effects=final_effects,
-                 metadata=metadata or Metadata(), 
+                 metadata=metadata or Metadata(),
                  cfg=self)
         self._add_edge(e)
         return e
@@ -287,19 +303,19 @@ class CFG:
         # (!) BEGIN и END могут быть незначимы, когда промежуточны.
         # if node.role in (BEGIN, END):
         #     return False
-        
+
         # Проверяем наличие эффектов
         if node.effects:
             return False
-        
+
         # Проверяем метаданные
         if not node.metadata.is_empty():
             return False
-        
+
         # Проверяем, что узел не является развилкой
         incoming = [e for e in self.edges if e.dst == node.id]
         outgoing = [e for e in self.edges if e.src == node.id]
-        
+
         # Узел незначимый, если ровно 1 вход и 1 выход
         return len(incoming) == 1 and len(outgoing) == 1
 
@@ -308,11 +324,11 @@ class CFG:
         # Проверяем constraints
         if edge.constraints is not None:
             return False
-        
+
         # Проверяем effects
         if edge.effects:
             return False
-        
+
         # Проверяем метаданные
         return edge.metadata.is_empty()
 
@@ -322,34 +338,34 @@ class CFG:
         Возвращает количество удалённых узлов.
         """
         removed_count = 0
-        
+
         # Повторяем, пока есть что удалять
         while True:
             # Находим один узел для удаления за итерацию
             node_to_remove = None
-            
+
             for node_id, node in self.nodes.items():
                 if self._is_node_insignificant(node):
                     # Находим входящее и исходящее рёбра
                     incoming = [e for e in self.edges if e.dst == node_id]
                     outgoing = [e for e in self.edges if e.src == node_id]
-                    
+
                     # Должно быть ровно 1 входящее и 1 исходящее (проверено в _is_node_insignificant)
                     edge_in = incoming[0]
                     edge_out = outgoing[0]
-                    
+
                     # Проверяем, что хотя бы одно из рёбер незначимое
                     if self._is_edge_insignificant(edge_in) or self._is_edge_insignificant(edge_out):
                         node_to_remove = (node_id, edge_in, edge_out)
                         break  # Обрабатываем только один узел за итерацию
-            
+
             # Если нечего удалять, выходим
             if not node_to_remove:
                 break
-            
+
             # Удаляем узел и перенаправляем рёбра
             node_id, edge_in, edge_out = node_to_remove
-            
+
             # Создаём новое ребро напрямую от src edge_in к dst edge_out
             # Если одно из рёбер значимое, сохраняем его метаданные
             if self._is_edge_insignificant(edge_in):
@@ -362,7 +378,7 @@ class CFG:
                 new_constraints = edge_in.constraints
                 new_effects = edge_in.effects
                 new_metadata = edge_in.metadata
-            
+
             new_edge = Edge(
                 id=idgen.next('optimized_edge'),
                 src=edge_in.src,
@@ -372,17 +388,17 @@ class CFG:
                 effects=new_effects,
                 metadata=new_metadata
             )
-            
+
             # Удаляем старые рёбра
             self.edges.remove(edge_in)
             self.edges.remove(edge_out)
-            
+
             # Добавляем новое ребро
             self._add_edge(new_edge)
-            
+
             # Удаляем узел
             del self.nodes[node_id]
-            
+
             removed_count += 1
-        
+
         return removed_count

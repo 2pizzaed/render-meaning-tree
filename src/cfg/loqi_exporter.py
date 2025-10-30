@@ -6,10 +6,12 @@ Loqi Exporter - модуль для экспорта объектов Python в 
 алгоритмами проверки.
 """
 
-from abc import ABC, abstractmethod
 import builtins
+from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Optional, get_origin
+
+from src.cfg.cfg import TraceAct
 
 
 class ValueConverter:
@@ -85,7 +87,6 @@ class NameRegistry:
         obj_type = type(obj).__name__
         key = (obj_type, preferred_name)
         return self._type_name_to_uname.get(key)
-
 
 class ExporterManager:
     """Вспомогательный класс для управления "экспортерами" -- подклассами ObjectExporter."""
@@ -189,6 +190,7 @@ class LoqiExporter(ExporterManager):
     def __init__(self):
         super().__init__()
         self.exported_objects: list[Any] = []
+        self.vars: dict[Any, str] = {}
         self._setup_exporters()
 
     def _setup_exporters(self):
@@ -209,8 +211,37 @@ class LoqiExporter(ExporterManager):
             for obj_type in exporter.get_supported_types():
                 self.exporters[obj_type] = exporter
 
+    def lookup_object(self, name: str) -> Any | None:
+        for obj in self.exported_objects:
+            registered_name = self.get_registered_name_for_object(obj)
+            if registered_name == name:
+                return obj
+        return None
+
+    def set_var(self, name: str, obj_name: str) -> None:
+        if self.lookup_object(obj_name):
+            self.vars[obj_name] = name
+        else:
+            raise ValueError(f"Object with name `{obj_name}` not found among exported objects.")
+
+    def add_trace(self, trace: list[TraceAct]) -> None:
+        """Добавляет трассировку для экспорта."""
+        exporter = self.exporters.get(type(trace[0]))
+
+        if exporter:
+            exporter.add_full_trace(trace) # pyright: ignore[reportAttributeAccessIssue]
+
+        for trace_act in trace:
+            if not exporter.is_object_registered(trace_act): # pyright: ignore[reportOptionalMemberAccess]
+                exporter.register_object(trace_act) # pyright: ignore[reportOptionalMemberAccess]
+                self.exported_objects.append(trace_act)
+                # Автоматически регистрируем связанные объекты (рекурсивно)
+                self._add_related_objects(trace_act, True)
+
     def add_object(self, obj: Any):
         """Добавляет объект для экспорта, игнорируя дубликаты."""
+        if isinstance(obj, TraceAct):
+            raise ValueError("TraceAct objects should be added via `add_trace` method.")
         if obj is None:
             return
 
@@ -227,7 +258,7 @@ class LoqiExporter(ExporterManager):
             # debugging. TODO: remove this print.
             print(f"Warning: Object `{exporter.get_registered_name_for_object(obj)}` already registered, ignoring.")
 
-    def _add_related_objects(self, obj: Any):
+    def _add_related_objects(self, obj: Any, ignore_self_type: bool = False):
         """Добавляет все объекты, связанные с данным объектом через relationships."""
         exporter = self.get_exporter_for(obj)
         if not exporter:
@@ -239,6 +270,8 @@ class LoqiExporter(ExporterManager):
         # Проходим по всем связанным объектам и добавляем их
         for rel_name, rel_objects in relationships.items():
             for rel_obj in rel_objects:
+                if ignore_self_type and type(rel_obj) is type(obj):
+                    continue
                 if rel_obj is not None:
                     # Рекурсивный вызов add_object - он сам проверит на дубликаты
                     self.add_object(rel_obj)
@@ -295,5 +328,8 @@ class LoqiExporter(ExporterManager):
                     for obj in objects:
                         exporter = self.exporters[obj_type]
                         loqi_code = exporter.export_object(obj)
+                        if var := self.vars.get(self.name_registry.get_object_name(obj, exporter.get_preferred_name(obj))):
+                            var = var if " " not in var else f"`{var}`"
+                            loqi_code = f"var {var} = {loqi_code}"
                         f.write(loqi_code)
                         f.write("\n\n")

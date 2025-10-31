@@ -6,7 +6,7 @@ from src.cfg.abstractions import InterruptionType, SituationState, load_construc
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.cfg_visualizer import visualize_cfg
 from src.cfg.loqi_exporter import LoqiExporter
-from src.cfg.reachability import determine_all_paths_through
+from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import UserInteraction, build_trace_for
 
 
@@ -331,8 +331,8 @@ class TestCfgBuilder(unittest.TestCase):
             exporter.set_var("L0", "trace_act_0")
             exporter.set_var("A", "trace_act_1")
             
-            # Find and export all paths
-            paths = determine_all_paths_through(cfg)
+            # Find and export all paths between opaque nodes
+            paths = determine_all_paths_between_opaque_nodes(cfg)
             if paths:
                 exporter.add_paths(paths)
         exporter.export_cfg(cfg, output_file)
@@ -374,8 +374,8 @@ class TestCfgBuilder(unittest.TestCase):
         exporter = LoqiExporter()
         output_file = "domain/cfg10_export.loqi"
         
-        # Find and export all paths
-        paths = determine_all_paths_through(cfg)
+        # Find and export all paths between opaque nodes
+        paths = determine_all_paths_between_opaque_nodes(cfg)
         if paths:
             exporter.add_paths(paths)
         

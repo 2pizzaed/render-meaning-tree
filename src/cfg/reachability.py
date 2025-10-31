@@ -158,4 +158,37 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
         return [result]
 
 
+def find_opaque_nodes(cfg: CFG) -> list[Node]:
+    """Находит все узлы CFG с AppearanceType.MANDATORY (непрозрачные узлы)."""
+    opaque_nodes = []
+    for node in cfg.nodes.values():
+        if node.appearance == AppearanceType.MANDATORY:
+            opaque_nodes.append(node)
+    return opaque_nodes
+
+
+def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
+    """
+    Определяет все возможные пути между всеми парами непрозрачных узлов (с AppearanceType.MANDATORY).
+    Возвращает список всех найденных путей, отсортированный по длине (от коротких к длинным).
+    """
+    opaque_nodes = find_opaque_nodes(cfg)
+    all_paths: list[PathInfo] = []
+    
+    # Перебираем все пары opaque узлов (включая самопереходы)
+    for from_node in opaque_nodes:
+        for to_node in opaque_nodes:
+            # Для каждой пары ищем все пути
+            paths = determine_all_paths_through(cfg, from_node.id, to_node.id)
+            # Добавляем только пути, которые действительно существуют (ways_count > 0)
+            for path in paths:
+                if path.ways_count > 0:
+                    all_paths.append(path)
+    
+    # Сортируем по длине пути (от коротких к длинным)
+    all_paths.sort(key=lambda p: p.cfg_steps)
+    
+    return all_paths
+
+
 

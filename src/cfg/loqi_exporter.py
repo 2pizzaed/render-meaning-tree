@@ -34,7 +34,10 @@ class ValueConverter:
         origin = get_origin(type) or type
         if origin is not Any and isinstance(origin, builtins.type) and issubclass(origin, Enum):
             assert origin.lookup(value)  # Check if str is a valid enum entry.
-            return f"{origin.__name__}:{value}"
+            if isinstance(value, str):
+                return f"{origin.__name__}:{value}"
+            else:
+                return f"{origin.__name__}:{value.value}"
 
         if isinstance(value, str):
             # Экранируем строки, если они содержат специальные символы
@@ -218,11 +221,13 @@ class LoqiExporter(ExporterManager):
                 return obj
         return None
 
-    def set_var(self, name: str, obj_name: str) -> None:
-        if self.lookup_object(obj_name):
-            self.vars[obj_name] = name
+    def set_var(self, name: str, obj: str | Any) -> None:
+        if isinstance(obj, str) and self.lookup_object(obj):
+            self.vars[obj] = name
+        elif exporter := self.get_exporter_for(obj):
+            self.vars[exporter.register_object(obj)] = name
         else:
-            raise ValueError(f"Object with name `{obj_name}` not found among exported objects.")
+            raise ValueError(f"Object with name `{obj}` not found among exported objects.")
 
     def add_trace(self, trace: list[TraceAct]) -> None:
         """Добавляет трассировку для экспорта."""

@@ -2,7 +2,7 @@ import json
 import unittest
 
 from src.cfg import ASTNodeWrapper, CFGBuilder
-from src.cfg.abstractions import load_constructs
+from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.cfg_visualizer import visualize_cfg
 from src.cfg.loqi_exporter import LoqiExporter
@@ -322,6 +322,10 @@ class TestCfgBuilder(unittest.TestCase):
             )
 
             exporter.add_trace(trace)
+            exporter.add_object(situation := SituationState(
+                interruption_state=InterruptionType.NONE,
+            ))
+            exporter.set_var("STATE", situation)
             exporter.set_var("L0", "trace_act_0")
             exporter.set_var("A", "trace_act_1")
         exporter.export_cfg(cfg, output_file)

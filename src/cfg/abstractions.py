@@ -31,6 +31,8 @@ class InterruptionType(SelfValidatedEnum):
     CONTINUE = "continue"
     RETURN = "return"
     EXCEPTION = "exception"
+    NONE = "none"
+    ANY = "any"
 
 
 class CallStackAction(SelfValidatedEnum):

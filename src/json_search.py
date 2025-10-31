@@ -113,7 +113,7 @@ def search_with_paths_dfs(data: Any, predicate: Callable[[Any], bool], max_resul
     return results
 
 
-def get_node_by_path(data: Any, path: list[str]) -> Any:
+def get_node_by_path(data: Any, path: list[str]) -> list | dict[str, Any]:
     """
     Получить узел по пути в JSON данных.
     

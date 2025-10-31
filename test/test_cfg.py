@@ -165,6 +165,7 @@ class TestCfgBuilder(unittest.TestCase):
         # Export to LOQI
         exporter = LoqiExporter()
         output_file = "domain/cfg6_export.loqi"
+        exporter.export_cfg(cfg, output_file)
 
         visualize_cfg_graphviz(cfg, "cfg_6_gv.png")
         # cfg.debug()
@@ -366,6 +367,7 @@ class TestCfgBuilder(unittest.TestCase):
         # Export to LOQI
         exporter = LoqiExporter()
         output_file = "domain/cfg10_export.loqi"
+        exporter.export_cfg(cfg, output_file)
 
         visualize_cfg_graphviz(cfg, "cfg_10_gv.png")
         # cfg.debug()

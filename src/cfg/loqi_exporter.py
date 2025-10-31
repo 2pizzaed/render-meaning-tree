@@ -12,6 +12,7 @@ from enum import Enum
 from typing import Any, Optional, get_origin
 
 from src.cfg.cfg import TraceAct
+from src.common_utils import SelfValidatedEnum
 
 
 class ValueConverter:
@@ -32,7 +33,7 @@ class ValueConverter:
             return str(value)
 
         origin = get_origin(type) or type
-        if origin is not Any and isinstance(origin, builtins.type) and issubclass(origin, Enum):
+        if origin is not Any and isinstance(origin, builtins.type) and issubclass(origin, SelfValidatedEnum):
             assert origin.lookup(value)  # Check if str is a valid enum entry.
             if isinstance(value, str):
                 return f"{origin.__name__}:{value}"
@@ -48,7 +49,6 @@ class ValueConverter:
         if (hasattr(value, 'value') and hasattr(value.__class__, '__name__')):
             enum_class_name = value.__class__.__name__
             enum_value = value.value
-            # Преобразуем enum значение в нижний регистр для соответствия loqi
             return f"{enum_class_name}:{enum_value}"
 
         # Для других типов возвращаем строковое представление

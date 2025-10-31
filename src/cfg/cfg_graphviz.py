@@ -51,8 +51,16 @@ def visualize_cfg_graphviz(
     # 1) Переиспользуем сборку networkx-графа
     G: nx.DiGraph = _build_networkx_graph(cfg)
 
-    # 2) Конвертируем в pydot
-    p = to_pydot(G)
+    # 2) Сформируем «чистый» граф только с сериализуемыми атрибутами,
+    #    чтобы избежать проблем nx_pydot с произвольными объектами.
+    H: nx.DiGraph = nx.DiGraph()
+    for nid in G.nodes:
+        H.add_node(nid, label=G.nodes[nid].get('label', str(nid)))
+    for src, dst in G.edges:
+        H.add_edge(src, dst, label=G[src][dst].get('label', ''))
+
+    # 3) Конвертируем «чистый» граф в pydot
+    p = to_pydot(H)
 
     # 3) Атрибуты графа/лейаута
     p.set("rankdir", rankdir)
@@ -76,8 +84,8 @@ def visualize_cfg_graphviz(
     for e in p.get_edges():
         src = e.get_source().strip('"')
         dst = e.get_destination().strip('"')
-        if G.has_edge(src, dst):
-            lbl = G[src][dst].get('label', '')
+        if H.has_edge(src, dst):
+            lbl = H[src][dst].get('label', '')
             if lbl:
                 e.set_label(lbl)
                 e.set_fontsize("9")

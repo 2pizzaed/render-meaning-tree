@@ -62,29 +62,33 @@ class PathInfo(DictLikeDataclass):
         self.cfg_steps = (self.cfg_steps or 0) + 1
 
         if target_node.metadata.wrapped_ast is not None:
-            self.ast_actions = (self.ast_actions or 0) + 1
+
 
             # check transparency of this action...
             action = target_node.metadata.abstract_action
-            action_kind = action.kind
-            if DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(action_kind) != AppearanceType.MANDATORY:
-                self.transparent_actions = (self.transparent_actions or 0) + 1
-            else:
-                # mandatory action/button
-                self.opaque_actions = (self.opaque_actions or 0) + 1
-                # conditions
-                if action_kind.has('condition'):
-                    self.conditions = (self.conditions or 0) + 1
+            # assert action, ('target_node.metadata:', target_node.metadata)
+            if action:
+                self.ast_actions = (self.ast_actions or 0) + 1
 
-            # frames
-            if action.effects:
-                for effect in action.effects:
-                    if effect.call_stack:
-                        self.frame_changes = (self.frame_changes or 0) + 1
-                        if effect.call_stack == CallStackAction.ADD_FRAME:
-                            self.frames_added = (self.frames_added or 0) + 1
-                        elif effect.call_stack == CallStackAction.DROP_FRAME:
-                            self.frames_dropped = (self.frames_dropped or 0) + 1
+                action_kind = action.kind
+                if DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(action_kind) != AppearanceType.MANDATORY:
+                    self.transparent_actions = (self.transparent_actions or 0) + 1
+                else:
+                    # mandatory action/button
+                    self.opaque_actions = (self.opaque_actions or 0) + 1
+                    # conditions
+                    if action_kind.has('condition'):
+                        self.conditions = (self.conditions or 0) + 1
+
+                # frames
+                if action.effects:
+                    for effect in action.effects:
+                        if effect.call_stack:
+                            self.frame_changes = (self.frame_changes or 0) + 1
+                            if effect.call_stack == CallStackAction.ADD_FRAME:
+                                self.frames_added = (self.frames_added or 0) + 1
+                            elif effect.call_stack == CallStackAction.DROP_FRAME:
+                                self.frames_dropped = (self.frames_dropped or 0) + 1
         return True
 
 

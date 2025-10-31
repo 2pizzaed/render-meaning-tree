@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
@@ -96,6 +97,7 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
     Возвращает список всех путей.
 
     Реализовано поиском в ширину. После нахождения всех путей выбирать кратчайший, сохранять его и записывать в него число путей.
+    Можно применять найденные более короткие пути для нахождения более длинных путей.
     """ 
     if not from_:
         from_ = cfg.begin_node.id
@@ -108,10 +110,48 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
     wavefront = [
         PathInfo(from_=from_node)
     ]
-    targets = {to_node}
-    visited = set()
+    completed_paths: list[PathInfo] = []
+
     while wavefront:
-        ...
+        next_wavefront = []
+        for path in wavefront:
+            # Получаем последний узел в пути
+            last = path.via_nodes[-1] if path.via_nodes else from_node
+            
+            # Расширяем путь всеми исходящими рёбрами
+            for edge in cfg.edges_from_node(last):
+                next_node = cfg.nodes[edge.dst]
+                
+                # Создаём копию пути для расширения
+                new_path = copy.deepcopy(path)
+                
+                # Пытаемся добавить шаг (вернёт False, если будет цикл)
+                if not new_path.add_step(edge, next_node):
+                    continue  # цикл обнаружен, пропускаем
+                
+                if next_node is to_node:
+                    # Достигли целевого узла - добавляем в завершённые пути
+                    completed_paths.append(new_path)
+                    # продолжаем поиск других путей, не останавливаемся
+                else:
+                    # Продолжаем поиск с этого пути
+                    next_wavefront.append(new_path)
+        
+        wavefront = next_wavefront
+
+    # Подсчитываем количество всех найденных путей
+    ways = len(completed_paths)
+    
+    # Выбираем кратчайший путь
+    if completed_paths:
+        shortest = min(completed_paths, key=lambda p: p.cfg_steps)
+        shortest.ways_count = ways
+        return [shortest]
+    else:
+        # Путь не найден
+        result = PathInfo(from_=from_node, to_=to_node)
+        result.ways_count = 0
+        return [result]
 
 
 

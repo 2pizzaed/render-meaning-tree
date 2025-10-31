@@ -231,7 +231,7 @@ class LoqiExporter(ExporterManager):
 
     def add_trace(self, trace: list[TraceAct]) -> None:
         """Добавляет трассировку для экспорта."""
-        exporter = self.exporters.get(type(trace[0]))
+        exporter: 'TraceActExporter' = self.exporters.get(type(trace[0]))
 
         if exporter:
             exporter.add_full_trace(trace) # pyright: ignore[reportAttributeAccessIssue]

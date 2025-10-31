@@ -234,23 +234,19 @@ class CodeHighlightGenerator:
         "#2C3E50",  # Полночный синий
     ]
 
-    COLOR_PALETTE_REDUCED: ClassVar[list[str]] = [
-        "#546E7A",  # Сине-серый
-        "#78909C",  # Светло-сине-серый
-        "#607D8B",  # Средне-сине-серый
-        "#5D4037",  # Коричневый
-        "#6D4C41",  # Средне-коричневый
-        "#795548",  # Светло-коричневый
-        "#455A64",  # Темно-сине-серый
-        "#37474F",  # Очень темно-сине-серый
-        "#616161",  # Темно-серый
-        "#757575",  # Средне-серый
-        "#424242",  # Очень темно-серый
-        "#4E342E",  # Темно-коричневый
-        "#26A69A",  # Приглушенный бирюзовый
-        "#8D6E63",  # Светло-коричневый
-        "#90A4AE",  # Очень светло-сине-серый
-    ]
+    BUTTON_COLORS: ClassVar[dict[str, str]] = {
+        "play": "#0A1048",
+        "stop": "#0A1048",
+        "step-into": "#0F629A",
+        "step-out": "#73328D",
+        "question": "#024936",
+    }
+
+    BUTTON_TYPES_COLORS: ClassVar[dict[str, str]] = {
+        "assignment_statement": "#34495E",
+        "expression_statement": "#34495E",
+        "variable_declaration": "#34495E",
+    }
 
     def __init__(self, template_path: os.PathLike | str = "templates/base_new.html"):
 
@@ -345,9 +341,9 @@ class CodeHighlightGenerator:
 
         # Вложенный вызов функции
         if is_nested_call:
-            if button_position == "start" and node_token_pos == "start":  # noqa: S105
+            if button_position == "start" and node_token_pos == "start":
                 return "step-into", "filled"
-            if button_position == "end" and node_token_pos == "end":  # noqa: S105
+            if button_position == "end" and node_token_pos == "end":
                 return "step-out", "filled"
 
         # Простой statement
@@ -356,9 +352,9 @@ class CodeHighlightGenerator:
 
         # Сложные statements, но не блоки и ветви условий
         if is_compound_statement:
-            if button_position == "start" and node_token_pos == "start":  # noqa: S105
+            if button_position == "start" and node_token_pos == "start":
                 return "play", "filled"
-            if button_position == "end" and node_token_pos == "start":  # noqa: S105
+            if button_position == "end" and node_token_pos == "start":
                 return "stop", "filled"
 
         # Заголовки циклов и условий
@@ -367,20 +363,20 @@ class CodeHighlightGenerator:
 
         # Составные statements
         if is_block and token.get("value", "").strip():
-            if button_position == "start" and node_token_pos == "start":  # noqa: S105
+            if button_position == "start" and node_token_pos == "start":
                 return "play", "outlined"
-            if button_position == "end" and node_token_pos == "end":  # noqa: S105
+            if button_position == "end" and node_token_pos == "end":
                 return "stop", "outlined"
 
         # Обычные statements
         token_type = token.get("token_type", "")
-        if token_type == "statement_token" and button_position == "start":  # noqa: S105
+        if token_type == "statement_token" and button_position == "start":
             return "play", "filled"
 
         return None, "filled"
 
     def _generate_color_from_string(
-        self, text: str | int, reduced: bool = False,
+        self, text: str | int,
     ) -> str:
         """
         Генерирует HSL цвет на основе хеша строки
@@ -393,7 +389,7 @@ class CodeHighlightGenerator:
         """
         text_str = str(text)
         # Вычисляем хеш и берем индекс по модулю длины палитры
-        palette = self.COLOR_PALETTE_REDUCED if reduced else self.COLOR_PALETTE
+        palette = self.COLOR_PALETTE
 
         hash_obj = hashlib.md5(text_str.encode("utf-8"))
         hash_int = int(hash_obj.hexdigest(), 16)
@@ -545,7 +541,7 @@ class CodeHighlightGenerator:
             token_type = token.get("token_type", "unknown")
             token_id = token.get("id")
 
-            newlines_in_token = token_value == "\n"  # noqa: S105
+            newlines_in_token = token_value == "\n"
 
             if newlines_in_token == 0:
                 # Токен на текущей строке
@@ -571,7 +567,7 @@ class CodeHighlightGenerator:
                     for b in buttons_on_line
                 ):
                     if node_type not in node_type_colors:
-                        node_type_colors[node_type] = self._generate_color_from_string(node_type, True)
+                        node_type_colors[node_type] = self._generate_color_from_string(node_type)
                     if node_id and node_id not in node_colors:
                         node_colors[node_id] = self._generate_color_from_string(node_id)
                     buttons_on_line.append(
@@ -582,7 +578,7 @@ class CodeHighlightGenerator:
                             "node_type": node_type,
                             "position": "before",
                             "index": token_pos,
-                            "color": node_type_colors[node_type],
+                            "color": self.BUTTON_TYPES_COLORS.get(node_type) or self.BUTTON_COLORS.get(button_type),
                         },
                     )
 
@@ -598,7 +594,7 @@ class CodeHighlightGenerator:
                 ):
                     # TODO: need extracting for DRY code
                     if node_type not in node_type_colors:
-                        node_type_colors[node_type] = self._generate_color_from_string(node_type, True)
+                        node_type_colors[node_type] = self._generate_color_from_string(node_type)
                     if node_id and node_id not in node_colors:
                         node_colors[node_id] = self._generate_color_from_string(node_id)
                     buttons_on_line.append(
@@ -609,7 +605,8 @@ class CodeHighlightGenerator:
                             "node_type": node_type,
                             "position": "after",
                             "index": token_pos,
-                            "color": node_type_colors[node_type],
+                            "color": self.BUTTON_TYPES_COLORS.get(node_type)
+                            or self.BUTTON_COLORS.get(button_type),
                         },
                     )
 

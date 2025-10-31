@@ -91,6 +91,70 @@ class PathInfo(DictLikeDataclass):
                                 self.frames_dropped = (self.frames_dropped or 0) + 1
         return True
 
+    @staticmethod
+    def concatenate_paths(path1: 'PathInfo', path2: 'PathInfo') -> 'PathInfo | None':
+        """
+        Объединяет два пути: path1.from_ → ... → path1.to_ → path2.from_ → ... → path2.to_
+        Возвращает новый PathInfo или None, если соединение невозможно (циклы или несовместимость).
+        """
+        # Проверяем, что пути можно соединить
+        if path1.to_ != path2.from_:
+            return None
+        
+        # Инициализируем via_nodes и via_edges для path1, если они не инициализированы
+        if not path1.via_nodes or not path1.via_edges:
+            if path1.from_:
+                path1_nodes = [path1.from_]
+            else:
+                return None
+            path1_edges = []
+        else:
+            path1_nodes = path1.via_nodes
+            path1_edges = path1.via_edges
+        
+        # Инициализируем via_nodes и via_edges для path2, если они не инициализированы
+        if not path2.via_nodes or not path2.via_edges:
+            if path2.from_:
+                path2_nodes = [path2.from_]
+            else:
+                return None
+            path2_edges = []
+        else:
+            path2_nodes = path2.via_nodes
+            path2_edges = path2.via_edges
+        
+        # Объединяем узлы: path1_nodes + path2_nodes[1:] (убираем дубликат в точке соединения)
+        # path1_nodes заканчивается на path1.to_, path2_nodes начинается с path2.from_
+        # Так как path1.to_ == path2.from_, мы убираем дубликат
+        combined_nodes = path1_nodes + path2_nodes[1:]
+        combined_edges = path1_edges + path2_edges
+        
+        # Проверяем на циклы: не должно быть повторяющихся узлов (проверяем по ID)
+        node_ids = [node.id for node in combined_nodes]
+        if len(node_ids) != len(set(node_ids)):
+            return None
+        
+        # Создаём новый PathInfo
+        new_path = PathInfo(from_=path1.from_)
+        new_path.to_ = path2.to_
+        new_path.via_nodes = combined_nodes
+        new_path.via_edges = combined_edges
+        
+        # Суммируем метрики
+        new_path.cfg_steps = path1.cfg_steps + path2.cfg_steps
+        new_path.ast_actions = path1.ast_actions + path2.ast_actions
+        new_path.transparent_actions = path1.transparent_actions + path2.transparent_actions
+        new_path.opaque_actions = path1.opaque_actions + path2.opaque_actions
+        new_path.conditions = path1.conditions + path2.conditions
+        new_path.frame_changes = path1.frame_changes + path2.frame_changes
+        new_path.frames_added = path1.frames_added + path2.frames_added
+        new_path.frames_dropped = path1.frames_dropped + path2.frames_dropped
+        
+        # Умножаем ways_count (предполагая независимость путей)
+        new_path.ways_count = path1.ways_count * path2.ways_count
+        
+        return new_path
+
 
 
 def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) -> list[PathInfo]:
@@ -170,25 +234,101 @@ def find_opaque_nodes(cfg: CFG) -> list[Node]:
 def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
     """
     Определяет все возможные пути между всеми парами непрозрачных узлов (с AppearanceType.MANDATORY).
+    Использует инкрементный подход: сначала находит все пути длины 1, затем итеративно строит
+    более длинные пути через сложение уже найденных.
     Возвращает список всех найденных путей, отсортированный по длине (от коротких к длинным).
     """
     opaque_nodes = find_opaque_nodes(cfg)
-    all_paths: list[PathInfo] = []
     
-    # Перебираем все пары opaque узлов (включая самопереходы)
-    for from_node in opaque_nodes:
-        for to_node in opaque_nodes:
-            # Для каждой пары ищем все пути
-            paths = determine_all_paths_through(cfg, from_node.id, to_node.id)
-            # Добавляем только пути, которые действительно существуют (ways_count > 0)
+    # Кэш всех найденных путей: (from_node_id, to_node_id) -> list[PathInfo]
+    paths_cache: dict[tuple[str, str], list[PathInfo]] = {}
+    
+    # Функция для добавления пути в кэш
+    def add_path_to_cache(path: PathInfo) -> bool:
+        """Добавляет путь в кэш. Возвращает True, если путь был добавлен (новый)."""
+        if path.from_ is None or path.to_ is None:
+            return False
+        key = (path.from_.id, path.to_.id)
+        if key not in paths_cache:
+            paths_cache[key] = []
+        
+        # Проверяем, нет ли уже такого пути (сравниваем по via_nodes)
+        # Для простоты проверяем только наличие пути с такой же последовательностью узлов
+        existing = False
+        if path.via_nodes:
+            path_signature = tuple(node.id for node in path.via_nodes)
+            for existing_path in paths_cache[key]:
+                if existing_path.via_nodes:
+                    existing_signature = tuple(node.id for node in existing_path.via_nodes)
+                    if path_signature == existing_signature:
+                        existing = True
+                        break
+        
+        if not existing:
+            paths_cache[key].append(path)
+            return True
+        return False
+    
+    # Инициализация: находим все пути длины 1 (прямые рёбра)
+    for edge in cfg.edges:
+        from_node = cfg.nodes[edge.src]
+        to_node = cfg.nodes[edge.dst]
+        
+        # Создаём путь длины 1
+        path = PathInfo(from_=from_node)
+        if path.add_step(edge, to_node):
+            path.ways_count = 1  # Каждое ребро - один путь
+            add_path_to_cache(path)
+    
+    # Итеративное построение более длинных путей
+    iteration = 0
+    while True:
+        iteration += 1
+        new_paths_found = 0
+        
+        # Получаем все текущие пути для итерации
+        current_paths = []
+        for paths_list in paths_cache.values():
+            current_paths.extend(paths_list)
+        
+        # Пробуем комбинировать все пары путей
+        for path1 in current_paths:
+            if path1.to_ is None:
+                continue
+            
+            # Проходим по всем узлам, куда можно попасть из path1.to_
+            for to_target in cfg.nodes.values():
+                if path1.to_ is None:
+                    continue
+                paths_from_target = paths_cache.get((path1.to_.id, to_target.id), [])
+                if not paths_from_target:
+                    continue
+                
+                for path2 in paths_from_target:
+                    # Пробуем объединить пути
+                    combined = PathInfo.concatenate_paths(path1, path2)
+                    if combined is not None:
+                        if add_path_to_cache(combined):
+                            new_paths_found += 1
+        
+        # Если новая итерация не дала новых путей, останавливаемся
+        if new_paths_found == 0:
+            break
+    
+    # Фильтруем результат: оставляем только пути между opaque узлами
+    result_paths: list[PathInfo] = []
+    opaque_node_ids = {node.id for node in opaque_nodes}
+    
+    for (from_node_id, to_node_id), paths in paths_cache.items():
+        if from_node_id in opaque_node_ids and to_node_id in opaque_node_ids:
             for path in paths:
                 if path.ways_count > 0:
-                    all_paths.append(path)
+                    result_paths.append(path)
     
     # Сортируем по длине пути (от коротких к длинным)
-    all_paths.sort(key=lambda p: p.cfg_steps)
+    result_paths.sort(key=lambda p: p.cfg_steps)
     
-    return all_paths
+    return result_paths
 
 
 

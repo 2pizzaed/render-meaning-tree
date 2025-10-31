@@ -20,6 +20,7 @@ from .abstractions import (
 )
 from .cfg import CFG, Edge, Metadata, Node, TraceAct
 from .loqi_exporter import ObjectExporter
+from .reachability import PathInfo
 
 # use classmethod as decorator
 registered = ObjectExporter.register_class
@@ -549,3 +550,56 @@ class SituationStateExporter(ObjectExporter):
 
     def get_preferred_name(self, obj: SituationState) -> str:
         return f"main_state_{id(obj) % 100_000}"
+
+
+@registered
+class PathInfoExporter(ObjectExporter):
+    """Экспортер для класса PathInfo."""
+
+    def get_supported_types(self) -> list[type]:
+        return [PathInfo]
+
+    def get_class_name(self, obj: PathInfo) -> str:
+        return "PathInfo"
+
+    def add_all_paths(self, paths: list[PathInfo]) -> None:
+        self._paths = paths
+
+    def export_properties(self, obj: PathInfo) -> dict[str, Any]:
+        properties = {
+            "ways_count": obj.ways_count,
+            "cfg_steps": obj.cfg_steps,
+            "ast_actions": obj.ast_actions,
+            "transparent_actions": obj.transparent_actions,
+            "opaque_actions": obj.opaque_actions,
+            "conditions": obj.conditions,
+            "frame_changes": obj.frame_changes,
+            "frames_added": obj.frames_added,
+            "frames_dropped": obj.frames_dropped,
+        }
+        return properties
+
+    def get_preferred_name(self, obj: PathInfo) -> str:
+        if hasattr(self, '_paths') and obj in self._paths:
+            index = self._paths.index(obj)
+            return f"path_info_{index}"
+        return f"path_info_{id(obj) % 100_000}"
+
+    def export_relationships(self, obj: PathInfo) -> dict[str, list[Any]]:
+        relationships: dict[str, list[Any]] = {}
+        
+        # Экспортируем from_ и to_ узлы
+        if obj.from_:
+            relationships["fromNode"] = [obj.from_]
+        if obj.to_:
+            relationships["toNode"] = [obj.to_]
+        
+        # Экспортируем via_nodes - возвращаем список узлов
+        if obj.via_nodes:
+            relationships["hasViaNodes"] = obj.via_nodes
+        
+        # Экспортируем via_edges - возвращаем список рёбер
+        if obj.via_edges:
+            relationships["hasViaEdges"] = obj.via_edges
+        
+        return relationships

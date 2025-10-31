@@ -243,10 +243,33 @@ class LoqiExporter(ExporterManager):
                 # Автоматически регистрируем связанные объекты (рекурсивно)
                 self._add_related_objects(trace_act, True)
 
+    def add_paths(self, paths: list['PathInfo']) -> None:
+        """Добавляет пути PathInfo для экспорта."""
+        from .reachability import PathInfo
+        
+        if not paths:
+            return
+        
+        exporter: 'PathInfoExporter' = self.exporters.get(PathInfo)
+
+        if exporter:
+            exporter.add_all_paths(paths) # pyright: ignore[reportAttributeAccessIssue]
+
+        for path_info in paths:
+            if not exporter.is_object_registered(path_info): # pyright: ignore[reportOptionalMemberAccess]
+                exporter.register_object(path_info) # pyright: ignore[reportOptionalMemberAccess]
+                self.exported_objects.append(path_info)
+                # Автоматически регистрируем связанные объекты (рекурсивно)
+                self._add_related_objects(path_info, True)
+
     def add_object(self, obj: Any):
         """Добавляет объект для экспорта, игнорируя дубликаты."""
+        from .reachability import PathInfo
+        
         if isinstance(obj, TraceAct):
             raise ValueError("TraceAct objects should be added via `add_trace` method.")
+        if isinstance(obj, PathInfo):
+            raise ValueError("PathInfo objects should be added via `add_paths` method.")
         if obj is None:
             return
 

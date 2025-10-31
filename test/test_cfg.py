@@ -6,6 +6,7 @@ from src.cfg.abstractions import InterruptionType, SituationState, load_construc
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.cfg_visualizer import visualize_cfg
 from src.cfg.loqi_exporter import LoqiExporter
+from src.cfg.reachability import determine_all_paths_through
 from src.cfg.trace_builder import UserInteraction, build_trace_for
 
 
@@ -329,6 +330,11 @@ class TestCfgBuilder(unittest.TestCase):
             exporter.set_var("STATE", situation)
             exporter.set_var("L0", "trace_act_0")
             exporter.set_var("A", "trace_act_1")
+            
+            # Find and export all paths
+            paths = determine_all_paths_through(cfg)
+            if paths:
+                exporter.add_paths(paths)
         exporter.export_cfg(cfg, output_file)
 
         # return
@@ -367,6 +373,12 @@ class TestCfgBuilder(unittest.TestCase):
         # Export to LOQI
         exporter = LoqiExporter()
         output_file = "domain/cfg10_export.loqi"
+        
+        # Find and export all paths
+        paths = determine_all_paths_through(cfg)
+        if paths:
+            exporter.add_paths(paths)
+        
         exporter.export_cfg(cfg, output_file)
 
         visualize_cfg_graphviz(cfg, "cfg_10_gv.png")

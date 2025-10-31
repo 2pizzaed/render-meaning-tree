@@ -1,0 +1,157 @@
+{
+  "type": "program_entry_point",
+  "body": [
+    {
+      "type": "function_definition",
+      "declaration": {
+        "type": "function_declaration",
+        "return_type": {
+          "type": "unknown_type",
+          "id": 5
+        },
+        "name": {
+          "type": "identifier",
+          "name": "g",
+          "id": 1
+        },
+        "annotations": [],
+        "arguments": [
+          {
+            "type": "declaration_argument",
+            "target_type": {
+              "type": "unknown_type",
+              "id": 2
+            },
+            "is_dict_unpacking": false,
+            "is_list_unpacking": false,
+            "name": "_",
+            "annotations": [],
+            "id": 4
+          }
+        ],
+        "id": 9
+      },
+      "body": {
+        "type": "compound_statement",
+        "statements": [
+          {
+            "type": "return_statement",
+            "expression": {
+              "type": "string_literal",
+              "value": "gone",
+              "id": 6
+            },
+            "id": 7
+          }
+        ],
+        "id": 8
+      },
+      "id": 10
+    },
+    {
+      "type": "if_statement",
+      "branches": [
+        {
+          "condition": {
+            "type": "function_call",
+            "function": {
+              "type": "identifier",
+              "name": "g",
+              "id": 11
+            },
+            "arguments": [
+              {
+                "type": "string_literal",
+                "value": "go",
+                "id": 12
+              }
+            ],
+            "id": 13
+          },
+          "body": {
+            "type": "compound_statement",
+            "statements": [
+              {
+                "type": "variable_declaration",
+                "declarators": [
+                  {
+                    "identifier": {
+                      "type": "identifier",
+                      "name": "a",
+                      "id": 14
+                    },
+                    "rvalue": {
+                      "type": "string_literal",
+                      "value": "b",
+                      "id": 15
+                    }
+                  }
+                ],
+                "var_type": {
+                  "type": "string_type",
+                  "char_size": 16,
+                  "id": 16
+                },
+                "annotations": [],
+                "id": 17
+              },
+              {
+                "type": "variable_declaration",
+                "declarators": [
+                  {
+                    "identifier": {
+                      "type": "identifier",
+                      "name": "d",
+                      "id": 19
+                    },
+                    "rvalue": {
+                      "type": "string_literal",
+                      "value": "pass",
+                      "id": 20
+                    }
+                  }
+                ],
+                "var_type": {
+                  "type": "string_type",
+                  "char_size": 16,
+                  "id": 21
+                },
+                "annotations": [],
+                "id": 22
+              },
+              {
+                "type": "variable_declaration",
+                "declarators": [
+                  {
+                    "identifier": {
+                      "type": "identifier",
+                      "name": "e",
+                      "id": 24
+                    },
+                    "rvalue": {
+                      "type": "string_literal",
+                      "value": "step == (0,0,0)",
+                      "id": 25
+                    }
+                  }
+                ],
+                "var_type": {
+                  "type": "string_type",
+                  "char_size": 16,
+                  "id": 26
+                },
+                "annotations": [],
+                "id": 27
+              }
+            ],
+            "id": 29
+          },
+          "id": 30,
+          "type": "condition_branch"
+        }
+      ],
+      "id": 31
+    }
+  ],
+  "id": 33
+}

@@ -149,19 +149,25 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder6(self):
 
-        with open("data/ast6.json") as f:
+        with open("test/data/ast6.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
         program_root = ASTNodeWrapper(ast_node=ast_json)
         root = ASTNodeWrapper(ast_node=ast_json["body"][0], parent=program_root)
 
-        constructs = load_constructs("../constructs.yml")
+        constructs = load_constructs("constructs.yml")
         b = CFGBuilder(constructs)
 
         cfg = b.make_cfg_for_ast(root)
+        cfg.optimize()
 
-        cfg.debug()
+        # Export to LOQI
+        exporter = LoqiExporter()
+        output_file = "domain/cfg6_export.loqi"
+
+        visualize_cfg_graphviz(cfg, "cfg_6_gv.png")
+        # cfg.debug()
 
     def test_cfg_builder7(self):
 
@@ -336,3 +342,26 @@ class TestCfgBuilder(unittest.TestCase):
 
         visualize_cfg_graphviz(cfg, "cfg_9_gv.png")
 
+
+    def test_cfg_builder10(self):
+
+        with open("test/data/ast10.json") as f:
+           ast_json = json.load(f)
+
+        # Create the full AST hierarchy
+        program_root = ASTNodeWrapper(ast_node=ast_json)
+        # root = ASTNodeWrapper(ast_node=ast_json["body"][0], parent=program_root)
+        root = program_root
+
+        constructs = load_constructs("constructs.yml")
+        b = CFGBuilder(constructs)
+
+        cfg = b.make_cfg_for_ast(root)
+        cfg.optimize()
+
+        # Export to LOQI
+        exporter = LoqiExporter()
+        output_file = "domain/cfg10_export.loqi"
+
+        visualize_cfg_graphviz(cfg, "cfg_10_gv.png")
+        # cfg.debug()

@@ -36,7 +36,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # file_path = args.file
-    N = 9
+    N = 10
     file_path = f"test/examples/code_example{N}.py"
 
     if file_path:
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     save_as_html(code, "python")
     print(f"HTML output saved to {html_output}")
 
-    if args.cfg:
+    if 0 and args.cfg:
         cfg_output = f"{args.output}_cfg.png"
         cfg_graph = cfg.generate_cfg(ast)
         cfg.visualize(cfg_output)
@@ -81,9 +81,9 @@ if __name__ == "__main__":
             print(f"- Critical edges: {len(cfg.critical_edges)}")
             print(f"- Impossible edges: {len(cfg.impossible_edges)}")
 
-    from src.serializers.compprehension_serializer import serialize
-    from pprint import pprint
-    pprint(serialize(ast))
+    # from src.serializers.compprehension_serializer import serialize
+    # from pprint import pprint
+    # pprint(serialize(ast))
     
     
     

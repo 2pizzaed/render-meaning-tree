@@ -4,6 +4,8 @@
 
 from typing import Any
 
+from src.cfg.abstractions import InterruptionType
+
 from . import ASTNodeWrapper
 
 # Импорты для типов объектов
@@ -13,6 +15,7 @@ from .abstractions import (
     Constraints,
     ConstructSpec,
     Effects,
+    SituationState,
     TransitionSpec,
 )
 from .cfg import CFG, Edge, Metadata, Node, TraceAct
@@ -503,7 +506,6 @@ class TraceActExporter(ObjectExporter):
         self._trace = trace
 
     def export_properties(self, obj: TraceAct) -> dict[str, Any]:
-        # import json
         properties = {
             "condition_value": obj.condition_value,
             "is_known_correct": obj.is_known_correct,
@@ -524,3 +526,23 @@ class TraceActExporter(ObjectExporter):
             "directlyBeforeOf": [self._trace[index + 1]] if index + 1 < len(self._trace) else [],
         }
         return relationships
+
+
+@registered
+class SituationStateExporter(ObjectExporter):
+    """Экспортер для класса TraceAct."""
+
+    def get_supported_types(self) -> list[type]:
+        return [SituationState]
+
+    def get_class_name(self, obj: SituationState) -> str:
+        return "State"
+
+    def export_properties(self, obj: SituationState) -> dict[str, Any]:
+        properties: dict[str, InterruptionType] = {
+            "interruption_state": obj.interruption_state,
+        }
+        return properties
+
+    def get_preferred_name(self, obj: SituationState) -> str:
+        return f"main_state_{id(obj) % 100_000}"

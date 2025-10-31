@@ -283,6 +283,11 @@ class ConstructSpec(DictLikeDataclass):
         # return None
 
 
+@dataclass
+class SituationState(DictLikeDataclass):
+    interruption_state: InterruptionType
+
+
 def load_constructs(path="./constructs.yml", debug=False):
     """ Load constructs.yml using DictLikeDataclass """
     if not os.path.exists(path):

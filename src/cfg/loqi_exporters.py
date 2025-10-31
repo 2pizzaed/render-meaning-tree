@@ -532,6 +532,9 @@ class TraceActExporter(ObjectExporter):
 class SituationStateExporter(ObjectExporter):
     """Экспортер для класса TraceAct."""
 
+    def export_relationships(self, obj: Any) -> dict[str, list[Any]]:
+        return {}
+
     def get_supported_types(self) -> list[type]:
         return [SituationState]
 

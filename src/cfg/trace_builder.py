@@ -15,7 +15,7 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
     for interaction in interactions:
         for node in cfg.nodes.values():
             if not node.metadata.wrapped_ast or not isinstance( node.metadata.wrapped_ast.ast_node, dict):
-                raise ValueError("Node does not have a valid wrapped AST node.")
+                continue
             ast_node = node.metadata.wrapped_ast.ast_node
             match interaction.button_type:
                 case "play":

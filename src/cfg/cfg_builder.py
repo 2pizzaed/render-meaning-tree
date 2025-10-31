@@ -332,19 +332,19 @@ class CFGBuilder:
         # Создаем CFG через конструкт, но заменяем тело функции на сохраненный CFG
         call_cfg = CFG("function_call", construct=construct)
         
-        # Добавляем метаданные: узел AST (abstract_action уже установлен через construct)
-        call_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
-        call_cfg.end_node.metadata.wrapped_ast = wrapped_ast
+        # # Добавляем метаданные: узел AST (abstract_action уже установлен через construct)
+        # call_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
+        # call_cfg.end_node.metadata.wrapped_ast = wrapped_ast
         
         # Встраиваем CFG функции как subgraph
         func_node_pair = call_cfg.add_node(
             kind='func_body',
             role='func',
-            metadata=Metadata(
-                abstract_action=construct.role2action['func'],
-                wrapped_ast=wrapped_ast,
-                primary=True,
-            ),
+            # metadata=Metadata(
+            #     abstract_action=construct.role2action['func'],
+            #     wrapped_ast=wrapped_ast,
+            #     primary=True,
+            # ),
             subgraph=func_cfg
         )
         

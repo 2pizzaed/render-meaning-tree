@@ -25,6 +25,8 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                         kind = NodeKind.BEGIN
                 case "step_into":
                     kind = NodeKind.BEGIN
+                case "question":
+                    kind = NodeKind.CONDITION
                 case "step-out", "stop":
                     kind = NodeKind.END
                 case _:

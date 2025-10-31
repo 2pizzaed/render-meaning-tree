@@ -3,6 +3,7 @@ import unittest
 
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import load_constructs
+from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.cfg_visualizer import visualize_cfg
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.trace_builder import UserInteraction, build_trace_for
@@ -319,18 +320,19 @@ class TestCfgBuilder(unittest.TestCase):
             exporter.set_var("A", "trace_act_1")
         exporter.export_cfg(cfg, output_file)
 
-        return
+        # return
 
         # Debug print CFG
-        cfg.debug()
+        # cfg.debug()
 
         print()
         print("CFG!")
-        visualize_cfg(
-            cfg,
-            "cfg_9.png",
-            figsize=(20, 15),
-            layout='hierarchical',
-        )
+        # visualize_cfg(
+        #     cfg,
+        #     "cfg_9.png",
+        #     figsize=(20, 15),
+        #     layout='hierarchical',
+        # )
 
+        visualize_cfg_graphviz(cfg, "cfg_9_gv.png")
 

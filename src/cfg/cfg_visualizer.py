@@ -9,9 +9,9 @@
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from typing import Optional
+from deprecated import deprecated
 
-from src.cfg.cfg import CFG, Node, Edge, BEGIN, END
+from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
 
 
 def _create_node_label(node: Node) -> str:
@@ -20,24 +20,24 @@ def _create_node_label(node: Node) -> str:
     Формат: kind\n[AST:id]\n[role]
     """
     parts = []
-    
+
     # Kind узла
     if node.kind:
         parts.append(node.kind)
-    
+
     # AST ID если доступно
-    if (node.metadata and 
-        node.metadata.wrapped_ast and 
+    if (node.metadata and
+        node.metadata.wrapped_ast and
         node.metadata.wrapped_ast.ast_node and
         isinstance(node.metadata.wrapped_ast.ast_node, dict)):
         ast_id = node.metadata.wrapped_ast.ast_node.get('id')
         if ast_id is not None:
             parts.append(f"AST:{ast_id}")
-    
+
     # Role если отличается от kind
     if node.role and node.role != node.kind:
         parts.append(f"role:{node.role}")
-    
+
     return '\n'.join(parts) if parts else node.id
 
 
@@ -49,16 +49,16 @@ def _create_edge_label(edge: Edge) -> str:
     """
     if not edge.constraints:
         return ""
-    
+
     labels = []
-    
+
     # Condition value (true/false)
     if hasattr(edge.constraints, 'condition_value') and edge.constraints.condition_value is not None:
         if edge.constraints.condition_value is True:
             labels.append("T")
         elif edge.constraints.condition_value is False:
             labels.append("F")
-    
+
     # Interruption mode
     if hasattr(edge.constraints, 'interruption_mode') and edge.constraints.interruption_mode:
         mode = edge.constraints.interruption_mode
@@ -68,7 +68,7 @@ def _create_edge_label(edge: Edge) -> str:
             labels.append("any")
         else:
             labels.append(str(mode)[:3])  # Обрезаем до 3 символов
-    
+
     return " ".join(labels)
 
 
@@ -79,12 +79,12 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
     Безопасно обрабатывает висячие рёбра и несуществующие узлы.
     """
     G = nx.DiGraph()
-    
+
     # Добавляем узлы
     for node_id, node in cfg.nodes.items():
         label = _create_node_label(node)
         G.add_node(node_id, label=label, node_obj=node)
-    
+
     # Добавляем рёбра (только если оба узла существуют)
     for edge in cfg.edges:
         # Проверяем, что оба узла существуют в CFG
@@ -97,7 +97,7 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
             missing_dst = edge.dst not in cfg.nodes
             print(f"Warning: Skipping edge {edge.src} -> {edge.dst} "
                   f"(missing src: {missing_src}, missing dst: {missing_dst})")
-    
+
     return G
 
 
@@ -123,7 +123,7 @@ def diagnose_cfg(cfg: CFG) -> dict:
         'total_nodes': len(cfg.nodes),
         'total_edges': len(cfg.edges)
     }
-    
+
     # Находим висячие рёбра
     for edge in cfg.edges:
         if edge.src not in cfg.nodes:
@@ -132,22 +132,23 @@ def diagnose_cfg(cfg: CFG) -> dict:
         if edge.dst not in cfg.nodes:
             issues['orphan_edges'].append(f"Edge {edge.src} -> {edge.dst} (missing dst)")
             issues['missing_nodes'].add(edge.dst)
-    
+
     # Находим отключённые узлы
     connected_nodes = set()
     for edge in cfg.edges:
         if edge.src in cfg.nodes and edge.dst in cfg.nodes:
             connected_nodes.add(edge.src)
             connected_nodes.add(edge.dst)
-    
+
     for node_id in cfg.nodes:
         if node_id not in connected_nodes:
             issues['disconnected_nodes'].append(node_id)
-    
+
     return issues
 
 
-def visualize_cfg(cfg: CFG, output_file: str = "cfg.png", 
+@deprecated(reason="Use visualize_cfg_graphviz from src.cfg.cfg_graphviz instead")
+def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
                   layout: str = "spring", figsize: tuple = (12, 8)) -> str:
     """Основная функция визуализации CFG.
     
@@ -163,26 +164,26 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
     if not cfg.nodes:
         print("Warning: CFG is empty, nothing to visualize")
         return output_file
-    
+
     # 1. Создать NetworkX граф
     G = _build_networkx_graph(cfg)
-    
+
     # Диагностика проблем в CFG
     issues = diagnose_cfg(cfg)
-    
+
     if issues['orphan_edges']:
         print(f"Warning: Found {len(issues['orphan_edges'])} orphan edges in CFG:")
         for edge_desc in issues['orphan_edges']:
             print(f"  {edge_desc}")
-    
+
     if issues['disconnected_nodes']:
         print(f"Warning: Found {len(issues['disconnected_nodes'])} disconnected nodes: {issues['disconnected_nodes']}")
-    
+
     if issues['missing_nodes']:
         print(f"Warning: Missing nodes referenced in edges: {list(issues['missing_nodes'])}")
-    
+
     print(f"CFG stats: {issues['total_nodes']} nodes, {issues['total_edges']} edges")
-    
+
     # 2. Вычислить layout
     if layout == "hierarchical":
         try:
@@ -193,10 +194,10 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
             pos = nx.spring_layout(G, seed=42)
     else:  # spring layout
         pos = nx.spring_layout(G, seed=42)
-    
+
     # 3. Создать фигуру
     plt.figure(figsize=figsize)
-    
+
     # 4. Отрисовать узлы с цветами
     node_colors = []
     for node_id in G.nodes():
@@ -207,21 +208,21 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
         else:
             # Fallback для узлов без node_obj
             node_colors.append("lightgray")
-    
-    nx.draw_networkx_nodes(G, pos, node_color=node_colors, 
+
+    nx.draw_networkx_nodes(G, pos, node_color=node_colors,
                           node_size=2000, alpha=0.8)
-    
+
     # 5. Отрисовать рёбра
-    nx.draw_networkx_edges(G, pos, arrows=True, arrowsize=20, 
+    nx.draw_networkx_edges(G, pos, arrows=True, arrowsize=20,
                           edge_color='gray', alpha=0.6)
-    
+
     # 6. Отрисовать метки узлов
     node_labels = {}
     for node_id in G.nodes():
         label = G.nodes[node_id].get('label', node_id)  # Fallback к node_id
         node_labels[node_id] = label
     nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8)
-    
+
     # 7. Отрисовать метки рёбер
     edge_labels = {}
     for edge in cfg.edges:
@@ -230,23 +231,23 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
             label = G[edge.src][edge.dst].get('label', '')
             if label:  # Только непустые метки
                 edge_labels[(edge.src, edge.dst)] = label
-    
+
     if edge_labels:
         nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=7)
-    
+
     # 8. Настройка и сохранение
     plt.title(f"Control Flow Graph: {cfg.name}")
     plt.axis("off")
-    
+
     # Добавляем легенду
     legend_text = "Green: BEGIN nodes\nRed: END nodes\nBlue: Regular nodes"
-    plt.figtext(0.02, 0.02, legend_text, fontsize=10, 
+    plt.figtext(0.02, 0.02, legend_text, fontsize=10,
                 bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.7})
-    
+
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
-    
+
     print(f"CFG visualization saved to: {output_file}")
     return output_file
 
@@ -254,15 +255,15 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
 # Пример использования
 if __name__ == "__main__":
     # Демонстрационный пример
-    from src.cfg.cfg_builder import CFGBuilder
     from src.cfg.abstractions import load_constructs
-    
+    from src.cfg.cfg_builder import CFGBuilder
+
     # Загружаем конструкции
     constructs = load_constructs()
-    
+
     # Создаём простой CFG для демонстрации
     builder = CFGBuilder(constructs)
     simple_cfg = builder._create_simple_cfg("demo")
-    
+
     # Визуализируем
     visualize_cfg(simple_cfg, "demo_cfg.png")

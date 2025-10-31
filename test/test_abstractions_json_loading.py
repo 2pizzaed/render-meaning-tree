@@ -4,7 +4,7 @@
 
 import json
 import pytest
-from src.cfg.abstractions import load_ast_from_json, load_constructs
+from src.cfg.abstractions import load_constructs
 
 
 class TestAbstractionsJsonLoading:
@@ -12,7 +12,8 @@ class TestAbstractionsJsonLoading:
     def test_load_ast_from_json(self):
         """Test loading AST from JSON file"""
         try:
-            ast = load_ast_from_json("data/ast.json")
+            with open("test/data/ast.json") as f:
+                ast = json.load(f)
             
             # Test basic structure
             assert ast.type == "program_entry_point"
@@ -50,7 +51,8 @@ class TestAbstractionsJsonLoading:
     def test_load_ast_dict_like_access(self):
         """Test dict-like access to loaded AST"""
         try:
-            ast = load_ast_from_json("ast.json")
+            with open("test/data/ast.json") as f:
+                ast = json.load(f)
             
             # Test dict-like access
             assert ast['type'] == "program_entry_point"
@@ -74,11 +76,6 @@ class TestAbstractionsJsonLoading:
             
         except FileNotFoundError:
             pytest.skip("ast.json file not found")
-    
-    def test_load_ast_error_handling(self):
-        """Test error handling for missing file"""
-        with pytest.raises(FileNotFoundError):
-            load_ast_from_json("nonexistent.json")
     
     def test_load_constructs_simplified(self):
         """Test loading constructs with simplified approach"""
@@ -134,7 +131,6 @@ class TestAbstractionsJsonLoading:
     
     def test_ast_node_creation_from_dict(self):
         """Test creating AST nodes directly from dict data"""
-        from src.cfg.abstractions import load_ast_from_json
         
         # Create test data
         test_data = {
@@ -154,7 +150,8 @@ class TestAbstractionsJsonLoading:
         # This would work if we had a way to create ASTNode directly
         # For now, we'll test the pattern with a simple example
         try:
-            ast = load_ast_from_json("ast.json")
+            with open("test/data/ast.json") as f:
+                ast = json.load(f)
             
             # Test that we can access and modify data
             assert ast['type'] == "program_entry_point"

@@ -261,7 +261,8 @@ class CodeHighlightGenerator:
         )
         self.template = env.get_template(template_file)
 
-    def _get_node_at_position(self, byte_pos: int, pos: Literal["start", "end"] = "start") -> int | None:
+    def _get_node_at_position(self, byte_pos: int, token: dict[str, Any],
+                              pos: Literal["start", "end"] = "start") -> int | None:
         """Получить иерархию ID узлов, начиная с самого вложенного,
         на заданной байтовой позиции"""
         if not self.analyzer:
@@ -274,7 +275,10 @@ class CodeHighlightGenerator:
             if isinstance(positions, list) and len(positions) == 2:
                 start, offset = positions
                 end = start + offset
-                if start <= byte_pos < end:
+                accept = self._determine_node_token_position(
+                        int(node_id), byte_pos, token
+                    ) in [pos, "single"]
+                if start <= byte_pos < end and accept:
                     candidates.append((int(node_id), start, offset))
         if candidates:
             # Узлы с наименьшим размером (самые вложенные) сначала
@@ -338,7 +342,6 @@ class CodeHighlightGenerator:
         if for_component and for_component != "range" and button_position == "start":
             return "question", "outlined"
 
-
         # Вложенный вызов функции
         if is_nested_call:
             if button_position == "start" and node_token_pos == "start":
@@ -358,11 +361,11 @@ class CodeHighlightGenerator:
                 return "stop", "filled"
 
         # Заголовки циклов и условий
-        if is_header and button_position == "start":
+        if is_header and button_position == "end":
             return "question", "outlined"
 
         # Составные statements
-        if is_block and token.get("value", "").strip():
+        if is_block and token.get("value", "").strip() and self.language != "python":
             if button_position == "start" and node_token_pos == "start":
                 return "play", "outlined"
             if button_position == "end" and node_token_pos == "end":
@@ -445,7 +448,7 @@ class CodeHighlightGenerator:
                     token_i > 0 and (but["index"] == token_i) for but in buttons
                 )
                 before_button = any(
-                    but["index"] == token_i + 1 for but in buttons)
+                    but["index"] == token_i + 1 and but["position"] == "before" for but in buttons)
 
                 if need_spacing and not before_button:
                     # Добавляем пробел
@@ -466,7 +469,7 @@ class CodeHighlightGenerator:
         node_id: int | None,
         byte_pos: int,
         token: dict[str, Any],
-    ) -> Literal["start", "middle", "end"]:
+    ) -> Literal["start", "middle", "end", "single"]:
         """Определить позицию токена внутри узла: начало, середина, конец"""
         if not node_id or not self.analyzer:
             return "middle"
@@ -478,9 +481,13 @@ class CodeHighlightGenerator:
 
         start, offset = positions
         end = start + offset
+
         token_value = token.get("value", "")
         token_length = len(token_value.encode("utf-8"))
         tol = int(token_length * 0.5)
+
+        if abs(abs(end - start) - token_length) <= tol:
+            return "single"
 
         if start - tol <= byte_pos <= start + tol:
             return "start"
@@ -545,11 +552,21 @@ class CodeHighlightGenerator:
 
             if newlines_in_token == 0:
                 # Токен на текущей строке
-                node_id = self._get_node_at_position(current_byte_pos, "start")
-                node_type = self.analyzer.get_node_type_by_id(node_id) if node_id else ""
+                node_start_id = self._get_node_at_position(current_byte_pos, token, "start")
+                node_start_type = self.analyzer.get_node_type_by_id(node_start_id) if node_start_id else ""
                 css_class = self.TOKEN_TYPE_CLASSES.get(token_type, "token-unknown")
                 token_pos = len(current_line_tokens)
-                node_token_pos = self._determine_node_token_position(node_id, current_byte_pos, token)
+                # Какое место в node по данной позиции токена: начало, середина, конец
+                node_token_pos = self._determine_node_token_position(node_start_id, current_byte_pos, token)
+
+                node_end_id = self._get_node_at_position(
+                    current_byte_pos + len(token_value.encode("utf-8")) - 1, token, "end"
+                )
+                node_end_type = self.analyzer.get_node_type_by_id(node_end_id) if node_end_id else ""
+                # Какое место в node в конце токена: начало, середина, конец
+                node_token_end_pos = self._determine_node_token_position(
+                    node_end_id, current_byte_pos + len(token_value.encode("utf-8")) - 1, token
+                )
 
                 # Обработка псевдо-токенов
                 if token.get("is_pseudo") and token.get("type") == "whitespace":
@@ -557,55 +574,68 @@ class CodeHighlightGenerator:
 
                 # Проверяем, нужна ли кнопка в начале токена
                 button_type, button_style = self._determine_button_type(
-                    token, node_token_pos, node_id,
+                    token, node_token_pos if node_token_pos != "single" else "start", node_start_id,
                     "start",
                 )
 
-                if button_type and not any(
-                    b["position"] == "before"
-                    and (b["node_id"] == node_id and node_type != "range")
-                    for b in buttons_on_line
+                if (
+                    button_type
+                    and node_token_pos in ["start", "single"]
+                    and not any(
+                        b["position"] == "before"
+                        and (b["node_id"] == node_start_id and node_start_type != "range")
+                        for b in buttons_on_line
+                    )
                 ):
-                    if node_type not in node_type_colors:
-                        node_type_colors[node_type] = self._generate_color_from_string(node_type)
-                    if node_id and node_id not in node_colors:
-                        node_colors[node_id] = self._generate_color_from_string(node_id)
+                    if node_start_type not in node_type_colors:
+                        node_type_colors[node_start_type] = self._generate_color_from_string(
+                            node_start_type
+                        )
+                    if node_start_id and node_start_id not in node_colors:
+                        node_colors[node_start_id] = self._generate_color_from_string(node_start_id)
                     buttons_on_line.append(
                         {
                             "type": button_type,
                             "style": button_style,
-                            "node_id": node_id,
-                            "node_type": node_type,
+                            "node_id": node_start_id,
+                            "node_type": node_start_type,
                             "position": "before",
                             "index": token_pos,
-                            "color": self.BUTTON_TYPES_COLORS.get(node_type) or self.BUTTON_COLORS.get(button_type),
+                            "color": self.BUTTON_TYPES_COLORS.get(node_start_type)
+                            or self.BUTTON_COLORS.get(button_type),
                         },
                     )
 
                 # Проверяем, нужна ли кнопка в конце токена
                 button_type, button_style = self._determine_button_type(
-                    token, node_token_pos,
-                    node_id,
+                    token,
+                    node_token_end_pos if node_token_end_pos != "single" else "end",
+                    node_end_id,
                     "end",
                 )
 
-                if button_type and not any(
-                    b["position"] == "after" and b["node_id"] == node_id for b in buttons_on_line
+                if (
+                    button_type
+                    and node_token_end_pos in ["end", "single"]
+                    and not any(
+                        b["position"] == "after" and b["node_id"] == node_end_id
+                        for b in buttons_on_line
+                    )
                 ):
                     # TODO: need extracting for DRY code
-                    if node_type not in node_type_colors:
-                        node_type_colors[node_type] = self._generate_color_from_string(node_type)
-                    if node_id and node_id not in node_colors:
-                        node_colors[node_id] = self._generate_color_from_string(node_id)
+                    if node_end_type not in node_type_colors:
+                        node_type_colors[node_end_type] = self._generate_color_from_string(node_end_type)
+                    if node_end_id and node_end_id not in node_colors:
+                        node_colors[node_end_id] = self._generate_color_from_string(node_end_id)
                     buttons_on_line.append(
                         {
                             "type": button_type,
                             "style": button_style,
-                            "node_id": node_id,
-                            "node_type": node_type,
+                            "node_id": node_end_id,
+                            "node_type": node_end_type,
                             "position": "after",
                             "index": token_pos,
-                            "color": self.BUTTON_TYPES_COLORS.get(node_type)
+                            "color": self.BUTTON_TYPES_COLORS.get(node_end_type)
                             or self.BUTTON_COLORS.get(button_type),
                         },
                     )
@@ -614,13 +644,13 @@ class CodeHighlightGenerator:
                     "value": token_value,
                     "type": token_type,
                     "css_class": css_class,
-                    "node_id": node_id,
-                    "node_type": node_type,
+                    "node_id": node_start_id,
+                    "node_type": node_start_type,
                     "id": token_id,
                     "index": token_pos,
                 }
                 if self.is_token_color_required(tok):
-                    tok["color"] = node_colors.get(node_id)
+                    tok["color"] = node_colors.get(node_start_id)
                 current_line_tokens.append(tok)
 
                 current_byte_pos += len(token_value.encode("utf-8"))

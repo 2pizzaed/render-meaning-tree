@@ -19,10 +19,7 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
             ast_node = node.metadata.wrapped_ast.ast_node
             match interaction.button_type:
                 case "play":
-                    if ast_node.get("type") == "expression_statement":
-                        kind = NodeKind.ATOM_STMT
-                    else:
-                        kind = NodeKind.BEGIN
+                    kind = NodeKind.BEGIN
                 case "step_into":
                     kind = NodeKind.BEGIN
                 case "question":
@@ -49,4 +46,5 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                     potential_end.wrapped_ast.ast_node.get("id") == trace_act.wrapped_ast.ast_node.get("id")):
                 trace_act.corresponding_end = potential_end
                 break
+    assert len(trace) == len(interactions)
     return trace

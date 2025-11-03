@@ -590,9 +590,9 @@ class PathInfoExporter(ObjectExporter):
         
         # Экспортируем from_ и to_ узлы
         if obj.from_:
-            relationships["fromNode"] = [obj.from_]
+            relationships["from_"] = [obj.from_]
         if obj.to_:
-            relationships["toNode"] = [obj.to_]
+            relationships["to_"] = [obj.to_]
         
         # Экспортируем via_nodes - возвращаем список узлов
         if obj.via_nodes:

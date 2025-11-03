@@ -101,6 +101,9 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
             text=True,
             check=True,
         )
+        if not result.stdout and result.stderr:
+            logger.error("Meaning Tree error output: %s", result.stderr)  # noqa: TRY400
+            return None
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.exception("Error calling Java application")

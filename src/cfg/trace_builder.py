@@ -1,3 +1,4 @@
+from collections.abc import Generator
 from dataclasses import dataclass
 
 from src.cfg.cfg import CFG, NodeKind, TraceAct
@@ -8,6 +9,44 @@ from src.code_renderer import ButtonType
 class UserInteraction:
     ast_node_id: int
     button_type: ButtonType
+
+
+def all_interactions(lines_data: list[dict[str, list]]) -> Generator[UserInteraction]:
+    for line in lines_data:
+        for button in line.get("buttons", []):
+            yield UserInteraction(
+                ast_node_id=button["node_id"],
+                button_type=button["type"],
+            )
+
+
+def build_trace_act(cfg: CFG, interaction: UserInteraction):
+    for node in cfg.nodes.values():
+        if not node.metadata.wrapped_ast or not isinstance(
+            node.metadata.wrapped_ast.ast_node, dict
+        ):
+            continue
+        ast_node = node.metadata.wrapped_ast.ast_node
+        match interaction.button_type:
+            case "play":
+                kind = NodeKind.BEGIN
+            case "step_into":
+                kind = NodeKind.BEGIN
+            case "question":
+                kind = NodeKind.CONDITION
+            case "step-out", "stop":
+                kind = NodeKind.END
+            case _:
+                kind = NodeKind.ANY
+        if ast_node.get("id") == interaction.ast_node_id and node.kind == kind:
+            return TraceAct(
+                    wrapped_ast=node.metadata.wrapped_ast,
+                    cfg_node=node,
+                    action_spec=node.metadata.abstract_action,
+                    corresponding_end=None,
+                    is_known_correct=True,
+                    condition_value=None,
+                )
 
 
 def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[TraceAct]:

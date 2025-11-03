@@ -19,7 +19,7 @@ from .abstractions import (
     TransitionSpec,
 )
 from .cfg import CFG, Edge, Metadata, Node, TraceAct
-from .loqi_exporter import ObjectExporter
+from .loqi_exporter import NameRegistry, ObjectExporter
 from .reachability import PathInfo
 
 # use classmethod as decorator
@@ -497,6 +497,14 @@ class ASTNodeWrapperExporter(ObjectExporter):
 class TraceActExporter(ObjectExporter):
     """Экспортер для класса TraceAct."""
 
+    def __init__(
+        self,
+        name_registry: NameRegistry | None = None,
+        exporters: dict[type, "ObjectExporter"] | None = None,
+    ):
+        super().__init__(name_registry, exporters)
+        self._trace: list[TraceAct] = []
+
     def get_supported_types(self) -> list[type]:
         return [TraceAct]
 
@@ -514,18 +522,23 @@ class TraceActExporter(ObjectExporter):
         return properties
 
     def get_preferred_name(self, obj: TraceAct) -> str:
-        index = self._trace.index(obj)
-        return f"trace_act_{index}"
+        if self._trace:
+            index = self._trace.index(obj)
+        else:
+            index: str | int = obj.wrapped_ast.ast_node.get(
+                "id", f"unknown_{id(obj) % 100_000}")
+        return f"trace_act_{index}_{str(obj.cfg_node.kind).lower()}"
 
     def export_relationships(self, obj: TraceAct) -> dict[str, list[Any]]:
-        index = self._trace.index(obj)
         relationships = {
             "hasASTNode": [obj.wrapped_ast],
             "hasCFGNode": [obj.cfg_node],
             "hasActionSpec": [obj.action_spec],
             "hasActAsCorrespondingEnd": [obj.corresponding_end],
-            "directlyBeforeOf": [self._trace[index + 1]] if index + 1 < len(self._trace) else [],
         }
+        if self._trace:
+            index = self._trace.index(obj)
+            relationships["directlyBeforeOf"] = [self._trace[index + 1]] if index + 1 < len(self._trace) else [],
         return relationships
 
 
@@ -587,19 +600,19 @@ class PathInfoExporter(ObjectExporter):
 
     def export_relationships(self, obj: PathInfo) -> dict[str, list[Any]]:
         relationships: dict[str, list[Any]] = {}
-        
+
         # Экспортируем from_ и to_ узлы
         if obj.from_:
             relationships["from_"] = [obj.from_]
         if obj.to_:
             relationships["to_"] = [obj.to_]
-        
+
         # Экспортируем via_nodes - возвращаем список узлов
         if obj.via_nodes:
             relationships["hasViaNodes"] = obj.via_nodes
-        
+
         # Экспортируем via_edges - возвращаем список рёбер
         if obj.via_edges:
             relationships["hasViaEdges"] = obj.via_edges
-        
+
         return relationships

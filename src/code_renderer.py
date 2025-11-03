@@ -507,13 +507,12 @@ class CodeHighlightGenerator:
                     node.metadata.wrapped_ast.ast_node.get("id", "")
                 ] = node.appearance
 
-    def generate_html(
+    def prepare_interactive_data(
         self,
         source_map: dict[str, Any],
         tokens: dict[str, Any],
-        appearance_status_map: dict[int, AppearanceType] = {},
-        output_file: str | None = None,
-    ) -> str:
+        appearance_status_map: dict[int, AppearanceType] = {}
+    ) -> list[dict[str, list[Any]]]:
         """
         Генерировать HTML с подсветкой синтаксиса
 
@@ -688,6 +687,13 @@ class CodeHighlightGenerator:
 
         if not lines_data:
             lines_data.append({"tokens": [], "buttons": []})
+
+        return lines_data
+
+
+    def generate_html(self, lines_data: list[dict[str, list]],
+                      source_map: dict[str, Any],
+                      output_file: str | None = None):
 
         # Генерируем HTML
         html = self.template.render(

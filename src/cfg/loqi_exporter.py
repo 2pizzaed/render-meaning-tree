@@ -265,9 +265,7 @@ class LoqiExporter(ExporterManager):
     def add_object(self, obj: Any):
         """Добавляет объект для экспорта, игнорируя дубликаты."""
         from .reachability import PathInfo
-        
-        if isinstance(obj, TraceAct):
-            raise ValueError("TraceAct objects should be added via `add_trace` method.")
+
         if isinstance(obj, PathInfo):
             raise ValueError("PathInfo objects should be added via `add_paths` method.")
         if obj is None:

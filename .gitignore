@@ -2,5 +2,6 @@ __pycache__/
 result.html
 output.html
 .vscode/
+/test/genout/
 .idea/
 *.png

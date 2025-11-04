@@ -1,14 +1,12 @@
-#include <iostream>
-
 int main()
 {
     int a = 4, b = 2, c = 6;
     if (a > b)
         if (c < a + b)
-            cout << "X";
+        std::cout << "X";
         else
-            cout << "Y";
+            std::cout << "Y";
     else
-        cout << "Z";
-    cout << "W";
+        std::cout << "Z";
+    std::cout << "W";
 }

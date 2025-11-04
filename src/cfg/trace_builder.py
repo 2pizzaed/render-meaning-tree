@@ -47,6 +47,7 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction):
                     is_known_correct=True,
                     condition_value=None,
                 )
+        print("Warning: No matching node found for interaction:", interaction)
 
 
 def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[TraceAct]:

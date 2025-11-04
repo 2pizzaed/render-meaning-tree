@@ -24,6 +24,8 @@ class TestComplexProblemBuild(unittest.TestCase):
 
         # Перебираем все файлы в task_data
         for file in task_data_path.iterdir():
+            print("Processing file:", file.name)
+
             language = file.suffix.lstrip(".")
 
             if language == "py":

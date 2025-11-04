@@ -8,7 +8,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     skill = "1";
                 ];
             };
-            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd) }) out true else {
+            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd and $begin.active) }) out true else {
                 conclude : error [
                     skill = "2";
                 ];
@@ -20,7 +20,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 forAll Node n [P_l0_a=>viaNodes($n)] {
                     $n.kind == "END" // ищем концы начавшихся действий на пути
                         and 
-                    forAny TraceAct begin [ true ] { $n == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd } // существует начало для этого конца
+                    forAny TraceAct begin [ true ] { $n == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd and $begin.active } // существует начало для этого конца
                         and
                     $n->hasMetadata->hasAbstractAction.appearanceType == AppearanceType:mandatory
                 }
@@ -104,7 +104,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     ask (A->hasASTNode.ast_node == "function_call" and A->hasCFGNode.kind == "END") out true else {
                         conclude : null;
                     };
-                    var closerCall : TraceAct = findExtreme func [$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode
+                    var closerCall : TraceAct = findExtreme func [$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode and $func.active
                        ] among TraceAct act {$act->hasASTNode.ast_node == "function_call" and
                             $act->hasCFGNode.kind == "BEGIN"
                             and

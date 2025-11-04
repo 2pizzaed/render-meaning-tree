@@ -22,6 +22,9 @@ class TestComplexProblemBuild(unittest.TestCase):
         genout_path = current_dir / "genout"
         genout_path.mkdir(exist_ok=True)
 
+        # Загружаем конструкции
+        constructs = load_constructs("constructs.yml")
+
         # Перебираем все файлы в task_data
         for file in task_data_path.iterdir():
             print("Processing file:", file.name)
@@ -72,8 +75,6 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Создаём ASTNodeWrapper
             program_root = ASTNodeWrapper(ast_node=ast_json)
 
-            # Загружаем конструкции
-            constructs = load_constructs("constructs.yml")
             b = CFGBuilder(constructs)
 
             # Генерируем CFG

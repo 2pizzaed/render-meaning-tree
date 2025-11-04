@@ -390,6 +390,13 @@ class CFGBuilder:
         # Предварительный сбор определений функций, если это корневой узел программы
         if isinstance(wrapped_ast.ast_node, dict) and wrapped_ast.ast_node.get('type') == 'program_entry_point':
             self._collect_function_definitions(wrapped_ast.ast_node)
+
+            # Проверить функцию или метод main: если есть, то вся программа -- это её выполнение.
+            if self.func_cfgs and 'main' in self.func_cfgs.keys():
+                ast = wrapped_ast.ast_node
+                if ast["body"][0].get('type') == 'function_definition' and ast["body"][0]["declaration"].get('name') == 'main':
+                    # CFG для функции уже создан
+                    return self.func_cfgs['main']
         
         construct = self.find_construct_for_astnode(wrapped_ast)
         if construct:

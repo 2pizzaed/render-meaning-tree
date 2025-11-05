@@ -86,7 +86,12 @@ class ASTNodeAnalyzer:
         node_types = self.get_node_types_hierarchy(node_id)
         return "function_call" in node_types
 
-    def is_nested_call(self, node_id: int | None) -> bool:
+    def is_io_call(self, node_id: int) -> bool:
+        """Проверить, является ли узел вызовом функции"""
+        node_types = self.get_node_types_hierarchy(node_id)
+        return "print_command" in node_types or "print_command" in node_types
+
+    def is_nested_call(self, node_id: int | None, include_io:bool = False) -> bool:
         """Проверить, является ли вызов функции вложенным в выражение"""
         if not node_id:
             return False
@@ -96,6 +101,9 @@ class ASTNodeAnalyzer:
             return False
 
         if not self.is_function_call(node_id):
+            return False
+
+        if self.is_io_call(node_id) and not include_io:
             return False
 
         # Проверяем, есть ли родительский узел, который не является statement
@@ -120,6 +128,9 @@ class ASTNodeAnalyzer:
         return node.get("type", "").lower() in [
                 "variable_declaration",
                 "expression_statement",
+                "break_statement",
+                "continue_statement",
+                "return_statement",
                 "empty_statement",
                 "assignment_statement",
         ]
@@ -275,11 +286,13 @@ class CodeHighlightGenerator:
             if isinstance(positions, list) and len(positions) == 2:
                 start, offset = positions
                 end = start + offset
-                accept = self._determine_node_token_position(
+                detected_pos = self._determine_node_token_position(
                         int(node_id), byte_pos, token
-                    ) in [pos, "single"]
+                )
+                accept = detected_pos in [pos, "single"]
+
                 if start <= byte_pos < end and accept:
-                    candidates.append((int(node_id), start, offset))
+                    candidates.append((int(node_id), start, offset, detected_pos))
         if candidates:
             # Узлы с наименьшим размером (самые вложенные) сначала
             candidates.sort(key=lambda x: x[2])
@@ -287,10 +300,17 @@ class CodeHighlightGenerator:
                 candidates.pop(-1) # Убираем самый большой (самый внешний, это всегда точка входа)
             if not candidates:
                 return None
+            # берем наименее вложенный узел и ближе к нашей позиции
             if pos == "end":
+                # Есть хотя бы один кандидат - одиночный токен с неразличимым концом и началом
+                if any(x[3] == "single" for x in candidates):
+                    return min(
+                        enumerate(candidates),
+                        key=lambda i: abs(byte_pos - i[1][2]) - i[0],
+                    )[1][0]
                 return max(
                     enumerate(candidates),
-                    key=lambda i: abs(byte_pos - i[1][1]) + i[0],
+                    key=lambda i: abs(byte_pos - i[1][2]) + i[0],
                 )[1][0]
             return min(enumerate(candidates), key=lambda i: abs(byte_pos - i[1][1]) - i[0])[1][0]
 
@@ -319,7 +339,7 @@ class CodeHighlightGenerator:
         is_block = self.analyzer.is_block(node_id)
         is_simple_statement = self.analyzer.is_simple_statement(node_id)
         is_compound_statement = self.analyzer.is_compound_statement(node_id)
-        is_nested_call = self.analyzer.is_nested_call(node_id)
+        is_nested_call = self.analyzer.is_nested_call(node_id, False)
         is_header = self.analyzer.is_loop_or_condition_header(node_id)
         for_component = self.analyzer.is_for_loop_component(node_id)
 
@@ -432,6 +452,13 @@ class CodeHighlightGenerator:
                         "token-separator",
                         "token-comma",
                     ]
+                    and not (
+                        token.get("type", "") == "operator"
+                        and token.get("value", "") in [".", "::"]
+                    )
+                    and not (
+                        next_token.get("type", "") == "operator" and next_token.get("value") in [".", "::"]
+                    )
                     and not token.get("type", "").endswith("opening_brace")
                     and not next_token.get("type", "").endswith("closing_brace")
                     and all("unary" not in t for t in node_types)
@@ -441,7 +468,7 @@ class CodeHighlightGenerator:
                         token.get("css_class") == "token-separator"
                         and next_token.get("css_class") == "token-separator"
                     )
-                  or token.get("value", "") == "not"
+                    or token.get("value", "") == "not"
                 )
 
                 after_button = any(
@@ -484,8 +511,11 @@ class CodeHighlightGenerator:
 
         token_value = token.get("value", "")
         token_length = len(token_value.encode("utf-8"))
+        # fuzzy-подход к определению границ узла по байтовым позициям
         tol = int(token_length * 0.5)
 
+        # Конец и начало токена из одного символа неразличимы.
+        # Например, у `if N:`, N имеет конец и начало одновременно
         if abs(abs(end - start) - token_length) <= tol:
             return "single"
 
@@ -553,13 +583,23 @@ class CodeHighlightGenerator:
                 # Токен на текущей строке
                 node_start_id = self._get_node_at_position(current_byte_pos, token, "start")
                 node_start_type = self.analyzer.get_node_type_by_id(node_start_id) if node_start_id else ""
+                # Патч случаев, когда нам нужно изменить стартовый узел на его детей
+                if node_start_type == "expression_statement" and self.analyzer and node_start_id:
+                    node = self.analyzer.get_node_by_id(node_start_id)
+                    if node:
+                        child = node.get("expression", {})
+                        child_id = child.get("id", 0)
+                        if self.analyzer.is_function_call(child_id) and not self.analyzer.is_io_call(child_id):
+                            node_start_id = child_id
+                            node_start_type = child.get("type", "")
                 css_class = self.TOKEN_TYPE_CLASSES.get(token_type, "token-unknown")
                 token_pos = len(current_line_tokens)
                 # Какое место в node по данной позиции токена: начало, середина, конец
                 node_token_pos = self._determine_node_token_position(node_start_id, current_byte_pos, token)
 
                 node_end_id = self._get_node_at_position(
-                    current_byte_pos + len(token_value.encode("utf-8")) - 1, token, "end"
+                    current_byte_pos + len(token_value.encode("utf-8")) - 1, token,
+                    "end"
                 )
                 node_end_type = self.analyzer.get_node_type_by_id(node_end_id) if node_end_id else ""
                 # Какое место в node в конце токена: начало, середина, конец
@@ -649,7 +689,7 @@ class CodeHighlightGenerator:
                     "index": token_pos,
                 }
                 if self.is_token_color_required(tok):
-                    tok["color"] = node_colors.get(node_start_id)
+                    tok["color"] = node_colors.get(node_start_id) or node_colors.get(node_end_id)
                 current_line_tokens.append(tok)
 
                 current_byte_pos += len(token_value.encode("utf-8"))

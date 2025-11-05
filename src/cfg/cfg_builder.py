@@ -391,16 +391,19 @@ class CFGBuilder:
         if isinstance(wrapped_ast.ast_node, dict) and wrapped_ast.ast_node.get('type') == 'program_entry_point':
             self._collect_function_definitions(wrapped_ast.ast_node)
 
-            # Проверить функцию или метод main: если есть, то вся программа -- это её выполнение.
-            if self.func_cfgs and 'main' in self.func_cfgs.keys():
-                # CFG для функции уже создан
-                return self.func_cfgs['main']
 
         construct = self.find_construct_for_astnode(wrapped_ast)
         if construct:
             # Проверяем специальные случаи для функций
             if construct.name == FUNC_DEF_CONSTRUCT:
-                return self._create_simple_cfg(f"function_def_{construct.name}")
+                # Извлекаем имя функции
+                func_name = self._extract_function_name(wrapped_ast, construct)
+                if func_name == 'main' and self.func_cfgs and 'main' in self.func_cfgs.keys():
+                    # get already prepared CFG for func def
+                    return self.func_cfgs['main']
+                else:
+                    # no-op
+                    return self._create_simple_cfg(f"function_def_{construct.name}")
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._make_cfg_for_function_call(construct, wrapped_ast)
 

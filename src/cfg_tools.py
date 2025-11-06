@@ -2,11 +2,13 @@ from typing import cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
+from deprecated import deprecated
 
 from src.serializers.serializer import Serializer
 from src.types import Node, NodeType
 
 
+@deprecated
 class BasicBlock:
     def __init__(self, block_id: str, ast_nodes=None):
         self.id = block_id
@@ -31,6 +33,7 @@ class BasicBlock:
         self.instructions.append(instruction)
 
 
+@deprecated
 class ControlFlowGraph(Serializer):
     def __init__(self):
         super().__init__()

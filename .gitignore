@@ -1,5 +1,7 @@
 __pycache__/
 .vscode/
+.idea/
 /domain/test_output/
 /test/output/
+/test/genout/
 *.png

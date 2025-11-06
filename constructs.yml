@@ -285,6 +285,51 @@ for_each_structure:
       to: cond
 
 # --------------------------------
+# Цикл for по диапазону (range_for_loop)
+# --------------------------------
+for_range_structure:
+  kind: compound.loop
+  ast_node: range_for_loop
+  effects:
+    - interruption_stop: break
+  actions:
+    - role: init
+      kind: inline
+      identification:
+        property_path: 'range.start'
+    - role: cond
+      kind: inline.condition
+      identification:
+        property_path: 'range.stop'
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: update
+      kind: inline
+      identification:
+        property_path: 'range.step'
+  transitions:
+    - from_: BEGIN
+      to: init
+    - from_: init
+      to: cond
+    - from_: cond
+      to: body
+      constraints:
+        condition_value: true
+    - from_: cond
+      to: END
+      constraints:
+        condition_value: false       # false → выход
+    - from_: body
+      to: update
+    - from_: update
+      to: cond
+
+# --------------------------------
 # Блок операторов { ... }
 # --------------------------------
 block_structure:

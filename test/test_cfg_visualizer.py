@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 # Добавляем корневую директорию проекта в путь
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.cfg.cfg_visualizer import visualize_cfg, _create_node_label, _create_edge_label, _build_networkx_graph

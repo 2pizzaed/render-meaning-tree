@@ -18,8 +18,8 @@ class TestComplexProblemBuild(unittest.TestCase):
         current_dir = Path(__file__).parent
 
         # Путь к папке с входными данными и выходной папке
-        task_data_path = current_dir / "task_code"
-        genout_path = current_dir / "genout"
+        task_data_path = current_dir / "data" / "task_code"
+        genout_path = current_dir / "output" / "code_snippets"
         genout_path.mkdir(exist_ok=True)
 
         # Загружаем конструкции

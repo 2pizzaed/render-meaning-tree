@@ -30,7 +30,7 @@ def demo_basic_export():
     exporter.add_object(action)
     
     # Экспортируем в файл
-    output_file = "demo_export.loqi"
+    output_file = "test/output/demo_export.loqi"
     exporter.write_to_file(output_file)
     
     print(f"Объекты экспортированы в файл: {output_file}")
@@ -66,7 +66,7 @@ def demo_cfg_export():
     edge = cfg.connect(cfg.begin_node, node)
     
     # Экспортируем CFG
-    output_file = "demo_cfg_export.loqi"
+    output_file = "test/output/demo_cfg_export.loqi"
     exporter.export_cfg(cfg, output_file)
     
     print(f"CFG экспортирован в файл: {output_file}")

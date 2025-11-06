@@ -14,7 +14,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder1(self):
 
-        with open("data/ast.json") as f:
+        with open("test/data/ast/ast.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -73,7 +73,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder4(self):
 
-        with open("data/ast4.json") as f:
+        with open("test/data/ast/ast4.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -134,7 +134,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder5(self):
 
-        with open("data/ast5.json") as f:
+        with open("test/data/ast/ast5.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -150,7 +150,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder6(self):
 
-        with open("test/data/ast6.json") as f:
+        with open("test/data/ast/ast6.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -168,12 +168,12 @@ class TestCfgBuilder(unittest.TestCase):
         output_file = "domain/cfg6_export.loqi"
         exporter.export_cfg(cfg, output_file)
 
-        visualize_cfg_graphviz(cfg, "cfg_6_gv.png")
+        visualize_cfg_graphviz(cfg, "test/output/cfg_6_gv.png")
         # cfg.debug()
 
     def test_cfg_builder7(self):
 
-        with open("data/ast7.json") as f:
+        with open("test/data/ast/ast7.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -242,7 +242,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder8(self):
 
-        with open("data/ast8.json") as f:
+        with open("test/data/ast/ast8.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -258,7 +258,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder3(self):
 
-        with open("data/ast3.json") as f:
+        with open("test/data/ast/ast3.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -274,7 +274,7 @@ class TestCfgBuilder(unittest.TestCase):
 
     def test_cfg_builder9(self):
 
-        with open("test/data/ast9.json") as f:  # no `test/` prefix used
+        with open("test/data/ast/ast9.json") as f:  # no `test/` prefix used
            ast_json = json.load(f)
 
         # Create the full AST hierarchy
@@ -351,12 +351,12 @@ class TestCfgBuilder(unittest.TestCase):
         #     layout='hierarchical',
         # )
 
-        visualize_cfg_graphviz(cfg, "cfg_9_gv.png")
+        visualize_cfg_graphviz(cfg, "test/output/cfg_9_gv.png")
 
 
     def test_cfg_builder10(self):
 
-        with open("test/data/ast10.json") as f:
+        with open("test/data/ast/ast10.json") as f:
            ast_json = json.load(f)
 
         # Create the full AST hierarchy

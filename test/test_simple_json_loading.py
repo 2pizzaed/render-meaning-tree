@@ -15,7 +15,7 @@ class TestSimpleJsonLoading:
     def test_load_ast_from_json_simple(self):
         """Test loading AST from JSON file using simple approach"""
         try:
-            with open("data/ast.json", "r") as f:
+            with open("test/data/ast/ast.json", "r") as f:
                 ast_data = json.load(f)
             
             # Create a simple AST node dataclass
@@ -80,7 +80,7 @@ class TestSimpleJsonLoading:
     def test_load_complex_nested_structure(self):
         """Test loading complex nested JSON structure"""
         try:
-            with open("ast.json", "r") as f:
+            with open("test/data/ast/ast.json", "r") as f:
                 ast_data = json.load(f)
             
             @dataclass
@@ -140,7 +140,7 @@ class TestSimpleJsonLoading:
     def test_dict_like_operations(self):
         """Test various dict-like operations on loaded data"""
         try:
-            with open("ast.json", "r") as f:
+            with open("test/data/ast/ast.json", "r") as f:
                 ast_data = json.load(f)
             
             @dataclass

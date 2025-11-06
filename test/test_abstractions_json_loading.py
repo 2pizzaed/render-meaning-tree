@@ -12,7 +12,7 @@ class TestAbstractionsJsonLoading:
     def test_load_ast_from_json(self):
         """Test loading AST from JSON file"""
         try:
-            with open("test/data/ast.json") as f:
+            with open("test/data/ast/ast.json") as f:
                 ast = json.load(f)
             
             # Test basic structure
@@ -51,7 +51,7 @@ class TestAbstractionsJsonLoading:
     def test_load_ast_dict_like_access(self):
         """Test dict-like access to loaded AST"""
         try:
-            with open("test/data/ast.json") as f:
+            with open("test/data/ast/ast.json") as f:
                 ast = json.load(f)
             
             # Test dict-like access

@@ -4,7 +4,7 @@ from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_tokens
 
 language, ext = "python", "py"
-example_path = Path(__file__).parent / "examples" / f"code_example.{ext}"
+example_path = Path(__file__).parent / "data" / "examples" / f"code_example.{ext}"
 template_path = Path(__file__).parent.parent / "templates" / "base_new.html"
 
 with example_path.open(encoding="utf-8") as f:
@@ -20,5 +20,5 @@ lines_data = gen.prepare_interactive_data(source_map, tokens)
 gen.generate_html(
     lines_data,
     source_map,
-    output_file="output.html",
+    output_file="test/output/output.html",
 )

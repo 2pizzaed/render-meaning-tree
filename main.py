@@ -1,9 +1,9 @@
+import argparse
 import json
 
+from src.cfg_tools import cfg
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
-from src.cfg_tools import cfg
-import argparse
 
 
 def save_as_html(code: str, language: str):
@@ -13,10 +13,15 @@ def save_as_html(code: str, language: str):
     tokens = to_tokens(language, source_map["source_code"])
     if not tokens:
         raise ValueError("Token obtaining failure")
-    CodeHighlightGenerator().generate_html(
+    gen = CodeHighlightGenerator()
+    lines = gen.prepare_interactive_data(
         source_map,
         tokens,
-        output_file="output.html",
+    )
+    gen.generate_html(
+        lines,
+        source_map,
+        output_file="output.html"
     )
 
 
@@ -26,21 +31,27 @@ def save_cfg(node, output_file="cfg.png"):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process code into meaning tree and generate visualizations")
-    parser.add_argument("--file", "-f", help="Java source file to process")
-    parser.add_argument("--code", "-c", help="Java code string to process")
+    parser = argparse.ArgumentParser(
+        description="Process code into meaning tree and generate visualizations"
+    )
+    parser.add_argument("--file", "-f", help="Source file to process")
+    parser.add_argument("--code", "-c", help="Code string to process")
     parser.add_argument("--cfg", "-g", action="store_true", help="Generate control flow graph")
-    parser.add_argument("--output", "-o", default="result", help="Output filename (without extension)")
-    parser.add_argument("--analyze", "-a", action="store_true", help="Print CFG analysis information")
+    parser.add_argument(
+        "--output", "-o", default="result", help="Output filename (without extension)"
+    )
+    parser.add_argument(
+        "--analyze", "-a", action="store_true", help="Print CFG analysis information"
+    )
 
     args = parser.parse_args()
 
     # file_path = args.file
     N = 10
-    file_path = f"test/examples/code_example{N}.py"
+    file_path = f"test/data/examples/code_example{N}.py"
 
     if file_path:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             code = f.read()
     elif args.code:
         code = args.code
@@ -58,8 +69,8 @@ if __name__ == "__main__":
 
     if 1:
         # save json
-        with open(f"test/data/ast{N}.json", "w") as f:
-           json.dump(ast, f, indent=2)
+        with open(f"test/data/ast/ast{N}.json", "w") as f:
+            json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"
     save_as_html(code, "python")
@@ -84,6 +95,3 @@ if __name__ == "__main__":
     # from src.serializers.compprehension_serializer import serialize
     # from pprint import pprint
     # pprint(serialize(ast))
-    
-    
-    

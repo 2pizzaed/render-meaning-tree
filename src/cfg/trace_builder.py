@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from dataclasses import dataclass
+import sys
 import warnings
 
 from src.cfg.cfg import CFG, NodeKind, TraceAct
@@ -48,9 +49,9 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction):
                     is_known_correct=True,
                     condition_value=None,
                 )
-        warnings.warn(
+        print(
             f"Warning: No matching node found for interaction: {interaction}",
-            stacklevel=2
+            file=sys.stderr
         )
 
 

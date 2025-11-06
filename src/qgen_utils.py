@@ -1,4 +1,5 @@
 import re
+import sys
 from typing import Any
 import warnings
 
@@ -164,11 +165,11 @@ def build_question(language: str,
                                                 language, language,
                                                 source_map=True)  # type: ignore
     if mt is None or source_map is None:
-        warnings.warn("No valid meaning tree output", stacklevel=2)
+        print("No valid meaning tree output", file=sys.stderr)
         return
     tokens = to_tokens(language, source_map["source_code"])
     if tokens is None:
-        warnings.warn("No valid token output", stacklevel=2)
+        print("No valid token output", file=sys.stderr)
         return
     htmlgen = CodeHighlightGenerator()
     lines_data = htmlgen.prepare_interactive_data(
@@ -182,7 +183,7 @@ def build_question(language: str,
 
     loqi = build_loqi(mt, lines_data)
     if not loqi:
-        warnings.warn("No valid loqi output", stacklevel=2)
+        print("No valid loqi output", file=sys.stderr)
         return
 
     qname = debug_question_name or create_question_name(mt, code_snippet)

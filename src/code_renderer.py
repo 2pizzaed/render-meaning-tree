@@ -1,6 +1,7 @@
 
 import hashlib
 import os
+import sys
 import warnings
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -725,7 +726,7 @@ class CodeHighlightGenerator:
                         token_code += token["value"]
                 token_code += "\n"
             diffs = make_str_diff(self.source.decode("utf-8"), token_code)
-            warnings.warn(f"Possible invalid html generation result, all tokens haven't been processed. See differences: {diffs}")
+            print(f"Possible invalid html generation result, all tokens haven't been processed. See differences: {diffs}", file=sys.stderr)
 
         if not lines_data:
             lines_data.append({"tokens": [], "buttons": []})

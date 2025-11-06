@@ -248,6 +248,8 @@
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
                                         data-action="{{ button.type }}"
+                                        data-comp-ph-pos="{{button.action_id}}"
+                                        id="answer_{{button.action_id}}"
                                         style="--button-color: {{ button.color }};"
                                         >
                                     {%- if button.type == 'play' -%}<i data-lucide="play" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
@@ -264,7 +266,11 @@
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
-                                        data-action="{{ button.type }}">
+                                        data-action="{{ button.type }}"
+                                        data-comp-ph-pos="{{button.action_id}}"
+                                        id="answer_{{button.action_id}}"
+                                        style="--button-color: {{ button.color }};"
+                                >
                                     {%- if button.type == 'play' -%}<i data-lucide="play" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- elif button.type == 'stop' -%}<i data-lucide="square" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>

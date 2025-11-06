@@ -1,3 +1,4 @@
+import sys
 from typing import Optional
 
 from src.cfg.abstractions import ConstructSpec
@@ -34,7 +35,7 @@ class CFGBuilder:
                 if construct.ast_node == node_type:
                     return construct
             ###
-            print(f'Note: no construct found for ast_node {node_type=}')
+            print(f'Note: no construct found for ast_node {node_type=}', file=sys.stderr)
             ###
         return None
 
@@ -48,14 +49,14 @@ class CFGBuilder:
                 break
         
         if not name_action:
-            print(f'Warning: no name action found in construct {construct.name}')
+            print(f"Warning: no name action found in construct {construct.name}", file=sys.stderr)
             print(f'Available actions: {[a.role for a in construct.actions]}')
             return None
         
         # Извлекаем данные узла с именем функции
         name_data = name_action.find_node_data(wrapped_ast)
         if not name_data:
-            print(f'Warning: could not extract function name from AST')
+            print(f"Warning: could not extract function name from AST", file=sys.stderr)
             return None
         
         # Получаем имя функции из AST узла
@@ -64,11 +65,14 @@ class CFGBuilder:
         elif isinstance(name_data.ast_node, str):
             func_name = name_data.ast_node
         else:
-            print(f'Warning: unexpected AST node type for function name: {type(name_data.ast_node)}')
+            print(
+                f"Warning: unexpected AST node type for function name: {type(name_data.ast_node)}",
+                file=sys.stderr,
+            )
             return None
         
         if not func_name:
-            print(f'Warning: function name not found in AST node')
+            print(f"Warning: function name not found in AST node", file=sys.stderr)
             return None
         
         return func_name
@@ -111,7 +115,10 @@ class CFGBuilder:
         # Извлекаем имя функции
         func_name = self._extract_function_name_from_node(func_node)
         if not func_name:
-            print(f'Warning: could not extract function name from function definition node')
+            print(
+                f"Warning: could not extract function name from function definition node",
+                file=sys.stderr,
+            )
             return
         
         # Проверяем, не была ли функция уже обработана
@@ -125,7 +132,10 @@ class CFGBuilder:
         if construct:
             self._handle_function_definition(construct, wrapped_ast)
         else:
-            print(f'Warning: no construct found for function definition "{func_name}"')
+            print(
+                f'Warning: no construct found for function definition "{func_name}"',
+                file=sys.stderr,
+            )
 
     def _extract_function_name_from_node(self, func_node: dict) -> Optional[str]:
         """
@@ -225,7 +235,10 @@ class CFGBuilder:
             # Проверяем наличие определения функции
             func_cfg = self.func_cfgs.get(func_name)
             if not func_cfg:
-                print(f'Warning: function "{func_name}" not found in func_cfgs, skipping call')
+                print(
+                    f'Warning: function "{func_name}" not found in func_cfgs, skipping call',
+                    file=sys.stderr,
+                )
                 continue
             
             # Создаем CFG для вызова функции
@@ -292,7 +305,10 @@ class CFGBuilder:
         # Извлекаем имя функции
         func_name = self._extract_function_name(wrapped_ast, construct)
         if not func_name:
-            print(f'Warning: could not extract function name, skipping function definition')
+            print(
+                f"Warning: could not extract function name, skipping function definition",
+                file=sys.stderr,
+            )
             # Возвращаем пустой CFG
             return self._create_simple_cfg("empty_function_def")
         
@@ -317,14 +333,20 @@ class CFGBuilder:
         # Извлекаем имя функции
         func_name = self._extract_function_name(wrapped_ast, construct)
         if not func_name:
-            print(f'Warning: could not extract function name, treating as regular compound')
+            print(
+                f"Warning: could not extract function name, treating as regular compound",
+                file=sys.stderr,
+            )
             # Обрабатываем как обычный compound без call stack эффектов
             return self.make_cfg_for_construct(construct, wrapped_ast)
         
         # Ищем CFG функции в func_cfgs
         func_cfg = self.func_cfgs.get(func_name)
         if not func_cfg:
-            print(f'Warning: function "{func_name}" not found in func_cfgs, treating as regular compound')
+            print(
+                f'Warning: function "{func_name}" not found in func_cfgs, treating as regular compound',
+                file=sys.stderr,
+            )
             # Обрабатываем как обычный compound, без эффектов call_stack
             return self.make_cfg_for_construct(construct, wrapped_ast)
         
@@ -472,7 +494,10 @@ class CFGBuilder:
             # Построить выходящие переходы
             action = construct.role2action.get(role)
             if not action:
-                print(f'Warning: no action found for role {role} in construct {construct.name}')
+                print(
+                    f"Warning: no action found for role {role} in construct {construct.name}",
+                    file=sys.stderr,
+                )
                 continue
             outgoing_transitions = construct.find_transitions_from_action(action)
             if not outgoing_transitions:
@@ -485,7 +510,10 @@ class CFGBuilder:
                         tr, wrapped_ast,
                         node.metadata.wrapped_ast)
                 except ValueError as e:
-                    print(f'Warning: could not resolve transition {tr.from_} -> {tr.to} (or {tr.to_when_absent})')
+                    print(
+                        f"Warning: could not resolve transition {tr.from_} -> {tr.to} (or {tr.to_when_absent})",
+                        file=sys.stderr,
+                    )
                     print(f'  Action: {action.role}, AST: {wrapped_ast.describe()}')
                     print(f'  Error: {e!r}')
                     continue

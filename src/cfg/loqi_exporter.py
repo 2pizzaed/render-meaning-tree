@@ -9,6 +9,8 @@ Loqi Exporter - модуль для экспорта объектов Python в 
 import builtins
 from abc import ABC, abstractmethod
 from enum import Enum
+from io import StringIO
+import sys
 from typing import Any, Optional, get_origin
 
 from src.cfg.cfg import TraceAct
@@ -204,7 +206,7 @@ class LoqiExporter(ExporterManager):
             from .loqi_exporters import CFGExporter
         except ImportError as e:
             # Если импорт не удался, оставляем пустой список экспортеров
-            print(f"Warning: Could not import exporters: {e}")
+            print(f"Warning: Could not import exporters: {e}", file=sys.stderr)
             return
 
         exporters = self.registered_classes.values()
@@ -282,7 +284,10 @@ class LoqiExporter(ExporterManager):
             self._add_related_objects(obj)
         elif 0:
             # debugging. TODO: remove this print.
-            print(f"Warning: Object `{exporter.get_registered_name_for_object(obj)}` already registered, ignoring.")
+            print(
+                f"Warning: Object `{exporter.get_registered_name_for_object(obj)}` already registered, ignoring.",
+                file=sys.stderr,
+            )
 
     def _add_related_objects(self, obj: Any, ignore_self_type: bool = False):
         """Добавляет все объекты, связанные с данным объектом через relationships."""
@@ -302,19 +307,19 @@ class LoqiExporter(ExporterManager):
                     # Рекурсивный вызов add_object - он сам проверит на дубликаты
                     self.add_object(rel_obj)
 
-    def export_cfg(self, cfg, output_path: str):
+    def export_cfg(self, cfg, output_path: str | None):
         """Экспортирует CFG и все связанные объекты в файл."""
         # Собираем все объекты из CFG
         self._collect_cfg_objects(cfg)
 
         # Выполняем двухпроходный экспорт
         self._register_all_objects()
-        self._write_to_file(output_path)
+        return self._write_to_file(output_path)
 
-    def write_to_file(self, output_path: str):
+    def write_to_file(self, output_path: str | None):
         """Записывает все добавленные объекты в файл."""
         self._register_all_objects()
-        self._write_to_file(output_path)
+        return self._write_to_file(output_path)
 
     def _collect_cfg_objects(self, cfg):
         """Собирает все объекты из CFG для экспорта."""
@@ -333,9 +338,9 @@ class LoqiExporter(ExporterManager):
             return self.exporters[type(obj)]
         return None
 
-    def _write_to_file(self, output_path: str):
+    def _write_to_file(self, output_path: str | None):
         """Записывает экспортированные объекты в файл."""
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with StringIO() as f:
             f.write("// Экспортированные объекты из Python\n\n")
 
             # Группируем объекты по типу для лучшей читаемости
@@ -359,3 +364,8 @@ class LoqiExporter(ExporterManager):
                             loqi_code = f"var {var} = {loqi_code}"
                         f.write(loqi_code)
                         f.write("\n\n")
+            loqi = f.getvalue()
+        if output_path:
+            with open(output_path, "w", encoding="utf-8") as fileobj:
+                fileobj.write(loqi)
+        return loqi

@@ -7,6 +7,8 @@
 - constraints на рёбрах (condition_value, interruption_mode)
 """
 
+import sys
+
 import matplotlib.pyplot as plt
 import networkx as nx
 from deprecated import deprecated
@@ -95,8 +97,8 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
             # Логируем пропущенные рёбра для отладки
             missing_src = edge.src not in cfg.nodes
             missing_dst = edge.dst not in cfg.nodes
-            print(f"Warning: Skipping edge {edge.src} -> {edge.dst} "
-                  f"(missing src: {missing_src}, missing dst: {missing_dst})")
+            print(f"Skipping edge {edge.src} -> {edge.dst} "
+                  f"(missing src: {missing_src}, missing dst: {missing_dst})", file=sys.stderr)
 
     return G
 
@@ -162,7 +164,7 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
         Путь к сохранённому файлу изображения
     """
     if not cfg.nodes:
-        print("Warning: CFG is empty, nothing to visualize")
+        print("Warning: CFG is empty, nothing to visualize", file=sys.stderr)
         return output_file
 
     # 1. Создать NetworkX граф
@@ -172,15 +174,26 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
     issues = diagnose_cfg(cfg)
 
     if issues['orphan_edges']:
-        print(f"Warning: Found {len(issues['orphan_edges'])} orphan edges in CFG:")
+        print(f"Warning: Found {len(issues['orphan_edges'])} orphan edges in CFG:", file=sys.stderr)
         for edge_desc in issues['orphan_edges']:
             print(f"  {edge_desc}")
 
     if issues['disconnected_nodes']:
-        print(f"Warning: Found {len(issues['disconnected_nodes'])} disconnected nodes: {issues['disconnected_nodes']}")
+        print(f"Warning: Found {len(issues['disconnected_nodes'])} disconnected nodes: {issues['disconnected_nodes']}", file=sys.stderr)
 
     if issues['missing_nodes']:
-        print(f"Warning: Missing nodes referenced in edges: {list(issues['missing_nodes'])}")
+        print(
+            f"Warning: Missing nodes referenced in edges: {list(issues['missing_nodes'])}",
+            file=sys.stderr,
+        )
+        print(
+            f"Warning: Missing nodes referenced in edges: {list(issues['missing_nodes'])}",
+            file=sys.stderr,
+        )
+        print(
+            f"Warning: Missing nodes referenced in edges: {list(issues['missing_nodes'])}",
+            file=sys.stderr,
+        )
 
     print(f"CFG stats: {issues['total_nodes']} nodes, {issues['total_edges']} edges")
 

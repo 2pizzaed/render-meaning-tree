@@ -636,6 +636,7 @@ class CodeHighlightGenerator:
                         {
                             "type": button_type,
                             "style": button_style,
+                            "action_id": len(buttons_on_line),
                             "node_id": node_start_id,
                             "node_type": node_start_type,
                             "position": "before",
@@ -670,6 +671,7 @@ class CodeHighlightGenerator:
                         {
                             "type": button_type,
                             "style": button_style,
+                            "action_id": len(buttons_on_line),
                             "node_id": node_end_id,
                             "node_type": node_end_type,
                             "position": "after",

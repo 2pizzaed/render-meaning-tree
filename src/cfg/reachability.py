@@ -2,9 +2,8 @@ import copy
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
 
-from src.cfg import CFG, Node
-from src.cfg.abstractions import DEFAULT_APPEARANCE_PROFILE, AppearanceProfile, AppearanceType, CallStackAction
-from src.cfg.cfg import Edge
+from src.cfg import CFG, Node, Edge
+from src.cfg.abstractions import DEFAULT_APPEARANCE_PROFILE, AppearanceProfile, AppearanceType, CallStackAction, Effects
 from src.common_utils import DictLikeDataclass
 
 

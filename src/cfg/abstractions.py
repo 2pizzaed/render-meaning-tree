@@ -153,6 +153,35 @@ class Constraints(DictLikeDataclass):
     # # Additional constraints can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
+    @classmethod
+    def merge(cls, this: Self, other: Self) -> Self:
+        """ Объединить ограничения из последовательных узлов/рёбер, заполняя незаполненное, если указано.
+         В случае "конфликта" -- в обоих заполнено -- берётся значение из левого (TODO `any`?).
+         """
+        if this is not None and not isinstance(this, cls):
+            raise TypeError(f"Expected {cls.__name__} instance for 'this', got {type(this)!r}")
+        if other is not None and not isinstance(other, cls):
+            raise TypeError(f"Expected {cls.__name__} instance for 'other', got {type(other)!r}")
+
+        if this is None:
+            return other if other is not None else cls()
+        if other is None:
+            return this
+
+        result = cls()
+        for name in this.keys():
+            existing_value = this[name] if other is not None else None
+            if existing_value is not None:
+                result[name] = existing_value
+                continue
+
+            new_value = other[name] if this is not None else None
+            if new_value is not None:
+                result[name] = new_value
+
+        return result
+
+
 
 @dataclass
 class ActionSpec(DictLikeDataclass):

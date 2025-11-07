@@ -30,6 +30,9 @@ class DictLikeDataclass:
     def __contains__(self, key):
         return hasattr(self, key)
 
+    def keys(self) -> list[str]:
+        return [f.name for f in fields(self)]
+
     def to_shallow_dict(self) -> dict:
         """Return dictionary of all dataclass fields (non-recursive)
          (similar to dataclasses.asdict())

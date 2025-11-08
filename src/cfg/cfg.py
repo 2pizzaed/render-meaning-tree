@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Optional, Self
+from typing import Iterable, Optional, Self, TYPE_CHECKING
 
 from src.cfg.abstractions import (
     DEFAULT_APPEARANCE_PROFILE,
@@ -14,6 +14,9 @@ from src.cfg.abstractions import (
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
 from src.serializers.types import FactSerializable
+
+if TYPE_CHECKING:
+    from src.cfg.reachability import PathInfo
 
 
 @dataclass
@@ -91,6 +94,8 @@ class Node(FactSerializable):
     cfg: 'CFG | None' = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
+    direct_out_paths: list['PathInfo'] = field(default_factory=list, repr=False)
+    direct_in_paths: list['PathInfo'] = field(default_factory=list, repr=False)
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
 
@@ -111,6 +116,29 @@ class Node(FactSerializable):
         """ Проверяет, является ли узел условием. 
         Обратите внимание, что условие может быть прозрачным (т.е. не обязательным): это может наблюдаться в цикле `for(;;) { ... }` или `while(true) { ... }` """
         return self.metadata.abstract_action and self.metadata.abstract_action.kind.has('condition')
+
+    def clear_direct_paths(self) -> None:
+        """Удалить информацию о прямых путях, связанных с узлом."""
+        self.direct_out_paths.clear()
+        self.direct_in_paths.clear()
+
+    def set_direct_paths(
+        self,
+        *,
+        outgoing: Iterable['PathInfo'] | None = None,
+        incoming: Iterable['PathInfo'] | None = None,
+    ) -> None:
+        """Перезаписать списки прямых путей (исходящих/входящих)."""
+        if outgoing is not None:
+            self.direct_out_paths = list(outgoing)
+        if incoming is not None:
+            self.direct_in_paths = list(incoming)
+
+    def register_direct_path(self, path: 'PathInfo', *, incoming: bool = False) -> None:
+        """Добавить прямой путь к исходящим или входящим путям."""
+        target = self.direct_in_paths if incoming else self.direct_out_paths
+        if path not in target:
+            target.append(path)
 
 @dataclass(kw_only=True)
 class Edge(FactSerializable):

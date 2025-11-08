@@ -230,7 +230,7 @@ class PathInfo(DictLikeDataclass):
             return
 
         opaque_count = self.opaque_actions or 0
-        if opaque_count == 0:
+        if opaque_count == 0 or not self.via_nodes[0].is_mandatory():
             self.is_direct = None
         elif opaque_count == 1 and self.via_nodes[-1].is_mandatory():
             self.is_direct = True
@@ -404,6 +404,18 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
     # Сортируем по длине пути (от коротких к длинным)
     result_paths.sort(key=lambda p: p.ast_actions)
     
+    # После вычисления всех путей обновляем информацию в узлах
+    for node in cfg.nodes.values():
+        node.clear_direct_paths()
+
+    for path in result_paths:
+        if path.is_direct is not True:
+            continue
+        if path.from_:
+            path.from_.register_direct_path(path)
+        if path.to_:
+            path.to_.register_direct_path(path, incoming=True)
+
     return result_paths
 
 

@@ -8,12 +8,16 @@
 """
 
 import sys
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import networkx as nx
 from deprecated import deprecated
 
 from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
+
+if TYPE_CHECKING:
+    from src.cfg.reachability import PathInfo
 
 
 def _create_node_label(node: Node) -> str:
@@ -74,6 +78,28 @@ def _create_edge_label(edge: Edge) -> str:
     return " ".join(labels)
 
 
+def _create_path_label(path: 'PathInfo') -> str:
+    """Создает метку для прямого пути."""
+    parts = []
+
+    if getattr(path, "cfg_steps", None):
+        parts.append(f"steps:{path.cfg_steps}")
+
+    if getattr(path, "ast_actions", None):
+        parts.append(f"ast:{path.ast_actions}")
+
+    if getattr(path, "conditions", None):
+        parts.append(f"cond:{path.conditions}")
+
+    if getattr(path, "frame_changes", None):
+        parts.append(f"frames:{path.frame_changes}")
+
+    if not parts:
+        return ""
+
+    return "\\n".join(parts)
+
+
 def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
     """Конвертирует CFG в NetworkX DiGraph.
     
@@ -87,18 +113,37 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
         label = _create_node_label(node)
         G.add_node(node_id, label=label, node_obj=node)
 
-    # Добавляем рёбра (только если оба узла существуют)
-    for edge in cfg.edges:
-        # Проверяем, что оба узла существуют в CFG
-        if edge.src in cfg.nodes and edge.dst in cfg.nodes:
-            label = _create_edge_label(edge)
-            G.add_edge(edge.src, edge.dst, label=label, edge_obj=edge)
-        else:
-            # Логируем пропущенные рёбра для отладки
-            missing_src = edge.src not in cfg.nodes
-            missing_dst = edge.dst not in cfg.nodes
-            print(f"Skipping edge {edge.src} -> {edge.dst} "
-                  f"(missing src: {missing_src}, missing dst: {missing_dst})", file=sys.stderr)
+    direct_paths_added = False
+    seen_paths: set[str] = set()
+
+    for node in cfg.nodes.values():
+        for path in getattr(node, "direct_out_paths", []):
+            if path is None or path.is_direct is not True:
+                continue
+            if not path.from_ or not path.to_:
+                continue
+            path_id = getattr(path, "id", None)
+            if path_id:
+                if path_id in seen_paths:
+                    continue
+                seen_paths.add(path_id)
+            label = _create_path_label(path)
+            G.add_edge(path.from_.id, path.to_.id, label=label, path_obj=path, edge_obj=None)
+            direct_paths_added = True
+
+    # if not direct_paths_added:
+    #     # Добавляем рёбра (только если оба узла существуют)
+    #     for edge in cfg.edges:
+    #         # Проверяем, что оба узла существуют в CFG
+    #         if edge.src in cfg.nodes and edge.dst in cfg.nodes:
+    #             label = _create_edge_label(edge)
+    #             G.add_edge(edge.src, edge.dst, label=label, edge_obj=edge)
+    #         else:
+    #             # Логируем пропущенные рёбра для отладки
+    #             missing_src = edge.src not in cfg.nodes
+    #             missing_dst = edge.dst not in cfg.nodes
+    #             print(f"Skipping edge {edge.src} -> {edge.dst} "
+    #                   f"(missing src: {missing_src}, missing dst: {missing_dst})", file=sys.stderr)
 
     return G
 

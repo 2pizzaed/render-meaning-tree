@@ -99,11 +99,7 @@ class PathInfo(DictLikeDataclass):
                     if target_node.is_condition():
                         self.conditions = (self.conditions or 0) + 1
 
-                    # Изменить статус пути
-                    if self.is_direct is None:
-                        self.is_direct = True
-                    elif self.is_direct == True:
-                        self.is_direct = False
+                    self.update_directness(target_node)
                 else:
                     # no button is associated with this node.
                     self.transparent_actions = (self.transparent_actions or 0) + 1
@@ -186,6 +182,7 @@ class PathInfo(DictLikeDataclass):
 
         # Объединить информацию о первых встретившихся (приоритет левому пути)
         new_path.renew_first_middle_action()
+        new_path.update_directness()
 
         return new_path
 
@@ -217,6 +214,28 @@ class PathInfo(DictLikeDataclass):
                     if effect.call_stack in (CallStackAction.ADD_FRAME, CallStackAction.DROP_FRAME):
                         self.firstMiddleFrameChange = self.cfg.nodes[edge.src]
                         break
+
+    def update_directness(self, target_node: Node | None = None):
+        """Обновить статус прямоты/опосредованности пути.
+
+        Если передан node, используется инкрементальная логика.
+        В противном случае значение вычисляется по накопленным метрикам.
+        """
+        if target_node is not None:
+            if target_node.is_mandatory():
+                if self.is_direct is None:
+                    self.is_direct = True
+                elif self.is_direct is True:
+                    self.is_direct = False
+            return
+
+        opaque_count = self.opaque_actions or 0
+        if opaque_count == 0:
+            self.is_direct = None
+        elif opaque_count == 1 and self.via_nodes[-1].is_mandatory():
+            self.is_direct = True
+        else:
+            self.is_direct = False
 
 
 @deprecated("Use determine_all_paths_between_opaque_nodes instead")

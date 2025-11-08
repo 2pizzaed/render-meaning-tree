@@ -104,6 +104,14 @@ class Node(FactSerializable):
 
         return AppearanceType.NONE
 
+    def is_mandatory(self) -> bool:
+        return self.appearance == AppearanceType.MANDATORY and self.metadata.wrapped_ast is not None
+
+    def is_condition(self) -> bool:
+        """ Проверяет, является ли узел условием. 
+        Обратите внимание, что условие может быть прозрачным (т.е. не обязательным): это может наблюдаться в цикле `for(;;) { ... }` или `while(true) { ... }` """
+        return self.metadata.abstract_action and self.metadata.abstract_action.kind.has('condition')
+
 @dataclass(kw_only=True)
 class Edge(FactSerializable):
     id: str

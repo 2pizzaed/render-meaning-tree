@@ -1,14 +1,17 @@
 import copy
 from dataclasses import dataclass, field
 from typing import Optional, Any, Self
+from warnings import deprecated
 
 from src.cfg import CFG, Node, Edge
-from src.cfg.abstractions import DEFAULT_APPEARANCE_PROFILE, AppearanceProfile, AppearanceType, CallStackAction, Effects
+from src.cfg.abstractions import DEFAULT_APPEARANCE_PROFILE, AppearanceProfile, AppearanceType, CallStackAction, \
+    Effects, Constraints
+from src.cfg.cfg import idgen
 from src.common_utils import DictLikeDataclass
 
 
 @dataclass
-class PathInfo(DictLikeDataclass):
+class PathInfo(Edge, DictLikeDataclass):
     """General info about a finite path on CFG.
        Путь по графу: конечный, задаётся двумя узлами и представляет собой кратчайший путь между ними.
        Может замыкаться на одном действии AST, но при этом не будет на самом деле замкнутым, т.к. начало и конец действия обычно представлены различными узлами CFG.
@@ -16,15 +19,18 @@ class PathInfo(DictLikeDataclass):
        таким образом, число пройденных рёбер равняется числу пройденных узлов CFG, поэтому пути легко складывать, не производя накладок в точке соединения.
        Важное замечание. Путей между парой точек может быть несколько, но это отражается только в ways_count; остальные метрики учитывают только кратчайший путь.
     """
-    # from_: str = None  # id узла
-    # to_: str = None  # id узла
     from_: Node  # узел CFG
     to_: Node = None  # узел CFG
+    is_direct: bool = None  # True, если путь между парой непрозрачных действий прямой (и может быть корректным шагом). False: путь непрямой/опосредованный (длиннее прямого). None: путь ещё не построен.
     # exists: bool = None  # True, если `ways_count > 0`. False: пути между этой парой улов нет (никакого).
-    ways_count: int = 0  # число всевозможных нециклических путей по ориентированному графу CFG между указанными точками (0 - нет никакого пути)
+    # ways_count: int = 0  # число всевозможных нециклических путей по ориентированному графу CFG между указанными точками (0 - нет никакого пути)
+
+    # Эти больше не экспортировать >>
     via_nodes: list[Node] = None  # список id узлов (Node),
     via_edges: list[Edge] = None  # список id ребер (Edge)
     cfg_steps: int = 0  # Число пройденных узлов CFG, без учёта их содержимого = число пройденных рёбер
+    # Эти больше не экспортировать <<
+
     ast_actions: int = 0  # Число узлов c непустым AST node на пути
     transparent_actions: int = 0  # Число узлов с заданным AST node, которые считаются "прозрачными" для студента в том смысле, что он с ними не взаимодействует (вариант "может нажать, а может и не нажать" пока не рассматривается)
     opaque_actions: int = 0  # Число узлов с заданным AST node, которые считаются "непрозрачными" для студента в том смысле, что он должен обязательно их нажать, чтобы пройти по пути
@@ -32,6 +38,15 @@ class PathInfo(DictLikeDataclass):
     frame_changes: int = 0  # Число смен фрейма функции (могут встречаться как в узлах, так и на рёбрах)
     frames_added: int = 0  # Число входов в функцию (любую)
     frames_dropped: int = 0  # Число выходов из функции (любой)
+
+    firstMiddleAction: Node = None  # промежуточный узел CFG первого непрозрачного действия на пути
+    firstMiddleCondition: Node = None  # промежуточный узел CFG первого непрозрачного УСЛОВИЯ на пути
+    firstMiddleFrameChange: Node = None  # промежуточный узел CFG первой смены фрейма стека на пути
+
+    def __post_init__(self):
+        # polyfill id
+        if not self.id:
+            self.id=idgen.next()
 
     def add_step(self, edge: Edge, target_node: Node) -> bool:
         """ returns False if the step cannot be added (no cycles allowed) """
@@ -55,29 +70,36 @@ class PathInfo(DictLikeDataclass):
         # register new step in chains
         self.via_nodes.append(target_node)
         self.via_edges.append(edge)
+        
+        self.add_constraints(edge.constraints)
+        self.add_effects(*edge.effects, *target_node.effects)
 
         # update all info...
         self.to_ = target_node
         self.cfg_steps = (self.cfg_steps or 0) + 1
 
-        if target_node.metadata.wrapped_ast is not None:
-
+        if True: # or target_node.metadata.wrapped_ast is not None:
 
             # check transparency of this action...
             action = target_node.metadata.abstract_action
-            # assert action, ('target_node.metadata:', target_node.metadata)
             if action:
                 self.ast_actions = (self.ast_actions or 0) + 1
 
-                action_kind = action.kind
-                if DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(action_kind) != AppearanceType.MANDATORY:
-                    self.transparent_actions = (self.transparent_actions or 0) + 1
-                else:
+                if target_node.is_mandatory():
                     # mandatory action/button
                     self.opaque_actions = (self.opaque_actions or 0) + 1
                     # conditions
-                    if action_kind.has('condition'):
+                    if target_node.is_condition():
                         self.conditions = (self.conditions or 0) + 1
+
+                    # Изменить статус пути
+                    if self.is_direct is None:
+                        self.is_direct = True
+                    elif self.is_direct == True:
+                        self.is_direct = False
+                else:
+                    # no button is associated with this node.
+                    self.transparent_actions = (self.transparent_actions or 0) + 1
 
                 # frames
                 if action.effects:
@@ -134,11 +156,14 @@ class PathInfo(DictLikeDataclass):
             return None
         
         # Создаём новый PathInfo
-        new_path = PathInfo(from_=path1.from_)
+        new_path = PathInfo(from_=path1.from_, cfg=path1.cfg)
         new_path.to_ = path2.to_
         new_path.via_nodes = combined_nodes
         new_path.via_edges = combined_edges
-        
+
+        new_path.add_constraints(path1.constraints, path2.constraints)
+        new_path.add_effects(*path1.effects, *path2.effects)
+
         # Суммируем метрики
         new_path.cfg_steps = path1.cfg_steps + path2.cfg_steps
         new_path.ast_actions = path1.ast_actions + path2.ast_actions
@@ -148,14 +173,46 @@ class PathInfo(DictLikeDataclass):
         new_path.frame_changes = path1.frame_changes + path2.frame_changes
         new_path.frames_added = path1.frames_added + path2.frames_added
         new_path.frames_dropped = path1.frames_dropped + path2.frames_dropped
-        
-        # Умножаем ways_count (предполагая независимость путей)
-        new_path.ways_count = path1.ways_count * path2.ways_count
-        
+
+        # # Умножаем ways_count (предполагая независимость путей)
+        # new_path.ways_count = path1.ways_count * path2.ways_count
+
+        # Объединить информацию о первых встретившихся (приоритет левому пути)
+        new_path.renew_first_middle_action()
+
         return new_path
 
+    def add_constraints(self, *other_constraints: Constraints):
+        """ Добавить непустые ограничения (из последовательных узлов/рёбер)  """
+        for constraint in other_constraints:
+            if constraint:
+                self.constraints = Constraints.merge(self.constraints, constraint)
 
 
+    def add_effects(self, *other_effects: Effects):
+        #     """ Добавить непустые эффекты (из последовательных узлов/рёбер)  """
+        for effect in other_effects:
+            if effect:
+                self.effects.append(effect)
+
+    def renew_first_middle_action(self):
+        """ Обновить информацию о первом непрозрачном действии, условии и смене фрейма стека на пути. """
+        for node in self.via_nodes[:-1]:
+            if node.is_mandatory():
+                self.firstMiddleAction = node
+                if node.is_condition():
+                    self.firstMiddleCondition = node
+                break
+
+        for edge in self.via_edges[:-1]:
+            if edge.effects:
+                for effect in edge.effects:
+                    if effect.call_stack in (CallStackAction.ADD_FRAME, CallStackAction.DROP_FRAME):
+                        self.firstMiddleFrameChange = self.cfg.nodes[edge.src]
+                        break
+
+
+@deprecated("Use determine_all_paths_between_opaque_nodes instead")
 def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) -> list[PathInfo]:
     """ 
     Определяет все возможные пути между всеми парами значимых узлов CFG (т.е. узлов, которые ссылаются на непустые AST node).
@@ -175,7 +232,7 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
     to_node = cfg.nodes[to_]
 
     wavefront = [
-        PathInfo(from_=from_node)
+        PathInfo(from_=from_node, cfg=cfg)
     ]
     completed_paths: list[PathInfo] = []
 
@@ -207,25 +264,26 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
         wavefront = next_wavefront
 
     # Подсчитываем количество всех найденных путей
-    ways = len(completed_paths)
+    # ways = len(completed_paths)
     
     # Выбираем кратчайший путь
     if completed_paths:
-        shortest = min(completed_paths, key=lambda p: p.cfg_steps)
-        shortest.ways_count = ways
+        shortest = min(completed_paths, key=lambda p: p.ast_actions)
+        # shortest.ways_count = ways
         return [shortest]
     else:
         # Путь не найден
-        result = PathInfo(from_=from_node, to_=to_node)
-        result.ways_count = 0
-        return [result]
+        return []
+        # result = PathInfo(from_=from_node, to_=to_node, cfg=cfg)
+        # # result.ways_count = 0
+        # return [result]
 
 
 def find_opaque_nodes(cfg: CFG) -> list[Node]:
     """Находит все узлы CFG с AppearanceType.MANDATORY (непрозрачные узлы)."""
     opaque_nodes = []
     for node in cfg.nodes.values():
-        if node.appearance == AppearanceType.MANDATORY:
+        if node.is_mandatory():
             opaque_nodes.append(node)
     return opaque_nodes
 
@@ -237,7 +295,6 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
     более длинные пути через сложение уже найденных.
     Возвращает список всех найденных путей, отсортированный по длине (от коротких к длинным).
     """
-    opaque_nodes = find_opaque_nodes(cfg)
     
     # Кэш всех найденных путей: (from_node_id, to_node_id) -> list[PathInfo]
     paths_cache: dict[tuple[str, str], list[PathInfo]] = {}
@@ -274,15 +331,13 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
         to_node = cfg.nodes[edge.dst]
         
         # Создаём путь длины 1
-        path = PathInfo(from_=from_node)
+        path = PathInfo(from_=from_node, cfg=cfg)
         if path.add_step(edge, to_node):
-            path.ways_count = 1  # Каждое ребро - один путь
+            # path.ways_count = 1  # Единственный путь через ребро
             add_path_to_cache(path)
     
     # Итеративное построение более длинных путей
-    iteration = 0
     while True:
-        iteration += 1
         new_paths_found = 0
         
         # Получаем все текущие пути для итерации
@@ -297,8 +352,6 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
             
             # Проходим по всем узлам, куда можно попасть из path1.to_
             for to_target in cfg.nodes.values():
-                if path1.to_ is None:
-                    continue
                 paths_from_target = paths_cache.get((path1.to_.id, to_target.id), [])
                 if not paths_from_target:
                     continue
@@ -316,16 +369,14 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
     
     # Фильтруем результат: оставляем только пути между opaque узлами
     result_paths: list[PathInfo] = []
-    opaque_node_ids = {node.id for node in opaque_nodes}
     
-    for (from_node_id, to_node_id), paths in paths_cache.items():
-        if from_node_id in opaque_node_ids and to_node_id in opaque_node_ids:
-            for path in paths:
-                if path.ways_count > 0:
-                    result_paths.append(path)
-    
+    for paths in paths_cache.values():
+        for path in paths:
+            if path.is_direct is not None:  # direct or indirect, but not incomplete
+                result_paths.append(path)
+
     # Сортируем по длине пути (от коротких к длинным)
-    result_paths.sort(key=lambda p: p.cfg_steps)
+    result_paths.sort(key=lambda p: p.ast_actions)
     
     return result_paths
 

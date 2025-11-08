@@ -2,10 +2,10 @@
 import hashlib
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+from bs4 import BeautifulSoup
 from jinja2 import Environment, FileSystemLoader
 
 from src.cfg.abstractions import AppearanceType
@@ -736,6 +736,7 @@ class CodeHighlightGenerator:
 
     def generate_html(self, lines_data: list[dict[str, list]],
                       source_map: dict[str, Any],
+                      snippet=False,
                       output_file: str | None = None):
 
         # Генерируем HTML
@@ -743,6 +744,11 @@ class CodeHighlightGenerator:
             language=self.language, lines=lines_data, total_lines=len(lines_data),
             code_data=source_map["origin"],
         )
+
+        if snippet:
+            soup = BeautifulSoup(html, 'html.parser')
+            code_block = soup.select_one('.code-block')
+            html = str(code_block)
 
         if output_file:
             with Path(output_file).open("w", encoding="utf-8") as f:

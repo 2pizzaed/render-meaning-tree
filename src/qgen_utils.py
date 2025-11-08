@@ -179,6 +179,7 @@ def build_question(language: str,
     html = htmlgen.generate_html(
         lines_data,
         source_map,
+        snippet=True
     )
 
     loqi = build_loqi(mt, lines_data)

@@ -417,6 +417,99 @@ class EdgeExporter(ObjectExporter):
 
 
 @registered
+class PathInfoExporter(ObjectExporter):
+    """Экспортер для класса PathInfo."""
+    def get_supported_types(self) -> list[type]:
+        return [PathInfo]
+
+    def get_class_name(self, obj: PathInfo) -> str:
+        return "PathInfo"
+
+    def add_all_paths(self, paths: list[PathInfo]) -> None:
+        self._paths = paths
+
+    def get_preferred_name(self, obj: PathInfo) -> str:
+        if hasattr(self, "_paths") and obj in self._paths:
+            index = self._paths.index(obj)
+            return f"path_info_{index}"
+        path_id = getattr(obj, "id", None)
+        if path_id:
+            return f"path_info_{path_id}"
+        return f"path_info_{id(obj) % 100_000}"
+
+    def export_properties(self, obj: PathInfo) -> dict[str, Any]:
+        properties: dict[str, Any] = {}
+
+        path_id = getattr(obj, "id", None)
+        if path_id is not None:
+            properties["id"] = path_id
+
+        if obj.is_direct is not None:
+            properties["is_direct"] = obj.is_direct
+        else:
+            raise ValueError("PathInfo is incomplete")
+
+        # ways_count = getattr(obj, "ways_count", None)
+        # if ways_count is not None:
+        #     properties["ways_count"] = ways_count
+
+        numeric_metrics = {
+            "ast_actions": obj.ast_actions,
+            "transparent_actions": obj.transparent_actions,
+            "opaque_actions": obj.opaque_actions,
+            "conditions": obj.conditions,
+            "frame_changes": obj.frame_changes,
+            "frames_added": obj.frames_added,
+            "frames_dropped": obj.frames_dropped,
+        }
+
+        for key, value in numeric_metrics.items():
+            if value is not None:
+                properties[key] = value
+
+        return properties
+
+    def export_relationships(self, obj: PathInfo) -> dict[str, list[Any]]:
+        relationships: dict[str, list[Any]] = {}
+
+        source_node = getattr(obj, "from_", None)
+        if source_node:
+            relationships["hasSource"] = [source_node]
+        elif obj.cfg:
+            src_id = getattr(obj, "src", None)
+            if src_id:
+                relationships["hasSource"] = [obj.cfg.nodes[src_id]]
+
+        destination_node = getattr(obj, "to_", None)
+        if destination_node:
+            relationships["hasDestination"] = [destination_node]
+        elif obj.cfg:
+            dst_id = getattr(obj, "dst", None)
+            if dst_id:
+                relationships["hasDestination"] = [obj.cfg.nodes[dst_id]]
+
+        # if obj.metadata:
+        #     relationships["hasMetadata"] = [obj.metadata]
+
+        if obj.constraints:
+            relationships["hasConstraints"] = [obj.constraints]
+
+        if obj.effects:
+            relationships["hasEffects"] = obj.effects
+
+        if obj.firstMiddleAction:
+            relationships["hasFirstMiddleAction"] = [obj.firstMiddleAction]
+
+        if obj.firstMiddleCondition:
+            relationships["hasFirstMiddleCondition"] = [obj.firstMiddleCondition]
+
+        if obj.firstMiddleFrameChange:
+            relationships["hasFirstMiddleFrameChange"] = [obj.firstMiddleFrameChange]
+
+        return relationships
+
+
+@registered
 class CFGExporter(ObjectExporter):
     """Экспортер для класса CFG."""
 
@@ -564,56 +657,3 @@ class SituationStateExporter(ObjectExporter):
 
     def get_preferred_name(self, obj: SituationState) -> str:
         return f"main_state_{id(obj) % 100_000}"
-
-
-@registered
-class PathInfoExporter(ObjectExporter):
-    """Экспортер для класса PathInfo."""
-
-    def get_supported_types(self) -> list[type]:
-        return [PathInfo]
-
-    def get_class_name(self, obj: PathInfo) -> str:
-        return "PathInfo"
-
-    def add_all_paths(self, paths: list[PathInfo]) -> None:
-        self._paths = paths
-
-    def export_properties(self, obj: PathInfo) -> dict[str, Any]:
-        properties = {
-            "ways_count": obj.ways_count,
-            "cfg_steps": obj.cfg_steps,
-            "ast_actions": obj.ast_actions,
-            "transparent_actions": obj.transparent_actions,
-            "opaque_actions": obj.opaque_actions,
-            "conditions": obj.conditions,
-            "frame_changes": obj.frame_changes,
-            "frames_added": obj.frames_added,
-            "frames_dropped": obj.frames_dropped,
-        }
-        return properties
-
-    def get_preferred_name(self, obj: PathInfo) -> str:
-        if hasattr(self, '_paths') and obj in self._paths:
-            index = self._paths.index(obj)
-            return f"path_info_{index}"
-        return f"path_info_{id(obj) % 100_000}"
-
-    def export_relationships(self, obj: PathInfo) -> dict[str, list[Any]]:
-        relationships: dict[str, list[Any]] = {}
-
-        # Экспортируем from_ и to_ узлы
-        if obj.from_:
-            relationships["from_"] = [obj.from_]
-        if obj.to_:
-            relationships["to_"] = [obj.to_]
-
-        # Экспортируем via_nodes - возвращаем список узлов
-        if obj.via_nodes:
-            relationships["hasViaNodes"] = obj.via_nodes
-
-        # Экспортируем via_edges - возвращаем список рёбер
-        if obj.via_edges:
-            relationships["hasViaEdges"] = obj.via_edges
-
-        return relationships

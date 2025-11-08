@@ -11,7 +11,7 @@ from src.common_utils import DictLikeDataclass
 
 
 @dataclass
-class PathInfo(Edge, DictLikeDataclass):
+class PathInfo(DictLikeDataclass):
     """General info about a finite path on CFG.
        Путь по графу: конечный, задаётся двумя узлами и представляет собой кратчайший путь между ними.
        Может замыкаться на одном действии AST, но при этом не будет на самом деле замкнутым, т.к. начало и конец действия обычно представлены различными узлами CFG.
@@ -22,6 +22,13 @@ class PathInfo(Edge, DictLikeDataclass):
     from_: Node  # узел CFG
     to_: Node = None  # узел CFG
     is_direct: bool = None  # True, если путь между парой непрозрачных действий прямой (и может быть корректным шагом). False: путь непрямой/опосредованный (длиннее прямого). None: путь ещё не построен.
+
+    # properties similar to Edge
+    id: str = None
+    cfg: 'CFG | None' = None
+    constraints: Constraints | None = None
+    effects: list[Effects] = field(default_factory=list)
+
     # exists: bool = None  # True, если `ways_count > 0`. False: пути между этой парой улов нет (никакого).
     # ways_count: int = 0  # число всевозможных нециклических путей по ориентированному графу CFG между указанными точками (0 - нет никакого пути)
 
@@ -46,7 +53,7 @@ class PathInfo(Edge, DictLikeDataclass):
     def __post_init__(self):
         # polyfill id
         if not self.id:
-            self.id=idgen.next()
+            self.id=idgen.next('path')
 
     def add_step(self, edge: Edge, target_node: Node) -> bool:
         """ returns False if the step cannot be added (no cycles allowed) """

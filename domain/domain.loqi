@@ -332,9 +332,9 @@ class CFG {
 
 
 class PathInfo {
-	// obj prop exists: bool ;
-	obj prop ways_count: int[0, 65536] ;
-	obj prop cfg_steps: int[0, 65536] ;
+	obj prop is_direct: bool ;
+	// obj prop ways_count: int[0, 65536] ;
+	// obj prop cfg_steps: int[0, 65536] ;
 	obj prop ast_actions: int[0, 65536] ;
 	obj prop transparent_actions: int[0, 65536] ;
 	obj prop opaque_actions: int[0, 65536] ;

@@ -2,7 +2,7 @@
 # Универсальные управляющие структуры
 # ================================
 
-# kind: compound, inline, any
+# kind: compound, condition, auto
 
 # --------------------------------
 # Глобальные операторы -- разновидность блока { ... }
@@ -12,17 +12,21 @@ global_statements_structure:
   ast_node: program_entry_point
   actions:
     - role: first
-      kind: any
+      kind: auto
       identification:
         origin: parent
         property_path: 'body / [0]'  # statements -> body
       generalization: item
     - role: next
-      kind: any
+      kind: auto
       identification:
         origin: previous
         property_path: '[next]'
       generalization: item
+    - role: BEGIN
+      kind: program
+    - role: END
+      kind: program
   transitions:
     - from_: BEGIN
       to: first
@@ -337,13 +341,13 @@ block_structure:
   ast_node: compound_statement
   actions:
     - role: first
-      kind: any
+      kind: auto
       identification:
         origin: parent
         property_path: 'statements / [0]'
       generalization: item
     - role: next
-      kind: any
+      kind: auto
       identification:
         origin: previous
         property_path: '[next]'

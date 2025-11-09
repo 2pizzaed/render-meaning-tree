@@ -73,6 +73,8 @@ class ActionKind(SelfValidatedEnum):
     INLINE = "inline"
     # for usage as constraint
     ANY = "any"
+    # "see underlying Construct instead"
+    AUTO = "auto"
 
 
 class KindChain:

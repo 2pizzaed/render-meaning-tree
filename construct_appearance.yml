@@ -14,9 +14,9 @@
 
 
 profiles_priority:
+  - minimum
   - blocks_none  # for Python, 'maximum' is impossible.
   - maximum
-  - minimum
   - blocks_mandatory
 
 

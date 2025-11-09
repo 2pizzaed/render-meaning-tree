@@ -104,7 +104,7 @@ class Node(FactSerializable):
         if not self.metadata.wrapped_ast:
             return AppearanceType.NONE
         if self.metadata.abstract_action:
-            kind = self.metadata.abstract_action
+            kind = self.metadata.abstract_action.kind
             return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(kind)
 
         return AppearanceType.NONE

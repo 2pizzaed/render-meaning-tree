@@ -332,6 +332,7 @@ class CFG {
 
 
 class PathInfo {
+	obj prop id: string ;
 	obj prop is_direct: bool ;
 	// obj prop ways_count: int[0, 65536] ;
 	// obj prop cfg_steps: int[0, 65536] ;
@@ -345,8 +346,11 @@ class PathInfo {
 
 	rel from_(Node) : {* -> 1} ;  // opposite to Node->startsPath
 	rel to_(Node) : {* -> 1} ;  // opposite to Node->endsPath
-	rel viaNodes(Node) : {* -> *} ;
-	rel viaEdges(Edge) : {* -> *} ;
+	// rel viaNodes(Node) : {* -> *} ;
+	// rel viaEdges(Edge) : {* -> *} ;
+	rel firstMiddleAction(Node) : {* -> 1} ;
+	rel firstMiddleCondition(Node) : {* -> 1} ;
+	rel firstMiddleFrameChange(Node) : {* -> 1} ;
 } [
 	RU.localizedName = "Путь по графу CFG и информация о достижимости" ;
 	EN.localizedName = "Path within a CFG & reachability info" ;

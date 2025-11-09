@@ -40,6 +40,10 @@ def _create_node_label(node: Node) -> str:
         if ast_id is not None:
             parts.append(f"AST:{ast_id}")
 
+        if node.is_mandatory():
+            # parts.append(f"|> " + node.metadata.abstract_action.kind.__str__())
+            parts.append(f"|> " + node.metadata.wrapped_ast.ast_node["type"])
+
     # Role если отличается от kind
     if node.role and node.role != node.kind:
         parts.append(f"role:{node.role}")

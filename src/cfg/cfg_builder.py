@@ -461,6 +461,9 @@ class CFGBuilder:
         else:
             # Create connected trivial CFG
             cfg = self._create_simple_cfg(cfg_name)
+            if wrapped_ast:
+                cfg.end_node.metadata.wrapped_ast = wrapped_ast
+                # ^ atom statement.
         return cfg
 
 

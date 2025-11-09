@@ -105,12 +105,22 @@ class Node(FactSerializable):
             return AppearanceType.NONE
         if self.metadata.abstract_action:
             kind = self.metadata.abstract_action.kind
+            if kind.has('auto'):
+                if self.metadata.abstract_action.construct:
+                    kind = self.metadata.abstract_action.construct.kind
+                else: # construct not set...
+                    raise ValueError("abstract_action must have construct")
             return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(kind)
 
+        if self.metadata.wrapped_ast is not None:
+            # Действие-атом
+            return AppearanceType.MANDATORY
+
+        # keep intermediate nodes hidden.
         return AppearanceType.NONE
 
     def is_mandatory(self) -> bool:
-        return self.appearance == AppearanceType.MANDATORY and self.metadata.wrapped_ast is not None
+        return self.appearance == AppearanceType.MANDATORY
 
     def is_condition(self) -> bool:
         """ Проверяет, является ли узел условием. 

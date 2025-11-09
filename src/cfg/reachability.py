@@ -409,6 +409,7 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
 
     for path in result_paths:
         if path.is_direct is not True:
+            # skip incomplete/indirect paths
             continue
         if path.from_:
             path.from_.register_direct_path(path)

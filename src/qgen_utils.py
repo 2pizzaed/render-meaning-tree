@@ -21,8 +21,8 @@ def find_skills(mt: dict[str, Any]) -> list[str]:
     return []
 
 
-def find_tags(mt: dict[str, Any]) -> list[str]:
-    return []
+def find_tags(mt: dict[str, Any], language: str) -> list[str]:
+    return [language]
 
 
 def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]) -> str | None:
@@ -187,6 +187,15 @@ def build_question(language: str,
         print("No valid loqi output", file=sys.stderr)
         return
 
+    tags = 0
+    match language:
+        case "python":
+            tags |= 8
+        case "java":
+            tags |= 4
+        case "c++":
+            tags |= 2
+
     qname = debug_question_name or create_question_name(mt, code_snippet)
     answ = build_answer_objects(lines_data)
     return {
@@ -208,14 +217,14 @@ def build_question(language: str,
                 "statementFacts": pack_rdf(loqi),
             },
             "concepts": find_concepts(mt),
-            "tags": find_tags(mt),
+            "tags": find_tags(mt, language),
             "negativeLaws": [],
         },
         "metadataList": {  # TODO
             "name": qname,
-            "domainShortname": "ctrlFlowDT",
+            "domainShortname": "ctrlFlow_dt",
             "templateId": mt.get("unique_hash", 0),
-            "tagBits": 0,
+            "tagBits": tags,
             "conceptBits": 0,
             "lawBits": 0,
             "violationBits": 0,

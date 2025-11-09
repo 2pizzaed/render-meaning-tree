@@ -222,7 +222,7 @@ def build_question(language: str,
         },
         "metadataList": {  # TODO
             "name": qname,
-            "domainShortname": "ctrlFlow_dt",
+            "domainShortname": "ctrl_flow_dt",
             "templateId": mt.get("unique_hash", 0),
             "tagBits": tags,
             "conceptBits": 0,

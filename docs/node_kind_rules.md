@@ -20,12 +20,12 @@
 
 - `action_kind`: KindChain из `ActionSpec.kind`.
 - `construct_kind`: KindChain из `ConstructSpec.kind` для соответствующего узла AST.
-- `has_function_calls`: признак наличия вызовов функций внутри узла AST.
+<del>- `has_function_calls`: признак наличия вызовов функций внутри узла AST.</del>
 
 ## Алгоритм
 
 1. Если `construct_kind` содержит `noop`, возвращается `NONE` (граф не строится).
-2. Если в узле найдены вызовы функций (`has_function_calls = True`), выбирается `COMPOUND`.
+<del>2. Если в узле найдены вызовы функций (`has_function_calls = True`), выбирается `COMPOUND`.</del>
 3. Если `action_kind` содержит `compound`, выбирается `COMPOUND`.
 4. Если `action_kind` содержит `inline` или `condition`, выбирается `ATOM`.
 5. Если `action_kind` содержит `auto`:

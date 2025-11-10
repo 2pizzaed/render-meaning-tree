@@ -19,15 +19,11 @@ def determine_node_construction(
     *,
     action_kind: KindChain | None,
     construct_kind: KindChain | None,
-    has_function_calls: bool,
 ) -> NodeConstruction:
     """Convert action/construct kinds and AST characteristics to a node construction type."""
 
     if _has(construct_kind, "noop"):
         return NodeConstruction.NONE
-
-    if has_function_calls:
-        return NodeConstruction.COMPOUND
 
     if _has(action_kind, "compound"):
         return NodeConstruction.COMPOUND

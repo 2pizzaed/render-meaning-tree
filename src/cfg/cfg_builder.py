@@ -477,9 +477,8 @@ class CFGBuilder:
             return self._inject_function_calls_in_cfg(base_cfg, function_calls)
 
         construction = determine_node_construction(
-            action_kind=construct_kind,
+            action_kind=construct_kind,  #  Action просто неизвестно, и это не должно повлиять на логику.
             construct_kind=construct_kind,
-            has_function_calls=False,
         )
 
         if construction is NodeConstruction.NONE:
@@ -571,14 +570,10 @@ class CFGBuilder:
                     node23 = existing_node
                 else:
                     child_construct = self.find_construct_for_astnode(next_wrapped_ast)
-                    has_calls = False
-                    if isinstance(next_wrapped_ast.ast_node, dict):
-                        has_calls = bool(self._find_function_calls_in_ast(next_wrapped_ast.ast_node))
 
                     construction = determine_node_construction(
                         action_kind=target_action.kind,
                         construct_kind=child_construct.kind if child_construct else None,
-                        has_function_calls=has_calls,
                     )
 
                     node_metadata = Metadata(
@@ -590,7 +585,16 @@ class CFGBuilder:
                     if construction is NodeConstruction.NONE:
                         continue
 
-                    if construction is NodeConstruction.ATOM:
+                    has_calls = False
+                    if construction is NodeConstruction.ATOM and isinstance(next_wrapped_ast.ast_node, dict):
+                        # найти вызовы внутри простого условия / действия
+                        calls = self._find_function_calls_in_ast(next_wrapped_ast.ast_node)
+                        has_calls = bool(calls)
+                        if has_calls:
+                            # set info: 1+ calls.
+                            node_metadata.call_count = len(calls)
+
+                    if construction is NodeConstruction.ATOM and not has_calls:
                         node23 = cfg.add_node(
                             kind=NodeKind.ATOM,
                             role=target_action.role,
@@ -601,7 +605,7 @@ class CFGBuilder:
                         if subgraph is None:
                             continue
                         node23 = cfg.add_node(
-                            kind=NodeKind.BEGIN,
+                            kind=NodeKind.BEGIN,  # BEGIN & END will be set automatically.
                             role=target_action.role,
                             metadata=node_metadata,
                             subgraph=subgraph

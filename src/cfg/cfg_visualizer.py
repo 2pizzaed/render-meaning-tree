@@ -29,7 +29,7 @@ def _create_node_label(node: Node) -> str:
 
     # Kind узла
     if node.kind:
-        parts.append(node.kind)
+        parts.append(node.kind.value)
 
     # AST ID если доступно
     if (node.metadata and
@@ -45,7 +45,7 @@ def _create_node_label(node: Node) -> str:
             parts.append(f"|> " + node.metadata.wrapped_ast.ast_node["type"])
 
     # Role если отличается от kind
-    if node.role and node.role != node.kind:
+    if node.role and node.kind and node.role != node.kind.value:
         parts.append(f"role:{node.role}")
 
     return '\n'.join(parts) if parts else node.id
@@ -135,19 +135,22 @@ def _build_networkx_graph(cfg: CFG) -> nx.DiGraph:
             G.add_edge(path.from_.id, path.to_.id, label=label, path_obj=path, edge_obj=None)
             direct_paths_added = True
 
-    # if not direct_paths_added:
-    #     # Добавляем рёбра (только если оба узла существуют)
-    #     for edge in cfg.edges:
-    #         # Проверяем, что оба узла существуют в CFG
-    #         if edge.src in cfg.nodes and edge.dst in cfg.nodes:
-    #             label = _create_edge_label(edge)
-    #             G.add_edge(edge.src, edge.dst, label=label, edge_obj=edge)
-    #         else:
-    #             # Логируем пропущенные рёбра для отладки
-    #             missing_src = edge.src not in cfg.nodes
-    #             missing_dst = edge.dst not in cfg.nodes
-    #             print(f"Skipping edge {edge.src} -> {edge.dst} "
-    #                   f"(missing src: {missing_src}, missing dst: {missing_dst})", file=sys.stderr)
+    if not direct_paths_added:
+        # Добавляем рёбра (только если оба узла существуют)
+        for edge in cfg.edges:
+            # Проверяем, что оба узла существуют в CFG
+            if edge.src in cfg.nodes and edge.dst in cfg.nodes:
+                label = _create_edge_label(edge)
+                G.add_edge(edge.src, edge.dst, label=label, edge_obj=edge)
+            else:
+                # Логируем пропущенные рёбра для отладки
+                missing_src = edge.src not in cfg.nodes
+                missing_dst = edge.dst not in cfg.nodes
+                print(
+                    f"Skipping edge {edge.src} -> {edge.dst} "
+                    f"(missing src: {missing_src}, missing dst: {missing_dst})",
+                    file=sys.stderr,
+                )
 
     return G
 

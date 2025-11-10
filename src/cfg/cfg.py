@@ -75,6 +75,33 @@ class NodeKind(SelfValidatedEnum):
     # for usage as constraint
     ANY = "any"
 
+    @classmethod
+    def resolve(cls, value) -> 'NodeKind':
+        """Normalizes произвольное представление kind к NodeKind."""
+        if isinstance(value, cls):
+            return value
+
+        if value is None:
+            raise ValueError("Node kind value must not be None")
+
+        # KindChain / Enum / str support
+        if hasattr(value, "value") and isinstance(getattr(value, "value"), str):
+            raw_value = value.value
+        else:
+            raw_value = str(value)
+
+        normalized = raw_value.strip()
+        if not normalized:
+            raise ValueError("Node kind value must not be empty")
+
+        direct = cls.lookup(normalized, raise_on_error=False)
+        if direct:
+            return direct
+
+        direct_lower = cls.lookup(normalized.lower(), raise_on_error=False)
+        if direct_lower:
+            return direct_lower
+
 
 class IDGen:
     def __init__(self, start: int=1):
@@ -172,14 +199,58 @@ class Edge(FactSerializable):
 
 
 class CFG:
-    def __init__(self, name="cfg", construct: ConstructSpec=None):
-        """ Init a CFG and create BEGIN and END nodes """
+    def __init__(self, name="cfg", construct: ConstructSpec=None, *, with_boundaries: bool = True):
+        """Init a CFG. By default creates BEGIN and END boundary nodes."""
         self.id = idgen.next(name)
         self.name: str = name
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
+        self.begin_node: Node | None = None
+        self.end_node: Node | None = None
 
-        self._init_boundaries(construct)
+        if with_boundaries:
+            self._init_boundaries(construct)
+
+    @classmethod
+    def create_empty(cls, name="cfg", construct: ConstructSpec | None = None) -> Self:
+        """Create a minimal CFG with BEGIN and END connected directly."""
+        cfg = cls(name, construct=construct)
+        cfg.connect(cfg.begin_node, cfg.end_node)
+        return cfg
+
+    @classmethod
+    def create_atomic(
+        cls,
+        name: str,
+        *,
+        kind: NodeKind,
+        role: str | None = None,
+        metadata: Metadata | None = None,
+    ) -> Self:
+        """Create a CFG consisting of a single node that acts as both BEGIN and END."""
+        cfg = cls(name, with_boundaries=False)
+
+        metadata = metadata or Metadata()
+        effects: list[Effects] = []
+        if metadata.abstract_action and metadata.abstract_action.effects:
+            effects = metadata.abstract_action.effects
+
+        kind = NodeKind.resolve(kind)
+        node_id = idgen.next(kind.value)
+        node = Node(
+            id=node_id,
+            kind=kind,
+            role=role,
+            metadata=metadata,
+            effects=effects,
+            cfg=cfg,
+        )
+
+        cfg.nodes[node_id] = node
+        cfg.begin_node = node
+        cfg.end_node = node
+
+        return cfg
 
     def _init_boundaries(self, construct: ConstructSpec | None):
         # Извлекаем метаданные для BEGIN и END узлов из construct, если он передан
@@ -196,8 +267,8 @@ class CFG:
                 end_metadata = Metadata(abstract_action=end_action)
 
         # init boundaries с метаданными
-        self.begin_node = self.add_node(BEGIN, BEGIN, metadata=begin_metadata or Metadata())
-        self.end_node = self.add_node(END, END, metadata=end_metadata or Metadata())
+        self.begin_node = self.add_node(NodeKind.BEGIN, BEGIN, metadata=begin_metadata or Metadata())
+        self.end_node = self.add_node(NodeKind.END, END, metadata=end_metadata or Metadata())
 
         # set has_corresponding_end
         self.begin_node.metadata.has_corresponding_end = self.end_node
@@ -222,8 +293,11 @@ class CFG:
 
         if not subgraph:
             # Node is an atom (inline).
-            nid = idgen.next(kind)
-            node = Node(id=nid, kind=kind, role=role,
+            node_kind = kind if isinstance(kind, NodeKind) else NodeKind.lookup(kind)
+            if node_kind is None:
+                raise ValueError(f"Unsupported node kind: {kind}")
+            nid = idgen.next(node_kind.value)
+            node = Node(id=nid, kind=node_kind, role=role,
                         metadata=metadata or Metadata(),
                         effects=final_effects,
                         cfg=self)
@@ -231,16 +305,16 @@ class CFG:
             return node
         else:
             # Node is a wrapper over a compound.
-            kind = BEGIN
-            nid = idgen.next(kind)
+            kind = NodeKind.BEGIN
+            nid = idgen.next(kind.value)
             enter_node = Node(id=nid, kind=kind, role=role,
                              metadata=metadata or Metadata(),
                              effects=[],  # no effects for begin node.
                              cfg=self)
             self.nodes[nid] = enter_node
 
-            kind = END
-            nid = idgen.next(kind)
+            kind = NodeKind.END
+            nid = idgen.next(kind.value)
             leave_node = Node(id=nid, kind=kind, role=role,
                              metadata=metadata or Metadata(),
                              effects=final_effects,
@@ -299,7 +373,7 @@ class CFG:
                 info['abstract_action'] = n.metadata.abstract_action.role
             if n.metadata.wrapped_ast:
                 info['ast'] = n.metadata.wrapped_ast.describe()
-            print(" o", nid, n.kind, n.role, info)
+            print(" o", nid, n.kind.value, n.role, info)
             # print all outgoing edges
             for e in self.edges:
                 if e.src == nid:
@@ -329,7 +403,7 @@ class CFG:
                 info['abstract_action'] = n.metadata.abstract_action.role
             if n.metadata.wrapped_ast:
                 info['ast'] = n.metadata.wrapped_ast.describe()
-            print(" o", nid, n.kind, n.role, info)
+            print(" o", nid, n.kind.value, n.role, info)
             print()
 
         print()

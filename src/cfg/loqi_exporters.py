@@ -621,7 +621,7 @@ class TraceActExporter(ObjectExporter):
         else:
             index: str | int = obj.wrapped_ast.ast_node.get(
                 "id", f"unknown_{id(obj) % 100_000}")
-        return f"trace_act_{index}_{str(obj.cfg_node.kind).lower()}"
+        return f"trace_act_{index}_{obj.cfg_node.kind.value.lower()}"
 
     def export_relationships(self, obj: TraceAct) -> dict[str, list[Any]]:
         relationships = {

@@ -16,7 +16,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.cfg.cfg_visualizer import visualize_cfg, diagnose_cfg, _build_networkx_graph
-from src.cfg.cfg import CFG, BEGIN, END, Metadata
+from src.cfg.cfg import CFG, BEGIN, END, Metadata, NodeKind
 from src.cfg.abstractions import Constraints
 
 
@@ -38,8 +38,8 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_orphan")
         
         # Создаём узлы
-        node1 = cfg.add_node("condition", "cond")
-        node2 = cfg.add_node("compound", "body")
+        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
         
         # Создаём висячие рёбра (ссылаются на несуществующие узлы)
         cfg.edges.append(type('Edge', (), {
@@ -91,8 +91,8 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_disconnected")
         
         # Создаём узлы без рёбер между ними
-        node1 = cfg.add_node("condition", "cond")
-        node2 = cfg.add_node("compound", "body")
+        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
         
         # Диагностика
         issues = diagnose_cfg(cfg)
@@ -110,8 +110,8 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_networkx")
         
         # Создаём узлы
-        node1 = cfg.add_node("condition", "cond")
-        node2 = cfg.add_node("compound", "body")
+        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
         
         # Добавляем висячие рёбра
         cfg.edges.append(type('Edge', (), {
@@ -135,7 +135,7 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_malformed")
         
         # Создаём узел с отсутствующими полями
-        node = cfg.add_node("condition", "cond")
+        node = cfg.add_node(NodeKind.CONDITION, "cond")
         
         # Повреждаем данные узла
         node.metadata = None

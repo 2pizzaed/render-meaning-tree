@@ -3,7 +3,7 @@ from typing import Optional
 
 from src.cfg.abstractions import ConstructSpec
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata
+from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata, NodeKind
 from src.json_search import search_bfs, search_dfs
 
 
@@ -23,9 +23,7 @@ class CFGBuilder:
 
     def _create_simple_cfg(self, name: str) -> CFG:
         """Создает простой самосвязанный CFG из двух узлов (BEGIN и END) и одного ребра."""
-        cfg = CFG(name)
-        cfg.connect(cfg.begin_node, cfg.end_node)
-        return cfg
+        return CFG.create_empty(name)
 
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
         v = ast_node_wrapper.ast_node
@@ -472,12 +470,18 @@ class CFGBuilder:
             # Fill CFG with the chain of func calls
             cfg = self._inject_function_calls_in_cfg(cfg, function_calls)
         else:
-            # Create connected trivial CFG
-            cfg = self._create_simple_cfg(cfg_name)
-            if wrapped_ast:
-                cfg.end_node.metadata.wrapped_ast = wrapped_ast
-                # ^ atom statement.
+            # Create atomic CFG consisting of a single node
+            metadata = Metadata(wrapped_ast=wrapped_ast) if wrapped_ast else Metadata()
+            node_kind = self._deduce_atomic_node_kind(construct)
+            cfg = CFG.create_atomic(cfg_name, kind=node_kind, metadata=metadata)
         return cfg
+
+    @staticmethod
+    def _deduce_atomic_node_kind(construct: ConstructSpec | None) -> NodeKind:
+        """Определяет NodeKind для атомарного CFG."""
+        if construct and construct.kind.has('condition'):
+            return NodeKind.CONDITION
+        return NodeKind.ATOM_STMT
 
 
     def make_cfg_for_compound(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:

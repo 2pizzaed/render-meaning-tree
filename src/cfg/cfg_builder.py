@@ -168,7 +168,7 @@ class CFGBuilder:
         except (AttributeError, KeyError, TypeError):
             return None
 
-    def _find_function_calls_in_ast(self, ast_node: dict) -> list[dict]:
+    def _find_function_calls_in_ast(self, ast_node: dict, keep_defined_only=True) -> list[dict]:
         """
         Находит все вызовы функций в AST узле.
         
@@ -184,8 +184,15 @@ class CFGBuilder:
         # Предикат для поиска узлов вызовов функций
         def is_function_call(node):
             return isinstance(node, dict) and node.get('type') == 'function_call'
-        
-        return search_dfs(ast_node, is_function_call)
+
+        found_ast_nodes = search_dfs(ast_node, is_function_call)
+        if keep_defined_only:
+            found_ast_nodes = [
+                ast_node
+                for ast_node in found_ast_nodes
+                if self._extract_function_name_from_call_node(ast_node) in self.func_cfgs
+            ]
+        return found_ast_nodes
 
     def _extract_function_name_from_call_node(self, call_node: dict) -> Optional[str]:
         """

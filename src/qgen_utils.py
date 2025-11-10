@@ -133,13 +133,13 @@ def create_question_name(mt: dict[str, Any], code: str) -> str:
 
 
 def pack_rdf(loqi: str):
-    return {
+    return [{
         "verb": "hasLoqi",
         "subject": "question",
         "subjectType": "owl:NamedIndividual",
         "object": loqi,
         "objectType": "xsd:string"
-    }
+    }]
 
 
 def build_answer_objects(lines: list[dict[str, list[Any]]]):
@@ -220,7 +220,7 @@ def build_question(language: str,
             "tags": find_tags(mt, language),
             "negativeLaws": [],
         },
-        "metadataList": {  # TODO
+        "metadataList": [{  # TODO
             "name": qname,
             "domainShortname": "ctrl_flow_dt25",
             "templateId": mt.get("unique_hash", 0),
@@ -239,5 +239,5 @@ def build_question(language: str,
             "originLicense": "Public Domain",
             "treeHashCode": mt.get("unique_hash", 0),
             "skillBits": 0
-        },
+        }],
     }

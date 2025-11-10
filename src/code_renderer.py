@@ -572,6 +572,7 @@ class CodeHighlightGenerator:
         current_byte_pos = 0
         current_line_tokens = []
         buttons_on_line = []
+        total_buttons = 0
 
         for i, token in enumerate(self.token_list):
             token_value = token.get("value", "")
@@ -637,7 +638,7 @@ class CodeHighlightGenerator:
                         {
                             "type": button_type,
                             "style": button_style,
-                            "action_id": len(buttons_on_line),
+                            "action_id": total_buttons,
                             "node_id": node_start_id,
                             "node_type": node_start_type,
                             "position": "before",
@@ -646,6 +647,7 @@ class CodeHighlightGenerator:
                             or self.BUTTON_COLORS.get(button_type),
                         },
                     )
+                    total_buttons += 1
 
                 # Проверяем, нужна ли кнопка в конце токена
                 button_type, button_style = self._determine_button_type(
@@ -672,7 +674,7 @@ class CodeHighlightGenerator:
                         {
                             "type": button_type,
                             "style": button_style,
-                            "action_id": len(buttons_on_line),
+                            "action_id": total_buttons,
                             "node_id": node_end_id,
                             "node_type": node_end_type,
                             "position": "after",
@@ -681,6 +683,7 @@ class CodeHighlightGenerator:
                             or self.BUTTON_COLORS.get(button_type),
                         },
                     )
+                    total_buttons += 1
 
                 tok = {
                     "value": token_value,

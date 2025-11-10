@@ -103,7 +103,10 @@ class CFGBuilder:
                 self._process_function_definition_node(func_node)
 
         if self.func_cfgs:
-            print(f'INFO: prepared {len(self.func_cfgs)} CFG(s) for func definition(s): {', '.join(self.func_cfgs.keys())}')
+            print(
+                f"INFO: prepared {len(self.func_cfgs)} CFG(s) for func definition(s): {', '.join(self.func_cfgs.keys())}",
+                file=sys.stderr,
+            )
 
     def _process_function_definition_node(self, func_node: dict) -> None:
         """
@@ -324,7 +327,8 @@ class CFGBuilder:
         # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
         cfg = self._create_simple_cfg(f"function_{func_name}_definition_registered")
 
-        print(f'INFO: made CFG for **DEF** of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'))
+        print(f'INFO: made CFG for **DEF** of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'), 
+              file=sys.stderr)
 
         return cfg
 
@@ -385,9 +389,18 @@ class CFGBuilder:
         
         # Увеличиваем счётчик вызовов
         func_cfg.begin_node.metadata.call_count += 1
-        print(f'CALL++(2) of `{func_name}` =', func_cfg.begin_node.metadata.call_count)
+        print(
+            f"CALL++(2) of `{func_name}` =",
+            func_cfg.begin_node.metadata.call_count,
+            file=sys.stderr,
+        )
 
-        print(f'INFO: made CFG for call of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'))
+        print(
+            f"INFO: made CFG for call of func `{func_name}`",
+            "id: ",
+            wrapped_ast.ast_node.get("id"),
+            file=sys.stderr,
+        )
 
         return call_cfg
 

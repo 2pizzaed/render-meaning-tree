@@ -56,7 +56,7 @@ def demo_cfg_export():
     
     # Добавляем узел
     metadata = Metadata(assumed_value=True, call_count=1)
-    node = cfg.add_node(NodeKind.CONDITION, "condition_node", metadata=metadata)
+    node = cfg.add_node(NodeKind.ATOM, "condition_node", metadata=metadata)
 
     # Создаём эффект
     effect = Effects(interruption_stop=InterruptionType.BREAK)

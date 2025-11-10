@@ -7,6 +7,7 @@
 """
 
 import os
+os.environ.setdefault("MPLBACKEND", "Agg")
 import sys
 import tempfile
 import unittest
@@ -92,9 +93,9 @@ class TestCFGVisualizer(unittest.TestCase):
         
         # Тест обычного узла
         cfg = CFG("test")
-        node = cfg.add_node(NodeKind.CONDITION, "cond", Metadata())
+        node = cfg.add_node(NodeKind.ATOM, "cond", Metadata())
         label = _create_node_label(node)
-        self.assertIn("condition", label)
+        self.assertIn("atom", label)
         self.assertIn("cond", label)
 
     def test_create_empty_factory(self):
@@ -109,11 +110,11 @@ class TestCFGVisualizer(unittest.TestCase):
 
     def test_create_atomic_factory(self):
         """Фабрика create_atomic должна создавать граф из единственного узла."""
-        cfg = CFG.create_atomic("atomic_factory", kind=NodeKind.ATOM_STMT)
+        cfg = CFG.create_atomic("atomic_factory", kind=NodeKind.ATOM)
         self.assertIs(cfg.begin_node, cfg.end_node)
         self.assertEqual(len(cfg.nodes), 1)
         lone_node = next(iter(cfg.nodes.values()))
-        self.assertEqual(lone_node.kind, NodeKind.ATOM_STMT)
+        self.assertEqual(lone_node.kind, NodeKind.ATOM)
         self.assertEqual(len(cfg.edges), 0)
     
     def test_create_edge_label(self):
@@ -139,8 +140,8 @@ class TestCFGVisualizer(unittest.TestCase):
     def test_build_networkx_graph(self):
         """Тест конвертации CFG в NetworkX граф."""
         cfg = CFG("test")
-        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
-        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
+        node1 = cfg.add_node(NodeKind.ATOM, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Добавляем рёбра с constraints
         true_constraint = Constraints(condition_value=True)
@@ -183,8 +184,8 @@ class TestCFGVisualizer(unittest.TestCase):
         cfg = CFG("test_constraints")
         
         # Создаём узлы
-        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
-        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
+        node1 = cfg.add_node(NodeKind.ATOM, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Создаём рёбра с constraints
         true_constraint = Constraints(condition_value=True)
@@ -234,7 +235,7 @@ class TestCFGVisualizer(unittest.TestCase):
     def test_visualize_cfg_different_layouts(self):
         """Тест визуализации с разными layout."""
         cfg = CFG("test_layouts")
-        node = cfg.add_node(NodeKind.CONDITION, "cond")
+        node = cfg.add_node(NodeKind.ATOM, "cond")
         cfg.connect(cfg.begin_node, node)
         cfg.connect(node, cfg.end_node)
         
@@ -265,7 +266,7 @@ class TestCFGVisualizer(unittest.TestCase):
         # Создаём много узлов
         nodes = []
         for i in range(10):
-            node = cfg.add_node(NodeKind.ATOM_STMT, f"role_{i}")
+            node = cfg.add_node(NodeKind.ATOM, f"role_{i}")
             nodes.append(node)
         
         # Создаём сложную структуру рёбер

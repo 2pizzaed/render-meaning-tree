@@ -6,6 +6,7 @@
 """
 
 import os
+os.environ.setdefault("MPLBACKEND", "Agg")
 import sys
 import tempfile
 import unittest
@@ -38,8 +39,8 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_orphan")
         
         # Создаём узлы
-        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
-        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
+        node1 = cfg.add_node(NodeKind.ATOM, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Создаём висячие рёбра (ссылаются на несуществующие узлы)
         cfg.edges.append(type('Edge', (), {
@@ -91,8 +92,8 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_disconnected")
         
         # Создаём узлы без рёбер между ними
-        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
-        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
+        node1 = cfg.add_node(NodeKind.ATOM, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Диагностика
         issues = diagnose_cfg(cfg)
@@ -110,8 +111,8 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_networkx")
         
         # Создаём узлы
-        node1 = cfg.add_node(NodeKind.CONDITION, "cond")
-        node2 = cfg.add_node(NodeKind.ATOM_STMT, "body")
+        node1 = cfg.add_node(NodeKind.ATOM, "cond")
+        node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Добавляем висячие рёбра
         cfg.edges.append(type('Edge', (), {
@@ -135,7 +136,7 @@ class TestCFGVisualizerSafety(unittest.TestCase):
         cfg = CFG("test_malformed")
         
         # Создаём узел с отсутствующими полями
-        node = cfg.add_node(NodeKind.CONDITION, "cond")
+        node = cfg.add_node(NodeKind.ATOM, "cond")
         
         # Повреждаем данные узла
         node.metadata = None

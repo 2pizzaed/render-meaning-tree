@@ -65,42 +65,11 @@ END = 'END'
 
 
 class NodeKind(SelfValidatedEnum):
-    """Single values associated with kind of ActionSpec """
-    # bounds of compound
+    """Типы узлов CFG."""
     BEGIN = BEGIN
     END = END
-    # atoms
-    CONDITION = "condition"
-    ATOM_STMT = "atom_stmt"
-    # for usage as constraint
+    ATOM = "atom"
     ANY = "any"
-
-    @classmethod
-    def resolve(cls, value) -> 'NodeKind':
-        """Normalizes произвольное представление kind к NodeKind."""
-        if isinstance(value, cls):
-            return value
-
-        if value is None:
-            raise ValueError("Node kind value must not be None")
-
-        # KindChain / Enum / str support
-        if hasattr(value, "value") and isinstance(getattr(value, "value"), str):
-            raw_value = value.value
-        else:
-            raw_value = str(value)
-
-        normalized = raw_value.strip()
-        if not normalized:
-            raise ValueError("Node kind value must not be empty")
-
-        direct = cls.lookup(normalized, raise_on_error=False)
-        if direct:
-            return direct
-
-        direct_lower = cls.lookup(normalized.lower(), raise_on_error=False)
-        if direct_lower:
-            return direct_lower
 
 
 class IDGen:
@@ -235,7 +204,7 @@ class CFG:
         if metadata.abstract_action and metadata.abstract_action.effects:
             effects = metadata.abstract_action.effects
 
-        kind = NodeKind.resolve(kind)
+        kind = NodeKind(kind)
         node_id = idgen.next(kind.value)
         node = Node(
             id=node_id,
@@ -293,9 +262,7 @@ class CFG:
 
         if not subgraph:
             # Node is an atom (inline).
-            node_kind = kind if isinstance(kind, NodeKind) else NodeKind.lookup(kind)
-            if node_kind is None:
-                raise ValueError(f"Unsupported node kind: {kind}")
+            node_kind = NodeKind(kind)
             nid = idgen.next(node_kind.value)
             node = Node(id=nid, kind=node_kind, role=role,
                         metadata=metadata or Metadata(),

@@ -4,6 +4,7 @@ from typing import Optional
 from src.cfg.abstractions import ConstructSpec
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata, NodeKind
+from src.cfg.node_kind_rules import NodeConstruction, determine_node_construction
 from src.json_search import search_bfs, search_dfs
 
 
@@ -286,7 +287,7 @@ class CFGBuilder:
         
         # Встраиваем CFG функции как subgraph
         func_node_pair = call_cfg.add_node(
-            kind='func_body',
+            kind=NodeKind.BEGIN,
             role='func',
             metadata=Metadata(
                 wrapped_ast=wrapped_ast,
@@ -362,7 +363,7 @@ class CFGBuilder:
         
         # Встраиваем CFG функции как subgraph
         func_node_pair = call_cfg.add_node(
-            kind='func_body',
+            kind=NodeKind.BEGIN,
             role='func',
             # metadata=Metadata(
             #     abstract_action=construct.role2action['func'],
@@ -454,35 +455,34 @@ class CFGBuilder:
         * для атомарных однострочных структур (а также неопределённых структур, которые должны быть однострочными действиями):
             выполнить поиск вложенных вызовов функций, создать для них обёртку в случае наличие вызовов, и простой тривиальный cfg в случае отсутствия вызовов.
         """
-        if construct and construct.kind.has('compound'):
-            return self.make_cfg_for_compound(construct, wrapped_ast, cfg)
+        construct_kind = construct.kind if construct else None
 
-        # Поиск вызовов функций в атомарных узлах
+        if construct_kind and construct_kind.has('noop'):
+            return None
+
         cfg_name = "atom_" + (construct.name if construct else 'unknown')
+        function_calls = ()
         if isinstance(wrapped_ast.ast_node, dict):
             function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
-        else:
-            function_calls = ()
 
         if function_calls:
-            # Create empty (not connected) CFG
-            cfg = CFG(cfg_name)
-            # Fill CFG with the chain of func calls
-            cfg = self._inject_function_calls_in_cfg(cfg, function_calls)
-        else:
-            # Create atomic CFG consisting of a single node
-            metadata = Metadata(wrapped_ast=wrapped_ast) if wrapped_ast else Metadata()
-            node_kind = self._deduce_atomic_node_kind(construct)
-            cfg = CFG.create_atomic(cfg_name, kind=node_kind, metadata=metadata)
-        return cfg
+            base_cfg = CFG(cfg_name)
+            return self._inject_function_calls_in_cfg(base_cfg, function_calls)
 
-    @staticmethod
-    def _deduce_atomic_node_kind(construct: ConstructSpec | None) -> NodeKind:
-        """Определяет NodeKind для атомарного CFG."""
-        if construct and construct.kind.has('condition'):
-            return NodeKind.CONDITION
-        return NodeKind.ATOM_STMT
+        construction = determine_node_construction(
+            action_kind=construct_kind,
+            construct_kind=construct_kind,
+            has_function_calls=False,
+        )
 
+        if construction is NodeConstruction.NONE:
+            return None
+
+        if construction is NodeConstruction.COMPOUND and construct and construct.kind.has('compound'):
+            return self.make_cfg_for_compound(construct, wrapped_ast, cfg)
+
+        metadata = Metadata(wrapped_ast=wrapped_ast)
+        return CFG.create_atomic(cfg_name, kind=NodeKind.ATOM, metadata=metadata)
 
     def make_cfg_for_compound(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
         """ Предполагается, что CFG для подчинённых узлов будут созданы рекурсивно и встроены в результат.
@@ -491,7 +491,7 @@ class CFGBuilder:
         if not cfg:
             # Make fresh CFG.
             ast_node = wrapped_ast.ast_node
-            cfg_name = ast_node['type'] if 'type' in ast_node else str(ast_node)
+            cfg_name = ast_node['type'] if isinstance(ast_node, dict) and 'type' in ast_node else str(ast_node)
             cfg = CFG(cfg_name, construct=construct)
 
         # Добавить метаданные: узел AST (abstract_action уже установлен через construct)
@@ -563,28 +563,49 @@ class CFGBuilder:
                 if existing_node:
                     node23 = existing_node
                 else:
-                    # insert subgraph, only for compound actions
-                    subgraph = self.make_cfg_for_ast(next_wrapped_ast)
+                    child_construct = self.find_construct_for_astnode(next_wrapped_ast)
+                    has_calls = False
+                    if isinstance(next_wrapped_ast.ast_node, dict):
+                        has_calls = bool(self._find_function_calls_in_ast(next_wrapped_ast.ast_node))
 
-                    node23 = cfg.add_node(
-                        kind=target_action.kind,
-                        role=target_action.role,
-                        metadata=Metadata(
-                            abstract_action=target_action,
-                            wrapped_ast=next_wrapped_ast,
-                            primary=is_primary ,
-                        ),
-                        subgraph=subgraph
+                    construction = determine_node_construction(
+                        action_kind=target_action.kind,
+                        construct_kind=child_construct.kind if child_construct else None,
+                        has_function_calls=has_calls,
                     )
 
-                # Make a pair: bounds of a compound or an atom (the same node if it's an atom)
+                    node_metadata = Metadata(
+                        abstract_action=target_action,
+                        wrapped_ast=next_wrapped_ast,
+                        primary=is_primary,
+                    )
+
+                    if construction is NodeConstruction.NONE:
+                        continue
+
+                    if construction is NodeConstruction.ATOM:
+                        node23 = cfg.add_node(
+                            kind=NodeKind.ATOM,
+                            role=target_action.role,
+                            metadata=node_metadata,
+                        )
+                    else:
+                        subgraph = self.make_cfg_for_ast(next_wrapped_ast)
+                        if subgraph is None:
+                            continue
+                        node23 = cfg.add_node(
+                            kind=NodeKind.BEGIN,
+                            role=target_action.role,
+                            metadata=node_metadata,
+                            subgraph=subgraph
+                        )
+
                 node_pair: tuple[Node, Node] = (node23 if isinstance(node23, tuple) else (node23, node23))
 
                 # connect along the transition found
                 cfg.connect(node, node_pair[0], metadata=Metadata(
                     abstract_transition=tr,
-                    is_after_last = not is_primary,
-                    # transition_chain=transition_chain,  # Could be added to Metadata if needed
+                    is_after_last=not is_primary,
                 ))
 
                 # последний узел (выходной) добавить в пул необработанных

@@ -61,37 +61,28 @@ class NameRegistry:
     """Реестр имён объектов для обеспечения уникальности объектов в рамках одного типа."""
 
     def __init__(self):
-        self._type_name_to_uname: dict[tuple[str, str], str] = {}
+        self._object_to_name: dict[int, str] = {}
+        self._names_in_use: set[str] = set()
 
     def register_object(self, obj: Any, preferred_name: str) -> str:
         """Регистрирует объект и возвращает уникальное имя."""
-        # Use preferred_name as the key for content-based deduplication
-        # If this name already exists, return existing name
-        obj_type = type(obj).__name__
-        key = (obj_type, preferred_name)
+        obj_id = id(obj)
+        if obj_id in self._object_to_name:
+            return self._object_to_name[obj_id]
 
-        if key in self._type_name_to_uname:
-            # Object of the same type with this name was already registered.
-            return self._type_name_to_uname[key]
+        final_name = preferred_name
+        suffix = 1
+        while final_name in self._names_in_use:
+            final_name = f"{preferred_name}_{suffix}"
+            suffix += 1
 
-        # Check for name collision with different type
-        if preferred_name in self._type_name_to_uname.values():
-            # Name collision with different type - add type prefix
-            final_name = f"{obj_type}_{preferred_name}"
-            key = (obj_type, final_name)
-        else:
-            final_name = preferred_name
-            # key unchanged.
-
-        # Register the name
-        self._type_name_to_uname[key] = final_name
+        self._names_in_use.add(final_name)
+        self._object_to_name[obj_id] = final_name
         return final_name
 
     def get_object_name(self, obj: Any, preferred_name: str) -> str | None:
         """Получает имя объекта, если он зарегистрирован."""
-        obj_type = type(obj).__name__
-        key = (obj_type, preferred_name)
-        return self._type_name_to_uname.get(key)
+        return self._object_to_name.get(id(obj))
 
 class ExporterManager:
     """Вспомогательный класс для управления "экспортерами" -- подклассами ObjectExporter."""

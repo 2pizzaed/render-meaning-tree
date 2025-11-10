@@ -176,7 +176,7 @@ class ASTNodeAnalyzer:
         return field
 
     def is_loop_or_condition_header(self, node_id: int | None) -> bool:
-        """Проверить, является ли узел заголовком цикла или условия"""
+        """Проверить, является ли узел заголовком цикла или ветвления"""
         if not node_id:
             return False
         node = self.get_node_by_id(node_id)

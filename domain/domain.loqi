@@ -390,7 +390,7 @@ class State {
 
 class TraceAct {
 	obj prop is_known_correct: bool ;
-	obj prop condition_value: bool ;
+	obj prop condition_value: bool ; // используем
 	obj prop active : bool;
 
 	rel hasCFGNode(Node) : {* -> 1};

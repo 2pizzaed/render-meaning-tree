@@ -6,7 +6,7 @@ from src.cfg.abstractions import KindChain
 class NodeConstruction(Enum):
     """Classification of CFG nodes constructed from AST actions."""
 
-    NONE = "none"
+    NONE = "none"  # skip this AST node in CFG.
     ATOM = "atom"
     COMPOUND = "compound"
 

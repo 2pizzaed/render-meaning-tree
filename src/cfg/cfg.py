@@ -71,6 +71,14 @@ class NodeKind(SelfValidatedEnum):
     ATOM = "atom"
     ANY = "any"
 
+# class NodeRole(SelfValidatedEnum):
+#     """Роли узлов CFG."""
+#     CONDITION = 'condition'
+#     FUNC_CALL = 'func_call'
+#     CONSTRUCT = "construct"  # ???
+#     # BLOCK = "block"  # ??? TODO
+#     ANY = "any"
+
 
 class IDGen:
     def __init__(self, start: int=1):

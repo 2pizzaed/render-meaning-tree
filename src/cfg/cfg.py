@@ -98,19 +98,21 @@ class Node(FactSerializable):
     @property
     def appearance(self) -> AppearanceType:
         if not self.metadata.wrapped_ast:
+            # Пустые и промежуточные действия
             return AppearanceType.NONE
-        if self.metadata.abstract_action:
-            kind = self.metadata.abstract_action.kind
-            if kind.has('auto'):
-                if self.metadata.abstract_action.construct:
-                    kind = self.metadata.abstract_action.construct.kind
-                else: # construct not set...
-                    raise ValueError("abstract_action must have construct")
-            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(kind)
 
-        if self.metadata.wrapped_ast is not None:
+        if self.kind == NodeKind.ATOM:
             # Действие-атом
             return AppearanceType.MANDATORY
+
+        if self.metadata.call_count > 0:
+            # Начало либо конец вызова функции
+            # TODO: в APPEARANCE_PROFILE
+            return AppearanceType.MANDATORY
+
+        if self.metadata.abstract_action:
+            kind = self.metadata.abstract_action.kind
+            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(kind)
 
         # keep intermediate nodes hidden.
         return AppearanceType.NONE

@@ -9,6 +9,10 @@ from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import UserInteraction, build_trace_for
 
+"""
+Note!
+    Please run tests from project root directory, not from `test/`.
+"""
 
 class TestCfgBuilder(unittest.TestCase):
 
@@ -78,59 +82,29 @@ class TestCfgBuilder(unittest.TestCase):
 
         # Create the full AST hierarchy
         program_root = ASTNodeWrapper(ast_node=ast_json)
-        root = ASTNodeWrapper(ast_node=ast_json["body"][1], parent=program_root)
+        # root = ASTNodeWrapper(ast_node=ast_json["body"][1], parent=program_root)
+        root = program_root
 
-        constructs = load_constructs("../constructs.yml", debug=0)
+        constructs = load_constructs("constructs.yml", debug=0)
         b = CFGBuilder(constructs)
 
         cfg = b.make_cfg_for_ast(root)
+        cfg.optimize()
 
+        # Export to LOQI
+        exporter = LoqiExporter()
+        output_file = "domain/cfg4_export.loqi"
+
+        # Find and export all paths between opaque nodes
+        paths = determine_all_paths_between_opaque_nodes(cfg)
+        if paths:
+            exporter.add_paths(paths)
+
+        exporter.export_cfg(cfg, output_file)
+
+        visualize_cfg_graphviz(cfg, "cfg_4_gv.png")
+        # cfg.debug()
         print()
-
-        # # Test that CFG was built correctly
-        # self.assertIsNotNone(cfg)
-        # self.assertEqual(cfg.name, "if_statement")
-        #
-        # # Test that we have the expected number of nodes and edges
-        # self.assertEqual(len(cfg.nodes), 12)
-        # self.assertEqual(len(cfg.edges), 12)
-        #
-        # # Test that we have BEGIN and END nodes
-        # begin_nodes = [n for n in cfg.nodes.values() if n.role == "BEGIN"]
-        # end_nodes = [n for n in cfg.nodes.values() if n.role == "END"]
-        # self.assertEqual(len(begin_nodes), 3)  # Main CFG + 2 subgraphs
-        # self.assertEqual(len(end_nodes), 3)    # Main CFG + 2 subgraphs
-        #
-        # # Test that we have a condition node
-        # condition_nodes = [n for n in cfg.nodes.values() if n.role == "first_cond"]
-        # self.assertEqual(len(condition_nodes), 1)
-        #
-        # # Test that we have if_branch and else_branch nodes
-        # if_branch_nodes = [n for n in cfg.nodes.values() if n.role == "if_branch"]
-        # else_branch_nodes = [n for n in cfg.nodes.values() if n.role == "else_branch"]
-        # self.assertEqual(len(if_branch_nodes), 2)  # One for TRUE branch, one for FALSE branch
-        # self.assertEqual(len(else_branch_nodes), 2)  # One for each branch
-        #
-        # # Test that we have transitions with constraints
-        # transitions_with_constraints = [e for e in cfg.edges if e.metadata.abstract_transition and e.metadata.abstract_transition.constraints]
-        # self.assertGreater(len(transitions_with_constraints), 0)
-        #
-        # # Test that we have transitions with condition_value constraints
-        # condition_transitions = [e for e in cfg.edges
-        #                        if e.metadata.abstract_transition and
-        #                        e.metadata.abstract_transition.constraints and
-        #                        e.metadata.abstract_transition.constraints.condition_value is not None]
-        # self.assertEqual(len(condition_transitions), 2)  # TRUE and FALSE transitions
-        #
-        # # Test that condition transitions have correct values
-        # true_transitions = [e for e in condition_transitions
-        #                   if e.metadata.abstract_transition.constraints.condition_value == True]
-        # false_transitions = [e for e in condition_transitions
-        #                    if e.metadata.abstract_transition.constraints.condition_value == False]
-        # self.assertEqual(len(true_transitions), 1)
-        # self.assertEqual(len(false_transitions), 1)
-
-        cfg.debug()
 
     def test_cfg_builder5(self):
 

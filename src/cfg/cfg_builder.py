@@ -527,7 +527,6 @@ class CFGBuilder:
                 continue
             outgoing_transitions = construct.find_transitions_from_action(action)
             if not outgoing_transitions:
-                # no outgoing transitions: ensure it's END
                 assert role == END, f'{construct.name=} has no outgoing transitions for {role=}, and this is not END'
             for tr in outgoing_transitions:
                 # resolve target action
@@ -546,22 +545,10 @@ class CFGBuilder:
 
                 target_action, next_wrapped_ast, is_primary, transition_chain = step_further_tuple
 
-                ### DEBUG.
-                if 0:
-                    print()
-                    print(f'{action = }')
-                    print(f'{wrapped_ast.ast_node['id'] = }')
-                    print(f'previous wrapped_ast->id = {node.metadata.wrapped_ast.ast_node['id']}')
-                    print(f'{tr = }')
-                    print(f'{target_action = }')
-                    print(f'{next_wrapped_ast.ast_node['id'] = }')
-                ###
-
-                # Check if node with this role and data already exists
                 existing_node = None
                 for existing in cfg.nodes.values():
-                    if (existing.role == target_action.role and 
-                        existing.metadata.wrapped_ast and 
+                    if (existing.role == target_action.role and
+                        existing.metadata.wrapped_ast and
                         existing.metadata.wrapped_ast.ast_node == next_wrapped_ast.ast_node):
                         existing_node = existing
                         break

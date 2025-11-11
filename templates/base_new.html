@@ -38,7 +38,7 @@
             color: #333;
         }
         
-        .code-block {
+        .ctrl-flow-domain-code-block {
             background: white;
             border: 1px solid #e0e0e0;
             border-radius: 6px;
@@ -46,13 +46,13 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         
-        .code-container {
+        .ctrl-flow-domain-code-block .code-container {
             display: flex;
             font-size: 14px;
             line-height: 1.6;
         }
         
-        .line-numbers {
+        .ctrl-flow-domain-code-block .line-numbers {
             background: #fafafa;
             color: #999;
             padding: 16px 12px;
@@ -62,32 +62,32 @@
             min-width: 50px;
         }
         
-        .line-number {
+        .ctrl-flow-domain-code-block .line-number {
             display: block;
             height: 1.6em;
         }
         
-        .code-content {
+        .ctrl-flow-domain-code-block .code-content {
             flex: 1;
             padding: 16px;
             overflow-x: auto;
         }
         
-        .code-line {
+        .ctrl-flow-domain-code-block .code-line {
             display: flex;
             align-items: center;
             min-height: 1.6em;
             position: relative;
         }
         
-        .line-buttons {
+        .ctrl-flow-domain-code-block .line-buttons {
             display: flex;
             gap: 4px;
             margin-right: 8px;
             flex-shrink: 0;
         }
         
-        .action-button {
+        .ctrl-flow-domain-code-block .action-button {
             background: transparent;
             border: none;
             width: 18px;
@@ -101,108 +101,108 @@
             padding: 0;
         }
         
-        .action-button svg {
+        .ctrl-flow-domain-code-block .action-button svg {
             width: 14px;
             height: 14px;
             stroke-width: 2;
         }
         
-        .action-button:hover {
+        .ctrl-flow-domain-code-block .action-button:hover {
             background: rgba(0, 0, 0, 0.05);
         }
         
-        .action-button:active {
+        .ctrl-flow-domain-code-block .action-button:active {
             transform: scale(0.95);
         }
         
-        .action-button.filled.play svg,
-        .action-button.filled.stop svg,
-        .action-button.filled.step-into svg,
-        .action-button.filled.step-out svg {
+        .ctrl-flow-domain-code-block .action-button.filled.play svg,
+        .ctrl-flow-domain-code-block .action-button.filled.stop svg,
+        .ctrl-flow-domain-code-block .action-button.filled.step-into svg,
+        .ctrl-flow-domain-code-block .action-button.filled.step-out svg {
             /* Цвет будет задан inline через style */
         }
 
-        .action-button.outlined.play svg,
-        .action-button.outlined.stop svg,
-        .action-button.outlined.step-into svg,
-        .action-button.outlined.step-out svg {
+        .ctrl-flow-domain-code-block .action-button.outlined.play svg,
+        .ctrl-flow-domain-code-block .action-button.outlined.stop svg,
+        .ctrl-flow-domain-code-block .action-button.outlined.step-into svg,
+        .ctrl-flow-domain-code-block .action-button.outlined.step-out svg {
             fill: none;
             /* Цвет будет задан inline через style */
         }
 
-        .line-content {
+        .ctrl-flow-domain-code-block .line-content {
             flex: 1;
             white-space: pre;
         }
         
         /* Стили для токенов */
-        .token-keyword {
+        .ctrl-flow-domain-code-block .token-keyword {
             color: #0033B3;
             font-weight: 600;
         }
         
-        .token-operator {
+        .ctrl-flow-domain-code-block .token-operator {
             color: #000000;
         }
         
-        .token-const {
+        .ctrl-flow-domain-code-block .token-const {
             color: #067D17;
         }
         
-        .token-string {
+        .ctrl-flow-domain-code-block .token-string {
             color: #067D17;
         }
         
-        .token-number {
+        .ctrl-flow-domain-code-block .token-number {
             color: #1750EB;
         }
         
-        .token-callable {
+        .ctrl-flow-domain-code-block .token-callable {
             color: #00627A;
             font-weight: 500;
         }
         
-        .token-identifier {
+        .ctrl-flow-domain-code-block .token-identifier {
             color: #000000;
         }
         
-        .token-cast {
+        .ctrl-flow-domain-code-block .token-cast {
             color: #0033B3;
         }
         
-        .token-brace {
+        .ctrl-flow-domain-code-block .token-brace {
             color: #000000;
             font-weight: 600;
         }
         
-        .token-statement {
+        .ctrl-flow-domain-code-block .token-statement {
             color: #9876AA;
         }
         
-        .token-separator {
+        .ctrl-flow-domain-code-block .token-separator {
             color: #000000;
         }
         
-        .token-comma {
+        .ctrl-flow-domain-code-block .token-comma {
             color: #000000;
         }
         
-        .token-comment {
+        .ctrl-flow-domain-code-block .token-comment {
             color: #8C8C8C;
             font-style: italic;
         }
         
-        .token-unknown {
+        .ctrl-flow-domain-code-block .token-unknown {
             color: #000000;
         }
 
         /* требует поддержки :has (современные браузеры) */
-        .line-content:has(> .token-whitespace:first-child) {
+        .ctrl-flow-domain-code-block .line-content:has(> .token-whitespace:first-child) {
             position: relative;
             padding-left: 8px; /* отступ, чтобы не налезало содержимое */
         }
 
-        .line-content:has(> .token-whitespace:first-child)::before {
+        .ctrl-flow-domain-code-block .line-content:has(> .token-whitespace:first-child)::before {
             content: "";
             position: absolute;
             left: 0;
@@ -212,7 +212,7 @@
             background: #c7c7c7;
         }
         
-        .token {
+        .ctrl-flow-domain-code-block .token {
             cursor: default;
             position: relative;
         }
@@ -228,7 +228,7 @@
             {{ code_data | tojson(indent=4) | safe }}
         </script>
         
-        <div class="code-block">
+        <div class="ctrl-flow-domain-code-block">
             <div class="code-container">
                 <div class="line-numbers">
                     {% for line_num in range(1, total_lines + 1) %}
@@ -293,7 +293,7 @@
         lucide.createIcons();
         
         // Обработчики для кнопок
-        document.querySelectorAll('.action-button').forEach(button => {
+        document.querySelectorAll('.ctrl-flow-domain-code-block .action-button').forEach(button => {
             button.addEventListener('click', function() {
                 const nodeId = this.getAttribute('data-node-id');
                 const lineNum = this.getAttribute('data-line');

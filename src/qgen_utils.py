@@ -1,7 +1,6 @@
 import re
 import sys
 from typing import Any
-import warnings
 
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.ast_wrapper import ASTNodeWrapper
@@ -205,9 +204,9 @@ def build_question(language: str,
                 "questionText": html,
                 "questionName": qname,
                 "questionDomainType": "OrderActs",
-                "questionOptions": {
+                "options": {
                     "showTrace": True,
-                    "requireContext": False,
+                    "requireContext": True,
                     "requireAllAnswers": True,
                     "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
                     "multipleSelectionEnabled": True,

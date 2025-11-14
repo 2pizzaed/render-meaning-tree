@@ -100,7 +100,8 @@ class TestComplexProblemBuild(unittest.TestCase):
             trace_acts = [
                 build_trace_act(cfg, interaction) for interaction in all_interactions(lines_data)
             ]
-            self.assertTrue(any(t is not None for t in trace_acts))
+            trace_acts = list(filter(None, trace_acts))
+            self.assertTrue(len(trace_acts))
             for trace_act in trace_acts:
                 exporter.add_object(trace_act)
 

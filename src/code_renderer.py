@@ -641,6 +641,7 @@ class CodeHighlightGenerator:
                             "action_id": total_buttons,
                             "node_id": node_start_id,
                             "node_type": node_start_type,
+                            "atom": self.analyzer.is_simple_statement(node_start_id) or button_type == "question",
                             "position": "before",
                             "index": token_pos,
                             "color": self.BUTTON_TYPES_COLORS.get(node_start_type)
@@ -677,6 +678,8 @@ class CodeHighlightGenerator:
                             "action_id": total_buttons,
                             "node_id": node_end_id,
                             "node_type": node_end_type,
+                            "atom": self.analyzer.is_simple_statement(node_end_id)
+                            or button_type == "question",
                             "position": "after",
                             "index": token_pos,
                             "color": self.BUTTON_TYPES_COLORS.get(node_end_type)
@@ -750,7 +753,7 @@ class CodeHighlightGenerator:
 
         if snippet:
             soup = BeautifulSoup(html, 'html.parser')
-            code_block = soup.select_one('.code-block')
+            code_block = soup.select_one(".ctrl-flow-domain-code-block")
             html = str(code_block)
 
         if output_file:

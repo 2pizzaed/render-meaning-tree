@@ -148,27 +148,22 @@ enum NodeKind {
 	BEGIN [
 		RU.localizedName = "начало" ;
 		EN.localizedName = "begin" ;
-	
 	],
 	END [
 		RU.localizedName = "конец" ;
 		EN.localizedName = "end" ;
-	
 	],
-	atom_stmt [
+	atom [
 		RU.localizedName = "атомарная инструкция" ;
 		EN.localizedName = "atom statement" ;
-	
 	],
 	any [
 		RU.localizedName = "любое" ;
 		EN.localizedName = "any" ;
-	
 	],
 } [
 	RU.localizedName = "тип узла CFG" ;
 	EN.localizedName = "node kind" ;
-
 ]
 
 enum CallStackAction {

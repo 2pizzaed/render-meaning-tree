@@ -11,6 +11,7 @@ from src.code_renderer import ButtonType
 class UserInteraction:
     ast_node_id: int
     button_type: ButtonType
+    atom: bool
 
 
 def all_interactions(lines_data: list[dict[str, list]]) -> Generator[UserInteraction]:
@@ -19,6 +20,7 @@ def all_interactions(lines_data: list[dict[str, list]]) -> Generator[UserInterac
             yield UserInteraction(
                 ast_node_id=button["node_id"],
                 button_type=button["type"],
+                atom=button["atom"]
             )
 
 
@@ -30,12 +32,12 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction):
             continue
         ast_node = node.metadata.wrapped_ast.ast_node
         match interaction.button_type:
-            case "play":
-                kind = NodeKind.BEGIN
-            case "step_into":
-                kind = NodeKind.BEGIN
             case "question":
                 kind = NodeKind.ATOM
+            case "play":
+                kind = NodeKind.BEGIN if not interaction.atom else NodeKind.ATOM
+            case "step_into":
+                kind = NodeKind.BEGIN
             case "step-out", "stop":
                 kind = NodeKind.END
             case _:

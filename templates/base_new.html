@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Code Viewer - {{ language }}</title>
-    <script src="https://unpkg.com/lucide@0.548.0"></script>
     <link
         href="https://cdn.jsdelivr.net/npm/remixicon@4.7.0/fonts/remixicon.css"
         rel="stylesheet"
@@ -252,10 +251,10 @@
                                         id="answer_{{button.action_id}}"
                                         style="--button-color: {{ button.color }};"
                                         >
-                                    {%- if button.type == 'play' -%}<i data-lucide="play" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
-                                    {%- elif button.type == 'stop' -%}<i data-lucide="square" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
-                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
-                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- if button.type == 'play' -%}<i class="ri-play-large-fill"  style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'stop' -%}<i class="ri-stop-large-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-into' -%}<i class="ri-corner-down-right-line" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-out' -%}<i class="ri-corner-right-up-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- elif button.type == 'question' -%}<i class="ri-question-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- endif -%}
                                 </button>
@@ -271,10 +270,10 @@
                                         id="answer_{{button.action_id}}"
                                         style="--button-color: {{ button.color }};"
                                 >
-                                    {%- if button.type == 'play' -%}<i data-lucide="play" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
-                                    {%- elif button.type == 'stop' -%}<i data-lucide="square" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
-                                    {%- elif button.type == 'step-into' -%}<i data-lucide="corner-down-right" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
-                                    {%- elif button.type == 'step-out' -%}<i data-lucide="corner-up-left" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- if button.type == 'play' -%}<i class="ri-play-large-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'stop' -%}<i class="ri-stop-large-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-into' -%}<i class="ri-corner-down-right-line" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
+                                    {%- elif button.type == 'step-out' -%}<i class="ri-corner-right-up-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- elif button.type == 'question' -%}<i class="ri-question-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- endif -%}
                                 </button>

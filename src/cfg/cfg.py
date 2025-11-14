@@ -1,4 +1,5 @@
 import itertools
+import sys
 from dataclasses import dataclass, field
 from typing import Iterable, Optional, Self, TYPE_CHECKING
 
@@ -9,7 +10,7 @@ from src.cfg.abstractions import (
     Constraints,
     ConstructSpec,
     Effects,
-    TransitionSpec,
+    TransitionSpec, ActionKind,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
@@ -246,8 +247,8 @@ class CFG:
                 end_metadata = Metadata(abstract_action=end_action)
 
         # init boundaries с метаданными
-        self.begin_node = self.add_node(NodeKind.BEGIN, BEGIN, metadata=begin_metadata or Metadata())
-        self.end_node = self.add_node(NodeKind.END, END, metadata=end_metadata or Metadata())
+        self.begin_node = self.add_node(NodeKind.BEGIN, ActionKind.SEQUENCE, metadata=begin_metadata)
+        self.end_node = self.add_node(NodeKind.END, ActionKind.SEQUENCE, metadata=end_metadata)
 
         # set has_corresponding_end
         self.begin_node.metadata.has_corresponding_end = self.end_node
@@ -261,31 +262,54 @@ class CFG:
             # update .cfg for newly added edge
             e.cfg = self
 
-    def add_node(self, kind: str | NodeKind, role: str=None, metadata: Metadata=None, subgraph: Self=None) -> Node | tuple[Node, Node]:
+    def add_node(self,
+                 kind: str | NodeKind,
+                 role: str | ActionKind=None,
+                 metadata: Metadata=None,
+                 subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
+        final_metadata = metadata or Metadata()
         # Извлекаем effects из ActionSpec, если есть
         final_effects = []
-        if metadata and metadata.abstract_action:
-            if metadata.abstract_action.effects:
-                final_effects = metadata.abstract_action.effects
+        if final_metadata.abstract_action:
+            if final_metadata.abstract_action.effects:
+                final_effects = final_metadata.abstract_action.effects
 
         if not subgraph:
-            # Node is an atom (inline).
+            # Узел может быть служебным началом или концом CFG, или атомом (в середине).
+
+            # Node is expected to be an atom (inline).
+            # assert kind == NodeKind.ATOM, kind
+            # if not (kind == NodeKind.ATOM):
+            #     print(f"WARN: creating atomic node with kind {kind} and role {role} without subgraph.", file=sys.stderr)
+
             node_kind = NodeKind(kind)
             nid = idgen.next(node_kind.value)
             node = Node(id=nid, kind=node_kind, role=role,
-                        metadata=metadata or Metadata(),
+                        metadata=final_metadata,
                         effects=final_effects,
                         cfg=self)
             self.nodes[nid] = node
             return node
         else:
             # Node is a wrapper over a compound.
+            # Add everything from subgraph:
+            if subgraph is not self:
+                # (guard for the case of direct recursion when subgraph is the same as self)
+                self.merge(subgraph)
+
+            if not metadata:
+                # simply embedded subgraph; return references to its bounds.
+                return subgraph.begin_node, subgraph.end_node
+
+            # Metadata is not empty,
+            # Make intermediate connections to the subgraph...
+
             kind = NodeKind.BEGIN
             nid = idgen.next(kind.value)
             enter_node = Node(id=nid, kind=kind, role=role,
-                             metadata=metadata or Metadata(),
+                             metadata=final_metadata,
                              effects=[],  # no effects for begin node.
                              cfg=self)
             self.nodes[nid] = enter_node
@@ -293,14 +317,10 @@ class CFG:
             kind = NodeKind.END
             nid = idgen.next(kind.value)
             leave_node = Node(id=nid, kind=kind, role=role,
-                             metadata=metadata or Metadata(),
+                             metadata=final_metadata,
                              effects=final_effects,
                              cfg=self)
             self.nodes[nid] = leave_node
-
-            # add everything from subgraph (guard for the case of direct recursion when subgraph is the same as self)
-            if subgraph is not self:
-                self.merge(subgraph)
 
             # connect subgraph
             self.connect(enter_node, subgraph.begin_node)

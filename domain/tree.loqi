@@ -1,7 +1,7 @@
 tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 
     // Проверка прерывания.
-    ask (STATE.interruption_state != InterruptionType:none) {
+    ask (STATE.interruption_state != InterruptionType:no_interruption) {
         false -> out;
         true -> {
             ask (A->hasCFGNode.kind == "END") out true else {
@@ -89,7 +89,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 };
 
                 conditionCheck -> {
-                    ask (forAny Constraint c {ct=>hasConstraints($c)} and ct->hasConstraints.condition_value != OptionalBoolValue:none) out true else {
+                    ask (forAny Constraint c {ct=>hasConstraints($c)} and ct->hasConstraints.condition_value != OptionalBoolValue:no_value) out true else {
                         conclude : null;
                     };
                     ask (ct->hasSource->hasMetadata->belongsToASTNode.current_condition_value == ct->hasConstraints.condition_value) 

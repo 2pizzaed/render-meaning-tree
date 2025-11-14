@@ -299,7 +299,7 @@ class TestCfgBuilder(unittest.TestCase):
 
             exporter.add_trace(trace)
             exporter.add_object(situation := SituationState(
-                interruption_state=InterruptionType.NONE,
+                interruption_state=InterruptionType.NO_INTERRUPTION,
             ))
             exporter.set_var("STATE", situation)
             exporter.set_var("L0", "trace_act_0")

@@ -26,19 +26,22 @@ class RoleInListType(SelfValidatedEnum):
 
 
 class InterruptionType(SelfValidatedEnum):
-    """Interruption types for effects"""
+    """Interruption types for constraints & effects"""
+    NO_INTERRUPTION = "no_interruption"
     BREAK = "break"
     CONTINUE = "continue"
     RETURN = "return"
     EXCEPTION = "exception"
-    NONE = "none"
-    ANY = "any"
+    ANY = "any"  # Прерывание может быть, а может и не быть: и то и то разрешено.
+    DEFAULT = NO_INTERRUPTION  # alias
 
 
 class CallStackAction(SelfValidatedEnum):
     """Call stack actions for effects"""
+    NONE = "none"
     ADD_FRAME = "add_frame"
     DROP_FRAME = "drop_frame"
+    DEFAULT = NONE  # alias
 
 
 class OptionalBoolValue(SelfValidatedEnum):
@@ -47,34 +50,29 @@ class OptionalBoolValue(SelfValidatedEnum):
     false = False
     # true = 'true'
     # false = 'false'
-    any = 'any'
-    none = 'none'
+    NO_VALUE = 'no_value'  # (нет самого условия).
+    ANY = 'any'  # при наличии, отсутствии или любом значении.
+    DEFAULT = NO_VALUE  # alias
 
-
-class InterruptionMode(SelfValidatedEnum):
-    """Interruption modes for constraints"""
-    EXCEPTION = "exception"
-    ANY = "any"
 
 class ActionKind(SelfValidatedEnum):
     """Single values associated with kind of ActionSpec """
-    # common useful
-    CONDITION = "condition"
-    BLOCK = "block"
-    # constructs known so far
-    SEQUENCE = "sequence"
-    ALTERNATIVE = "alternative"
-    LOOP = "loop"
-    NOOP = "noop"
-    CALL = "call"
-    TRY = "try"
+    # common useful:
+    CONDITION = "condition"  # управляющее условие, в зависимости от значения которого дальнейшее выполнение программы может развиваться по-разному.
+    BLOCK = "block"  # блок кода (обособленная последовательность statement'ов).
+    # constructs known so far:
+    SEQUENCE = "sequence"  # линейная последовательность statement'ов: как block, или глобальный код.
+    ALTERNATIVE = "alternative"  # развилка `if...` в любых формах.
+    LOOP = "loop"  # общий kind для всех видов циклов
+    NOOP = "noop"  # пустое действие: не выполняется в трассе (например, статические определения функций не являются выполняемыми statement'ами в компилируемых ЯП).
+    CALL = "call"  # вызов функции.
+    TRY = "try"  # try-catch и вариации.
     # basic types
-    COMPOUND = "compound"
-    INLINE = "inline"
-    # for usage as constraint
-    ANY = "any"
-    # "see underlying Construct instead"
-    AUTO = "auto"
+    COMPOUND = "compound"  # нечто составное: блок или алгоритмическая структура.
+    INLINE = "inline"  # однострочное действие: простой statement или condition; становится `atom` в CFG, если не содержит вызовов функций.
+    # other
+    ANY = "any"  # for usage as constraint.
+    AUTO = "auto"  # "see underlying Construct instead": в контексте роли действия в структуре не всегда понятен его kind, в этом случае задаётся auto, что означает: надо посмотреть на kind алгоритмической структуры самого действия.
 
 
 class KindChain:
@@ -125,40 +123,14 @@ class KindChain:
 @dataclass
 class Effects(DictLikeDataclass):
     """Effects that can be applied to actions or transitions"""
-    interruption_stop: Optional[InterruptionType] = None
-    interruption_start: Optional[InterruptionType] = None
-    call_stack: Optional[CallStackAction] = None
-
-
-@dataclass
-class Identification(DictLikeDataclass):
-    """Identification specification for finding nodes in AST"""
-    origin: Optional[OriginType] = None
-    property: Optional[str] = None
-    property_path: Optional[str] = None
-    role_in_list: Optional[RoleInListType] = None
-
-
-@dataclass
-class Behaviour(DictLikeDataclass):
-    """Behaviour for actions"""
-    assumed_value: Optional[bool] = None
-    # # Additional fields can be added as needed
-    # custom: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class Constraints(DictLikeDataclass):
-    """Constraints for transitions"""
-    condition_value: Optional[bool] = None
-    interruption_mode: Optional[InterruptionMode] = None
-    # # Additional constraints can be added as needed
-    # custom: dict[str, Any] = field(default_factory=dict)
+    interruption_stop: Optional[InterruptionType] = InterruptionType.NO_INTERRUPTION
+    interruption_start: Optional[InterruptionType] = InterruptionType.NO_INTERRUPTION
+    call_stack: Optional[CallStackAction] = CallStackAction.NONE
 
     @classmethod
-    def merge(cls, this: Self, other: Self) -> Self:
-        """ Объединить ограничения из последовательных узлов/рёбер, заполняя незаполненное, если указано.
-         В случае "конфликта" -- в обоих заполнено -- берётся значение из левого (TODO `any`?).
+    def merge(cls, this: Self, other: Self) -> Self | None:
+        """ Объединить эффекты из последовательных узлов/рёбер, заполняя незаполненное, если указано.
+         В случае "конфликта" -- в обоих заполнено -- нельзя объединить -- возвращается False.
          """
         if this is not None and not isinstance(this, cls):
             raise TypeError(f"Expected {cls.__name__} instance for 'this', got {type(this)!r}")
@@ -173,12 +145,72 @@ class Constraints(DictLikeDataclass):
         result = cls()
         for name in this.keys():
             existing_value = this[name] if other is not None else None
-            if existing_value is not None:
+            if existing_value is not None:  ###  and existing_value != 'any':
                 result[name] = existing_value
                 continue
 
             new_value = other[name] if this is not None else None
-            if new_value is not None:
+            if new_value is not None and new_value != 'any':
+                if result[name] == 'any':
+                    result[name] = new_value
+                else:
+                    # No merging allowed: cannot overwrite meaningful values.
+                    return None
+        return result
+
+
+
+@dataclass
+class Identification(DictLikeDataclass):
+    """Identification specification for finding nodes in AST. Internal usage only. """
+    origin: Optional[OriginType] = None
+    property: Optional[str] = None
+    property_path: Optional[str] = None
+    role_in_list: Optional[RoleInListType] = None
+
+
+@dataclass
+class Behaviour(DictLikeDataclass):
+    """Behaviour for actions"""
+    assumed_value: Optional[OptionalBoolValue] = OptionalBoolValue.NO_VALUE  # Подразумеваемое значение условия, когда по контексту оно есть, но может быть опущено. Это значение говорит, как интерпретировать условие, когда условие опушено в коде, т.е. в AST пусто (нет узла).
+
+    # # Additional fields can be added as needed
+    # custom: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class Constraints(DictLikeDataclass):
+    """Constraints for transitions"""
+    condition_value: Optional[OptionalBoolValue] = OptionalBoolValue.ANY
+    interruption_mode: Optional[InterruptionType] = InterruptionType.ANY
+    # # Additional constraints can be added as needed
+    # custom: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def merge(cls, this: Self, other: Self) -> Self:
+        """ Объединить ограничения из последовательных узлов/рёбер, заполняя незаполненное, если указано.
+         В случае "конфликта" -- в обоих заполнено -- берётся значение из левого (значение `any` имеет низший приоритет).
+         """
+        if this is not None and not isinstance(this, cls):
+            raise TypeError(f"Expected {cls.__name__} instance for 'this', got {type(this)!r}")
+        if other is not None and not isinstance(other, cls):
+            raise TypeError(f"Expected {cls.__name__} instance for 'other', got {type(other)!r}")
+
+        if this is None:
+            return other if other is not None else cls()
+        if other is None:
+            return this
+
+        result = cls()
+        for name in this.keys():
+            existing_value = this[name] if other is not None else None
+            if existing_value is not None:  ###  and existing_value != 'any':
+                result[name] = existing_value
+                continue
+
+            new_value = other[name] if this is not None else None
+            if new_value is not None and result[name] == 'any':
+                # rewriting weak `any` value with any  value `new_value` is.
                 result[name] = new_value
 
         return result
@@ -210,7 +242,7 @@ class ActionSpec(DictLikeDataclass):
 class TransitionSpec(DictLikeDataclass):
     from_: str | None = None
     to: str | None = None
-    to_when_absent: list[str] | str | None = None  # Chain of fallbacks is supported as well. List is first as more specific for automatic creation/conversion.
+    to_when_absent: list[str] | str | None = None  # A fallback or a chain of fallbacks. (List is first in the Union as more specific for automatic creation/conversion.)
     constraints: Constraints | None = None
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
@@ -228,12 +260,12 @@ class TransitionSpec(DictLikeDataclass):
 class ConstructSpec(DictLikeDataclass):
     name: str
     kind: KindChain = field(default_factory=KindChain)
-    ast_node: str | None = None
+    ast_node: str | None = None  # "type" узла в AST по стандарту MeaningTree.
     actions: list[ActionSpec] = field(default_factory=list)
-    role2action: dict[str, ActionSpec] | None = None
     transitions: list[TransitionSpec] = field(default_factory=list)
     effects: list[Effects] = field(default_factory=list)
     # metadata: Metadata = field(default_factory=Metadata)
+    role2action: dict[str, ActionSpec] | None = None  # Заполняется автоматически после создания объекта.
 
     def __post_init__(self):
         # Add BEGIN and END actions if not present

@@ -18,7 +18,7 @@ enum OptionalBoolValue {
 		RU.localizedName = "любое" ;
 		EN.localizedName = "any value" ;
 	],
-	none [
+	no_value [
 		RU.localizedName = "нет значения" ;
 		EN.localizedName = "no value" ;
 	],
@@ -54,7 +54,7 @@ enum InterruptionType {
 		EN.localizedName = "any" ;
 
 	],
-	none [
+	no_interruption [
 		RU.localizedName = "нет прерывания" ;
 		EN.localizedName = "none" ;
 

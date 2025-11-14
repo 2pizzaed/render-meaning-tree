@@ -257,7 +257,7 @@ class SelfValidatedEnum(Enum):
                 raise ValueError(f"Invalid value for enum {cls.__name__}: {value}, expected one of: {list(cls.__members__.values())}.")
             return None
 
-    def __eq__(self, other: Self | Any):
+    def __eq__(self, other: Self | str | Any):
         """ Allow comparison with both enum instance and plain value """
         if isinstance(other, SelfValidatedEnum):
             return self.value == other.value

@@ -353,7 +353,7 @@ class NodeExporter(ObjectExporter):
     def export_properties(self, obj: Node) -> dict[str, Any]:
         properties = {
             "id": obj.id,
-            "role": obj.role_in_construct,
+            # "role": obj.role_in_construct,
             "kind": obj.kind
         }
         return properties

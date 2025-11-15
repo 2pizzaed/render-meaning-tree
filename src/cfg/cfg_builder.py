@@ -505,7 +505,7 @@ class CFGBuilder:
         cfg.end_node.metadata.wrapped_ast = wrapped_ast
 
         # Применить все переходы, попутно создавая узлы,
-        # c учётом множественности и повторения ...
+        # с учётом множественности и повторения ...
 
         unprocessed_pool = [cfg.begin_node]
         processed_ids = set()

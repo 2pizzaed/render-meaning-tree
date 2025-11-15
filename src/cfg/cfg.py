@@ -247,8 +247,8 @@ class CFG:
                 end_metadata = Metadata(abstract_action=end_action)
 
         # init boundaries с метаданными
-        self.begin_node = self.add_node(NodeKind.BEGIN, ActionKind.SEQUENCE, metadata=begin_metadata)
-        self.end_node = self.add_node(NodeKind.END, ActionKind.SEQUENCE, metadata=end_metadata)
+        self.begin_node = self.add_node(NodeKind.BEGIN, BEGIN, metadata=begin_metadata)
+        self.end_node = self.add_node(NodeKind.END, END, metadata=end_metadata)
 
         # set has_corresponding_end
         self.begin_node.metadata.has_corresponding_end = self.end_node
@@ -264,11 +264,13 @@ class CFG:
 
     def add_node(self,
                  kind: str | NodeKind,
-                 role: str | ActionKind=None,
+                 role: str=None,
                  metadata: Metadata=None,
                  subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
+        print(f"INFO: creating node with role {role!r} .", file=sys.stderr)
+
         final_metadata = metadata or Metadata()
         # Извлекаем effects из ActionSpec, если есть
         final_effects = []

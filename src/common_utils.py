@@ -248,6 +248,9 @@ class SelfValidatedEnum(Enum):
         """Generate a hash based on the enum value."""
         return hash(self.value)
 
+    def __str__(self):
+        return self.value
+
     @classmethod
     def lookup(cls, value, raise_on_error: bool = True) -> Self | None:
         try:

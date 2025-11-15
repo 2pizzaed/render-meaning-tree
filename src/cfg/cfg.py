@@ -94,7 +94,7 @@ idgen = IDGen(100)
 @dataclass(kw_only=True)
 class Node(FactSerializable):
     id: str
-    role: str
+    role_in_construct: str
     kind: NodeKind
     cfg: 'CFG | None' = None
     effects: list[Effects] = field(default_factory=list)
@@ -220,7 +220,7 @@ class CFG:
         node = Node(
             id=node_id,
             kind=kind,
-            role=role,
+            role_in_construct=role,
             metadata=metadata,
             effects=effects,
             cfg=cfg,
@@ -288,7 +288,7 @@ class CFG:
 
             node_kind = NodeKind(kind)
             nid = idgen.next(node_kind.value)
-            node = Node(id=nid, kind=node_kind, role=role,
+            node = Node(id=nid, kind=node_kind, role_in_construct=role,
                         metadata=final_metadata,
                         effects=final_effects,
                         cfg=self)
@@ -310,18 +310,18 @@ class CFG:
 
             kind = NodeKind.BEGIN
             nid = idgen.next(kind.value)
-            enter_node = Node(id=nid, kind=kind, role=role,
-                             metadata=final_metadata,
-                             effects=[],  # no effects for begin node.
-                             cfg=self)
+            enter_node = Node(id=nid, kind=kind, role_in_construct=role,
+                              metadata=final_metadata,
+                              effects=[],  # no effects for begin node.
+                              cfg=self)
             self.nodes[nid] = enter_node
 
             kind = NodeKind.END
             nid = idgen.next(kind.value)
-            leave_node = Node(id=nid, kind=kind, role=role,
-                             metadata=final_metadata,
-                             effects=final_effects,
-                             cfg=self)
+            leave_node = Node(id=nid, kind=kind, role_in_construct=role,
+                              metadata=final_metadata,
+                              effects=final_effects,
+                              cfg=self)
             self.nodes[nid] = leave_node
 
             # connect subgraph
@@ -372,7 +372,7 @@ class CFG:
                 info['abstract_action'] = n.metadata.abstract_action.role
             if n.metadata.wrapped_ast:
                 info['ast'] = n.metadata.wrapped_ast.describe()
-            print(" o", nid, n.kind.value, n.role, info)
+            print(" o", nid, n.kind.value, n.role_in_construct, info)
             # print all outgoing edges
             for e in self.edges:
                 if e.src == nid:
@@ -402,7 +402,7 @@ class CFG:
                 info['abstract_action'] = n.metadata.abstract_action.role
             if n.metadata.wrapped_ast:
                 info['ast'] = n.metadata.wrapped_ast.describe()
-            print(" o", nid, n.kind.value, n.role, info)
+            print(" o", nid, n.kind.value, n.role_in_construct, info)
             print()
 
         print()

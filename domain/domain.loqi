@@ -281,7 +281,6 @@ class Metadata {
 
 class Node {
 	obj prop id: string ;
-	obj prop role: string ;
 	obj prop kind: NodeKind ;
 
 	rel belongsTo(CFG) : opposite to CFG->hasNodes ;

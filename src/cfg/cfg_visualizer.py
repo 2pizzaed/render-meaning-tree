@@ -45,8 +45,8 @@ def _create_node_label(node: Node) -> str:
             parts.append(f"|> " + node.metadata.wrapped_ast.ast_node["type"])
 
     # Role если отличается от kind
-    if node.role and node.kind and node.role != node.kind.value:
-        parts.append(f"role:{node.role}")
+    if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:
+        parts.append(f"role:{node.role_in_construct}")
 
     return '\n'.join(parts) if parts else node.id
 
@@ -159,9 +159,9 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
 
 def _get_node_color(node: Node) -> str:
     """Определяет цвет узла на основе его kind."""
-    if node.role == BEGIN:
+    if node.role_in_construct == BEGIN:
         return "lightgreen"  # Зелёный для BEGIN
-    elif node.role == END:
+    elif node.role_in_construct == END:
         return "lightcoral"  # Красный для END
     else:
         return "lightblue"   # Голубой для обычных узлов

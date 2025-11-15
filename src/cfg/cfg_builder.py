@@ -516,7 +516,7 @@ class CFGBuilder:
                 continue
             processed_ids.add(node.id)
 
-            role = node.role
+            role = node.role_in_construct
             # Построить выходящие переходы
             action = construct.role2action.get(role)
             if not action:
@@ -547,7 +547,7 @@ class CFGBuilder:
 
                 existing_node = None
                 for existing in cfg.nodes.values():
-                    if (existing.role == target_action.role and
+                    if (existing.role_in_construct == target_action.role_in_construct and
                         existing.metadata.wrapped_ast and
                         existing.metadata.wrapped_ast.ast_node == next_wrapped_ast.ast_node):
                         existing_node = existing
@@ -584,7 +584,7 @@ class CFGBuilder:
                     if construction is NodeConstruction.ATOM and not has_calls:
                         node23 = cfg.add_node(
                             kind=NodeKind.ATOM,
-                            role=target_action.role,
+                            role=target_action.role_in_construct,
                             metadata=node_metadata,
                         )
                     else:
@@ -593,7 +593,7 @@ class CFGBuilder:
                             continue
                         node23 = cfg.add_node(
                             kind=NodeKind.BEGIN,  # BEGIN & END will be set automatically.
-                            role=target_action.role,
+                            role=target_action.role_in_construct,
                             metadata=node_metadata,
                             subgraph=subgraph
                         )

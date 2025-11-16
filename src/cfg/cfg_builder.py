@@ -11,6 +11,10 @@ from src.json_search import search_bfs, search_dfs
 FUNC_DEF_CONSTRUCT = 'func_def_structure'
 FUNC_CALL_CONSTRUCT = 'func_call_structure'
 
+FUNC_DEF_AST_NODE_TYPES = (
+    'function_definition',
+    'method_definition',
+)
 
 # ---------- CFGBuilder ----------
 class CFGBuilder:
@@ -23,7 +27,7 @@ class CFGBuilder:
         self.collect_global_functions_only = collect_global_functions_only
 
     def _create_simple_cfg(self, name: str) -> CFG:
-        """Создает простой самосвязанный CFG из двух узлов (BEGIN и END) и одного ребра."""
+        """Создает простой самосвязанный CFG из одного узла."""
         return CFG.create_empty(name)
 
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
@@ -84,8 +88,8 @@ class CFGBuilder:
             ast_node: Корневой узел AST для поиска определений функций
         """
         # Предикат для поиска узлов определений функций
-        def is_function_definition(node):
-            return isinstance(node, dict) and node.get('type') == 'function_definition'
+        def is_function_definition(ast_node_):
+            return isinstance(ast_node_, dict) and ast_node_.get('type') in FUNC_DEF_AST_NODE_TYPES
         
         if self.collect_global_functions_only:
             # Поиск только на верхнем уровне (в body программы)

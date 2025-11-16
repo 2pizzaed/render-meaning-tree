@@ -165,6 +165,9 @@ def _get_node_color(node: Node) -> str:
     elif node.kind == END:
         return "lightcoral"  # Красный для END
     else:
+        if node.role_in_construct and 'cond' in node.role_in_construct:
+            return 'yellow'  # Жёлтый для условий
+
         return "lightblue"   # Голубой для обычных узлов
 
 

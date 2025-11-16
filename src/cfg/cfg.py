@@ -274,7 +274,6 @@ class CFG:
                  subgraph: Self=None) -> Node | tuple[Node, Node]:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
-        print(f"INFO: creating node with role {role!r} .", file=sys.stderr)
 
         final_metadata = metadata or Metadata()
         # Извлекаем effects из ActionSpec, если есть

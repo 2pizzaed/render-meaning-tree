@@ -64,9 +64,9 @@ def _create_edge_label(edge: Edge) -> str:
 
     # Condition value (true/false)
     if hasattr(edge.constraints, 'condition_value') and edge.constraints.condition_value is not None:
-        if edge.constraints.condition_value is True:
+        if edge.constraints.condition_value == True:
             labels.append("T")
-        elif edge.constraints.condition_value is False:
+        elif edge.constraints.condition_value == False:
             labels.append("F")
 
     # Interruption mode
@@ -75,7 +75,8 @@ def _create_edge_label(edge: Edge) -> str:
         if mode == "exception":
             labels.append("exc")
         elif mode == "any":
-            labels.append("any")
+            pass
+            # labels.append("any")
         else:
             labels.append(str(mode)[:3])  # Обрезаем до 3 символов
 
@@ -159,9 +160,9 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
 
 def _get_node_color(node: Node) -> str:
     """Определяет цвет узла на основе его kind."""
-    if node.role_in_construct == BEGIN:
+    if node.kind == BEGIN:
         return "lightgreen"  # Зелёный для BEGIN
-    elif node.role_in_construct == END:
+    elif node.kind == END:
         return "lightcoral"  # Красный для END
     else:
         return "lightblue"   # Голубой для обычных узлов

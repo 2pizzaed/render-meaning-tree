@@ -300,11 +300,11 @@ for_range_structure:
     - role: init
       kind: inline
       identification:
-        property_path: 'range.start'
+        property_path: 'range / start'
     - role: cond
       kind: inline.condition
       identification:
-        property_path: 'range.stop'
+        property_path: 'range / stop'
     - role: body
       kind: compound
       identification:
@@ -314,7 +314,7 @@ for_range_structure:
     - role: update
       kind: inline
       identification:
-        property_path: 'range.step'
+        property_path: 'range / step'
   transitions:
     - from_: BEGIN
       to: init
@@ -420,7 +420,7 @@ return_action:
 # --------------------------------
 break_action:
   kind: inline
-  ast_node: break  # TODO !!??
+  ast_node: break_statement
   effects:
     - interruption_start: break
 

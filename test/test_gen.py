@@ -20,7 +20,7 @@ class TestComplexProblemBuild(unittest.TestCase):
         # Путь к папке с входными данными и выходной папке
         task_data_path = current_dir / "data" / "task_code"
         genout_path = current_dir / "output" / "code_snippets"
-        genout_path.mkdir(exist_ok=True)
+        genout_path.mkdir(parents=True, exist_ok=True)
 
         # Загружаем конструкции
         constructs = load_constructs("constructs.yml")

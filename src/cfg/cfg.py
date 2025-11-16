@@ -94,7 +94,7 @@ idgen = IDGen(100)
 @dataclass(kw_only=True)
 class Node(FactSerializable):
     id: str
-    role_in_construct: str
+    role_in_construct: str  # for internal usage
     kind: NodeKind
     cfg: 'CFG | None' = None
     effects: list[Effects] = field(default_factory=list)
@@ -180,7 +180,7 @@ class Edge(FactSerializable):
 
 class CFG:
     def __init__(self, name="cfg", construct: ConstructSpec=None, *, with_boundaries: bool = True):
-        """Init a CFG. By default creates BEGIN and END boundary nodes."""
+        """Init a CFG. By default, creates BEGIN and END boundary nodes."""
         self.id = idgen.next(name)
         self.name: str = name
         self.nodes: dict[str, Node] = {}
@@ -208,6 +208,11 @@ class CFG:
         metadata: Metadata | None = None,
     ) -> Self:
         """Create a CFG consisting of a single node that acts as both BEGIN and END."""
+        # Node is expected to be an atom (inline).
+        assert kind == NodeKind.ATOM, kind
+        if not (kind == NodeKind.ATOM):
+            print(f"WARN: creating atomic node with kind {kind} ; role={role}.", file=sys.stderr)
+
         cfg = cls(name, with_boundaries=False)
 
         metadata = metadata or Metadata()
@@ -280,11 +285,6 @@ class CFG:
 
         if not subgraph:
             # Узел может быть служебным началом или концом CFG, или атомом (в середине).
-
-            # Node is expected to be an atom (inline).
-            # assert kind == NodeKind.ATOM, kind
-            # if not (kind == NodeKind.ATOM):
-            #     print(f"WARN: creating atomic node with kind {kind} and role {role} without subgraph.", file=sys.stderr)
 
             node_kind = NodeKind(kind)
             nid = idgen.next(node_kind.value)

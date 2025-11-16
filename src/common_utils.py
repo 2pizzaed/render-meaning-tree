@@ -249,7 +249,7 @@ class SelfValidatedEnum(Enum):
         return hash(self.value)
 
     def __str__(self):
-        return self.value
+        return str(self.value)
 
     @classmethod
     def lookup(cls, value, raise_on_error: bool = True) -> Self | None:

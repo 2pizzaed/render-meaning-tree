@@ -31,7 +31,7 @@ class CFGBuilder:
         if isinstance(v, dict):
             node_type = v.get("type")
             for construct in self.constructs.values():
-                if construct.ast_node == node_type:
+                if node_type in construct.supported_ast_nodes():
                     return construct
             ###
             print(f'Note: no construct found for ast_node {node_type=}, treating as atomic.', file=sys.stderr)

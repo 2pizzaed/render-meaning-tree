@@ -364,7 +364,7 @@ block_structure:
 # --------------------------------
 func_def_structure:
   kind: compound.noop
-  ast_node: function_definition
+  ast_node: ['function_definition', 'method_definition']
   actions:
     - role: name
       kind: identifier

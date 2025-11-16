@@ -260,7 +260,7 @@ class TransitionSpec(DictLikeDataclass):
 class ConstructSpec(DictLikeDataclass):
     name: str
     kind: KindChain = field(default_factory=KindChain)
-    ast_node: str | None = None  # "type" узла в AST по стандарту MeaningTree.
+    ast_node: list[str] | str | None = None  # "type" узла в AST по стандарту MeaningTree.
     actions: list[ActionSpec] = field(default_factory=list)
     transitions: list[TransitionSpec] = field(default_factory=list)
     effects: list[Effects] = field(default_factory=list)
@@ -288,6 +288,13 @@ class ConstructSpec(DictLikeDataclass):
         # Bind transitions to self
         for transition in self.transitions:
             transition.construct = self
+
+    def supported_ast_nodes(self) -> list[str]:
+        if isinstance(self.ast_node, list):
+            return self.ast_node
+        if self.ast_node:
+            return [self.ast_node]
+        return []
 
     def find_action_by_role(self, role: str) -> Optional[ActionSpec]:
         """ Only one action is mapped to a role.

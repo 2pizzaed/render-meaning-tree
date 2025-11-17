@@ -76,6 +76,7 @@ class ASTNodeAnalyzer:
         return self.get_node_type_by_id(node_id) in compound_types
 
     def get_node_types_hierarchy(self, node_id: int) -> list[str]:
+        """Получить иерархию наследования типов узла, т.е. например для method_call: [method_call, function_call, expression]"""
         node_type = self.get_node_type_by_id(node_id)
         node_parent_types = self.nodes_hierarchy_reference.get(node_type, [])
         node_parent_types.insert(0, node_type)
@@ -88,7 +89,7 @@ class ASTNodeAnalyzer:
         return "function_call" in node_types
 
     def is_io_call(self, node_id: int) -> bool:
-        """Проверить, является ли узел вызовом функции"""
+        """Проверить, является ли узел вызовом функции ввода/вывода"""
         node_types = self.get_node_types_hierarchy(node_id)
         return "print_command" in node_types or "print_command" in node_types
 
@@ -101,6 +102,7 @@ class ASTNodeAnalyzer:
         if not node:
             return False
 
+        # это вообще не вызов чего-либо
         if not self.is_function_call(node_id):
             return False
 
@@ -120,7 +122,7 @@ class ASTNodeAnalyzer:
         return "statement" in self.get_node_types_hierarchy(parent_id)
 
     def is_simple_statement(self, node_id: int | None) -> bool:
-        """Проверить, является ли узел - простой инструкцией"""
+        """Проверить, является ли узел - простой инструкцией (statement) без вложенных в него блоков"""
         if not node_id:
             return False
         node = self.get_node_by_id(node_id)
@@ -145,7 +147,8 @@ class ASTNodeAnalyzer:
             return False
         return node.get("type", "").lower() == "compound_statement"
 
-    def is_for_loop_component(self, node_id: int | None) -> str | None:
+    def determine_for_loop_component(self, node_id: int | None) -> str | None:
+        """Определить, является ли узел компонентом цикла for (general, range-for)"""
         if not node_id:
             return None
         node = self.get_node_by_id(node_id)
@@ -232,7 +235,7 @@ class CodeHighlightGenerator:
         "unknown": "token-unknown",
     }
 
-    # Предопределенная палитра цветов для кнопок и скобок
+    # Предопределенная палитра цветов для скобок
     COLOR_PALETTE: ClassVar[list[str]] = [
         "#E74C3C",  # Красный
         "#3498DB",  # Синий
@@ -246,6 +249,7 @@ class CodeHighlightGenerator:
         "#2C3E50",  # Полночный синий
     ]
 
+    # Строго заданные цвета кнопок
     BUTTON_COLORS: ClassVar[dict[str, str]] = {
         "play": "#0A1048",
         "stop": "#0A1048",
@@ -254,6 +258,7 @@ class CodeHighlightGenerator:
         "question": "#024936",
     }
 
+    # Цвета кнопок по типам узла
     BUTTON_TYPES_COLORS: ClassVar[dict[str, str]] = {
         "assignment_statement": "#34495E",
         "expression_statement": "#34495E",
@@ -324,11 +329,22 @@ class CodeHighlightGenerator:
         node_id: int | None,
         button_position: Literal["start", "end"],  # 'start' или 'end'
     ) -> tuple[ButtonType | None, ButtonStyle]:
-        """
-        Определить тип кнопки и стиль для токена
+        """Определить, нужна ли интерактивная кнопка в данной позиции токенов и если нужна, то какая
 
-        Returns:
-            (button_type, button_style) или (None, 'filled') если кнопка не нужна
+        :param token: текущий просматриваемый токен
+        :type token: dict[str, Any]
+
+        :param node_token_pos: Позиция токена в узле AST (в начале, середине или конце всех токенов этого узла AST)
+        :type node_token_pos: Literal[&quot;start&quot;, &quot;middle&quot;, &quot;end&quot;]
+
+        :param node_id: Текущий AST Node id
+        :type node_id: int | None
+
+        :param button_position: Проверяемая позиция для кнопки: до токена или после него
+        :type button_position: Literal[&quot;start&quot;, &quot;end&quot;]
+
+        :return: тип кнопки и её стиль
+        :rtype: tuple[ButtonType | None, ButtonStyle]
         """
         if not node_id or not self.analyzer:
             return None, "filled"
@@ -342,8 +358,9 @@ class CodeHighlightGenerator:
         is_compound_statement = self.analyzer.is_compound_statement(node_id)
         is_nested_call = self.analyzer.is_nested_call(node_id, False)
         is_header = self.analyzer.is_loop_or_condition_header(node_id)
-        for_component = self.analyzer.is_for_loop_component(node_id)
+        for_component = self.analyzer.determine_for_loop_component(node_id)
 
+        # Кнопки в циклах general for (должна быть кнопка на каждое действие)
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
                 self._range_for = [token.get("value", "")]
@@ -360,6 +377,7 @@ class CodeHighlightGenerator:
             elif node_token_pos == "end":
                 self._range_for = []
 
+        # для других циклов for
         if for_component and for_component != "range" and button_position == "start":
             return "question", "outlined"
 
@@ -403,7 +421,7 @@ class CodeHighlightGenerator:
         self, text: str | int,
     ) -> str:
         """
-        Генерирует HSL цвет на основе хеша строки
+        Генерирует HSL цвет на основе хеша строки из общей палитры
 
         Args:
             text: Строка для генерации цвета
@@ -498,7 +516,15 @@ class CodeHighlightGenerator:
         byte_pos: int,
         token: dict[str, Any],
     ) -> Literal["start", "middle", "end", "single"]:
-        """Определить позицию токена внутри узла: начало, середина, конец"""
+        """Определить позицию токена внутри узла: начало, середина, конец
+        Анализирует source map для заданного node_id и с некоторыми допущениями (погрешностью)
+        определяет к какой позиции среди всех токенов этого узла относится текущий, переданный
+        токен
+
+        :return: Позиция токена в узле. Если она - single, то различить начало, середину и конец токенов узла невозможно
+        :rtype: Literal["start", "middle", "end", "single"]
+        """
+
         if not node_id or not self.analyzer:
             return "middle"
 
@@ -515,7 +541,7 @@ class CodeHighlightGenerator:
         # fuzzy-подход к определению границ узла по байтовым позициям
         tol = int(token_length * 0.5)
 
-        # Конец и начало токена из одного символа неразличимы.
+        # Конец и начало узла по токену из одного символа неразличимы.
         # Например, у `if N:`, N имеет конец и начало одновременно
         if abs(abs(end - start) - token_length) <= tol:
             return "single"
@@ -527,10 +553,12 @@ class CodeHighlightGenerator:
         return "middle"
 
     def is_token_color_required(self, token: dict[str, Any]):
+        # токен должен быть разукрашен в цвет? 
         return token.get("css_class", "") == "token-brace" and \
             token.get("value", "") in ["{", "}"]
 
     def load_appearance_profile(self, cfg: CFG):
+        # загрузка логики появления кнопок из CFG
         self.appearance = {}
         for node in cfg.nodes.values():
             if node.metadata.wrapped_ast:
@@ -544,18 +572,18 @@ class CodeHighlightGenerator:
         tokens: dict[str, Any],
         appearance_status_map: dict[int, AppearanceType] = {}
     ) -> list[dict[str, list[Any]]]:
-        """
-        Генерировать HTML с подсветкой синтаксиса
+        """Подготовить данные для HTML генератора
 
-        Args:
-            source_map: Карта исходного кода
-            tokens: Список токенов
-            ast_tree: AST дерево (опционально, для расширенного анализа)
-            output_file: Путь для сохранения HTML
-
-        Returns:
-            HTML строка
+        :param source_map: карта исходного кода из Meaning Tree
+        :type source_map: dict[str, Any]
+        :param tokens: все токены для переданного кода из Meaning Tree
+        :type tokens: dict[str, Any]
+        :param appearance_status_map: логика появления кнопок из CFG, по умолчанию - всё отображать
+        :type appearance_status_map: dict[int, AppearanceType], optional
+        :return: подготовленные для шаблонизатора HTML данные по токенам и кнопкам на каждой строке
+        :rtype: list[dict[str, list[Any]]]
         """
+
         # Инициализируем анализатор, если есть AST
         self.ast_tree = source_map.get("origin", {})
         self.analyzer = ASTNodeAnalyzer(self.ast_tree, source_map)
@@ -565,11 +593,12 @@ class CodeHighlightGenerator:
         self.language = source_map.get("language", "Unknown")
         self.token_list = tokens.get("items", [])
 
+        # буфер цветов для каждого узла
         node_colors = {}  # {node_id: color}
         node_type_colors = {}  # {node_type: color}
 
         lines_data = []
-        current_byte_pos = 0
+        current_byte_pos = 0 # какой байт в исходной строке кода сейчас обрабатывается, позиция перед текущим токеном на каждом этапе
         current_line_tokens = []
         buttons_on_line = []
         total_buttons = 0
@@ -583,9 +612,15 @@ class CodeHighlightGenerator:
 
             if newlines_in_token == 0:
                 # Токен на текущей строке
+
+                # Найдем, какой узел в начале токена
                 node_start_id = self._get_node_at_position(current_byte_pos, token, "start")
                 node_start_type = self.analyzer.get_node_type_by_id(node_start_id) if node_start_id else ""
+
                 # Патч случаев, когда нам нужно изменить стартовый узел на его детей
+                # (например, expression_statement на вложенный function_call)
+                # нужно для корректного отображения кнопок
+
                 if node_start_type == "expression_statement" and self.analyzer and node_start_id:
                     node = self.analyzer.get_node_by_id(node_start_id)
                     if node:
@@ -594,11 +629,14 @@ class CodeHighlightGenerator:
                         if self.analyzer.is_function_call(child_id) and not self.analyzer.is_io_call(child_id):
                             node_start_id = child_id
                             node_start_type = child.get("type", "")
+
                 css_class = self.TOKEN_TYPE_CLASSES.get(token_type, "token-unknown")
                 token_pos = len(current_line_tokens)
+
                 # Какое место в node по данной позиции токена: начало, середина, конец
                 node_token_pos = self._determine_node_token_position(node_start_id, current_byte_pos, token)
 
+                # Теперь узел для конца токена,
                 node_end_id = self._get_node_at_position(
                     current_byte_pos + len(token_value.encode("utf-8")) - 1, token,
                     "end"
@@ -688,6 +726,7 @@ class CodeHighlightGenerator:
                     )
                     total_buttons += 1
 
+                # формируем токен
                 tok = {
                     "value": token_value,
                     "type": token_type,
@@ -701,6 +740,7 @@ class CodeHighlightGenerator:
                     tok["color"] = node_colors.get(node_start_id) or node_colors.get(node_end_id)
                 current_line_tokens.append(tok)
 
+                # пропустить все пробельные символы и корректно учесть их в текущей байтовой позиции кода
                 current_byte_pos += len(token_value.encode("utf-8"))
                 if i + 1 < len(self.token_list) and self.token_list[i + 1].get("type", "") == "whitespace":
                     continue
@@ -724,6 +764,7 @@ class CodeHighlightGenerator:
             spaced_tokens = self._add_spacing_between_tokens(current_line_tokens, buttons_on_line)
             lines_data.append({"tokens": spaced_tokens, "buttons": buttons_on_line})
 
+        # Предупреждение для потенциально неверной работы рендерера (что-то не отрисовалось из кода)
         if current_byte_pos < len(self.source):
             token_code = ""
             for line in lines_data:
@@ -734,6 +775,7 @@ class CodeHighlightGenerator:
             diffs = make_str_diff(self.source.decode("utf-8"), token_code)
             print(f"Possible invalid html generation result, all tokens haven't been processed. See differences: {diffs}", file=sys.stderr)
 
+        # если код пуст
         if not lines_data:
             lines_data.append({"tokens": [], "buttons": []})
 
@@ -743,8 +785,21 @@ class CodeHighlightGenerator:
     def generate_html(self, lines_data: list[dict[str, list]],
                       source_map: dict[str, Any],
                       snippet=False,
-                      output_file: str | None = None):
+                      output_file: str | None = None) -> str:
+        """Создать HTML из подготовленных данных
 
+        :param lines_data: подготовленные данные из prepare_interactive_data
+        :type lines_data: list[dict[str, list]]
+        :param source_map: карта исходного кода
+        :type source_map: dict[str, Any]
+        :param snippet: выдать только html фрагмент с кодом (для production) или всю страницу html целиком
+        :type snippet: bool, optional
+        :param output_file: файл для вывода html
+        :type output_file: str | None, optional
+
+        :return: html код страницы или фрагмента с кодом (зависит от snippet)
+        :rtype: str
+        """
         # Генерируем HTML
         html = self.template.render(
             language=self.language, lines=lines_data, total_lines=len(lines_data),

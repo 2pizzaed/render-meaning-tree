@@ -203,7 +203,6 @@ class CFG:
         cls,
         name: str,
         *,
-        # kind: NodeKind,
         role: str | None = None,
         metadata: Metadata | None = None,
     ) -> Self:

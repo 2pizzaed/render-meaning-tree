@@ -401,11 +401,6 @@ class CFGBuilder:
         
         # Увеличиваем счётчик вызовов
         func_cfg.begin_node.metadata.call_count += 1
-        # print(
-        #     f"CALL++(2) of `{func_name}` =",
-        #     func_cfg.begin_node.metadata.call_count,
-        #     file=sys.stderr,
-        # )
 
         print(
             f"INFO: made CFG for call of func `{func_name}`",
@@ -451,7 +446,6 @@ class CFGBuilder:
                 else:
                     # no-op
                     return None
-                    # return self._create_simple_cfg(f"function_def_{construct.name}")
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._make_cfg_for_function_call(construct, wrapped_ast)
 
@@ -470,20 +464,10 @@ class CFGBuilder:
             выполнить поиск вложенных вызовов функций, создать для них обёртку в случае наличие вызовов, и простой тривиальный cfg в случае отсутствия вызовов.
         """
         construct_kind = construct.kind if construct else None
-
-        ###
-        print(construct_kind, ':')
-
-        # if construct_kind and construct_kind.has('noop'):
-        #     return None
-
         construction = determine_node_construction(
             action_kind=construct_kind,  #  Action просто неизвестно, и это не должно повлиять на логику.
             construct_kind=construct_kind,
         )
-        ###
-        print(' :', construction)
-        ###
 
         if construction is NodeConstruction.NONE:
             return None
@@ -568,8 +552,9 @@ class CFGBuilder:
                         break
 
                 if existing_node:
+                    # reuse node: usually implies looping.
                     node23 = existing_node
-                elif 1:
+                else:
                     # Make nodes/subgraph for this role...
                     sub_cfg = self.make_cfg_for_ast(next_wrapped_ast)
                     node_metadata = Metadata(
@@ -590,55 +575,6 @@ class CFGBuilder:
                             role=target_action.role,
                             metadata=node_metadata,
                             # subgraph=sub_cfg
-                        )
-                else:
-                    # Make nodes/subgraph for this role...
-
-                    child_construct = self.find_construct_for_astnode(next_wrapped_ast)
-
-                    # Определить тип конструкции: атом/составная/не-нужна.
-                    construction = determine_node_construction(
-                        action_kind=target_action.kind,
-                        construct_kind=child_construct.kind if child_construct else None,
-                    )
-
-                    # if construction is NodeConstruction.NONE:
-                    #     continue
-
-                    node_metadata = Metadata(
-                        abstract_action=target_action,
-                        wrapped_ast=next_wrapped_ast,
-                        primary=is_primary,
-                    )
-
-                    # Проверить, содержит ли вызовы функций
-                    has_calls = False
-                    if construction is NodeConstruction.ATOM and isinstance(next_wrapped_ast.ast_node, dict):
-                        # найти вызовы внутри простого условия / действия
-                        calls = self._find_function_calls_in_ast(next_wrapped_ast.ast_node)
-                        has_calls = bool(calls)
-                        if has_calls:
-                            # set info: 1+ calls.
-                            node_metadata.call_count = len(calls)
-
-                    if construction is not NodeConstruction.COMPOUND and not has_calls:
-                        # Простой атом (значимый или транзитный)
-                        node23 = cfg.add_node(
-                            kind=NodeKind.ATOM,
-                            role=target_action.role,
-                            metadata=node_metadata if construction is not NodeConstruction.NONE else None,  # no metadata for pass-through atom
-                        )
-                    else:
-                        # Составная конструкция
-                        subgraph = self.make_cfg_for_ast(next_wrapped_ast)
-                        if subgraph is None:
-                            print(f"Warning: empty subgraph for {next_wrapped_ast.ast_node['type'] = }", file=sys.stderr)
-                            continue
-                        node23 = cfg.add_node(
-                            kind=NodeKind.BEGIN,  # BEGIN & END will be set automatically.
-                            role=target_action.role,
-                            metadata=node_metadata,
-                            subgraph=subgraph
                         )
 
                 node_pair: tuple[Node, Node] = (node23 if isinstance(node23, tuple) else (node23, node23))

@@ -332,7 +332,9 @@ class CFGBuilder:
         self.func_cfgs[func_name] = func_cfg = CFG("func_" + func_name)
 
         # Наполняем CFG для тела функции
-        self.make_cfg_for_construct(construct, wrapped_ast, cfg=func_cfg)
+        body_wast = wrapped_ast.get('body')
+        body_construct = self.find_construct_for_astnode(body_wast)
+        self.make_cfg_for_construct(body_construct, body_wast, cfg=func_cfg)
 
         # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
         cfg = self._create_simple_cfg(f"function_{func_name}_definition_registered")
@@ -399,11 +401,11 @@ class CFGBuilder:
         
         # Увеличиваем счётчик вызовов
         func_cfg.begin_node.metadata.call_count += 1
-        print(
-            f"CALL++(2) of `{func_name}` =",
-            func_cfg.begin_node.metadata.call_count,
-            file=sys.stderr,
-        )
+        # print(
+        #     f"CALL++(2) of `{func_name}` =",
+        #     func_cfg.begin_node.metadata.call_count,
+        #     file=sys.stderr,
+        # )
 
         print(
             f"INFO: made CFG for call of func `{func_name}`",
@@ -448,7 +450,8 @@ class CFGBuilder:
                     return self.func_cfgs['main']
                 else:
                     # no-op
-                    return self._create_simple_cfg(f"function_def_{construct.name}")
+                    return None
+                    # return self._create_simple_cfg(f"function_def_{construct.name}")
             elif construct.name == FUNC_CALL_CONSTRUCT:
                 return self._make_cfg_for_function_call(construct, wrapped_ast)
 
@@ -468,8 +471,25 @@ class CFGBuilder:
         """
         construct_kind = construct.kind if construct else None
 
-        if construct_kind and construct_kind.has('noop'):
+        ###
+        print(construct_kind, ':')
+
+        # if construct_kind and construct_kind.has('noop'):
+        #     return None
+
+        construction = determine_node_construction(
+            action_kind=construct_kind,  #  Action просто неизвестно, и это не должно повлиять на логику.
+            construct_kind=construct_kind,
+        )
+        ###
+        print(' :', construction)
+        ###
+
+        if construction is NodeConstruction.NONE:
             return None
+
+        if construction is NodeConstruction.COMPOUND and construct and construct.kind.has('compound'):
+            return self.make_cfg_for_compound(construct, wrapped_ast, cfg)
 
         cfg_name = "atom_" + (construct.name if construct else 'unknown')
         function_calls = ()
@@ -480,19 +500,8 @@ class CFGBuilder:
             base_cfg = CFG(cfg_name)
             return self._inject_function_calls_in_cfg(base_cfg, function_calls)
 
-        construction = determine_node_construction(
-            action_kind=construct_kind,  #  Action просто неизвестно, и это не должно повлиять на логику.
-            construct_kind=construct_kind,
-        )
-
-        if construction is NodeConstruction.NONE:
-            return None
-
-        if construction is NodeConstruction.COMPOUND and construct and construct.kind.has('compound'):
-            return self.make_cfg_for_compound(construct, wrapped_ast, cfg)
-
         metadata = Metadata(wrapped_ast=wrapped_ast)
-        return CFG.create_atomic(cfg_name, kind=NodeKind.ATOM, metadata=metadata)
+        return CFG.create_atomic(cfg_name, metadata=metadata)
 
     def make_cfg_for_compound(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
         """ Предполагается, что CFG для подчинённых узлов будут созданы рекурсивно и встроены в результат.
@@ -560,6 +569,28 @@ class CFGBuilder:
 
                 if existing_node:
                     node23 = existing_node
+                elif 1:
+                    # Make nodes/subgraph for this role...
+                    sub_cfg = self.make_cfg_for_ast(next_wrapped_ast)
+                    node_metadata = Metadata(
+                        abstract_action=target_action,
+                        wrapped_ast=next_wrapped_ast,
+                        primary=is_primary,
+                    )
+                    if sub_cfg:
+                        # Implode subCFG & polyfill ends metadata.
+                        cfg.merge(sub_cfg)
+                        sub_cfg.begin_node.metadata = sub_cfg.end_node.metadata = node_metadata
+                        sub_cfg.begin_node.role_in_construct = sub_cfg.end_node.role_in_construct = target_action.role
+                        node23 = sub_cfg.begin_node, sub_cfg.end_node
+                    else:
+                        # No subCFG returned, make trivial transit node.
+                        node23 = cfg.add_node(
+                            kind=NodeKind.ATOM,  # BEGIN & END will be set automatically, if sub_cfg is non-empty.
+                            role=target_action.role,
+                            metadata=node_metadata,
+                            # subgraph=sub_cfg
+                        )
                 else:
                     # Make nodes/subgraph for this role...
 
@@ -571,8 +602,8 @@ class CFGBuilder:
                         construct_kind=child_construct.kind if child_construct else None,
                     )
 
-                    if construction is NodeConstruction.NONE:
-                        continue
+                    # if construction is NodeConstruction.NONE:
+                    #     continue
 
                     node_metadata = Metadata(
                         abstract_action=target_action,
@@ -590,12 +621,12 @@ class CFGBuilder:
                             # set info: 1+ calls.
                             node_metadata.call_count = len(calls)
 
-                    if construction is NodeConstruction.ATOM and not has_calls:
-                        # Простой атом
+                    if construction is not NodeConstruction.COMPOUND and not has_calls:
+                        # Простой атом (значимый или транзитный)
                         node23 = cfg.add_node(
                             kind=NodeKind.ATOM,
                             role=target_action.role,
-                            metadata=node_metadata,
+                            metadata=node_metadata if construction is not NodeConstruction.NONE else None,  # no metadata for pass-through atom
                         )
                     else:
                         # Составная конструкция

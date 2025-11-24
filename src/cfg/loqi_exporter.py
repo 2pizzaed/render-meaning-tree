@@ -51,6 +51,8 @@ class ValueConverter:
         if (hasattr(value, 'value') and hasattr(value.__class__, '__name__')):
             enum_class_name = value.__class__.__name__
             enum_value = value.value
+            if isinstance(enum_value, bool):
+                return f"{enum_class_name}:{str(enum_value).lower()}"
             return f"{enum_class_name}:{enum_value}"
 
         # Для других типов возвращаем строковое представление

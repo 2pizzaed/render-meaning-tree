@@ -2,7 +2,7 @@ from typing import cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from deprecated import deprecated
+from warnings import deprecated
 
 from src.serializers.serializer import Serializer
 from src.types import Node, NodeType

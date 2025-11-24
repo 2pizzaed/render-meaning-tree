@@ -96,6 +96,7 @@ class Node(FactSerializable):
     id: str
     role_in_construct: str  # for internal usage
     kind: NodeKind
+    appearance: AppearanceType = AppearanceType.NONE
     cfg: 'CFG | None' = None
     effects: list[Effects] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
@@ -104,27 +105,9 @@ class Node(FactSerializable):
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
 
-    @property
-    def appearance(self) -> AppearanceType:
-        if not self.metadata.wrapped_ast:
-            # Пустые и промежуточные действия
-            return AppearanceType.NONE
-
-        if self.kind == NodeKind.ATOM:
-            # Действие-атом
-            return AppearanceType.MANDATORY
-
-        if self.metadata.call_count > 0:
-            # Начало либо конец вызова функции
-            # TODO: в APPEARANCE_PROFILE
-            return AppearanceType.MANDATORY
-
-        if self.metadata.abstract_action:
-            kind = self.metadata.abstract_action.kind
-            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(kind)
-
-        # keep intermediate nodes hidden.
-        return AppearanceType.NONE
+    def describe(self) -> str:
+        ast_id = self.metadata.wrapped_ast.ast_node.get('id') if self.metadata.wrapped_ast else None
+        return f'Node( id={self.id}, kind={self.kind.value}, role_in_construct={self.role_in_construct}, action={self.metadata.abstract_action.role if self.metadata.abstract_action else None}, ast_id={ast_id!r} )'
 
     def is_mandatory(self) -> bool:
         return self.appearance == AppearanceType.MANDATORY
@@ -409,6 +392,38 @@ class CFG:
                 print("    FROM NOWHERE! (? ->  )")
             if e.dst not in node_ids:
                 print("    TO NOWHERE!   (  -> ?)")
+
+    def debug_paths(self):
+
+        print('<<<<<')
+        print()
+        for nid, n in self.nodes.items():
+            # print all incoming edges
+            for p in n.direct_in_paths or ():
+                # if p.dst == nid:
+                    print("   ->>", p.from_.id, " __",
+                          p.constraints or "",
+                          ' >>path-to>>',
+                          p.to_.id,
+                    )
+
+            # print all outgoing edges
+            for p in n.direct_out_paths or ():
+                # if p.dst == nid:
+                    print("   ->>", p.from_.id, " __",
+                          p.constraints or "",
+                          ' >>path-to>>',
+                          p.to_.id,
+                    )
+            # info = {}
+            # if n.metadata.abstract_action:
+            #     info['abstract_action'] = n.metadata.abstract_action.role
+            # if n.metadata.wrapped_ast:
+            #     info['ast'] = n.metadata.wrapped_ast.describe()
+            # print(" o", nid, n.kind.value, n.role_in_construct, info)
+            # print()
+        print('>>>>>>')
+
 
     def edges_from_node(self, node: Node) -> list[Edge]:
         return [e for e in self.edges if e.src == node.id]

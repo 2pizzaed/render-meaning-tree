@@ -25,16 +25,20 @@ profiles_priority:
 
 profiles:
   minimum: # name of profile
+    noop: none
     compound: none
 
   maximum:
+    noop: none
     compound: mandatory
 
   blocks_mandatory:
+    noop: none
     compound.block: mandatory
     compound: none  # other than blocks
 
   blocks_none:
+    noop: none
     compound.block: none
     compound: mandatory  # other than blocks
 

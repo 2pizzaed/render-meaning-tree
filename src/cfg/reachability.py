@@ -20,7 +20,7 @@ class PathInfo(DictLikeDataclass):
     """
     from_: Node  # узел CFG
     to_: Node = None  # узел CFG
-    is_direct: bool = None  # True, если путь между парой непрозрачных действий прямой (и может быть корректным шагом). False: путь непрямой/опосредованный (длиннее прямого). None: путь ещё не построен.
+    is_direct: bool | None = None  # True, если путь между парой непрозрачных действий прямой (и может быть корректным шагом). False: путь непрямой/опосредованный (длиннее прямого). None: путь ещё не построен.
 
     # properties similar to Edge
     id: str = None
@@ -35,7 +35,7 @@ class PathInfo(DictLikeDataclass):
     via_nodes: list[Node] = None  # список id узлов (Node),
     via_edges: list[Edge] = None  # список id ребер (Edge)
     cfg_steps: int = 0  # Число пройденных узлов CFG, без учёта их содержимого = число пройденных рёбер
-    # Эти больше не экспортировать <<
+    # Эти больше не экспортировать ^^
 
     ast_actions: int = 0  # Число узлов c непустым AST node на пути
     transparent_actions: int = 0  # Число узлов с заданным AST node, которые считаются "прозрачными" для студента в том смысле, что он с ними не взаимодействует (вариант "может нажать, а может и не нажать" пока не рассматривается)
@@ -54,11 +54,6 @@ class PathInfo(DictLikeDataclass):
         if not self.id:
             self.id=idgen.next('path')
 
-    def add_step(self, edge: Edge, target_node: Node) -> bool:
-        """ returns False if the step cannot be added (no cycles allowed) """
-        # validate args compatibility
-        assert edge.dst == target_node.id
-
         if not self.via_nodes or not self.via_edges:
             # init chains
             self.via_nodes = []
@@ -66,11 +61,22 @@ class PathInfo(DictLikeDataclass):
             assert self.from_
             self.via_nodes.append(self.from_)
 
+    def is_loop(self) -> bool:
+        """ True, если заканчивается на тот же узел, что и начинается.
+        Это допустимо, но дальнейшее наращивание пути-цикла невозможно. """
+        return self.from_ == self.to_
+
+    def add_step(self, edge: Edge, target_node: Node) -> bool:
+        """ returns False if the step cannot be added (no cycles allowed) """
+        # validate args compatibility
+        assert edge.dst == target_node.id
+
         # check connectivity with current chain
         # check if the next edge leaves previous node
         assert edge.src == self.via_nodes[-1].id
 
-        if target_node in self.via_nodes:
+        if target_node in self.via_nodes and target_node is not self.from_:
+            # Do not allow loops.
             return False
 
         # register new step in chains
@@ -98,10 +104,10 @@ class PathInfo(DictLikeDataclass):
                     if target_node.is_condition():
                         self.conditions = (self.conditions or 0) + 1
 
-                    self.update_directness(target_node)
                 else:
                     # no button is associated with this node.
                     self.transparent_actions = (self.transparent_actions or 0) + 1
+
 
                 # frames
                 if action.effects:
@@ -112,6 +118,9 @@ class PathInfo(DictLikeDataclass):
                                 self.frames_added = (self.frames_added or 0) + 1
                             elif effect.call_stack == CallStackAction.DROP_FRAME:
                                 self.frames_dropped = (self.frames_dropped or 0) + 1
+
+        self.renew_first_middle_action()#target_node
+        self.update_directness()
         return True
 
     @staticmethod
@@ -124,6 +133,10 @@ class PathInfo(DictLikeDataclass):
         if path1.to_ != path2.from_:
             return None
         
+        if path1.is_loop() or path2.is_loop():
+            # Дальнейшее наращивание циклических путей невозможно.
+            return None
+
         # Инициализируем via_nodes и via_edges для path1, если они не инициализированы
         if not path1.via_nodes or not path1.via_edges:
             if path1.from_:
@@ -145,16 +158,18 @@ class PathInfo(DictLikeDataclass):
         else:
             path2_nodes = path2.via_nodes
             path2_edges = path2.via_edges
-        
+
         # Объединяем узлы: path1_nodes + path2_nodes[1:] (убираем дубликат в точке соединения)
         # path1_nodes заканчивается на path1.to_, path2_nodes начинается с path2.from_
         # Так как path1.to_ == path2.from_, мы убираем дубликат
         combined_nodes = path1_nodes + path2_nodes[1:]
         combined_edges = path1_edges + path2_edges
-        
+
         # Проверяем на циклы: не должно быть повторяющихся узлов (проверяем по ID)
         node_ids = [node.id for node in combined_nodes]
-        if len(node_ids) != len(set(node_ids)):
+        new_is_loop = bool(path1.from_ == path2.to_)
+        if len(node_ids) - new_is_loop != len(set(node_ids)):
+            # (!) `-`: Последний узел может равняться первому
             return None
         
         # Создаём новый PathInfo
@@ -170,8 +185,8 @@ class PathInfo(DictLikeDataclass):
         new_path.cfg_steps = path1.cfg_steps + path2.cfg_steps
         new_path.ast_actions = path1.ast_actions + path2.ast_actions
         new_path.transparent_actions = path1.transparent_actions + path2.transparent_actions
-        new_path.opaque_actions = path1.opaque_actions + path2.opaque_actions
-        new_path.conditions = path1.conditions + path2.conditions
+        # new_path.opaque_actions = path1.opaque_actions + path2.opaque_actions
+        # new_path.conditions = path1.conditions + path2.conditions
         new_path.frame_changes = path1.frame_changes + path2.frame_changes
         new_path.frames_added = path1.frames_added + path2.frames_added
         new_path.frames_dropped = path1.frames_dropped + path2.frames_dropped
@@ -193,25 +208,37 @@ class PathInfo(DictLikeDataclass):
 
 
     def add_effects(self, *other_effects: Effects):
-        #     """ Добавить непустые эффекты (из последовательных узлов/рёбер)  """
+        """ Добавить непустые эффекты (из последовательных узлов/рёбер) """
         for effect in other_effects:
             if effect:
-                self.effects.append(effect)
+                if not self.effects or not (merged := Effects.merge(self.effects[-1], effect)):
+                    self.effects.append(effect)
+                else:
+                    self.effects[-1] = merged
 
     def renew_first_middle_action(self):
         """ Обновить информацию о первом непрозрачном действии, условии и смене фрейма стека на пути. """
-        for node in self.via_nodes[:-1]:
+
+        self.opaque_actions = 0
+        self.conditions = 0
+        for node in self.via_nodes[1:]:  # все, кроме первого
+            if node.is_mandatory():
+                self.opaque_actions += 1
+                if node.is_condition():
+                    self.conditions += 1
+
+        for node in self.via_nodes[1:-1]:  # все, кроме первого и последнего
             if node.is_mandatory():
                 self.firstMiddleAction = node
                 if node.is_condition():
                     self.firstMiddleCondition = node
-                break
+                    break
 
-        for edge in self.via_edges[:-1]:
+        for edge in self.via_edges:  # все.
             if edge.effects:
                 for effect in edge.effects:
                     if effect.call_stack in (CallStackAction.ADD_FRAME, CallStackAction.DROP_FRAME):
-                        self.firstMiddleFrameChange = self.cfg.nodes[edge.src]
+                        self.firstMiddleFrameChange = self.cfg.nodes[edge.dst]
                         break
 
     def update_directness(self, target_node: Node | None = None):
@@ -220,6 +247,12 @@ class PathInfo(DictLikeDataclass):
         Если передан node, используется инкрементальная логика.
         В противном случае значение вычисляется по накопленным метрикам.
         """
+        # start_node = self.via_nodes[0] if self.via_nodes else self.from_
+        # if not start_node or not start_node.is_mandatory():
+        #     # Стартовый узел должен быть непрозрачным для любого определённого состояния.
+        #     self.is_direct = None
+        #     return
+
         if target_node is not None:
             if target_node.is_mandatory():
                 if self.is_direct is None:
@@ -229,10 +262,12 @@ class PathInfo(DictLikeDataclass):
             return
 
         opaque_count = self.opaque_actions or 0
-        if opaque_count == 0 or not self.via_nodes[0].is_mandatory():
-            self.is_direct = None
-        elif opaque_count == 1 and self.via_nodes[-1].is_mandatory():
+        begin_is_mandatory = self.via_nodes[0].is_mandatory()
+        end_is_mandatory = self.via_nodes[-1].is_mandatory()
+        if opaque_count == 1 and len(self.via_nodes) >= 2 and begin_is_mandatory and end_is_mandatory:
             self.is_direct = True
+        elif opaque_count == 0 + end_is_mandatory and (begin_is_mandatory + end_is_mandatory <= 1):
+            self.is_direct = None
         else:
             self.is_direct = False
 
@@ -320,10 +355,10 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
     более длинные пути через сложение уже найденных.
     Возвращает список всех найденных путей, отсортированный по длине (от коротких к длинным).
     """
-    
+
     # Кэш всех найденных путей: (from_node_id, to_node_id) -> list[PathInfo]
     paths_cache: dict[tuple[str, str], list[PathInfo]] = {}
-    
+
     # Функция для добавления пути в кэш
     def add_path_to_cache(path: PathInfo) -> bool:
         """Добавляет путь в кэш. Возвращает True, если путь был добавлен (новый)."""
@@ -332,7 +367,7 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
         key = (path.from_.id, path.to_.id)
         if key not in paths_cache:
             paths_cache[key] = []
-        
+
         # Проверяем, нет ли уже такого пути (сравниваем по via_nodes)
         # Для простоты проверяем только наличие пути с такой же последовательностью узлов
         existing = False
@@ -344,57 +379,55 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
                     if path_signature == existing_signature:
                         existing = True
                         break
-        
+
         if not existing:
             paths_cache[key].append(path)
             return True
         return False
-    
+
     # Инициализация: находим все пути длины 1 (прямые рёбра)
     for edge in cfg.edges:
         from_node = cfg.nodes[edge.src]
         to_node = cfg.nodes[edge.dst]
-        
+
         # Создаём путь длины 1
         path = PathInfo(from_=from_node, cfg=cfg)
         if path.add_step(edge, to_node):
             # path.ways_count = 1  # Единственный путь через ребро
             add_path_to_cache(path)
-    
-    # Итеративное построение более длинных путей
-    while True:
+
+    # Итеративное построение более длинных путей, останавливаясь на "непрозрачных" узлах (которые "с кнопками").
+    # Цикл по target__is_direct: Сначала прямые из неполных, затем -- непрямые(опосредованные) из прямых.
+    for target__is_direct in (None, True):
+      while True:
         new_paths_found = 0
-        
-        # Получаем все текущие пути для итерации
+
+        # Получаем все текущие НЕПОЛНЫЕ пути для итерации
         current_paths = []
         for paths_list in paths_cache.values():
-            current_paths.extend(paths_list)
-        
+            for path in paths_list:
+                if path.is_direct is target__is_direct:
+                    current_paths.extend(paths_list)
+
         # Пробуем комбинировать все пары путей
         for path1 in current_paths:
-            if path1.to_ is None:
-                continue
-            
-            # Проходим по всем узлам, куда можно попасть из path1.to_
-            for to_target in cfg.nodes.values():
-                paths_from_target = paths_cache.get((path1.to_.id, to_target.id), [])
-                if not paths_from_target:
+            for path2 in current_paths:
+                if path1 is path2:
                     continue
-                
-                for path2 in paths_from_target:
-                    # Пробуем объединить пути
-                    combined = PathInfo.concatenate_paths(path1, path2)
-                    if combined is not None:
-                        if add_path_to_cache(combined):
-                            new_paths_found += 1
-        
+
+                # Пробуем объединить пути
+                combined = PathInfo.concatenate_paths(path1, path2)
+                if combined is not None:
+                    if add_path_to_cache(combined):
+                        new_paths_found += 1
+
         # Если новая итерация не дала новых путей, останавливаемся
         if new_paths_found == 0:
             break
-    
+
     # Фильтруем результат: оставляем только пути между opaque узлами
     result_paths: list[PathInfo] = []
-    
+
     for paths in paths_cache.values():
         for path in paths:
             if path.is_direct is not None:  # direct or indirect, but not incomplete
@@ -402,7 +435,7 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
 
     # Сортируем по длине пути (от коротких к длинным)
     result_paths.sort(key=lambda p: p.ast_actions)
-    
+
     # После вычисления всех путей обновляем информацию в узлах
     for node in cfg.nodes.values():
         node.clear_direct_paths()

@@ -561,7 +561,9 @@ class CodeHighlightGenerator:
         # загрузка логики появления кнопок из CFG
         self.appearance = {}
         for node in cfg.nodes.values():
-            if node.metadata.wrapped_ast:
+            # Добавляем в appearance_status_map только узлы с wrapped_ast и appearance != NONE
+            # Это предотвращает попадание узлов тела функции в вызовах, которые должны быть скрыты
+            if node.metadata.wrapped_ast and node.appearance != AppearanceType.NONE:
                 self.appearance[
                     node.metadata.wrapped_ast.ast_node.get("id", "")
                 ] = node.appearance

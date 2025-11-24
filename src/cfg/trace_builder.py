@@ -24,25 +24,30 @@ def all_interactions(lines_data: list[dict[str, list]]) -> Generator[UserInterac
             )
 
 
-def build_trace_act(cfg: CFG, interaction: UserInteraction):
+def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
     for node in cfg.nodes.values():
         if not node.metadata.wrapped_ast or not isinstance(
             node.metadata.wrapped_ast.ast_node, dict
         ):
             continue
         ast_node = node.metadata.wrapped_ast.ast_node
+        if ast_node.get("id") != interaction.ast_node_id:
+            continue
         match interaction.button_type:
             case "question":
                 kind = NodeKind.ATOM
             case "play":
                 kind = NodeKind.BEGIN if not interaction.atom else NodeKind.ATOM
-            case "step_into":
+            case "step-into":
                 kind = NodeKind.BEGIN
-            case "step-out", "stop":
+            case "stop":
+                kind = NodeKind.END
+            case "step-out":
                 kind = NodeKind.END
             case _:
+                raise ValueError(f'Unknown button type: {interaction.button_type}')
                 kind = NodeKind.ANY
-        if ast_node.get("id") == interaction.ast_node_id and node.kind == kind:
+        if node.kind == kind or (kind != NodeKind.END and node.kind != NodeKind.END):
             return TraceAct(
                     wrapped_ast=node.metadata.wrapped_ast,
                     cfg_node=node,
@@ -51,10 +56,11 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction):
                     is_known_correct=True,
                     condition_value=None,
                 )
-        print(
-            f"Warning: No matching node found for interaction: {interaction}",
-            file=sys.stderr
-        )
+    print(
+        f"Warning: No matching node found for interaction: {interaction}",
+        file=sys.stderr
+    )
+    return None
 
 
 def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[TraceAct]:

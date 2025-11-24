@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from deprecated import deprecated
+from warnings import deprecated
 
 from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
 
@@ -27,9 +27,11 @@ def _create_node_label(node: Node) -> str:
     """
     parts = []
 
-    # Kind узла
-    if node.kind:
-        parts.append(node.kind.value)
+    parts.append(node.id)
+
+    # # Kind узла
+    # if node.kind:
+    #     parts.append(node.kind.value)
 
     # AST ID если доступно
     if (node.metadata and
@@ -105,7 +107,7 @@ def _create_path_label(path: 'PathInfo') -> str:
     return "\\n".join(parts)
 
 
-def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
+def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=True) -> nx.DiGraph:
     """Конвертирует CFG в NetworkX DiGraph.
     
     Добавляет все узлы и рёбра из CFG в NetworkX граф.
@@ -207,7 +209,7 @@ def diagnose_cfg(cfg: CFG) -> dict:
     return issues
 
 
-@deprecated(reason="Use visualize_cfg_graphviz from src.cfg.cfg_graphviz instead")
+@deprecated("Use visualize_cfg_graphviz from src.cfg.cfg_graphviz instead")
 def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
                   layout: str = "spring", figsize: tuple = (12, 8)) -> str:
     """Основная функция визуализации CFG.

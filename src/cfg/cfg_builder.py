@@ -1,7 +1,12 @@
 import sys
 from typing import Optional
 
-from src.cfg.abstractions import ConstructSpec
+from src.cfg.abstractions import (
+    ConstructSpec,
+    ActionSpec,
+    AppearanceType,
+    DEFAULT_APPEARANCE_PROFILE,
+)
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata, NodeKind
 from src.cfg.node_kind_rules import NodeConstruction, determine_node_construction
@@ -25,6 +30,43 @@ class CFGBuilder:
         self.constructs = constructs_map
         self.func_cfgs = {}
         self.collect_global_functions_only = collect_global_functions_only
+
+    def _determine_node_appearance(
+        self,
+        *,
+        construct: ConstructSpec | None = None,
+        action: ActionSpec | None = None,
+    ) -> AppearanceType:
+        # Если есть action, используем его kind (более специфичен, чем construct.kind)
+        # Это важно для узлов тела функции в вызовах, где action.kind=compound, а construct.kind=inline.call
+        if action and not action.kind.has('auto'):
+            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(action.kind)
+        if construct and construct.kind:
+            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(construct.kind)
+        # by default, make it mandatory for all unknown nodes
+        return AppearanceType.MANDATORY
+
+    def _apply_node_appearance(
+        self,
+        node_or_pair: Node | tuple[Node, Node] | list[Node] | None,
+        *,
+        construct: ConstructSpec | None = None,
+        action: ActionSpec | None = None,
+    ) -> None:
+        if node_or_pair is None:
+            return
+        if isinstance(node_or_pair, (tuple, list)):
+            for node in node_or_pair:
+                self._apply_node_appearance(node, construct=construct, action=action)
+            return
+
+        if not node_or_pair.metadata.wrapped_ast:
+            # Пустые и промежуточные действия
+            appearance = AppearanceType.NONE
+        else:
+            appearance = self._determine_node_appearance(construct=construct, action=action)
+        
+        node_or_pair.appearance = appearance
 
     def _create_simple_cfg(self, name: str) -> CFG:
         """Создает простой самосвязанный CFG из одного узла."""
@@ -370,9 +412,22 @@ class CFGBuilder:
         # Создаем CFG через конструкт, но заменяем тело функции на сохраненный CFG
         call_cfg = CFG("function_call", construct=construct)
         
-        # # Добавляем метаданные: узел AST (abstract_action уже установлен через construct)
-        # call_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
-        # call_cfg.end_node.metadata.wrapped_ast = wrapped_ast
+        # Добавляем метаданные: узел AST (abstract_action уже установлен через construct)
+        # Важно: устанавливаем wrapped_ast ДО вызова _apply_node_appearance,
+        # чтобы узлы вызова получили правильный appearance
+        call_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
+        call_cfg.end_node.metadata.wrapped_ast = wrapped_ast
+        
+        self._apply_node_appearance(
+            call_cfg.begin_node,
+            construct=construct,
+            action=construct.role2action.get(BEGIN),
+        )
+        self._apply_node_appearance(
+            call_cfg.end_node,
+            construct=construct,
+            action=construct.role2action.get(END),
+        )
         
         # Встраиваем CFG функции как subgraph
         func_node_pair = call_cfg.add_node(
@@ -384,6 +439,11 @@ class CFGBuilder:
             #     primary=True,
             # ),
             subgraph=func_cfg
+        )
+        self._apply_node_appearance(
+            func_node_pair,
+            construct=construct,
+            action=construct.role2action.get('func'),
         )
         
         # Создаем рёбра, связывая с абстрактными переходами с эффектами call_stack
@@ -485,7 +545,9 @@ class CFGBuilder:
             return self._inject_function_calls_in_cfg(base_cfg, function_calls)
 
         metadata = Metadata(wrapped_ast=wrapped_ast)
-        return CFG.create_atomic(cfg_name, metadata=metadata)
+        atomic_cfg = CFG.create_atomic(cfg_name, metadata=metadata)
+        self._apply_node_appearance(atomic_cfg.begin_node, construct=construct)
+        return atomic_cfg
 
     def make_cfg_for_compound(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG:
         """ Предполагается, что CFG для подчинённых узлов будут созданы рекурсивно и встроены в результат.
@@ -500,6 +562,9 @@ class CFGBuilder:
         # Добавить метаданные: узел AST (abstract_action уже установлен через construct)
         cfg.begin_node.metadata.wrapped_ast = wrapped_ast
         cfg.end_node.metadata.wrapped_ast = wrapped_ast
+        if construct:
+            self._apply_node_appearance(cfg.begin_node, construct=construct, action=construct.role2action.get(BEGIN))
+            self._apply_node_appearance(cfg.end_node, construct=construct, action=construct.role2action.get(END))
 
         # Применить все переходы, попутно создавая узлы,
         # с учётом множественности и повторения ...
@@ -556,6 +621,7 @@ class CFGBuilder:
                     node23 = existing_node
                 else:
                     # Make nodes/subgraph for this role...
+                    target_construct = self.find_construct_for_astnode(next_wrapped_ast)
                     sub_cfg = self.make_cfg_for_ast(next_wrapped_ast)
                     node_metadata = Metadata(
                         abstract_action=target_action,
@@ -575,6 +641,11 @@ class CFGBuilder:
                             role=target_action.role,
                             metadata=node_metadata,
                             # subgraph=sub_cfg
+                        )
+                        self._apply_node_appearance(
+                            node23,
+                            construct=target_construct,
+                            action=target_action,
                         )
 
                 node_pair: tuple[Node, Node] = (node23 if isinstance(node23, tuple) else (node23, node23))

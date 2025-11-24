@@ -33,7 +33,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 
     	// Существует ли какой угодно путь от L0 до A ?
         var P2 : PathInfo = (find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode}) out true else {
-        	// Действие А нельзя выполнять сейчас, так как находятся в иной области кода чем L0
+        	// Действие А нельзя выполнять сейчас, так как находятся в иной области кода, чем L0
             conclude: error;
         };
 
@@ -52,6 +52,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 
     // Проверка ограничений условий для каждого звена на пути...
 
+	// TODO: Поменять на проверку свойств P
     cycle and (forAll Edge CT [true] {P=>viaEdges($CT)}) with Edge ct {
         body -> {
             agg mutex {
@@ -70,23 +71,23 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     };
                 };
                 
-                correctExit -> {
-                    ask (ct->hasMetadata.is_after_last == false and
-                         forAny ActionSpec t {ct->hasMetadata->hasAbstractTransition=>to_when_absent($t)} and
-                         forAny Edge e [P=>viaEdges($e)] {ct->hasMetadata->hasAbstractTransition == ct->hasMetadata->hasAbstractTransition and $e->hasMetadata.is_after_last == true}
-                         ) out true else {
-                        conclude : null;
-                    };
+                // correctExit -> {
+                //     ask (ct->hasMetadata.is_after_last == false and
+                //          forAny ActionSpec t {ct->hasMetadata->hasAbstractTransition=>to_when_absent($t)} and
+                //          forAny Edge e [P=>viaEdges($e)] {ct->hasMetadata->hasAbstractTransition == ct->hasMetadata->hasAbstractTransition and $e->hasMetadata.is_after_last == true}
+                //          ) out true else {
+                //         conclude : null;
+                //     };
 
-                    // (Найти) / Присутствует ли в алгоритме "основное" действие перехода CT ?
-                    ask (forAny Node actual_target {ct->hasMetadata->hasAbstractTransition->to_ == $actual_target->hasMetadata->hasAbstractAction}) out true else {
-                        conclude : null;
-                    };
+                //     // (Найти) / Присутствует ли в алгоритме "основное" действие перехода CT ?
+                //     ask (forAny Node actual_target {ct->hasMetadata->hasAbstractTransition->to_ == $actual_target->hasMetadata->hasAbstractAction}) out true else {
+                //         conclude : null;
+                //     };
 
-                    var MT : ActionSpec = ct->hasMetadata->hasAbstractTransition->from_;
+                //     var MT : ActionSpec = ct->hasMetadata->hasAbstractTransition->from_;
 
-                    conclude: error;
-                };
+                //     conclude: error;
+                // };
 
                 conditionCheck -> {
                     ask (forAny Constraint c {ct=>hasConstraints($c)} and ct->hasConstraints.condition_value != OptionalBoolValue:no_value) out true else {

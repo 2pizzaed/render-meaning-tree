@@ -1,11 +1,13 @@
 import json
 import unittest
 from pathlib import Path
+from pprint import pprint
 from typing import Any
 
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
+from src.cfg.cfg_visualizer import diagnose_cfg
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import all_interactions, build_trace_act
@@ -27,6 +29,9 @@ class TestComplexProblemBuild(unittest.TestCase):
 
         # Перебираем все файлы в task_data
         for file in task_data_path.iterdir():
+            # if file.stem not in ('21', ):
+            #     continue
+
             print("Processing file:", file.name)
 
             language = file.suffix.lstrip(".")

@@ -201,7 +201,7 @@ class Effect {
 
 
 class Behaviour {
-	obj prop assumed_value: bool ;  // Когда соответствующее действие отсутствует в AST (опущено)
+	obj prop assumed_value: OptionalBoolValue ;  // Когда соответствующее действие отсутствует в AST (опущено)
 } [
 	RU.localizedName = "поведение" ;
 	EN.localizedName = "behaviour" ;

@@ -474,19 +474,19 @@ class PathInfoExporter(ObjectExporter):
 
         source_node = getattr(obj, "from_", None)
         if source_node:
-            relationships["hasSource"] = [source_node]
+            relationships["from_"] = [source_node]
         elif obj.cfg:
             src_id = getattr(obj, "src", None)
             if src_id:
-                relationships["hasSource"] = [obj.cfg.nodes[src_id]]
+                relationships["from_"] = [obj.cfg.nodes[src_id]]
 
         destination_node = getattr(obj, "to_", None)
         if destination_node:
-            relationships["hasDestination"] = [destination_node]
+            relationships["to_"] = [destination_node]
         elif obj.cfg:
             dst_id = getattr(obj, "dst", None)
             if dst_id:
-                relationships["hasDestination"] = [obj.cfg.nodes[dst_id]]
+                relationships["to_"] = [obj.cfg.nodes[dst_id]]
 
         # if obj.metadata:
         #     relationships["hasMetadata"] = [obj.metadata]

@@ -10,7 +10,7 @@ from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.cfg_visualizer import diagnose_cfg
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
-from src.cfg.trace_builder import all_interactions, build_trace_act
+from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 
@@ -102,12 +102,20 @@ class TestComplexProblemBuild(unittest.TestCase):
             )
             exporter.set_var("STATE", situation)
 
-            trace_acts = [
-                build_trace_act(cfg, interaction) for interaction in all_interactions(lines_data)
+            # Конфигурации трасс: сейчас используем один сценарий по умолчанию,
+            # но оставляем возможность добавить несколько.
+            scenarios = [
+                TraceScenarioConfig(name="default"),
+                # TraceScenarioConfig(name="alt", condition_sequences={...}),
             ]
-            trace_acts = list(filter(None, trace_acts))
-            self.assertTrue(len(trace_acts))
-            for trace_act in trace_acts:
+
+            trace_results = generate_trace_variants(cfg, scenarios)
+
+            # Пока экспортируем только первую сгенерированную трассу,
+            # остальные сценарии можно будет добавить при необходимости.
+            main_trace = trace_results[0].trace_acts
+            self.assertTrue(len(main_trace))
+            for trace_act in main_trace:
                 exporter.add_object(trace_act)
 
             # Добавляем пути между узлами

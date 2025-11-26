@@ -29,6 +29,7 @@ class TraceAct(DictLikeDataclass):
 
     is_known_correct: bool
     condition_value: bool | None = None
+    button_type: str | None = None # Нужно для корректного поиска действий трассы. Экспортировать не нужно!
 
 
 @dataclass

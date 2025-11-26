@@ -1,9 +1,11 @@
 import re
 import sys
+import warnings
 from typing import Any
 
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.ast_wrapper import ASTNodeWrapper
+from src.cfg.cfg import TraceAct
 from src.cfg.cfg_builder import CFGBuilder
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
@@ -24,7 +26,7 @@ def find_tags(mt: dict[str, Any], language: str) -> list[str]:
     return [language]
 
 
-def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]) -> str | None:
+def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
     constructs = load_constructs("constructs.yml")
     program_root = ASTNodeWrapper(ast_node=ast_json)
     b = CFGBuilder(constructs)
@@ -32,7 +34,7 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]) -> s
     cfg = b.make_cfg_for_ast(program_root)
 
     if cfg is None:
-        return
+        return None, None, []
 
     # Оптимизируем CFG
     cfg.optimize()
@@ -49,7 +51,7 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]) -> s
 
     trace_acts = [
         build_trace_act(cfg, interaction) for interaction in all_interactions(lines)
-    ]
+    ] # все действия трассы для задачи, которые вообще могут понадобиться
     for trace_act in trace_acts:
         exporter.add_object(trace_act)
 
@@ -58,7 +60,7 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]) -> s
     if paths:
         exporter.add_paths(paths)
 
-    return exporter.export_cfg(cfg, None)
+    return exporter.export_cfg(cfg, None), cfg, trace_acts
 
 
 # Символы/диапазоны недопустимые в именах файлов (Windows + управляющие символы)
@@ -141,17 +143,33 @@ def pack_rdf(loqi: str):
     }]
 
 
-def build_answer_objects(lines: list[dict[str, list[Any]]]):
+def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[TraceAct]):
     ans = []
     for line in lines:
         for button in line.get("buttons", []):
-            ans.append({
-                "answerId": button["action_id"],
-                "hyperText": button["type"],
-                "domainInfo": f"ast_{button["node_id"]};{button["type"]}",
-                "concept": "action",
-                "isRightCol": False
-            })
+            trace_act = next(
+                filter(
+                    lambda ta: ta.cfg_node.metadata.wrapped_ast
+                    and button["node_id"] == ta.cfg_node.metadata.wrapped_ast.ast_node.get("id")
+                    and button["type"] == ta.button_type,
+                    trace_acts,
+                )
+            )
+
+            ans.append(
+                {
+                    "answerId": button["action_id"],
+                    "hyperText": button["type"],
+                    "domainInfo": f"{trace_act.cfg_node.id}",
+                    "concept": "action",
+                    "isRightCol": False,
+                }
+            )
+    if len(ans) != len(trace_acts):
+        warnings.warn(
+            f"len(answer_object) != len(trace_acts): {len(ans)} != {len(trace_acts)}", 
+                    stacklevel=2
+        )
     return ans
 
 
@@ -181,7 +199,7 @@ def build_question(language: str,
         snippet=True
     )
 
-    loqi = build_loqi(mt, lines_data)
+    loqi, cfg, trace_acts = build_loqi(mt, lines_data)
     if not loqi:
         print("No valid loqi output", file=sys.stderr)
         return
@@ -196,7 +214,7 @@ def build_question(language: str,
             tags |= 2
 
     qname = debug_question_name or create_question_name(mt, code_snippet)
-    answ = build_answer_objects(lines_data)
+    answ = build_answer_objects(lines_data, trace_acts)
     return {
         "commonQuestion": {
             "questionData": {

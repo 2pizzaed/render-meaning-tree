@@ -7,10 +7,9 @@ Loqi Exporter - модуль для экспорта объектов Python в 
 """
 
 import builtins
-from abc import ABC, abstractmethod
-from enum import Enum
-from io import StringIO
 import sys
+from abc import ABC, abstractmethod
+from io import StringIO
 from typing import Any, Optional, get_origin
 
 from src.cfg.cfg import TraceAct
@@ -52,7 +51,7 @@ class ValueConverter:
             enum_class_name = value.__class__.__name__
             enum_value = value.value
             if isinstance(enum_value, bool):
-                return f"{enum_class_name}:{str(enum_value).lower()}"
+                return f"{enum_class_name}:`{str(enum_value).lower()}`"
             return f"{enum_class_name}:{enum_value}"
 
         # Для других типов возвращаем строковое представление
@@ -235,7 +234,7 @@ class LoqiExporter(ExporterManager):
 
     def add_trace(self, trace: list[TraceAct]) -> None:
         """Добавляет трассировку для экспорта."""
-        exporter: 'TraceActExporter' = self.exporters.get(type(trace[0]))
+        exporter: TraceActExporter = self.exporters.get(type(trace[0]))
 
         if exporter:
             exporter.add_full_trace(trace) # pyright: ignore[reportAttributeAccessIssue]
@@ -250,11 +249,11 @@ class LoqiExporter(ExporterManager):
     def add_paths(self, paths: list['PathInfo']) -> None:
         """Добавляет пути PathInfo для экспорта."""
         from .reachability import PathInfo
-        
+
         if not paths:
             return
-        
-        exporter: 'PathInfoExporter' = self.exporters.get(PathInfo)
+
+        exporter: PathInfoExporter = self.exporters.get(PathInfo)
 
         if exporter:
             exporter.add_all_paths(paths) # pyright: ignore[reportAttributeAccessIssue]

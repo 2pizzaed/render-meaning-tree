@@ -1,7 +1,6 @@
 from collections.abc import Generator
 from dataclasses import dataclass
 import sys
-import warnings
 
 from src.cfg.cfg import CFG, NodeKind, TraceAct
 from src.code_renderer import ButtonType
@@ -55,6 +54,7 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
                     corresponding_end=None,
                     is_known_correct=True,
                     condition_value=None,
+                    button_type=interaction.button_type
                 )
     print(
         f"Warning: No matching node found for interaction: {interaction}",

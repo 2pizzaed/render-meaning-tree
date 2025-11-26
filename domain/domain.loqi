@@ -282,6 +282,7 @@ class Metadata {
 class Node {
 	obj prop id: string ;
 	obj prop kind: NodeKind ;
+	obj prop condition_value_chain: string ;
 
 	rel belongsTo(CFG) : opposite to CFG->hasNodes ;
 	rel hasEffects(Effect) ;
@@ -359,7 +360,6 @@ class PathInfo {
 class ASTNodeWrapper {
 	obj prop ast_id: int ;
 	obj prop ast_node: string ;
-	obj prop current_condition_value: bool ;
 
 	rel hasParent(ASTNodeWrapper) : {* -> 1} ;
 	rel hasChildren(ASTNodeWrapper) ;
@@ -394,7 +394,6 @@ class TraceAct {
 	rel hasASTNode(ASTNodeWrapper) : {* -> 1} ;
 	rel hasActAsCorrespondingEnd(TraceAct) : {1 -> *} ;
 	
-
 	rel directlyBeforeOf(TraceAct) : linear ;
 	rel directlyAfterOf(TraceAct) : opposite to directlyBeforeOf ;
 	rel beforeOf(TraceAct) : transitive to directlyBeforeOf ;

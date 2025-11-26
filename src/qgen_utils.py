@@ -1,6 +1,7 @@
 import re
 import sys
 import warnings
+from dataclasses import dataclass
 from typing import Any
 
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
@@ -9,9 +10,21 @@ from src.cfg.cfg import TraceAct
 from src.cfg.cfg_builder import CFGBuilder
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
-from src.cfg.trace_builder import all_interactions, build_trace_act
+from src.cfg.trace_builder import (
+    TraceScenarioConfig,
+    all_interactions,
+    build_trace_act,
+    generate_trace_variants,
+)
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
+
+
+@dataclass
+class LoqiVariant:
+    name: str
+    loqi: str
+    trace_acts: list[TraceAct]
 
 
 def find_concepts(mt: dict[str, Any]) -> list[str]:
@@ -61,6 +74,54 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
         exporter.add_paths(paths)
 
     return exporter.export_cfg(cfg, None), cfg, trace_acts
+
+
+def build_loqi_variants(
+    ast_json: dict[str, Any],
+    trace_configs: list[TraceScenarioConfig] | None,
+) -> tuple[list[LoqiVariant], CFG | None]:
+    """Генерирует несколько loqi-описаний для одного CFG в зависимости от сценариев трассировки."""
+    constructs = load_constructs("constructs.yml")
+    program_root = ASTNodeWrapper(ast_node=ast_json)
+    builder = CFGBuilder(constructs)
+    cfg = builder.make_cfg_for_ast(program_root)
+
+    if cfg is None:
+        return [], None
+
+    cfg.optimize()
+
+    scenarios = trace_configs or [TraceScenarioConfig()]
+    trace_results = generate_trace_variants(cfg, scenarios)
+
+    base_paths = determine_all_paths_between_opaque_nodes(cfg)
+    variants: list[LoqiVariant] = []
+
+    for result in trace_results:
+        exporter = LoqiExporter()
+        exporter.add_object(
+            situation := SituationState(
+                interruption_state=InterruptionType.NO_INTERRUPTION,
+            )
+        )
+        exporter.set_var("STATE", situation)
+
+        for trace_act in result.trace_acts:
+            exporter.add_object(trace_act)
+
+        if base_paths:
+            exporter.add_paths(base_paths)
+
+        loqi_text = exporter.export_cfg(cfg, None)
+        variants.append(
+            LoqiVariant(
+                name=result.scenario.name,
+                loqi=loqi_text,
+                trace_acts=result.trace_acts,
+            )
+        )
+
+    return variants, cfg
 
 
 # Символы/диапазоны недопустимые в именах файлов (Windows + управляющие символы)

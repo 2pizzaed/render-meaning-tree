@@ -28,6 +28,7 @@ class RoleInListType(SelfValidatedEnum):
 class InterruptionType(SelfValidatedEnum):
     """Interruption types for constraints & effects"""
     NO_INTERRUPTION = "no_interruption"
+    GENERIC_INTERRUPTION = "generic_interruption"  # присутствует прерывание любого вида.
     BREAK = "break"
     CONTINUE = "continue"
     RETURN = "return"

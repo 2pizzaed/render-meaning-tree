@@ -59,6 +59,11 @@ enum InterruptionType {
 		EN.localizedName = "none" ;
 
 	],
+	generic_interruption [
+		RU.localizedName = "прерывание любого вида" ;
+		EN.localizedName = "generic interruption" ;
+
+	],
 } [
 	RU.localizedName = "тип прерывания" ;
 	EN.localizedName = "interruption type" ;

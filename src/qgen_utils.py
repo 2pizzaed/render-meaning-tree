@@ -6,7 +6,7 @@ from typing import Any
 
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.cfg import TraceAct
+from src.cfg.cfg import CFG, TraceAct
 from src.cfg.cfg_builder import CFGBuilder
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes

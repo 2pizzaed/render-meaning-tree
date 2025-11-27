@@ -131,7 +131,10 @@ class DictLikeDataclass:
         for field_name, (field_type, is_optional) in type_hints.items():
             if field_name in data:
                 value = data[field_name]
-                processed_data[field_name] = cls._process_value(value, field_type, is_optional)
+                try:
+                    processed_data[field_name] = cls._process_value(value, field_type, is_optional)
+                except ValueError as e:
+                    raise ValueError(f"Error processing field '{field_name}' in {cls.__name__}: {e}") from e
             elif not is_optional:
                 raise ValueError(f"Mandatory field '{field_name}' is missing from data")
             # Optional fields are ignored if not present
@@ -187,7 +190,7 @@ class DictLikeDataclass:
         # Handle dataclass types
         if inspect.isclass(field_type) and is_dataclass(field_type):
             if not isinstance(value, dict):
-                raise ValueError(f"Expected dict for dataclass field, got {type(value)}")
+                raise ValueError(f"Expected dict for dataclass field {field_type.__name__}, got {type(value).__name__}: {value}")
 
             # Create instance of the dataclass
             return field_type.make(value)

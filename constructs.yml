@@ -486,7 +486,7 @@ try_except_structure:
     - from_: try
       to: else                 # в блок else, если
       constraints:
-        - interruption_stop: no_interruption
+        interruption_mode: no_interruption
     - from_: catch
       to: finally
       constraints:

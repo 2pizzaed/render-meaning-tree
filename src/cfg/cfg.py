@@ -26,10 +26,9 @@ class TraceAct(DictLikeDataclass):
     cfg_node: 'Node'
     action_spec: ActionSpec | None
     corresponding_end: 'TraceAct | None'
-    directly_before_of: 'TraceAct | None' = None  # Следующий акт в трассе (цепочка выполнения)
-
     is_known_correct: bool
     condition_value: bool | None = None
+    directly_before_of: 'TraceAct | None' = None  # Следующий акт в трассе (цепочка выполнения)
     button_type: str | None = None # Нужно для корректного поиска действий трассы. Экспортировать не нужно!
 
 

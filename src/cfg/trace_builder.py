@@ -223,6 +223,7 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
             )
         )
 
+    # Устанавливаем связи corresponding_end для BEGIN/END узлов
     for trace_act in trace:
         if trace_act.cfg_node.kind not in {NodeKind.BEGIN, NodeKind.END}:
             continue
@@ -236,6 +237,11 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
             ):
                 trace_act.corresponding_end = candidate
                 break
+    
+    # Устанавливаем связи directly_before_of (следующий акт в трассе)
+    for i in range(len(trace) - 1):
+        trace[i].directly_before_of = trace[i + 1]
+    
     return trace
 
 
@@ -322,6 +328,7 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                     is_known_correct=True,
                     condition_value=None
                 ))
+    # Устанавливаем связи corresponding_end для BEGIN/END узлов
     for trace_act in trace:
         if trace_act.cfg_node.kind not in [NodeKind.BEGIN, NodeKind.END]:
             continue
@@ -331,5 +338,10 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                     potential_end.wrapped_ast.ast_node.get("id") == trace_act.wrapped_ast.ast_node.get("id")):
                 trace_act.corresponding_end = potential_end
                 break
+    
+    # Устанавливаем связи directly_before_of (следующий акт в трассе)
+    for i in range(len(trace) - 1):
+        trace[i].directly_before_of = trace[i + 1]
+    
     assert len(trace) == len(interactions)
     return trace

@@ -115,8 +115,8 @@ class TestComplexProblemBuild(unittest.TestCase):
             # остальные сценарии можно будет добавить при необходимости.
             main_trace = trace_results[0].trace_acts
             self.assertTrue(len(main_trace))
-            for trace_act in main_trace:
-                exporter.add_object(trace_act)
+            # Используем add_trace вместо add_object, чтобы установить связи directlyBeforeOf
+            exporter.add_trace(main_trace)
 
             # Добавляем пути между узлами
             paths = determine_all_paths_between_opaque_nodes(cfg)

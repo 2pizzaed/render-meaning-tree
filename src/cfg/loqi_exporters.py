@@ -628,11 +628,9 @@ class TraceActExporter(ObjectExporter):
             "hasASTNode": [obj.wrapped_ast],
             "hasCFGNode": [obj.cfg_node],
             "hasActionSpec": [obj.action_spec],
-            "hasActAsCorrespondingEnd": [obj.corresponding_end],
+            "hasActAsCorrespondingEnd": [obj.corresponding_end] if obj.corresponding_end else [],
+            "directlyBeforeOf": [obj.directly_before_of] if obj.directly_before_of else [],
         }
-        if self._trace:
-            index = self._trace.index(obj)
-            relationships["directlyBeforeOf"] = [self._trace[index + 1]] if index + 1 < len(self._trace) else [],
         return relationships
 
 

@@ -106,8 +106,8 @@ def build_loqi_variants(
         )
         exporter.set_var("STATE", situation)
 
-        for trace_act in result.trace_acts:
-            exporter.add_object(trace_act)
+        # Используем add_trace вместо add_object, чтобы установить связи directlyBeforeOf
+        exporter.add_trace(result.trace_acts)
 
         if base_paths:
             exporter.add_paths(base_paths)

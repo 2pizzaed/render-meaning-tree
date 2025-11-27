@@ -217,7 +217,7 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
                 cfg_node=node,
                 action_spec=node.metadata.abstract_action,
                 corresponding_end=None,
-                is_known_correct=True,
+                is_known_correct=False,
                 condition_value=record.condition_value,
                 button_type=_infer_button_type(node),
             )
@@ -290,7 +290,7 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
                     cfg_node=node,
                     action_spec=node.metadata.abstract_action,
                     corresponding_end=None,
-                    is_known_correct=True,
+                    is_known_correct=False,
                     condition_value=None,
                     button_type=interaction.button_type
                 )
@@ -325,7 +325,7 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                     cfg_node=node,
                     action_spec=node.metadata.abstract_action,
                     corresponding_end=None,
-                    is_known_correct=True,
+                    is_known_correct=False,
                     condition_value=None
                 ))
     # Устанавливаем связи corresponding_end для BEGIN/END узлов

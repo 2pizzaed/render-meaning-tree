@@ -22,6 +22,23 @@ if TYPE_CHECKING:
 
 @dataclass
 class TraceAct(DictLikeDataclass):
+    """Акт выполнения программы в трассе.
+    
+    Представляет одно действие в последовательности выполнения программы.
+    Содержит ссылки на AST-узел, CFG-узел, спецификацию действия и связи с другими актами.
+    
+    Attributes:
+        wrapped_ast: Обёртка AST-узла, соответствующего этому акту
+        cfg_node: Узел CFG, соответствующий этому акту
+        action_spec: Спецификация действия (если есть)
+        corresponding_end: Связанный акт конца блока (для BEGIN/END пар)
+        is_known_correct: Флаг корректности акта
+        condition_value: Значение условия для узлов-условий (True/False/None)
+        directly_before_of: Следующий акт в трассе, формирующий цепочку выполнения.
+                           Устанавливается при построении трассы, связывая акты в порядке
+                           их выполнения. Последний акт имеет None.
+        button_type: Тип кнопки для UI (не экспортируется в LOQI)
+    """
     wrapped_ast: ASTNodeWrapper
     cfg_node: 'Node'
     action_spec: ActionSpec | None

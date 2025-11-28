@@ -80,7 +80,39 @@ def build_loqi_variants(
     ast_json: dict[str, Any],
     trace_configs: list[TraceScenarioConfig] | None,
 ) -> tuple[list[LoqiVariant], CFG | None]:
-    """Генерирует несколько loqi-описаний для одного CFG в зависимости от сценариев трассировки."""
+    """Генерирует несколько LOQI-описаний для одного CFG с различными трассами выполнения.
+    
+    Создаёт несколько вариантов экспорта, где CFG и описание алгоритма остаются одинаковыми,
+    но трассы выполнения различаются в зависимости от заданных сценариев. Это позволяет
+    создать набор вариантов выполнения программы с разными путями ветвления и количеством
+    итераций циклов.
+    
+    Процесс:
+    1. Строит CFG из AST
+    2. Генерирует трассы для каждого сценария (TraceScenarioConfig)
+    3. Для каждой трассы создаёт отдельный LOQI-файл с одинаковым CFG, но разной трассой
+    4. Устанавливает связи directlyBeforeOf между актами трассы
+    
+    Args:
+        ast_json: JSON-представление AST программы
+        trace_configs: Список конфигураций сценариев трассировки. Если None, используется
+                      один сценарий по умолчанию.
+    
+    Returns:
+        Кортеж (список вариантов LOQI, CFG). Каждый вариант содержит:
+        - name: имя сценария
+        - loqi: текст LOQI-файла
+        - trace_acts: список актов трассы с установленными связями
+    
+    Example:
+        configs = [
+            TraceScenarioConfig(name="true_branch", condition_sequences={1: [True]}),
+            TraceScenarioConfig(name="false_branch", condition_sequences={1: [False]}),
+        ]
+        variants, cfg = build_loqi_variants(ast_json, configs)
+        # variants[0] - LOQI для сценария "true_branch"
+        # variants[1] - LOQI для сценария "false_branch"
+    """
     constructs = load_constructs("constructs.yml")
     program_root = ASTNodeWrapper(ast_node=ast_json)
     builder = CFGBuilder(constructs)

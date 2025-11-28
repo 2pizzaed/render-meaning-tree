@@ -588,7 +588,17 @@ class ASTNodeWrapperExporter(ObjectExporter):
 
 @registered
 class TraceActExporter(ObjectExporter):
-    """Экспортер для класса TraceAct."""
+    """Экспортер для класса TraceAct.
+    
+    Обеспечивает экспорт актов трассы в LOQI-формат, включая:
+    - Свойства акта (condition_value, is_known_correct, active)
+    - Связи с AST-узлами, CFG-узлами, спецификациями действий
+    - Связь directlyBeforeOf для формирования цепочки выполнения
+    - Связь hasActAsCorrespondingEnd для BEGIN/END пар
+    
+    Метод add_full_trace позволяет установить полную трассу для корректного
+    именования актов и установки связей directlyBeforeOf.
+    """
 
     def __init__(
         self,
@@ -605,6 +615,15 @@ class TraceActExporter(ObjectExporter):
         return "TraceAct"
 
     def add_full_trace(self, trace: list[TraceAct]) -> None:
+        """Устанавливает полную трассу для корректного экспорта связей.
+        
+        Этот метод должен быть вызван перед экспортом актов трассы, чтобы
+        экспортер мог правильно установить связи directlyBeforeOf и корректно
+        именовать акты по их индексу в трассе.
+        
+        Args:
+            trace: Полный список актов трассы в порядке выполнения
+        """
         self._trace = trace
 
     def export_properties(self, obj: TraceAct) -> dict[str, Any]:
@@ -624,6 +643,23 @@ class TraceActExporter(ObjectExporter):
         return f"trace_act_{index}_{obj.cfg_node.kind.value.lower()}"
 
     def export_relationships(self, obj: TraceAct) -> dict[str, list[Any]]:
+        """Экспортирует связи TraceAct с другими объектами.
+        
+        Экспортирует следующие связи:
+        - hasASTNode: связь с AST-узлом
+        - hasCFGNode: связь с CFG-узлом
+        - hasActionSpec: связь со спецификацией действия (если есть)
+        - hasActAsCorrespondingEnd: связь с соответствующим актом конца блока
+                                   (для BEGIN/END пар)
+        - directlyBeforeOf: связь со следующим актом в трассе, формирующая цепочку
+                          последовательности выполнения программы
+        
+        Args:
+            obj: Акты трассы для экспорта связей
+        
+        Returns:
+            Словарь с именами связей и списками связанных объектов
+        """
         relationships = {
             "hasASTNode": [obj.wrapped_ast],
             "hasCFGNode": [obj.cfg_node],

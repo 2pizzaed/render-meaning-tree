@@ -107,7 +107,7 @@ def _create_path_label(path: 'PathInfo') -> str:
     return "\\n".join(parts)
 
 
-def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=True) -> nx.DiGraph:
+def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
     """Конвертирует CFG в NetworkX DiGraph.
     
     Добавляет все узлы и рёбра из CFG в NetworkX граф.

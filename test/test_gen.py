@@ -126,7 +126,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             exporter.export_cfg(cfg, str(loqi_path))
 
             # Визуализируем CFG в PNG
-            png_path = (genout_path / f"{file.stem}.png").absolute()
+            png_path = (genout_path / f"{file.stem}-edge.png").absolute()
             visualize_cfg_graphviz(cfg, str(png_path))
 
             html_path = (genout_path / f"{file.stem}.html").absolute()

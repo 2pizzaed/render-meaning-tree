@@ -10,7 +10,7 @@ class ASTNodeWrapper:
     parent: Self | None = None  # parent node that sees this node as a child.
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None
-    metadata: 'dict | cfg.Metadata' = field(default_factory=dict)
+    metadata: 'dict | cfg.Metadata' = field(default_factory=dict)  # TODO remove
 
     def get(self,
             role: str,

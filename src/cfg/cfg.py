@@ -57,7 +57,7 @@ class Metadata(DictLikeDataclass):
     abstract_action: Optional['ActionSpec'] = None
     abstract_transition: Optional['TransitionSpec'] = None
     wrapped_ast: ASTNodeWrapper | None = None
-    primary: bool | None = None
+    primary: bool | None = None  # TODO: remove
     is_after_last: bool | None = None
     call_count: int = 0  # Счётчик вызовов для функций
     has_corresponding_end: Optional['Node'] = None

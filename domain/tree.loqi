@@ -67,8 +67,9 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         ];
     };
 
-    // Проверка ограничений условий для каждого звена на пути...
-	agg mutex {
+    // (В старом варианте:) Проверка ограничений (условий и др.) для каждого звена на пути...
+    // (В новом варианте:) Проверка ограничений для маршрута P, который символизирует скачок по алгоритму, выбранный студентом...
+	agg mutex { // << TODO: заменить mutex на AND (раньше мы проверяли отдельные переходы -- для них mutex был ОК, а теперь все ограничения агрегированы в один маршрут и проверяются параллельно, не взаимоисключающе)
         interruptionCatch -> {
             ask (P->hasConstraints.interruption_mode != InterruptionType:any) out true else {
                 conclude : null;
@@ -93,18 +94,25 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             };
         };
         conditionCheck -> {
+        	// Не препятствует ли условие тому, чтобы пройти по маршруту P ?..
+        	// Наложены ли на маршрут ограничения на значение условия?
             ask (forAny Constraint c {P=>hasConstraints($c)} and P->hasConstraints.condition_value != OptionalBoolValue:no_value) out true else {
+            	// НЕТ: дальше проверять нет смысла.
                 conclude : null;
             };
 			// Совпадает ли значение текущего условия с ожидаемым условием для маршрута P ?
             ask (L0.condition_value == P->hasConstraints.condition_value)
             out false else {
+            	// ДА: ошибки нет.
+            	// TODO: Добавить скилл condition_value_allows_transition (здесь он применён правильно)
                 conclude : null;
             };
+            // Найти альтернативный переход ET (Expected Transition), выходящий из L0, и требующий текущее значение условия в L0
             var ET : Edge = find Edge e {$e->hasSource == P->from_ 
                 and $e != P 
                 and forAny Constraint c {$e=>hasConstraints($c)}  // (у перехода есть ограничения)
                 and L0.condition_value == $e->hasConstraints.condition_value} out true else {
+            	// (Не найден такой переход!!! Скорее всего, проблема в CFG.)
                 conclude : null;
             };
             conclude : error [

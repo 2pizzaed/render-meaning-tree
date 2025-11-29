@@ -96,13 +96,15 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             ask (forAny Constraint c {P=>hasConstraints($c)} and P->hasConstraints.condition_value != OptionalBoolValue:no_value) out true else {
                 conclude : null;
             };
-            ask (P->from_->hasMetadata->belongsToASTNode.current_condition_value == P->hasConstraints.condition_value) 
+			// Совпадает ли значение текущего условия с ожидаемым условием для маршрута P ?
+            ask (L0.condition_value == P->hasConstraints.condition_value)
             out false else {
                 conclude : null;
             };
             var ET : Edge = find Edge e {$e->hasSource == P->from_ 
                 and $e != P 
-                and P->hasConstraints.condition_value == $e->hasMetadata->belongsToASTNode.current_condition_value} out true else {
+                and forAny Constraint c {$e=>hasConstraints($c)}  // (у перехода есть ограничения)
+                and L0.condition_value == $e->hasConstraints.condition_value} out true else {
                 conclude : null;
             };
             conclude : error [

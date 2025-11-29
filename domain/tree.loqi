@@ -7,13 +7,13 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             ask (A->hasCFGNode.kind == "END") out true else {
                 conclude : error [
                     skill = "compound_constructs_present";
-                    RU_explanation="Во время прерывания происходит только завершение составных действий; ${A} не может начать выполняться."
+                    RU_explanation="Во время прерывания происходит только завершение составных действий; ${A} не может начать выполняться.";
                 ];
             };
             ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd and $begin.active) }) out true else {
                 conclude : error [
                     skill = "is_in_compound_construct_ending";
-                    RU_explanation="Во время прерывания происходит досрочное завершение уже начавшихся действий; ${A} сейчас не выполняется."
+                    RU_explanation="Во время прерывания происходит досрочное завершение уже начавшихся действий; ${A} сейчас не выполняется.";
                 ];
             };
 
@@ -23,14 +23,14 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             var Missing : Node = find Node m { P_l0_a=>firstMiddleAction($m) } out false else {
             	// Найдено непрозрачное действие.
                 conclude : error [
-                    skill="is_in_nested_construct"
-                    RU_explanation="Во время прерывания происходит завершение начавшихся действий; прежде чем завершать ${A}, нужно сначала завершить ${Missing}."
+                    skill="is_in_nested_construct";
+                    RU_explanation="Во время прерывания происходит завершение начавшихся действий; прежде чем завершать ${A}, нужно сначала завершить ${Missing}.";
                 ];
             };
 
             conclude : correct [
-                skill="is_in_nested_construct"
-                RU_explanation="Выход из структуры действия ${L0} применён верно"
+                skill="is_in_nested_construct";
+                RU_explanation="Выход из структуры действия ${L0} применён верно";
             ];
         };
     };
@@ -43,8 +43,8 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         var P2 : PathInfo = (find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode}) out true else {
         	// Действие А нельзя выполнять сейчас, так как находятся в иной области кода, чем L0
             conclude: error [
-                skill="two_execution_points_has_path"
-                RU_explanation="Действие ${A} нельзя выполнять сейчас, т.к. находится в иной области кода, чем ${L0}."
+                skill="two_execution_points_has_path";
+                RU_explanation="Действие ${A} нельзя выполнять сейчас, т.к. находится в иной области кода, чем ${L0}.";
             ];
         };
 
@@ -53,8 +53,8 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             var E : Node = find Node m { P2=>firstMiddleCondition($m) and $m.kind != NodeKind:BEGIN };  // <- Поддержка составных и атомарных условий.
         	// Должно быть вычислено условие E
         	conclude : error [
-                skill="are_condition_evaluation_required_in_path"
-                RU_explanation="Прежде чем ${A} сможет выполниться, как минимум, должно быть вычислено условие ${E}."
+                skill="are_condition_evaluation_required_in_path";
+                RU_explanation="Прежде чем ${A} сможет выполниться, как минимум, должно быть вычислено условие ${E}.";
             ];
         };
 
@@ -62,8 +62,8 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         var M : Node = find Node m { P2=>firstMiddleAction($m) };
     	// сначала должно быть произойти <M>
     	conclude : error [
-            skill="many_actions_in_require_selection"
-            RU_explanation="Действия выполняются последовательно; прежде чем выполнять ${A}, сначала должно произойти ${M.kind} ${M}."
+            skill="many_actions_in_require_selection";
+            RU_explanation="Действия выполняются последовательно; прежде чем выполнять ${A}, сначала должно произойти ${M.kind} ${M}.";
         ];
     };
 
@@ -79,16 +79,16 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             // TODO: может поменять на or??
             cycle and (forAll Edge ET [P->from_=>hasEdges($ET)] {$ET->hasConstraints.interruption_mode == InterruptionType:any or $ET->hasConstraints.interruption_mode == STATE.interruption_state}) with Edge et {
                 null -> {conclude : error [
-                    skill="interruption_state_matches_constraint"
-                    RU_explanation="При текущем режиме прерывания не может выполниться действие ${A}."
+                    skill="interruption_state_matches_constraint";
+                    RU_explanation="При текущем режиме прерывания не может выполниться действие ${A}.";
                 ];}
-                false -> {conclude : error as interruption_state_meta [
-                    skill="interruption_state_matches_constraint"
-                    RU_explanation="При текущем режиме прерывания не может выполниться действие ${A}."
+                false -> {conclude : error [
+                    skill="interruption_state_matches_constraint";
+                    RU_explanation="При текущем режиме прерывания не может выполниться действие ${A}.";
                 ];}
-                body -> {conclude : error as interruption_state_meta [
-                    skill="interruption_state_matches_constraint"
-                    RU_explanation="При текущем режиме прерывания должно выполниться действие ${$ET->hasDestination}, но не ${A}"
+                body -> {conclude : error [
+                    skill="interruption_state_matches_constraint";
+                    RU_explanation="При текущем режиме прерывания должно выполниться действие ${$ET->hasDestination}, но не ${A}";
                 ];}
             };
         };
@@ -106,8 +106,8 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 conclude : null;
             };
             conclude : error [
-                skill="condition_value_allows_transition"
-                RU_explanation="При текущем значении условия должно выполниться действие ${$ET->hasDestination}, но не ${A}."
+                skill="condition_value_allows_transition";
+                RU_explanation="При текущем значении условия должно выполниться действие ${$ET->hasDestination}, но не ${A}.";
             ];
         };
         functionReturn -> {
@@ -123,13 +123,13 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 conclude : null;
             };
             conclude : error [
-                skill="is_function_call_jumping_correct"
-                RU_explanation="При завершении вызовов сначала завершаются внутренние вызовы согласно стеку вызовов (в обратном порядке); Вместо ${A}, нужно сначала завершить ${closerCall}."
+                skill="is_function_call_jumping_correct";
+                RU_explanation="При завершении вызовов сначала завершаются внутренние вызовы согласно стеку вызовов (в обратном порядке); Вместо ${A}, нужно сначала завершить ${closerCall}.";
             ];
         };
     };
 
     conclude : correct [
-        skill="selected_transition_without_any_constraint"
+        skill="selected_transition_without_any_constraint";
     ];
 }

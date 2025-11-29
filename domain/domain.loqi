@@ -287,7 +287,6 @@ class Metadata {
 class Node {
 	obj prop id: string ;
 	obj prop kind: NodeKind ;
-	// obj prop condition_value_chain: string ;
 
 	rel belongsTo(CFG) : opposite to CFG->hasNodes ;
 	rel hasEffects(Effect) ;

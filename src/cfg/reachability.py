@@ -1,11 +1,13 @@
 import copy
 from dataclasses import dataclass, field
-from typing import Optional, Any, Self
 from warnings import deprecated
 
-from src.cfg import CFG, Node, Edge
-from src.cfg.abstractions import DEFAULT_APPEARANCE_PROFILE, AppearanceProfile, AppearanceType, CallStackAction, \
-    Effects, Constraints
+from src.cfg import CFG, Edge, Node
+from src.cfg.abstractions import (
+    CallStackAction,
+    Constraints,
+    Effects,
+)
 from src.cfg.cfg import idgen
 from src.common_utils import DictLikeDataclass
 
@@ -82,7 +84,7 @@ class PathInfo(DictLikeDataclass):
         # register new step in chains
         self.via_nodes.append(target_node)
         self.via_edges.append(edge)
-        
+
         self.add_constraints(edge.constraints)
         self.add_effects(*edge.effects, *target_node.effects)
 
@@ -132,7 +134,7 @@ class PathInfo(DictLikeDataclass):
         # Проверяем, что пути можно соединить
         if path1.to_ != path2.from_:
             return None
-        
+
         if path1.is_loop() or path2.is_loop():
             # Дальнейшее наращивание циклических путей невозможно.
             return None
@@ -147,7 +149,7 @@ class PathInfo(DictLikeDataclass):
         else:
             path1_nodes = path1.via_nodes
             path1_edges = path1.via_edges
-        
+
         # Инициализируем via_nodes и via_edges для path2, если они не инициализированы
         if not path2.via_nodes or not path2.via_edges:
             if path2.from_:
@@ -171,7 +173,7 @@ class PathInfo(DictLikeDataclass):
         if len(node_ids) - new_is_loop != len(set(node_ids)):
             # (!) `-`: Последний узел может равняться первому
             return None
-        
+
         # Создаём новый PathInfo
         new_path = PathInfo(from_=path1.from_, cfg=path1.cfg)
         new_path.to_ = path2.to_
@@ -282,7 +284,7 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
 
     Реализовано поиском в ширину. После нахождения всех путей выбирать кратчайший, сохранять его и записывать в него число путей.
     Можно применять найденные более короткие пути для нахождения более длинных путей.
-    """ 
+    """
     if not from_:
         from_ = cfg.begin_node.id
     if not to_:
@@ -301,18 +303,18 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
         for path in wavefront:
             # Получаем последний узел в пути
             last = path.via_nodes[-1] if path.via_nodes else from_node
-            
+
             # Расширяем путь всеми исходящими рёбрами
             for edge in cfg.edges_from_node(last):
                 next_node = cfg.nodes[edge.dst]
-                
+
                 # Создаём копию пути для расширения
                 new_path = copy.deepcopy(path)
-                
+
                 # Пытаемся добавить шаг (вернёт False, если будет цикл)
                 if not new_path.add_step(edge, next_node):
                     continue  # цикл обнаружен, пропускаем
-                
+
                 if next_node is to_node:
                     # Достигли целевого узла - добавляем в завершённые пути
                     completed_paths.append(new_path)
@@ -320,12 +322,12 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
                 else:
                     # Продолжаем поиск с этого пути
                     next_wavefront.append(new_path)
-        
+
         wavefront = next_wavefront
 
     # Подсчитываем количество всех найденных путей
     # ways = len(completed_paths)
-    
+
     # Выбираем кратчайший путь
     if completed_paths:
         shortest = min(completed_paths, key=lambda p: p.ast_actions)

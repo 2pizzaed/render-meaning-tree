@@ -15,12 +15,11 @@
 - TraceAct: акт трассы с установленными связями directly_before_of
 """
 
-from collections import defaultdict, deque
-from collections.abc import Generator, Sequence
-from dataclasses import dataclass, field
 import random
 import sys
-from typing import Iterable
+from collections import defaultdict, deque
+from collections.abc import Generator, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 
 from src.cfg.abstractions import OptionalBoolValue
 from src.cfg.cfg import CFG, Node, NodeKind, TraceAct
@@ -99,14 +98,14 @@ class TraceScenarioConfig:
     """
 
     name: str = "default"
-    condition_sequences: dict[int, ConditionDecisionSchedule | Sequence[bool]] = field(default_factory=dict)
+    condition_sequences: Mapping[int, ConditionDecisionSchedule | Sequence[bool]] = field(default_factory=dict)
     max_visits_per_node: int = 3
     max_steps: int = 500
     randomize_missing_conditions: bool = True
     seed: int | None = None
 
     def __post_init__(self):
-        normalized: dict[int, ConditionDecisionSchedule] = {}
+        normalized: Mapping[int, ConditionDecisionSchedule] = {}
         for key, schedule in self.condition_sequences.items():
             ast_id = int(key)
             if isinstance(schedule, ConditionDecisionSchedule):
@@ -161,7 +160,7 @@ class _ConditionDecisionProvider:
             if ast_id is None:
                 continue
             schedule = scenario.condition_sequences.get(ast_id)
-            if schedule:
+            if schedule and isinstance(schedule, ConditionDecisionSchedule):
                 self._node_sequences[node.id] = deque(schedule.values)
 
     def request(self, node: Node) -> bool | None:
@@ -170,7 +169,7 @@ class _ConditionDecisionProvider:
             return seq.popleft()
         ast_id = _get_ast_id(node)
         schedule = self._scenario.condition_sequences.get(ast_id) if ast_id is not None else None
-        if schedule and schedule.fallback is not None:
+        if schedule and isinstance(schedule, ConditionDecisionSchedule) and schedule.fallback is not None:
             return schedule.fallback
         if self._scenario.randomize_missing_conditions:
             return self._random.choice([True, False])
@@ -417,12 +416,12 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
             ):
                 trace_act.corresponding_end = candidate
                 break
-    
+
     # Устанавливаем связи directly_before_of (цепочка последовательности выполнения)
     # Каждый акт ссылается на следующий акт в трассе
     for i in range(len(trace) - 1):
         trace[i].directly_before_of = trace[i + 1]
-    
+
     return trace
 
 
@@ -527,10 +526,10 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                     potential_end.wrapped_ast.ast_node.get("id") == trace_act.wrapped_ast.ast_node.get("id")):
                 trace_act.corresponding_end = potential_end
                 break
-    
+
     # Устанавливаем связи directly_before_of (следующий акт в трассе)
     for i in range(len(trace) - 1):
         trace[i].directly_before_of = trace[i + 1]
-    
+
     assert len(trace) == len(interactions)
     return trace

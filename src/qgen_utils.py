@@ -353,8 +353,8 @@ def build_question(language: str,
             "traceConceptBits": 0,
             "solutionStructuralComplexity": 0.5,
             "integralComplexity": 0.5,
-            "solutionSteps": len(answ),
-            "distinctErrorCount": len(answ),
+            "solutionSteps": len(trace_acts) - 1,  # !!
+            "distinctErrorCount": 3,  # !! TODO
             "version": 2,
             "structureHash": mt.get("unique_hash", 0),
             "origin": "debug",

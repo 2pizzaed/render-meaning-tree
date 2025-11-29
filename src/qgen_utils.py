@@ -240,14 +240,26 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
     ans = []
     for line in lines:
         for button in line.get("buttons", []):
+            # Безопасный поиск trace_act с проверкой на None
             trace_act = next(
                 filter(
-                    lambda ta: ta.cfg_node.metadata.wrapped_ast
+                    lambda ta: ta is not None
+                    and ta.cfg_node is not None
+                    and ta.cfg_node.metadata is not None
+                    and ta.cfg_node.metadata.wrapped_ast is not None
                     and button["node_id"] == ta.cfg_node.metadata.wrapped_ast.ast_node.get("id")
                     and button["type"] == ta.button_type,
                     trace_acts,
-                )
+                ),
+                None  # Возвращаем None, если элемент не найден
             )
+            
+            if trace_act is None:
+                warnings.warn(
+                    f"TraceAct not found for button: node_id={button.get('node_id')}, type={button.get('type')}",
+                    stacklevel=2
+                )
+                continue
 
             ans.append(
                 {

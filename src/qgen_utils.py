@@ -278,6 +278,87 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
     return ans
 
 
+def build_answer_objects_from_cfg(
+    cfg: CFG,
+    lines_data: list[dict[str, list[Any]]],
+    include_end_button: bool = False
+) -> list[dict[str, Any]]:
+    """Строит answerObjects на основе MANDATORY узлов CFG.
+    
+    Args:
+        cfg: Граф потока управления
+        lines_data: Данные с кнопками из prepare_interactive_data
+        include_end_button: Если False, конечный узел программы исключается (т.е. нельзя будет дать студенту кнопку "Программа завершилась")
+    
+    Returns:
+        Список answerObjects для каждого MANDATORY узла, связанного с кнопкой
+    """
+    ans = []
+    
+    # Собираем все кнопки из lines_data в словарь для быстрого поиска по node_id
+    # Ключ: node_id, Значение: список button dict
+    buttons_by_node_id: dict[int | None, list[dict[str, Any]]] = {}
+    for line in lines_data:
+        for button in line.get("buttons", []):
+            node_id = button.get("node_id")
+            if node_id is not None:
+                if node_id not in buttons_by_node_id:
+                    buttons_by_node_id[node_id] = []
+                buttons_by_node_id[node_id].append(button)
+    
+    # Находим все MANDATORY узлы, для которых нужны кнопки в UI
+    mandatory_nodes = []
+    for node in cfg.nodes.values():
+        if not node.is_mandatory():
+            continue
+        
+        # Исключаем начальный узел программы
+        if node == cfg.begin_node:
+            continue
+        
+        # Опционально исключаем конечный узел программы
+        if node == cfg.end_node:
+            if not include_end_button:
+                continue
+        
+        mandatory_nodes.append(node)
+    
+    # Связываем узлы с кнопками
+    for node in mandatory_nodes:
+        # Получаем AST node_id из узла CFG
+        if not node.metadata or not node.metadata.wrapped_ast:
+            continue
+        
+        ast_node_id = node.metadata.wrapped_ast.ast_node.get("id") if node.metadata.wrapped_ast.ast_node else None
+        if ast_node_id is None:
+            continue
+        
+        # Ищем все кнопки для этого узла
+        matched_buttons = buttons_by_node_id.get(ast_node_id, [])
+        
+        if not matched_buttons:
+            # Если кнопка не найдена, пропускаем узел
+            warnings.warn(
+                f"No button found for mandatory node {node.id} (ast_node_id={ast_node_id})",
+                stacklevel=2
+            )
+            continue
+        
+        # Для каждой найденной кнопки создаем answerObject
+        for button in matched_buttons:
+            ans.append(
+                {
+                    "answerId": button["action_id"],
+                    "hyperText": button["type"],
+                    "domainInfo": f"{node.id}",
+                    "concept": "action",
+                    "isRightCol": False,
+                }
+            )
+    
+    return ans
+
+
 def build_question(language: str,
                    code_snippet: str,
                    debug_question_name: str | None = None
@@ -319,7 +400,7 @@ def build_question(language: str,
             tags |= 2
 
     qname = debug_question_name or create_question_name(mt, code_snippet)
-    answ = build_answer_objects(lines_data, trace_acts)
+    answ = build_answer_objects_from_cfg(cfg, lines_data, include_end_button=False)
     return {
         "commonQuestion": {
             "questionData": {

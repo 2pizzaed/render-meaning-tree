@@ -304,11 +304,11 @@ class CFGBuilder:
             
             # Создаем CFG для вызова функции
             call_wrapped_ast = ASTNodeWrapper(ast_node=call_node)
-            construct = self.find_construct_for_astnode(call_wrapped_ast)
+            call_construct = self.find_construct_for_astnode(call_wrapped_ast)
             
-            if construct and construct.name == FUNC_CALL_CONSTRUCT:
+            if call_construct and call_construct.name == FUNC_CALL_CONSTRUCT:
                 # Используем существующий механизм обработки вызовов
-                call_cfg = self._make_cfg_for_function_call(construct, call_wrapped_ast)
+                call_cfg = self._make_cfg_for_function_call(call_construct, call_wrapped_ast)
             else:
                 raise ValueError(call_node)
                 # Создаем простой CFG для вызова

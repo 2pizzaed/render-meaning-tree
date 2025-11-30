@@ -26,19 +26,35 @@ profiles_priority:
 profiles:
   minimum: # name of profile
     noop: none
+    inline.condition.WITH_CALLS.BEGIN: none
+    inline.condition.WITH_CALLS.END: mandatory
+    WITH_CALLS.BEGIN: mandatory
+    WITH_CALLS.END: none
     compound: none
 
   maximum:
     noop: none
+    inline.condition.WITH_CALLS.BEGIN: none
+    inline.condition.WITH_CALLS.END: mandatory
+    WITH_CALLS.BEGIN: mandatory
+    WITH_CALLS.END: none
     compound: mandatory
 
   blocks_mandatory:
     noop: none
+    inline.condition.WITH_CALLS.BEGIN: none
+    inline.condition.WITH_CALLS.END: mandatory
+    WITH_CALLS.BEGIN: mandatory
+    WITH_CALLS.END: none
     compound.block: mandatory
     compound: none  # other than blocks
 
   blocks_none:
     noop: none
+    inline.condition.WITH_CALLS.BEGIN: none
+    inline.condition.WITH_CALLS.END: mandatory
+    WITH_CALLS.BEGIN: mandatory
+    WITH_CALLS.END: none
     compound.block: none
     compound: mandatory  # other than blocks
 

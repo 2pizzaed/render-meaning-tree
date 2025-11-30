@@ -6,7 +6,7 @@ from typing import Any
 
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.cfg import CFG, TraceAct
+from src.cfg.cfg import CFG, TraceAct, NodeKind
 from src.cfg.cfg_builder import CFGBuilder
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
@@ -295,13 +295,22 @@ def build_answer_objects_from_cfg(
     """
     ans = []
     
-    # Собираем все кнопки из lines_data в словарь для быстрого поиска по node_id
-    # Ключ: node_id, Значение: список button dict
+    # Собираем все кнопки из lines_data в словарь для быстрого поиска
+    # Ключ: (node_id, position), Значение: список button dict
+    # position может быть "before" или "after"
+    buttons_by_node_and_position: dict[tuple[int | None, str | None], list[dict[str, Any]]] = {}
     buttons_by_node_id: dict[int | None, list[dict[str, Any]]] = {}
     for line in lines_data:
         for button in line.get("buttons", []):
             node_id = button.get("node_id")
+            position = button.get("position")  # "before" или "after"
             if node_id is not None:
+                key = (node_id, position)
+                if key not in buttons_by_node_and_position:
+                    buttons_by_node_and_position[key] = []
+                buttons_by_node_and_position[key].append(button)
+                
+                # Также сохраняем все кнопки для node_id (для атомарных узлов)
                 if node_id not in buttons_by_node_id:
                     buttons_by_node_id[node_id] = []
                 buttons_by_node_id[node_id].append(button)
@@ -333,13 +342,25 @@ def build_answer_objects_from_cfg(
         if ast_node_id is None:
             continue
         
-        # Ищем все кнопки для этого узла
-        matched_buttons = buttons_by_node_id.get(ast_node_id, [])
+        # Определяем, какие кнопки соответствуют этому узлу
+        matched_buttons = []
+        
+        if node.kind == NodeKind.BEGIN:
+            # Для BEGIN узлов ищем кнопки с position="before"
+            matched_buttons = buttons_by_node_and_position.get((ast_node_id, "before"), [])
+        elif node.kind == NodeKind.END:
+            # Для END узлов ищем кнопки с position="after"
+            matched_buttons = buttons_by_node_and_position.get((ast_node_id, "after"), [])
+        else:
+            # Для атомарных узлов (ATOM) ищем все кнопки для этого node_id
+            # Для атомарных действий обычно создается одна кнопка (с position="before"),
+            # но мы берем все кнопки для данного node_id на случай, если их несколько
+            matched_buttons = buttons_by_node_id.get(ast_node_id, [])
         
         if not matched_buttons:
             # Если кнопка не найдена, пропускаем узел
             warnings.warn(
-                f"No button found for mandatory node {node.id} (ast_node_id={ast_node_id})",
+                f"No button found for mandatory node {node.id} (kind={node.kind.value}, ast_node_id={ast_node_id})",
                 stacklevel=2
             )
             continue

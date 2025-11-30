@@ -5,7 +5,7 @@ from src.cfg.abstractions import (
     ConstructSpec,
     ActionSpec,
     AppearanceType,
-    DEFAULT_APPEARANCE_PROFILE,
+    DEFAULT_APPEARANCE_PROFILE, KindChain,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata, NodeKind
@@ -39,15 +39,28 @@ class CFGBuilder:
         *,
         construct: ConstructSpec | None = None,
         action: ActionSpec | None = None,
+        role: str | None = None,
+        has_function_calls: bool = False,
     ) -> AppearanceType:
         # Если есть action, используем его kind (более специфичен, чем construct.kind)
         # Это важно для узлов тела функции в вызовах, где action.kind=compound, а construct.kind=inline.call
         if action and not action.kind.has('auto'):
-            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(action.kind)
+            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(
+                action.kind, role=role, has_function_calls=has_function_calls
+            )
+
+        # у action есть метка auto: проверяем по типу конструкта...
+
         if construct and construct.kind:
-            return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(construct.kind)
-        # by default, make it mandatory for all unknown nodes
-        return AppearanceType.MANDATORY
+            construct_kind = construct.kind
+        else:
+            construct_kind = KindChain()  # empty kind for unknown constructs
+
+        return DEFAULT_APPEARANCE_PROFILE.get_appearance_for_kind_chain(
+            construct_kind, role=role, has_function_calls=has_function_calls
+        )
+        # # by default, make it mandatory for all unknown nodes
+        # return AppearanceType.MANDATORY
 
     def _apply_node_appearance(
         self,
@@ -55,19 +68,31 @@ class CFGBuilder:
         *,
         construct: ConstructSpec | None = None,
         action: ActionSpec | None = None,
+        has_function_calls: bool = False,
     ) -> None:
         if node_or_pair is None:
             return
         if isinstance(node_or_pair, (tuple, list)):
             for node in node_or_pair:
-                self._apply_node_appearance(node, construct=construct, action=action)
+                self._apply_node_appearance(
+                    node, construct=construct, action=action, has_function_calls=has_function_calls
+                )
             return
 
         if not node_or_pair.metadata.wrapped_ast:
             # Пустые и промежуточные действия
             appearance = AppearanceType.NONE
         else:
-            appearance = self._determine_node_appearance(construct=construct, action=action)
+            # Определяем роль узла
+            role = None
+            if node_or_pair.role_in_construct == BEGIN or node_or_pair.kind == NodeKind.BEGIN:
+                role = BEGIN
+            elif node_or_pair.role_in_construct == END or node_or_pair.kind == NodeKind.END:
+                role = END
+            
+            appearance = self._determine_node_appearance(
+                construct=construct, action=action, role=role, has_function_calls=has_function_calls
+            )
         
         node_or_pair.appearance = appearance
 
@@ -271,19 +296,32 @@ class CFGBuilder:
         except (AttributeError, KeyError, TypeError):
             return None
 
-    def _inject_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict]) -> CFG:
+    def _inject_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict], parent_action: ActionSpec | None = None, wrapped_ast: ASTNodeWrapper | None = None, construct: ConstructSpec | None = None) -> CFG:
         """
         Обрабатывает найденные вызовы функций и встраивает их в CFG.
         
         Args:
             base_cfg: Базовый (пустой) CFG для встраивания вызовов
             function_calls: Список найденных узлов AST с вызовами функций в порядке вычисления
+            parent_action: ActionSpec для родительского действия, содержащего вызовы функций
+            wrapped_ast: Обёртка AST узла действия
+            construct: ConstructSpec для действия
 
         Returns:
             CFG с встроенными вызовами функций
         """
         if not function_calls:
             return base_cfg
+        
+        # Если parent_action не None, устанавливаем метаданные для BEGIN/END узлов
+        if parent_action is not None:
+            base_cfg.begin_node.role_in_construct = parent_action.role
+            base_cfg.end_node.role_in_construct = parent_action.role
+            base_cfg.begin_node.metadata.abstract_action = parent_action
+            base_cfg.end_node.metadata.abstract_action = parent_action
+            if wrapped_ast is not None:
+                base_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
+                base_cfg.end_node.metadata.wrapped_ast = wrapped_ast
         
         # Создаем цепочку вызовов функций
         current_node = base_cfg.begin_node
@@ -323,6 +361,21 @@ class CFGBuilder:
         
         # Соединяем последний вызов с концом базового CFG
         base_cfg.connect(current_node, base_cfg.end_node)
+        
+        # Применяем appearance для BEGIN/END узлов с учетом вызовов функций
+        if parent_action is not None:
+            self._apply_node_appearance(
+                base_cfg.begin_node, 
+                construct=construct, 
+                action=parent_action, 
+                has_function_calls=True
+            )
+            self._apply_node_appearance(
+                base_cfg.end_node, 
+                construct=construct, 
+                action=parent_action, 
+                has_function_calls=True
+            )
         
         return base_cfg
 
@@ -477,7 +530,7 @@ class CFGBuilder:
 
         return call_cfg
 
-    def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper) -> CFG | None:
+    def make_cfg_for_ast(self, wrapped_ast: ASTNodeWrapper, parent_action: ActionSpec | None = None) -> CFG | None:
         """
         Make CFG for AST node.
         Алгоритм:
@@ -516,11 +569,11 @@ class CFGBuilder:
                 return self._make_cfg_for_function_call(construct, wrapped_ast)
 
         # Обычные узлы
-        cfg = self.make_cfg_for_construct(construct, wrapped_ast)
+        cfg = self.make_cfg_for_construct(construct, wrapped_ast, parent_action=parent_action)
         return cfg
 
 
-    def make_cfg_for_construct(self, construct: ConstructSpec | None, wrapped_ast: ASTNodeWrapper, cfg: CFG = None) -> CFG | None:
+    def make_cfg_for_construct(self, construct: ConstructSpec | None, wrapped_ast: ASTNodeWrapper, cfg: CFG = None, parent_action: ActionSpec | None = None) -> CFG | None:
         """
         Make CFG for AST node of known construct, or when no construct exists for this AST node.
         Алгоритм:
@@ -548,7 +601,7 @@ class CFGBuilder:
 
         if function_calls:
             base_cfg = CFG(cfg_name)
-            return self._inject_function_calls_in_cfg(base_cfg, function_calls)
+            return self._inject_function_calls_in_cfg(base_cfg, function_calls, parent_action=parent_action, wrapped_ast=wrapped_ast, construct=construct)
 
         metadata = Metadata(wrapped_ast=wrapped_ast)
         atomic_cfg = CFG.create_atomic(cfg_name, metadata=metadata)
@@ -628,7 +681,7 @@ class CFGBuilder:
                 else:
                     # Make nodes/subgraph for this role...
                     target_construct = self.find_construct_for_astnode(next_wrapped_ast)
-                    sub_cfg = self.make_cfg_for_ast(next_wrapped_ast)
+                    sub_cfg = self.make_cfg_for_ast(next_wrapped_ast, parent_action=target_action)
                     node_metadata = Metadata(
                         abstract_action=target_action,
                         wrapped_ast=next_wrapped_ast,

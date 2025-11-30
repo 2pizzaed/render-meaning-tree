@@ -405,12 +405,24 @@ class AppearanceProfile(DictLikeDataclass):
         # sort checks by specificity (len of kind chain) DESC
         self.checks = dict(sorted(self.checks.items(), key=lambda kv: len(kv[0]), reverse=True))
 
-    def get_appearance_for_kind_chain(self, chain: KindChain):
-        # sort checks by specificity (len of kind chain) DESC
+    def get_appearance_for_kind_chain(self, chain: KindChain, role: str | None = None, has_function_calls: bool = False):
+        # Если есть вызовы функций и указана роль, сначала ищем специфичные записи
+        if has_function_calls and role:
+            # Попытка 1: Наиболее специфичное - chain + "WITH_CALLS" + role
+            extended_chain_list = chain.chain + ["WITH_CALLS", role]
+            extended_chain = KindChain(extended_chain_list)
+            # Ищем etalon_chain, который является подмножеством extended_chain
+            # (то есть все элементы etalon_chain должны быть в extended_chain)
+            for etalon_chain, appearance in self.checks.items():
+                if etalon_chain.is_subset_of(extended_chain):
+                    return appearance
+            
+        # Попытка 3: Обычный поиск по исходному chain (для обратной совместимости)
         for etalon_chain, appearance in self.checks.items():
             if etalon_chain.is_subset_of(chain):
                 return appearance
 
+        # by default, make it mandatory for all unknown nodes
         return AppearanceType.MANDATORY # "show" for all unknown
 
 

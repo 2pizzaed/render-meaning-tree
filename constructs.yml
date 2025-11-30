@@ -258,33 +258,33 @@ for_each_structure:
   effects:
     - interruption_stop: break
   actions:
+    - role: init
+      kind: inline
+      identification:
+        property: container
     - role: cond
       kind: inline.condition
       identification:
-        property: container
+        property: item
     - role: body
       kind: compound
       identification:
         property: body
       effects:
         - interruption_stop: continue
-    - role: update
-      kind: inline
-      identification:
-        property: item
   transitions:
     - from_: BEGIN
+      to: init
+    - from_: init
       to: cond
     - from_: cond
-      to: update
+      to: body
       constraints:
         condition_value: true
     - from_: cond
       to: END
       constraints:
         condition_value: false       # false → выход
-    - from_: update
-      to: body
     - from_: body
       to: cond
 
@@ -497,3 +497,11 @@ try_except_structure:
         interruption_mode: any  # В любом случае
     - from_: finally
       to: END
+
+
+# --------------------------------
+# Заглушка для комментария
+# --------------------------------
+comment_structure:
+  kind: inline.noop
+  ast_node: comment

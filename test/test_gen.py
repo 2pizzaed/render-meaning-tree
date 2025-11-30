@@ -125,9 +125,13 @@ class TestComplexProblemBuild(unittest.TestCase):
 
             exporter.export_cfg(cfg, str(loqi_path))
 
-            # Визуализируем CFG в PNG
+            # Визуализируем CFG в PNG (режим с рёбрами)
             png_path = (genout_path / f"{file.stem}-edge.png").absolute()
             visualize_cfg_graphviz(cfg, str(png_path))
+            
+            # Визуализируем CFG в PNG (режим с путями)
+            png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
+            visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
 
             html_path = (genout_path / f"{file.stem}.html").absolute()
             with open(html_path, "w", encoding="utf-8") as f:
@@ -136,4 +140,5 @@ class TestComplexProblemBuild(unittest.TestCase):
             print(f"Processed {file.name}:")
             print(f"  AST JSON: {ast_json_path}")
             print(f"  LOQI: {loqi_path}")
-            print(f"  PNG: {png_path}")
+            print(f"  PNG (edges): {png_path}")
+            print(f"  PNG (paths): {png_pathinfo_path}")

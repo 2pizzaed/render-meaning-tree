@@ -112,11 +112,19 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
     
     Добавляет все узлы и рёбра из CFG в NetworkX граф.
     Безопасно обрабатывает висячие рёбра и несуществующие узлы.
+    
+    Args:
+        cfg: Граф потока управления
+        paths_instead_of_edges: Если True, визуализировать прямые пути (PathInfo) вместо рёбер.
+                               В этом режиме отображаются только обязательные (mandatory) узлы.
     """
     G = nx.DiGraph()
 
     # Добавляем узлы
     for node_id, node in cfg.nodes.items():
+        # В режиме pathinfo показываем только обязательные узлы
+        if paths_instead_of_edges and not node.is_mandatory():
+            continue
         label = _create_node_label(node)
         G.add_node(node_id, label=label, node_obj=node)
 
@@ -130,6 +138,9 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
                 if path is None or path.is_direct is not True:
                     continue
                 if not path.from_ or not path.to_:
+                    continue
+                # В режиме pathinfo показываем только пути между обязательными узлами
+                if not path.from_.is_mandatory() or not path.to_.is_mandatory():
                     continue
                 path_id = getattr(path, "id", None)
                 if path_id:

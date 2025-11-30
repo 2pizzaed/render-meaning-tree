@@ -500,8 +500,32 @@ try_except_structure:
 
 
 # --------------------------------
+# Заглушка для всех простых действий
+# --------------------------------
+inline_atom_structure:
+  kind: inline
+  ast_node: [
+    'identifier',
+    'variable_declaration',
+    'not_eq_operator',
+    'assignment_statement',
+    'expression_statement',
+    'int_literal',
+    'add_operator',
+    'eq_operator',
+    'lt_operator',
+    'continue_statement',
+    'gt_operator',
+    'le_operator',
+    # TODO: add new here
+  ]
+
+
+# --------------------------------
 # Заглушка для комментария
 # --------------------------------
 comment_structure:
   kind: inline.noop
   ast_node: comment
+
+

@@ -300,8 +300,13 @@ def build_answer_objects_from_cfg(
     # position может быть "before" или "after"
     buttons_by_node_and_position: dict[tuple[int | None, str | None], list[dict[str, Any]]] = {}
     buttons_by_node_id: dict[int | None, list[dict[str, Any]]] = {}
+    # Множество для отслеживания использованных кнопок (по action_id для уникальности)
+    used_button_ids: set[str] = set()
+    # Список всех кнопок для проверки неиспользованных
+    all_buttons: list[dict[str, Any]] = []
     for line in lines_data:
         for button in line.get("buttons", []):
+            all_buttons.append(button)
             node_id = button.get("node_id")
             position = button.get("position")  # "before" или "after"
             if node_id is not None:
@@ -367,6 +372,9 @@ def build_answer_objects_from_cfg(
         
         # Для каждой найденной кнопки создаем answerObject
         for button in matched_buttons:
+            button_id = button.get("action_id")
+            if button_id:
+                used_button_ids.add(button_id)
             ans.append(
                 {
                     "answerId": button["action_id"],
@@ -375,6 +383,19 @@ def build_answer_objects_from_cfg(
                     "concept": "action",
                     "isRightCol": False,
                 }
+            )
+    
+    # Проверяем неиспользованные кнопки
+    for button in all_buttons:
+        button_id = button.get("action_id")
+        if button_id and button_id not in used_button_ids:
+            node_id = button.get("node_id")
+            position = button.get("position")
+            button_type = button.get("type")
+            warnings.warn(
+                f"Button not used: action_id={button_id}, node_id={node_id}, position={position}, type={button_type} "
+                f"(no corresponding mandatory CFG node found)",
+                stacklevel=2
             )
     
     return ans

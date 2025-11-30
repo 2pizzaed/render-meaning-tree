@@ -89,6 +89,13 @@ def _create_path_label(path: 'PathInfo') -> str:
     """Создает метку для прямого пути."""
     parts = []
 
+    # Condition value (true/false)
+    if hasattr(path.constraints, 'condition_value') and path.constraints.condition_value is not None:
+        if path.constraints.condition_value == True:
+            parts.append("T")
+        elif path.constraints.condition_value == False:
+            parts.append("F")
+
     if getattr(path, "cfg_steps", None):
         parts.append(f"steps:{path.cfg_steps}")
 

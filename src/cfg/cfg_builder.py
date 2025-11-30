@@ -426,10 +426,12 @@ class CFGBuilder:
             # Возвращаем пустой CFG
             return self._create_simple_cfg("empty_function_def")
         
-        # Создаем пустой CFG для функции и сохраняем его в словаре.
-        # Это нужно, чтобы рекурсивное обращение видело обёртку CFG и могло использовать границы для добавления рёбер ещё до полного определения.
+        # Проверка на дублирование определений ф-ии в коде.
         if func_name in self.func_cfgs:
             raise NotImplementedError(f"Multiple definitions of function '{func_name}' encountered in input AST! This is not supported yet, aborting.")
+
+        # Создаем пустой CFG для функции и сохраняем его в словаре.
+        # Это нужно, чтобы рекурсивное обращение видело обёртку CFG и могло использовать границы для добавления рёбер ещё до полного определения.
         self.func_cfgs[func_name] = func_cfg = CFG("func_" + func_name)
 
         # Наполняем CFG для тела функции

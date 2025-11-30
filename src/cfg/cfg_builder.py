@@ -21,6 +21,9 @@ FUNC_DEF_AST_NODE_TYPES = (
     'method_definition',
 )
 
+# Глобальный set для отслеживания уже выведенных предупреждений о типах узлов без конструктов
+_seen_unknown_construct_types: set[str | None] = set()
+
 # ---------- CFGBuilder ----------
 class CFGBuilder:
     constructs: dict[str, ConstructSpec]
@@ -80,7 +83,10 @@ class CFGBuilder:
                 if node_type in construct.supported_ast_nodes():
                     return construct
             ###
-            print(f'Note: no construct found for ast_node {node_type=}, treating as atomic.', file=sys.stderr)
+            # Выводим предупреждение только один раз для каждого типа узла
+            if node_type not in _seen_unknown_construct_types:
+                print(f'Note: no construct found for ast_node {node_type=}, treating as atomic.', file=sys.stderr)
+                _seen_unknown_construct_types.add(node_type)
             ###
         return None
 

@@ -62,7 +62,7 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
     )
     exporter.set_var("STATE", situation)
 
-    trace_acts = [
+    trace_acts: list[TraceAct | None] = [
         build_trace_act(cfg, interaction) for interaction in all_interactions(lines)
     ] # все действия трассы для задачи, которые вообще могут понадобиться
     for trace_act in trace_acts:
@@ -113,6 +113,8 @@ def build_loqi_variants(
         # variants[0] - LOQI для сценария "true_branch"
         # variants[1] - LOQI для сценария "false_branch"
     """
+    raise DeprecationWarning("This function is deprecated. Use alternative methods for generating LOQI variants.")
+
     constructs = load_constructs("constructs.yml")
     program_root = ASTNodeWrapper(ast_node=ast_json)
     builder = CFGBuilder(constructs)
@@ -236,6 +238,7 @@ def pack_rdf(loqi: str):
     }]
 
 
+@warnings.deprecated("Use `build_answer_objects_from_cfg` instead for better accuracy")
 def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[TraceAct]):
     ans = []
     for line in lines:
@@ -428,7 +431,7 @@ def build_question(language: str,
     )
 
     loqi, cfg, trace_acts = build_loqi(mt, lines_data)
-    if not loqi:
+    if not loqi or not cfg:
         print("No valid loqi output", file=sys.stderr)
         return
 

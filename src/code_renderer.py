@@ -1,5 +1,6 @@
 
 import hashlib
+import math
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ class ASTNodeAnalyzer:
         self.ast_tree = ast_tree
         self.source_map = source_map
         self.nodes_cache = {}
+        self.user_defined_function_names = set()
         self.nodes_hierarchy_reference = node_hierarchy()
         self._build_nodes_cache()
 
@@ -39,6 +41,10 @@ class ASTNodeAnalyzer:
                         prev.get("id") if prev else None)
                     self.nodes_cache[node["id"]].setdefault(
                         "parent_field", field,
+                    )
+                if node.get("type", "") == "function_definition":
+                    self.user_defined_function_names.add(
+                        node.get("declaration", {}).get("name", "").get("name", "")
                     )
                 for key, value in node.items():
                     traverse(value, node, key)
@@ -82,18 +88,19 @@ class ASTNodeAnalyzer:
         node_parent_types.insert(0, node_type)
         return node_parent_types
 
-
     def is_function_call(self, node_id: int) -> bool:
         """Проверить, является ли узел вызовом функции"""
         node_types = self.get_node_types_hierarchy(node_id)
-        return "function_call" in node_types
+        node = self.get_node_by_id(node_id)
+        name = node.get("function", {}).get("name", "") if node else ""
+        return "function_call" in node_types and name in self.user_defined_function_names
 
     def is_io_call(self, node_id: int) -> bool:
         """Проверить, является ли узел вызовом функции ввода/вывода"""
         node_types = self.get_node_types_hierarchy(node_id)
         return "print_command" in node_types or "print_command" in node_types
 
-    def is_nested_call(self, node_id: int | None, include_io:bool = False) -> bool:
+    def is_nested_call(self, node_id: int | None, include_io: bool = False) -> bool:
         """Проверить, является ли вызов функции вложенным в выражение"""
         if not node_id:
             return False
@@ -118,8 +125,8 @@ class ASTNodeAnalyzer:
         if not parent:
             return False
 
-        # Если родитель - statement, то вызов не вложенный
-        return "statement" in self.get_node_types_hierarchy(parent_id)
+        # Если родитель - expression_statement, то вызов не вложенный
+        return "expression_statement" not in self.get_node_types_hierarchy(parent_id)
 
     def is_simple_statement(self, node_id: int | None) -> bool:
         """Проверить, является ли узел - простой инструкцией (statement) без вложенных в него блоков"""
@@ -355,7 +362,7 @@ class CodeHighlightGenerator:
         # Проверяем, является ли узел составным statement
         is_block = self.analyzer.is_block(node_id)
         is_simple_statement = self.analyzer.is_simple_statement(node_id)
-        is_compound_statement = self.analyzer.is_compound_statement(node_id)
+        # is_compound_statement = self.analyzer.is_compound_statement(node_id)
         is_nested_call = self.analyzer.is_nested_call(node_id, False)
         is_header = self.analyzer.is_loop_or_condition_header(node_id)
         for_component = self.analyzer.determine_for_loop_component(node_id)
@@ -392,12 +399,14 @@ class CodeHighlightGenerator:
         if is_simple_statement and button_position == "start":
             return "play", "filled"
 
-        # Сложные statements, но не блоки и ветви условий
+        # Сложные statements, но не блоки и ветви условий - решено удалить
+        '''
         if is_compound_statement:
             if button_position == "start" and node_token_pos == "start":
                 return "play", "filled"
             if button_position == "end" and node_token_pos == "start":
                 return "stop", "filled"
+        '''
 
         # Заголовки циклов и условий
         if is_header and button_position == "end":
@@ -476,10 +485,15 @@ class CodeHighlightGenerator:
                         and token.get("value", "") in [".", "::"]
                     )
                     and not (
-                        next_token.get("type", "") == "operator" and next_token.get("value") in [".", "::"]
+                        next_token.get("type", "") == "operator"
+                        and next_token.get("value") in [".", "::"]
                     )
                     and not token.get("type", "").endswith("opening_brace")
                     and not next_token.get("type", "").endswith("closing_brace")
+                    and not (
+                        token.get("css_class") in ["token-identifier", "token-callable"]
+                        and next_token.get("type", "").endswith("opening_brace")
+                    )
                     and all("unary" not in t for t in node_types)
                     and all("postfix" not in t for t in next_node_types)
                 ) or (
@@ -539,7 +553,7 @@ class CodeHighlightGenerator:
         token_value = token.get("value", "")
         token_length = len(token_value.encode("utf-8"))
         # fuzzy-подход к определению границ узла по байтовым позициям
-        tol = int(token_length * 0.5)
+        tol = math.ceil(token_length * 0.5)
 
         # Конец и начало узла по токену из одного символа неразличимы.
         # Например, у `if N:`, N имеет конец и начало одновременно
@@ -548,12 +562,12 @@ class CodeHighlightGenerator:
 
         if start - tol <= byte_pos <= start + tol:
             return "start"
-        if end - tol <= byte_pos + token_length <= end + tol:
+        if end - tol <= byte_pos <= end + tol:
             return "end"
         return "middle"
 
     def is_token_color_required(self, token: dict[str, Any]):
-        # токен должен быть разукрашен в цвет? 
+        # токен должен быть разукрашен в цвет?
         return token.get("css_class", "") == "token-brace" and \
             token.get("value", "") in ["{", "}"]
 

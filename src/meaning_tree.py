@@ -18,7 +18,6 @@ JAR_RUN = [
     JAR_PATH,
 ]
 
-
 logger = logging.getLogger(__name__)
 
 

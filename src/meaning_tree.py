@@ -9,7 +9,14 @@ m2_repo = (
 )
 JAR_PATH = m2_repo / "application-1.0-SNAPSHOT.jar"
 JAVA_EXECUTABLE = "java"
-JAR_RUN = [JAVA_EXECUTABLE, "-jar", JAR_PATH]
+JAR_RUN = [
+    JAVA_EXECUTABLE,
+    "-Dfile.encoding=UTF-8",
+    "-Dstdout.encoding=UTF-8",
+    "-Dstderr.encoding=UTF-8",
+    "-jar",
+    JAR_PATH,
+]
 
 
 logger = logging.getLogger(__name__)
@@ -99,6 +106,7 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
             input=stdin_data,
             capture_output=True,
             text=True,
+            encoding='utf-8',
             check=True,
         )
         if not result.stdout and result.stderr:

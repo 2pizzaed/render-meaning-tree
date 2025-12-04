@@ -2,7 +2,6 @@
 import hashlib
 import math
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -273,7 +272,7 @@ class CodeHighlightGenerator:
     ]
 
     TOKEN_ASTTYPE_COLORS: ClassVar[dict[str, str]] = {
-        "type": "#848484",
+        "type": "#9B59B6",
     }
 
     # Строго заданные цвета кнопок
@@ -446,8 +445,10 @@ class CodeHighlightGenerator:
         if token_type == "statement_token" and button_position == "start":
             possible_buttons.append(("play", "filled"))
 
-        seen_types = set()
-        return [item for item in possible_buttons if item[0] not in seen_types and not seen_types.add(item[0])]
+        allowed_types = {"step-into", "step-out"} # несколько кнопок может быть только при условии наличия вызова функций
+        if possible_buttons:
+            allowed_types.add(possible_buttons[0][0])
+        return [item for item in possible_buttons if item[0] in allowed_types]
 
     def _generate_color_from_string(
         self, text: str | int,
@@ -590,6 +591,11 @@ class CodeHighlightGenerator:
         return "middle"
 
     def is_token_color_required(self, token: dict[str, Any]):
+        if self.analyzer and (node_id := token.get("node_id")):
+            node_types = self.analyzer.get_node_types_hierarchy(node_id)
+            if any(node_type in self.TOKEN_ASTTYPE_COLORS for node_type in node_types):
+                return True
+
         # токен должен быть разукрашен в цвет?
         return token.get("css_class", "") == "token-brace" and \
             token.get("value", "") in ["{", "}"]
@@ -647,12 +653,6 @@ class CodeHighlightGenerator:
 
             if button_exists:
                 continue
-
-            # Генерируем цвета, если необходимо
-            if node_type not in node_type_colors:
-                node_type_colors[node_type] = self._generate_color_from_string(node_type)
-            if node_id and node_id not in node_colors:
-                node_colors[node_id] = self._generate_color_from_string(node_id)
 
             # Добавляем кнопку
             buttons_on_line.append({
@@ -757,6 +757,20 @@ class CodeHighlightGenerator:
                 # Обработка псевдо-токенов
                 if token.get("is_pseudo") and token.get("type") == "whitespace":
                     css_class = "token-whitespace"
+
+                # Генерируем цвета, если необходимо
+                node_types = self.analyzer.get_node_types_hierarchy(node_start_id) \
+                    if node_start_id else []
+                color_type = list(filter(lambda x: x in self.TOKEN_ASTTYPE_COLORS, node_types))
+                if color_type and node_start_id not in node_colors: # для токенов
+                    color_type_name = next(iter(color_type))
+                    node_colors[node_start_id] = self.TOKEN_ASTTYPE_COLORS[
+                        color_type_name
+                    ]
+                if node_start_type not in node_type_colors: # для кнопок
+                    node_type_colors[node_start_type] = self._generate_color_from_string(node_start_type)
+                if node_start_id and node_start_id not in node_colors: # для токенов
+                    node_colors[node_start_id] = self._generate_color_from_string(node_start_id)
 
                 # Проверяем, нужна ли кнопка в начале токена
                 total_buttons = self._add_buttons_if_needed(

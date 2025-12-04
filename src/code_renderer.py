@@ -2,6 +2,7 @@
 import hashlib
 import math
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -256,6 +257,10 @@ class CodeHighlightGenerator:
         "#2C3E50",  # Полночный синий
     ]
 
+    TOKEN_ASTTYPE_COLORS: ClassVar[dict[str, str]] = {
+        "type": "#848484",
+    }
+
     # Строго заданные цвета кнопок
     BUTTON_COLORS: ClassVar[dict[str, str]] = {
         "play": "#0A1048",
@@ -335,7 +340,7 @@ class CodeHighlightGenerator:
         node_token_pos: Literal["start", "middle", "end"],
         node_id: int | None,
         button_position: Literal["start", "end"],  # 'start' или 'end'
-    ) -> tuple[ButtonType | None, ButtonStyle]:
+    ) -> list[tuple[ButtonType | None, ButtonStyle]]:
         """Определить, нужна ли интерактивная кнопка в данной позиции токенов и если нужна, то какая
 
         :param token: текущий просматриваемый токен
@@ -354,10 +359,12 @@ class CodeHighlightGenerator:
         :rtype: tuple[ButtonType | None, ButtonStyle]
         """
         if not node_id or not self.analyzer:
-            return None, "filled"
+            return [(None, "filled")]
 
         if node_id in self.appearance and self.appearance[node_id] == "none":
-            return None, "filled"
+            return [(None, "filled")]
+
+        possible_buttons = []
 
         # Проверяем, является ли узел составным statement
         is_block = self.analyzer.is_block(node_id)
@@ -371,7 +378,7 @@ class CodeHighlightGenerator:
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
                 self._range_for = [token.get("value", "")]
-                return "question", "outlined"
+                possible_buttons.append(("question", "outlined"))
             if node_token_pos == "middle" and self.language != "python":
                 if (
                     token.get("value", "") != ";"
@@ -379,25 +386,25 @@ class CodeHighlightGenerator:
                     and self._range_for[-1] == ";"
                 ):
                     self._range_for.append("") # dummy token as marker of processed semicolon
-                    return "question", "outlined"
+                    possible_buttons.append(("question", "outlined"))
                 self._range_for.append(token.get("value", ""))
             elif node_token_pos == "end":
                 self._range_for = []
 
         # для других циклов for
         if for_component and for_component != "range" and button_position == "start":
-            return "question", "outlined"
+            possible_buttons.append(("question", "outlined"))
 
         # Вложенный вызов функции
         if is_nested_call:
             if button_position == "start" and node_token_pos == "start":
-                return "step-into", "filled"
+                possible_buttons.append(("step-into", "filled"))
             if button_position == "end" and node_token_pos == "end":
-                return "step-out", "filled"
+                possible_buttons.append(("step-out", "filled"))
 
         # Простой statement
         if is_simple_statement and button_position == "start":
-            return "play", "filled"
+            possible_buttons.append(("play", "filled"))
 
         # Сложные statements, но не блоки и ветви условий - решено удалить
         '''
@@ -410,21 +417,22 @@ class CodeHighlightGenerator:
 
         # Заголовки циклов и условий
         if is_header and button_position == "end":
-            return "question", "outlined"
+            possible_buttons.append(("question", "outlined"))
 
         # Составные statements
         if is_block and token.get("value", "").strip() and self.language != "python":
             if button_position == "start" and node_token_pos == "start":
-                return "play", "outlined"
+                possible_buttons.append(("play", "outlined"))
             if button_position == "end" and node_token_pos == "end":
-                return "stop", "outlined"
+                possible_buttons.append(("stop", "outlined"))
 
         # Обычные statements
         token_type = token.get("token_type", "")
         if token_type == "statement_token" and button_position == "start":
-            return "play", "filled"
+            possible_buttons.append(("play", "filled"))
 
-        return None, "filled"
+        seen_types = set()
+        return [item for item in possible_buttons if item[0] not in seen_types and not seen_types.add(item[0])]
 
     def _generate_color_from_string(
         self, text: str | int,
@@ -582,6 +590,72 @@ class CodeHighlightGenerator:
                     node.metadata.wrapped_ast.ast_node.get("id", "")
                 ] = node.appearance
 
+    def _add_buttons_if_needed(
+        self,
+        token,
+        token_pos,
+        node_token_pos,
+        node_id,
+        node_type,
+        position,  # "start" или "end"
+        buttons_on_line,
+        node_type_colors,
+        node_colors,
+        total_buttons,
+    ):
+        """Добавляет кнопку, если это необходимо."""
+        if not node_id or not self.analyzer:
+            return total_buttons
+
+        button_position = "before" if position == "start" else "after"
+        token_pos_check = ["start", "single"] if position == "start" else ["end", "single"]
+
+        # Определяем тип кнопки
+        pos_for_button = node_token_pos if node_token_pos != "single" else position
+        buttons = self._determine_button_type(
+            token, pos_for_button, node_id, position
+        )
+
+        for button_type, button_style in buttons:
+            # Проверяем условия для добавления кнопки
+            if not button_type or node_token_pos not in token_pos_check:
+                continue
+
+            # Проверяем, не добавлена ли уже такая кнопка
+            button_exists = any(
+                b["position"] == button_position
+                and b["node_id"] == node_id
+                and b["type"] == button_type
+                and (position == "end" or node_type != "range")
+                for b in buttons_on_line
+            )
+
+            if button_exists:
+                continue
+
+            # Генерируем цвета, если необходимо
+            if node_type not in node_type_colors:
+                node_type_colors[node_type] = self._generate_color_from_string(node_type)
+            if node_id and node_id not in node_colors:
+                node_colors[node_id] = self._generate_color_from_string(node_id)
+
+            # Добавляем кнопку
+            buttons_on_line.append({
+                "type": button_type,
+                "style": button_style,
+                "action_id": total_buttons,
+                "node_id": node_id,
+                "node_type": node_type,
+                "atom": self.analyzer.is_simple_statement(node_id) or button_type == "question",
+                "position": button_position,
+                "index": token_pos,
+                "color": self.BUTTON_TYPES_COLORS.get(node_type)
+                or self.BUTTON_COLORS.get(button_type),
+            })
+            total_buttons += 1
+
+        return total_buttons
+
     def prepare_interactive_data(
         self,
         source_map: dict[str, Any],
@@ -668,79 +742,32 @@ class CodeHighlightGenerator:
                     css_class = "token-whitespace"
 
                 # Проверяем, нужна ли кнопка в начале токена
-                button_type, button_style = self._determine_button_type(
-                    token, node_token_pos if node_token_pos != "single" else "start", node_start_id,
+                total_buttons = self._add_buttons_if_needed(
+                    token,
+                    token_pos,
+                    node_token_pos,
+                    node_start_id,
+                    node_start_type,
                     "start",
+                    buttons_on_line,
+                    node_type_colors,
+                    node_colors,
+                    total_buttons,
                 )
-
-                if (
-                    button_type
-                    and node_token_pos in ["start", "single"]
-                    and not any(
-                        b["position"] == "before"
-                        and (b["node_id"] == node_start_id and node_start_type != "range")
-                        for b in buttons_on_line
-                    )
-                ):
-                    if node_start_type not in node_type_colors:
-                        node_type_colors[node_start_type] = self._generate_color_from_string(
-                            node_start_type
-                        )
-                    if node_start_id and node_start_id not in node_colors:
-                        node_colors[node_start_id] = self._generate_color_from_string(node_start_id)
-                    buttons_on_line.append(
-                        {
-                            "type": button_type,
-                            "style": button_style,
-                            "action_id": total_buttons,
-                            "node_id": node_start_id,
-                            "node_type": node_start_type,
-                            "atom": self.analyzer.is_simple_statement(node_start_id) or button_type == "question",
-                            "position": "before",
-                            "index": token_pos,
-                            "color": self.BUTTON_TYPES_COLORS.get(node_start_type)
-                            or self.BUTTON_COLORS.get(button_type),
-                        },
-                    )
-                    total_buttons += 1
 
                 # Проверяем, нужна ли кнопка в конце токена
-                button_type, button_style = self._determine_button_type(
+                total_buttons = self._add_buttons_if_needed(
                     token,
-                    node_token_end_pos if node_token_end_pos != "single" else "end",
+                    token_pos,
+                    node_token_end_pos,
                     node_end_id,
+                    node_end_type,
                     "end",
+                    buttons_on_line,
+                    node_type_colors,
+                    node_colors,
+                    total_buttons,
                 )
-
-                if (
-                    button_type
-                    and node_token_end_pos in ["end", "single"]
-                    and not any(
-                        b["position"] == "after" and b["node_id"] == node_end_id
-                        for b in buttons_on_line
-                    )
-                ):
-                    # TODO: need extracting for DRY code
-                    if node_end_type not in node_type_colors:
-                        node_type_colors[node_end_type] = self._generate_color_from_string(node_end_type)
-                    if node_end_id and node_end_id not in node_colors:
-                        node_colors[node_end_id] = self._generate_color_from_string(node_end_id)
-                    buttons_on_line.append(
-                        {
-                            "type": button_type,
-                            "style": button_style,
-                            "action_id": total_buttons,
-                            "node_id": node_end_id,
-                            "node_type": node_end_type,
-                            "atom": self.analyzer.is_simple_statement(node_end_id)
-                            or button_type == "question",
-                            "position": "after",
-                            "index": token_pos,
-                            "color": self.BUTTON_TYPES_COLORS.get(node_end_type)
-                            or self.BUTTON_COLORS.get(button_type),
-                        },
-                    )
-                    total_buttons += 1
 
                 # формируем токен
                 tok = {

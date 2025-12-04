@@ -59,6 +59,21 @@ class ASTNodeAnalyzer:
         """Получить узел по ID"""
         return self.nodes_cache.get(int(node_id))
 
+    def find_children(self, node_id: str | int, max_depth: int = 1024) -> list[dict[str, Any]]:
+        """Найти дочерние узлы для заданного узла по ID до указанной глубины"""
+        result = []
+
+        def traverse(current_id: str | int, depth: int):
+            if depth > max_depth:
+                return
+            for child in self.nodes_cache.values():
+                if child.get("parent") == current_id:
+                    result.append(child)
+                    traverse(child.get("id"), depth + 1)
+
+        traverse(node_id, 1)
+        return result
+
     def get_node_type_by_id(self, node_id: str | int) -> str | Literal[""]:
         """Получить узел по ID"""
         node = self.get_node_by_id(node_id)
@@ -709,16 +724,18 @@ class CodeHighlightGenerator:
 
                 # Патч случаев, когда нам нужно изменить стартовый узел на его детей
                 # (например, expression_statement на вложенный function_call)
-                # нужно для корректного отображения кнопок
+                # нужно для корректного отображения кнопок захода и выхода из функции
 
-                if node_start_type == "expression_statement" and self.analyzer and node_start_id:
-                    node = self.analyzer.get_node_by_id(node_start_id)
-                    if node:
-                        child = node.get("expression", {})
-                        child_id = child.get("id", 0)
-                        if self.analyzer.is_function_call(child_id) and not self.analyzer.is_io_call(child_id):
+                if node_start_id and self.analyzer and not self.analyzer.is_function_call(node_start_id):
+                    nodes = self.analyzer.find_children(node_start_id, 2)
+                    for child in nodes:
+                        child_id = child.get("id")
+                        child_pos = self.analyzer.source_map.get("map", {}).get(str(child_id), [])
+                        matches_pos = child_pos and child_pos[0] == current_byte_pos
+                        if child_id and self.analyzer.is_function_call(child_id) and matches_pos:
                             node_start_id = child_id
-                            node_start_type = child.get("type", "")
+                            node_start_type = self.analyzer.get_node_type_by_id(node_start_id)
+                            break
 
                 css_class = self.TOKEN_TYPE_CLASSES.get(token_type, "token-unknown")
                 token_pos = len(current_line_tokens)

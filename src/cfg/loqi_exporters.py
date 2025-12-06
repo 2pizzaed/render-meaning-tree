@@ -630,7 +630,6 @@ class TraceActExporter(ObjectExporter):
         properties = {
             "condition_value": obj.condition_value,
             "is_known_correct": obj.is_known_correct,
-            "active": bool(self._trace)
         }
         return properties
 

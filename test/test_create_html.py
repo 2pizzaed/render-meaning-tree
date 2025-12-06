@@ -17,6 +17,7 @@ if __name__ == "__main__":
     if not tokens:
         raise ValueError("Token obtaining failure")
     gen = CodeHighlightGenerator(template_path)
+    gen.debug = True
     lines_data = gen.prepare_interactive_data(source_map, tokens)
     gen.generate_html(
         lines_data,

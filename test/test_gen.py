@@ -1,18 +1,19 @@
 import json
 import unittest
 from pathlib import Path
-from pprint import pprint
 from typing import Any
+
+from bs4 import BeautifulSoup
 
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
-from src.cfg.cfg_visualizer import diagnose_cfg
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
+from src.qgen_utils import build_answer_objects_from_cfg
 
 
 class TestComplexProblemBuild(unittest.TestCase):
@@ -68,6 +69,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                 self.fail(f"Failed to tokenize code for {file.name}")
 
             htmlgen = CodeHighlightGenerator()
+            htmlgen.debug = True
             lines_data = htmlgen.prepare_interactive_data(
                 source_map,
                 tokens,
@@ -128,10 +130,21 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Визуализируем CFG в PNG (режим с рёбрами)
             png_path = (genout_path / f"{file.stem}-edge.png").absolute()
             visualize_cfg_graphviz(cfg, str(png_path))
-            
+
             # Визуализируем CFG в PNG (режим с путями)
             png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
             visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
+
+            answ = build_answer_objects_from_cfg(cfg, lines_data, include_end_button=False)
+            answ_clear = {}
+            for a in answ:
+                answ_clear[a["answerId"]] = a["domainInfo"]
+
+            soup = BeautifulSoup(html, "html.parser")
+            code_block = soup.select_one("#answer_objects")
+            if code_block:
+                code_block.string = json.dumps(answ_clear, indent=4)
+            html = str(soup)
 
             html_path = (genout_path / f"{file.stem}.html").absolute()
             with open(html_path, "w", encoding="utf-8") as f:

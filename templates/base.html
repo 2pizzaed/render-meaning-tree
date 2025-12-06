@@ -222,10 +222,6 @@
         <div class="header">
             <h1>{{ language }}</h1>
         </div>
-
-        <script type="application/json" id="code-data">
-            {{ code_data | tojson(indent=4) | safe }}
-        </script>
         
         <div class="ctrl-flow-domain-code-block">
             <div class="code-container">
@@ -243,13 +239,15 @@
                             {%- for token in line.tokens -%}
                                 {%- for button in line.buttons if button.position == 'before' and button.index == token.index -%}
                                 <button class="action-button {{ button.style }} {{ button.type }}"
+                                        id="answer_{{button.action_id}}"
+                                        style="--button-color: {{ button.color }};"
+                                        {% if debug %}
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
                                         data-action="{{ button.type }}"
                                         data-comp-ph-pos="{{button.action_id}}"
-                                        id="answer_{{button.action_id}}"
-                                        style="--button-color: {{ button.color }};"
+                                        {% endif %}
                                         >
                                     {%- if button.type == 'play' -%}<i class="ri-play-large-fill"  style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- elif button.type == 'stop' -%}<i class="ri-stop-large-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
@@ -259,16 +257,28 @@
                                     {%- endif -%}
                                 </button>
                                 {%- endfor -%}
-                                <span class="token {{ token.css_class }}" {% if token.node_id %}data-node-id="{{ token.node_id }}"{% endif %} data-token-id="{{ token.id }}" data-node-type="{{ token.node_type }}" {% if token.color %}style="color: {{ token.color }};"{% endif %} >{{- token.value -}}</span>
+                                <span 
+                                    class="token {{ token.css_class }}" 
+                                    {% if token.color %} style="color: {{ token.color }};" {% endif %}
+                                    {% if debug %}
+                                    {% if token.node_id %} data-node-id="{{ token.node_id }}" {% endif %} 
+                                    data-token-id="{{ token.id }}" 
+                                    data-node-type="{{ token.node_type }}" 
+                                    {% endif %}
+                                >
+                                {{- token.value -}}
+                            </span>
                                 {%- for button in line.buttons if button.position == 'after' and button.index == token.index -%}
                                 <button class="action-button {{ button.style }} {{ button.type }}"
+                                        id="answer_{{button.action_id}}"
+                                        style="--button-color: {{ button.color }};"
+                                        {% if debug %}
                                         data-node-id="{{ button.node_id }}"
                                         data-line="{{ outer_loop_index }}"
                                         data-node-type="{{ button.node_type }}"
                                         data-action="{{ button.type }}"
                                         data-comp-ph-pos="{{button.action_id}}"
-                                        id="answer_{{button.action_id}}"
-                                        style="--button-color: {{ button.color }};"
+                                        {% endif %}
                                 >
                                     {%- if button.type == 'play' -%}<i class="ri-play-large-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
                                     {%- elif button.type == 'stop' -%}<i class="ri-stop-large-fill" style="color: {{ button.color }}; {% if button.style == 'filled' %}fill: {{ button.color }};{% endif %}"></i>
@@ -285,13 +295,46 @@
                 </div>
             </div>
         </div>
+        <button id="clear-answers" onclick="clearAnswers()">Clear Answer Trace</button>
+        <textarea id="answer-trace" style="width:100%; height:200px; margin-top:20px;" readonly></textarea>
     </div>
     
-    <script>
-        // Инициализация Lucide иконок
-        lucide.createIcons();
+    <script type="text/javascript">
+        var ans = [];
+
+        function clearAnswers() {
+            ans = [];
+            document.getElementById('answer-trace').value = "";
+        }
+
+        function printAnswers() {
+            let str = "Map.of(\n";
+            for (let i = 0; i < ans.length; i++) {
+                const [key, value] = ans[i];
+                str += `\t${key}, "${value}"`;
+                if (i < ans.length - 1) {
+                    str += ",\n";
+                }
+            }
+            str += ");";
+            document.getElementById('answer-trace').value = str;
+            console.log(str);
+        }
         
         // Обработчики для кнопок
+        document.querySelectorAll('.ctrl-flow-domain-code-block .action-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const ansId = this.getAttribute('data-comp-ph-pos');
+                const ansData = JSON.parse(document.getElementById('answer_objects').innerText);
+                if (ansData[ansId]) {
+                    ans.push([ansId, ansData[ansId]]);
+                }
+                printAnswers();
+            });
+        });
+
+        // пока не нужно
+        /*
         document.querySelectorAll('.ctrl-flow-domain-code-block .action-button').forEach(button => {
             button.addEventListener('click', function() {
                 const nodeId = this.getAttribute('data-node-id');
@@ -302,6 +345,14 @@
                 alert(`Action: ${action}\nNode ID: ${nodeId}\nNode type: ${nodeType}\nLine: ${lineNum}`);
             });
         });
+        */
+    </script>
+
+    <script type="application/json" id="mt-ast">
+            {{ code_data | tojson(indent=4) | safe }}
+    </script>
+
+    <script type="application/json" id="answer_objects">
     </script>
 </body>
 </html>

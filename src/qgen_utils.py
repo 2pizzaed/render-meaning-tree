@@ -4,6 +4,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
+from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import CFG, NodeKind, TraceAct
@@ -290,15 +291,16 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
 def build_answer_objects_from_cfg(
     cfg: CFG,
     lines_data: list[dict[str, list[Any]]],
+    ast: ASTNodeAnalyzer | None = None,
     include_end_button: bool = False
 ) -> list[dict[str, Any]]:
     """Строит answerObjects на основе MANDATORY узлов CFG.
-    
+
     Args:
         cfg: Граф потока управления
         lines_data: Данные с кнопками из prepare_interactive_data
         include_end_button: Если False, конечный узел программы исключается (т.е. нельзя будет дать студенту кнопку "Программа завершилась")
-    
+
     Returns:
         Список answerObjects для каждого MANDATORY узла, связанного с кнопкой
     """
@@ -373,8 +375,9 @@ def build_answer_objects_from_cfg(
 
         if not matched_buttons:
             # Если кнопка не найдена, пропускаем узел
+            ast_node_type = ast.get_node_type_by_id(ast_node_id) if ast else ''
             warnings.warn(
-                f"No button found for mandatory node {node.id} (kind={node.kind.value}, ast_node_id={ast_node_id})",
+                f"No button found for mandatory CFG node {node.id} (kind={node.kind.value}, ast_node_id={ast_node_id or 'N/A'}, ast_node_type={ast_node_type})",
                 stacklevel=2
             )
             continue
@@ -399,10 +402,11 @@ def build_answer_objects_from_cfg(
         button_id = button.get("action_id")
         if button_id and button_id not in used_button_ids:
             node_id = button.get("node_id")
+            node_type = ast.get_node_type_by_id(node_id) if ast and node_id else ''
             position = button.get("position")
             button_type = button.get("type")
             warnings.warn(
-                f"Button not used: action_id={button_id}, node_id={node_id}, position={position}, type={button_type} "
+                f"Button not used: action_id={button_id}, ast_node_id={node_id}, ast_node_type={node_type or 'N/A'}, position={position}, type={button_type} "
                 f"(no corresponding mandatory CFG node found)",
                 stacklevel=2
             )
@@ -426,14 +430,14 @@ def build_question(language: str,
         print("No valid token output", file=sys.stderr)
         return
     htmlgen = CodeHighlightGenerator()
+    ast_analyzer = ASTNodeAnalyzer(mt, source_map)
     lines_data = htmlgen.prepare_interactive_data(
         source_map,
         tokens,
     )
     html = htmlgen.generate_html(
         lines_data,
-        source_map,
-        snippet=True
+        source_map
     )
 
     loqi, cfg, trace_acts = build_loqi(mt, lines_data)
@@ -451,7 +455,7 @@ def build_question(language: str,
             tags |= 2
 
     qname = debug_question_name or create_question_name(mt, code_snippet)
-    answ = build_answer_objects_from_cfg(cfg, lines_data, include_end_button=False)
+    answ = build_answer_objects_from_cfg(cfg, lines_data, ast=ast_analyzer, include_end_button=False)
     return {
         "commonQuestion": {
             "questionData": {

@@ -391,7 +391,6 @@ class State {
 class TraceAct {
 	obj prop is_known_correct: bool ;
 	obj prop condition_value: OptionalBoolValue ; // используем
-	// obj prop active : bool;  // убираем
 
 	rel hasCFGNode(Node) : {* -> 1};
 	rel hasActionSpec(ActionSpec) : {* -> 1};

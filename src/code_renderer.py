@@ -291,7 +291,7 @@ class CodeHighlightGenerator:
         "variable_declaration": "#34495E",
     }
 
-    def __init__(self, template_path: os.PathLike | str = "templates/base_new.html"):
+    def __init__(self, template_path: os.PathLike | str = "templates/base.html"):
 
         self.template_path = template_path
         self.analyzer = None

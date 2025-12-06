@@ -422,6 +422,11 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
     for i in range(len(trace) - 1):
         trace[i].directly_before_of = trace[i + 1]
 
+    if trace:
+        # Для самого первого акта трассы (начало алгоритма) задаём флаг для удобства поиска в дальнейшем.
+        # Этот акт не имеет кнопки в UI и неявно уже выполнен.
+        trace[0].is_known_correct = True
+
     return trace
 
 

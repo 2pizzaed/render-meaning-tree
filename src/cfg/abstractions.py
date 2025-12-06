@@ -47,13 +47,21 @@ class CallStackAction(SelfValidatedEnum):
 
 class OptionalBoolValue(SelfValidatedEnum):
     """Condition values for constraints"""
-    true = True
-    false = False
-    # true = 'true'
-    # false = 'false'
+    # true = True
+    # false = False
+    true = 'true'
+    false = 'false'
     NO_VALUE = 'no_value'  # (нет самого условия).
     ANY = 'any'  # при наличии, отсутствии или любом значении.
     DEFAULT = NO_VALUE  # alias
+
+    @classmethod
+    def lookup(cls, value, raise_on_error: bool = True):
+        """Lookup enum value, converting bool to string if needed."""
+        # Преобразуем bool значения в строки для совместимости с YAML
+        if isinstance(value, bool):
+            value = 'true' if value is True else 'false'
+        return super().lookup(value, raise_on_error)
 
 
 class ActionKind(SelfValidatedEnum):

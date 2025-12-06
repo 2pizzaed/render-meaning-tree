@@ -118,7 +118,7 @@ class TraceScenarioConfig:
 @dataclass
 class VisitedNode:
     node: Node
-    condition_value: bool | None = None
+    condition_value: OptionalBoolValue | None = None
 
 
 @dataclass
@@ -153,34 +153,45 @@ class _ConditionDecisionProvider:
     def __init__(self, cfg: CFG, scenario: TraceScenarioConfig):
         self._scenario = scenario
         self._random = random.Random(scenario.seed)
-        self._node_sequences: dict[str, deque[bool]] = {}
-        self._history: dict[str, list[bool]] = defaultdict(list)
+        self._node_sequences: dict[str, deque[OptionalBoolValue]] = {}
+        self._history: dict[str, list[OptionalBoolValue]] = defaultdict(list)
         for node in cfg.nodes.values():
             ast_id = _get_ast_id(node)
             if ast_id is None:
                 continue
             schedule = scenario.condition_sequences.get(ast_id)
             if schedule and isinstance(schedule, ConditionDecisionSchedule):
-                self._node_sequences[node.id] = deque(schedule.values)
+                # Преобразуем bool значения в OptionalBoolValue
+                converted_values = [
+                    OptionalBoolValue.true if v is True else OptionalBoolValue.false if v is False else v
+                    for v in schedule.values
+                ]
+                self._node_sequences[node.id] = deque(converted_values)
 
-    def request(self, node: Node) -> bool | None:
+    def request(self, node: Node) -> OptionalBoolValue | None:
         seq = self._node_sequences.get(node.id)
         if seq and seq:
             return seq.popleft()
         ast_id = _get_ast_id(node)
         schedule = self._scenario.condition_sequences.get(ast_id) if ast_id is not None else None
         if schedule and isinstance(schedule, ConditionDecisionSchedule) and schedule.fallback is not None:
-            return schedule.fallback
+            # Преобразуем bool в OptionalBoolValue
+            fallback = schedule.fallback
+            if fallback is True:
+                return OptionalBoolValue.true
+            elif fallback is False:
+                return OptionalBoolValue.false
+            return fallback
         if self._scenario.randomize_missing_conditions:
-            return self._random.choice([True, False])
-        return False
+            return self._random.choice([OptionalBoolValue.true, OptionalBoolValue.false])
+        return OptionalBoolValue.false
 
-    def commit(self, node: Node, value: bool | None):
+    def commit(self, node: Node, value: OptionalBoolValue | None):
         if value is None:
             return
         self._history[node.id].append(value)
 
-    def history_for(self, node: Node) -> list[bool]:
+    def history_for(self, node: Node) -> list[OptionalBoolValue]:
         return self._history.get(node.id, [])
 
 
@@ -292,7 +303,7 @@ def _choose_next_node(
     visit_count: int,
     scenario: TraceScenarioConfig,
     provider: _ConditionDecisionProvider,
-) -> tuple[Node | None, bool | None]:
+) -> tuple[Node | None, OptionalBoolValue | None]:
     """Выбирает следующий узел для перехода из текущего узла.
     
     Логика выбора:
@@ -324,10 +335,10 @@ def _choose_next_node(
 
         # Защита от бесконечных циклов: если приближаемся к лимиту и решение True,
         # переключаемся на False, чтобы выйти из цикла
-        if visit_count >= scenario.max_visits_per_node - 1 and decision is True:
-            alternate_edge = _edge_for_condition(edges, False)
+        if visit_count >= scenario.max_visits_per_node - 1 and decision == OptionalBoolValue.true:
+            alternate_edge = _edge_for_condition(edges, OptionalBoolValue.false)
             if alternate_edge:
-                decision = False
+                decision = OptionalBoolValue.false
                 chosen_edge = alternate_edge
 
         if chosen_edge is None:
@@ -342,7 +353,7 @@ def _choose_next_node(
     return cfg.nodes.get(chosen.dst), None
 
 
-def _edge_for_condition(edges: list, decision: bool | None):
+def _edge_for_condition(edges: list, decision: OptionalBoolValue | None):
     """Выбирает ребро CFG, соответствующее значению условия.
     
     Ищет ребро, у которого constraint.condition_value совпадает с decision.
@@ -350,7 +361,7 @@ def _edge_for_condition(edges: list, decision: bool | None):
     
     Args:
         edges: Список рёбер из текущего узла
-        decision: Значение условия (True/False/None)
+        decision: Значение условия (OptionalBoolValue/None)
     
     Returns:
         Ребро, соответствующее условию, или None, если не найдено

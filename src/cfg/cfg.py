@@ -10,7 +10,7 @@ from src.cfg.abstractions import (
     Constraints,
     ConstructSpec,
     Effects,
-    TransitionSpec, ActionKind,
+    TransitionSpec, ActionKind, OptionalBoolValue,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
@@ -33,7 +33,7 @@ class TraceAct(DictLikeDataclass):
         action_spec: Спецификация действия (если есть)
         corresponding_end: Связанный акт конца блока (для BEGIN/END пар)
         is_known_correct: Флаг корректности акта
-        condition_value: Значение условия для узлов-условий (True/False/None)
+        condition_value: Значение условия для узлов-условий (OptionalBoolValue/None)
         directly_before_of: Следующий акт в трассе, формирующий цепочку выполнения.
                            Устанавливается при построении трассы, связывая акты в порядке
                            их выполнения. Последний акт имеет None.
@@ -44,7 +44,7 @@ class TraceAct(DictLikeDataclass):
     action_spec: ActionSpec | None
     corresponding_end: 'TraceAct | None'
     is_known_correct: bool
-    condition_value: bool | None = None
+    condition_value: OptionalBoolValue | None = None
     directly_before_of: 'TraceAct | None' = None  # Следующий акт в трассе (цепочка выполнения)
     button_type: str | None = None # Нужно для корректного поиска действий трассы. Экспортировать не нужно!
 

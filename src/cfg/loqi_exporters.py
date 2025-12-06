@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from src.cfg.abstractions import InterruptionType
+from src.cfg.abstractions import InterruptionType, OptionalBoolValue
 
 from . import ASTNodeWrapper
 
@@ -102,8 +102,7 @@ class ConstraintsExporter(ObjectExporter):
     def get_preferred_name(self, obj: Constraints) -> str:
         parts = []
         if obj.condition_value is not None:
-            parts.append(f"cond_{str(obj.condition_value).lower()}")
-            # parts.append(f"cond_{obj.condition_value.value}")
+            parts.append(f"cond_{obj.condition_value.value}")
         if obj.interruption_mode:
             parts.append(f"mode_{obj.interruption_mode.value}")
 
@@ -627,8 +626,12 @@ class TraceActExporter(ObjectExporter):
         self._trace = trace
 
     def export_properties(self, obj: TraceAct) -> dict[str, Any]:
+        condition_value = obj.condition_value
+        if condition_value is None:
+            condition_value = OptionalBoolValue.NO_VALUE
+
         properties = {
-            "condition_value": obj.condition_value,
+            "condition_value": condition_value,
             "is_known_correct": obj.is_known_correct,
         }
         return properties

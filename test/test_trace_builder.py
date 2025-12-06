@@ -54,25 +54,25 @@ class TraceBuilderTests(unittest.TestCase):
     def test_trace_uses_configured_condition_sequence(self):
         scenario = TraceScenarioConfig(
             name="deterministic",
-            condition_sequences={1: [True, False]},
+            condition_sequences={1: [True, False]},  # bool значения будут преобразованы в OptionalBoolValue внутри
             max_visits_per_node=3,
         )
         results = generate_trace_variants(self.cfg, [scenario])
         trace = results[0].trace_acts
         condition_values = [act.condition_value for act in trace if act.cfg_node.is_condition()]
-        self.assertEqual(condition_values, [True, False])
+        self.assertEqual(condition_values, [OptionalBoolValue.true, OptionalBoolValue.false])
 
     def test_trace_flips_condition_when_visit_limit_near(self):
         scenario = TraceScenarioConfig(
             name="loop-limit",
-            condition_sequences={1: [True, True]},
+            condition_sequences={1: [True, True]},  # bool значения будут преобразованы в OptionalBoolValue внутри
             max_visits_per_node=3,
         )
         results = generate_trace_variants(self.cfg, [scenario])
         trace = results[0].trace_acts
         condition_values = [act.condition_value for act in trace if act.cfg_node.is_condition()]
         # Second visit should flip to False to exit the loop before exceeding the limit
-        self.assertEqual(condition_values[-2:], [True, False])
+        self.assertEqual(condition_values[-2:], [OptionalBoolValue.true, OptionalBoolValue.false])
         self.assertFalse(results[0].terminated_by_limit)
 
 

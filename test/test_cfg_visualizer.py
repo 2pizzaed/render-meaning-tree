@@ -19,7 +19,7 @@ sys.path.insert(0, str(project_root))
 
 from src.cfg.cfg_visualizer import visualize_cfg, _create_node_label, _create_edge_label, _build_networkx_graph
 from src.cfg.cfg_builder import CFGBuilder
-from src.cfg.abstractions import load_constructs, Constraints
+from src.cfg.abstractions import load_constructs, Constraints, OptionalBoolValue
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import CFG, BEGIN, END, Metadata, NodeKind
 
@@ -126,13 +126,13 @@ class TestCFGVisualizer(unittest.TestCase):
         self.assertEqual(label, "")
         
         # Тест ребра с condition_value = True
-        true_constraint = Constraints(condition_value=True)
+        true_constraint = Constraints(condition_value=OptionalBoolValue.true)
         edge = cfg.connect(cfg.begin_node, cfg.end_node, constraints=true_constraint)
         label = _create_edge_label(edge)
         self.assertIn("T", label)
         
         # Тест ребра с condition_value = False
-        false_constraint = Constraints(condition_value=False)
+        false_constraint = Constraints(condition_value=OptionalBoolValue.false)
         edge = cfg.connect(cfg.begin_node, cfg.end_node, constraints=false_constraint)
         label = _create_edge_label(edge)
         self.assertIn("F", label)
@@ -144,7 +144,7 @@ class TestCFGVisualizer(unittest.TestCase):
         node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Добавляем рёбра с constraints
-        true_constraint = Constraints(condition_value=True)
+        true_constraint = Constraints(condition_value=OptionalBoolValue.true)
         cfg.connect(cfg.begin_node, node1, constraints=true_constraint)
         cfg.connect(node1, node2)
         cfg.connect(node2, cfg.end_node)
@@ -188,8 +188,8 @@ class TestCFGVisualizer(unittest.TestCase):
         node2 = cfg.add_node(NodeKind.ATOM, "body")
         
         # Создаём рёбра с constraints
-        true_constraint = Constraints(condition_value=True)
-        false_constraint = Constraints(condition_value=False)
+        true_constraint = Constraints(condition_value=OptionalBoolValue.true)
+        false_constraint = Constraints(condition_value=OptionalBoolValue.false)
         
         cfg.connect(cfg.begin_node, node1, constraints=true_constraint)
         cfg.connect(node1, node2, constraints=false_constraint)

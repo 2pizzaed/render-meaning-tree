@@ -15,6 +15,7 @@ import networkx as nx
 from warnings import deprecated
 
 from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
+from src.cfg.abstractions import OptionalBoolValue
 
 if TYPE_CHECKING:
     from src.cfg.reachability import PathInfo
@@ -66,9 +67,9 @@ def _create_edge_label(edge: Edge) -> str:
 
     # Condition value (true/false)
     if hasattr(edge.constraints, 'condition_value') and edge.constraints.condition_value is not None:
-        if edge.constraints.condition_value == True:
+        if edge.constraints.condition_value == OptionalBoolValue.true:
             labels.append("T")
-        elif edge.constraints.condition_value == False:
+        elif edge.constraints.condition_value == OptionalBoolValue.false:
             labels.append("F")
 
     # Interruption mode
@@ -91,9 +92,9 @@ def _create_path_label(path: 'PathInfo') -> str:
 
     # Condition value (true/false)
     if hasattr(path.constraints, 'condition_value') and path.constraints.condition_value is not None:
-        if path.constraints.condition_value == True:
+        if path.constraints.condition_value == OptionalBoolValue.true:
             parts.append("T")
-        elif path.constraints.condition_value == False:
+        elif path.constraints.condition_value == OptionalBoolValue.false:
             parts.append("F")
 
     if getattr(path, "cfg_steps", None):

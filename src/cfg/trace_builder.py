@@ -37,25 +37,24 @@ def all_interactions(lines_data: list[dict[str, list]]) -> Generator[UserInterac
     for line in lines_data:
         for button in line.get("buttons", []):
             yield UserInteraction(
-                ast_node_id=button["node_id"],
-                button_type=button["type"],
-                atom=button["atom"]
+                ast_node_id=button["node_id"], button_type=button["type"], atom=button["atom"]
             )
 
 
 @dataclass
 class ConditionDecisionSchedule:
     """Расписание значений для управляющего условия.
-    
+
     Определяет последовательность значений (True/False), которые условие будет принимать
     при каждом посещении узла. Используется для детерминированного построения трассы.
-    
+
     Attributes:
         values: Список значений условия в порядке их использования. Каждое значение
                 используется один раз при соответствующем посещении узла.
         fallback: Значение по умолчанию, если список values исчерпан. Если None,
                   используется случайное значение или значение из конфигурации.
     """
+
     values: list[bool] = field(default_factory=list)
     fallback: bool | None = None
 
@@ -63,16 +62,16 @@ class ConditionDecisionSchedule:
 @dataclass
 class TraceScenarioConfig:
     """Настройки генерации трассы для конкретного сценария выполнения программы.
-    
+
     Позволяет задать детерминированный или случайный сценарий выполнения программы,
     определяя значения управляющих условий (if, while, for) на каждом шаге трассировки.
-    
+
     Основные возможности:
     - Задать последовательность значений для конкретных условий (по AST node id)
     - Ограничить количество посещений каждого узла (защита от бесконечных циклов)
     - Автоматически переключать ветку при приближении к лимиту посещений
     - Генерировать случайные значения для условий, не заданных явно
-    
+
     Attributes:
         name: Имя сценария (используется для идентификации при экспорте)
         condition_sequences: Словарь {ast_node_id: schedule}, где schedule - это либо
@@ -85,7 +84,7 @@ class TraceScenarioConfig:
         randomize_missing_conditions: Если True, для условий без заданной последовательности
                                      генерируются случайные значения. Иначе используется False.
         seed: Seed для генератора случайных чисел (для воспроизводимости)
-    
+
     Example:
         # Сценарий с детерминированными значениями условий
         config = TraceScenarioConfig(
@@ -98,7 +97,9 @@ class TraceScenarioConfig:
     """
 
     name: str = "default"
-    condition_sequences: Mapping[int, ConditionDecisionSchedule | Sequence[bool]] = field(default_factory=dict)
+    condition_sequences: Mapping[int, ConditionDecisionSchedule | Sequence[bool]] = field(
+        default_factory=dict
+    )
     max_visits_per_node: int = 3
     max_steps: int = 500
     randomize_missing_conditions: bool = True
@@ -124,13 +125,14 @@ class VisitedNode:
 @dataclass
 class TraceGenerationResult:
     """Результат генерации трассы для одного сценария.
-    
+
     Attributes:
         scenario: Конфигурация сценария, использованная для генерации
         trace_acts: Список актов трассы в порядке выполнения с установленными связями
         terminated_by_limit: Флаг, указывающий, было ли выполнение остановлено из-за
                             превышения лимита посещений узла (защита от бесконечных циклов)
     """
+
     scenario: TraceScenarioConfig
     trace_acts: list[TraceAct]
     terminated_by_limit: bool
@@ -138,11 +140,11 @@ class TraceGenerationResult:
 
 class _ConditionDecisionProvider:
     """Провайдер решений для управляющих условий при построении трассы.
-    
+
     Управляет последовательностью значений условий, извлекая следующее значение
     из заданной последовательности или генерируя случайное/fallback значение.
     Ведёт историю принятых решений для каждого узла.
-    
+
     Логика работы:
     1. При первом запросе значения для узла извлекается первое значение из sequences
     2. При последующих запросах - следующие значения по порядку
@@ -163,7 +165,11 @@ class _ConditionDecisionProvider:
             if schedule and isinstance(schedule, ConditionDecisionSchedule):
                 # Преобразуем bool значения в OptionalBoolValue
                 converted_values = [
-                    OptionalBoolValue.true if v is True else OptionalBoolValue.false if v is False else v
+                    OptionalBoolValue.true
+                    if v is True
+                    else OptionalBoolValue.false
+                    if v is False
+                    else v
                     for v in schedule.values
                 ]
                 self._node_sequences[node.id] = deque(converted_values)
@@ -174,7 +180,11 @@ class _ConditionDecisionProvider:
             return seq.popleft()
         ast_id = _get_ast_id(node)
         schedule = self._scenario.condition_sequences.get(ast_id) if ast_id is not None else None
-        if schedule and isinstance(schedule, ConditionDecisionSchedule) and schedule.fallback is not None:
+        if (
+            schedule
+            and isinstance(schedule, ConditionDecisionSchedule)
+            and schedule.fallback is not None
+        ):
             # Преобразуем bool в OptionalBoolValue
             fallback = schedule.fallback
             if fallback is True:
@@ -195,22 +205,24 @@ class _ConditionDecisionProvider:
         return self._history.get(node.id, [])
 
 
-def generate_trace_variants(cfg: CFG, scenarios: Iterable[TraceScenarioConfig] | None) -> list[TraceGenerationResult]:
+def generate_trace_variants(
+    cfg: CFG, scenarios: Iterable[TraceScenarioConfig] | None
+) -> list[TraceGenerationResult]:
     """Генерирует набор трасс для одного CFG с различными сценариями выполнения.
-    
+
     Для каждого сценария создаётся отдельная трасса, отличающаяся значениями
     управляющих условий. Это позволяет создать несколько вариантов выполнения
     одной и той же программы (например, разные пути в if-else, разное количество
     итераций циклов).
-    
+
     Args:
         cfg: Граф потока управления, для которого генерируются трассы
         scenarios: Список конфигураций сценариев. Если None, используется
                   один сценарий по умолчанию.
-    
+
     Returns:
         Список результатов генерации, каждый содержит трассу для соответствующего сценария
-    
+
     Example:
         scenarios = [
             TraceScenarioConfig(name="all_true", condition_sequences={1: [True]}),
@@ -229,7 +241,7 @@ def generate_trace_variants(cfg: CFG, scenarios: Iterable[TraceScenarioConfig] |
 
 def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> TraceGenerationResult:
     """Генерирует одну трассу для заданного сценария.
-    
+
     Алгоритм построения трассы:
     1. Начинаем с BEGIN узла CFG
     2. Для каждого узла:
@@ -238,18 +250,18 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
        - Выбираем следующее ребро на основе значения условия и лимитов посещений
        - Если достигнут лимит посещений узла, переключаемся на альтернативную ветку
     3. Продолжаем до достижения END узла или превышения лимитов
-    
+
     Особенности:
     - Учитывается ограничение на количество посещений узла (max_visits_per_node)
     - При приближении к лимиту условие автоматически переключается на противоположное
       значение, чтобы выйти из цикла (например, True -> False для выхода из while)
     - Для каждого обязательного узла сохраняется значение условия (если это условие)
     - Формируется цепочка актов через поле directly_before_of
-    
+
     Args:
         cfg: Граф потока управления
         scenario: Конфигурация сценария выполнения
-    
+
     Returns:
         Результат генерации с трассой и флагом завершения по лимиту
     """
@@ -283,7 +295,9 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
         )
 
         if current.is_mandatory() and record_index < len(visited_nodes):
-            visited_nodes[record_index].condition_value = condition_value if current.is_condition() else None
+            visited_nodes[record_index].condition_value = (
+                condition_value if current.is_condition() else None
+            )
 
         if not next_node:
             break
@@ -305,23 +319,23 @@ def _choose_next_node(
     provider: _ConditionDecisionProvider,
 ) -> tuple[Node | None, OptionalBoolValue | None]:
     """Выбирает следующий узел для перехода из текущего узла.
-    
+
     Логика выбора:
     - Для узлов-условий: запрашивает значение из провайдера и выбирает соответствующее ребро
     - Для обычных узлов: выбирает первое доступное ребро
-    
+
     Важная особенность - защита от бесконечных циклов:
     Если узел посещён (max_visits_per_node - 1) раз и текущее решение True
     (что может привести к циклу), автоматически переключается на False,
     чтобы выйти из цикла до превышения лимита.
-    
+
     Args:
         cfg: Граф потока управления
         node: Текущий узел
         visit_count: Количество уже выполненных посещений этого узла
         scenario: Конфигурация сценария
         provider: Провайдер решений для условий
-    
+
     Returns:
         Кортеж (следующий_узел, значение_условия). Значение условия None для не-условий.
     """
@@ -355,14 +369,14 @@ def _choose_next_node(
 
 def _edge_for_condition(edges: list, decision: OptionalBoolValue | None):
     """Выбирает ребро CFG, соответствующее значению условия.
-    
+
     Ищет ребро, у которого constraint.condition_value совпадает с decision.
     Если такого ребра нет, возвращает первое ребро с constraint = ANY или NO_VALUE.
-    
+
     Args:
         edges: Список рёбер из текущего узла
         decision: Значение условия (OptionalBoolValue/None)
-    
+
     Returns:
         Ребро, соответствующее условию, или None, если не найдено
     """
@@ -380,18 +394,18 @@ def _edge_for_condition(edges: list, decision: OptionalBoolValue | None):
 
 def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
     """Преобразует список посещённых узлов в список актов трассы.
-    
+
     Создаёт TraceAct для каждого обязательного узла, устанавливая:
     - Значение условия (condition_value) для узлов-условий
     - Связь corresponding_end для BEGIN/END пар (начало и конец блока)
     - Связь directly_before_of для формирования цепочки выполнения
-    
+
     Связь directly_before_of устанавливается так, что каждый акт (кроме последнего)
     ссылается на следующий акт в трассе, формируя последовательность выполнения программы.
-    
+
     Args:
         visited: Список посещённых узлов с сохранёнными значениями условий
-    
+
     Returns:
         Список актов трассы с установленными связями
     """
@@ -423,7 +437,8 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
                 candidate.cfg_node.kind == opposite
                 and candidate.wrapped_ast
                 and trace_act.wrapped_ast
-                and candidate.wrapped_ast.ast_node.get("id") == trace_act.wrapped_ast.ast_node.get("id")
+                and candidate.wrapped_ast.ast_node.get("id")
+                == trace_act.wrapped_ast.ast_node.get("id")
             ):
                 trace_act.corresponding_end = candidate
                 break
@@ -453,10 +468,10 @@ def _infer_button_type(node: Node) -> str | None:
 
 def _get_ast_id(node: Node) -> int | None:
     """Извлекает ID AST-узла из CFG-узла.
-    
+
     Args:
         node: CFG-узел с метаданными
-    
+
     Returns:
         ID AST-узла или None, если не найден
     """
@@ -486,22 +501,19 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
             case "step-out":
                 kind = NodeKind.END
             case _:
-                raise ValueError(f'Unknown button type: {interaction.button_type}')
+                raise ValueError(f"Unknown button type: {interaction.button_type}")
                 kind = NodeKind.ANY
         if node.kind == kind or (kind != NodeKind.END and node.kind != NodeKind.END):
             return TraceAct(
-                    wrapped_ast=node.metadata.wrapped_ast,
-                    cfg_node=node,
-                    action_spec=node.metadata.abstract_action,
-                    corresponding_end=None,
-                    is_known_correct=False,
-                    condition_value=None,
-                    button_type=interaction.button_type
-                )
-    print(
-        f"Warning: No matching node found for interaction: {interaction}",
-        file=sys.stderr
-    )
+                wrapped_ast=node.metadata.wrapped_ast,
+                cfg_node=node,
+                action_spec=node.metadata.abstract_action,
+                corresponding_end=None,
+                is_known_correct=False,
+                condition_value=None,
+                button_type=interaction.button_type,
+            )
+    print(f"Warning: No matching node found for interaction: {interaction}", file=sys.stderr)
     return None
 
 
@@ -509,7 +521,9 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
     trace = []
     for interaction in interactions:
         for node in cfg.nodes.values():
-            if not node.metadata.wrapped_ast or not isinstance( node.metadata.wrapped_ast.ast_node, dict):
+            if not node.metadata.wrapped_ast or not isinstance(
+                node.metadata.wrapped_ast.ast_node, dict
+            ):
                 continue
             ast_node = node.metadata.wrapped_ast.ast_node
             match interaction.button_type:
@@ -524,22 +538,25 @@ def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[Trace
                 case _:
                     kind = NodeKind.ANY
             if ast_node.get("id") == interaction.ast_node_id and node.kind == kind:
-                trace.append(TraceAct(
-                    wrapped_ast=node.metadata.wrapped_ast,
-                    cfg_node=node,
-                    action_spec=node.metadata.abstract_action,
-                    corresponding_end=None,
-                    is_known_correct=False,
-                    condition_value=None
-                ))
+                trace.append(
+                    TraceAct(
+                        wrapped_ast=node.metadata.wrapped_ast,
+                        cfg_node=node,
+                        action_spec=node.metadata.abstract_action,
+                        corresponding_end=None,
+                        is_known_correct=False,
+                        condition_value=None,
+                    )
+                )
     # Устанавливаем связи corresponding_end для BEGIN/END узлов
     for trace_act in trace:
         if trace_act.cfg_node.kind not in [NodeKind.BEGIN, NodeKind.END]:
             continue
         opposite = NodeKind.END if trace_act.cfg_node.kind == NodeKind.BEGIN else NodeKind.BEGIN
         for potential_end in trace:
-            if (potential_end.cfg_node.kind == opposite and
-                    potential_end.wrapped_ast.ast_node.get("id") == trace_act.wrapped_ast.ast_node.get("id")):
+            if potential_end.cfg_node.kind == opposite and potential_end.wrapped_ast.ast_node.get(
+                "id"
+            ) == trace_act.wrapped_ast.ast_node.get("id"):
                 trace_act.corresponding_end = potential_end
                 break
 

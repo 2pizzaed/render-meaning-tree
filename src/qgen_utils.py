@@ -6,7 +6,7 @@ from typing import Any
 
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.ast_wrapper import ASTNodeWrapper
-from src.cfg.cfg import CFG, TraceAct, NodeKind
+from src.cfg.cfg import CFG, NodeKind, TraceAct
 from src.cfg.cfg_builder import CFGBuilder
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
@@ -66,7 +66,7 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
         build_trace_act(cfg, interaction) for interaction in all_interactions(lines)
     ] # все действия трассы для задачи, которые вообще могут понадобиться
 
-    if trace_acts:
+    if trace_acts and trace_acts[0]:
         # Для самого первого акта трассы (начало алгоритма) задаём флаг для удобства поиска в дальнейшем.
         # Этот акт не имеет кнопки в UI и неявно уже выполнен.
         trace_acts[0].is_known_correct = True
@@ -262,7 +262,7 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
                 ),
                 None  # Возвращаем None, если элемент не найден
             )
-            
+
             if trace_act is None:
                 warnings.warn(
                     f"TraceAct not found for button: node_id={button.get('node_id')}, type={button.get('type')}",
@@ -281,7 +281,7 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
             )
     if len(ans) != len(trace_acts):
         warnings.warn(
-            f"len(answer_object) != len(trace_acts): {len(ans)} != {len(trace_acts)}", 
+            f"len(answer_object) != len(trace_acts): {len(ans)} != {len(trace_acts)}",
                     stacklevel=2
         )
     return ans
@@ -303,7 +303,7 @@ def build_answer_objects_from_cfg(
         Список answerObjects для каждого MANDATORY узла, связанного с кнопкой
     """
     ans = []
-    
+
     # Собираем все кнопки из lines_data в словарь для быстрого поиска
     # Ключ: (node_id, position), Значение: список button dict
     # position может быть "before" или "after"
@@ -323,42 +323,42 @@ def build_answer_objects_from_cfg(
                 if key not in buttons_by_node_and_position:
                     buttons_by_node_and_position[key] = []
                 buttons_by_node_and_position[key].append(button)
-                
+
                 # Также сохраняем все кнопки для node_id (для атомарных узлов)
                 if node_id not in buttons_by_node_id:
                     buttons_by_node_id[node_id] = []
                 buttons_by_node_id[node_id].append(button)
-    
+
     # Находим все MANDATORY узлы, для которых нужны кнопки в UI
     mandatory_nodes = []
     for node in cfg.nodes.values():
         if not node.is_mandatory():
             continue
-        
+
         # Исключаем начальный узел программы
         if node == cfg.begin_node:
             continue
-        
+
         # Опционально исключаем конечный узел программы
         if node == cfg.end_node:
             if not include_end_button:
                 continue
-        
+
         mandatory_nodes.append(node)
-    
+
     # Связываем узлы с кнопками
     for node in mandatory_nodes:
         # Получаем AST node_id из узла CFG
         if not node.metadata or not node.metadata.wrapped_ast:
             continue
-        
+
         ast_node_id = node.metadata.wrapped_ast.ast_node.get("id") if node.metadata.wrapped_ast.ast_node else None
         if ast_node_id is None:
             continue
-        
+
         # Определяем, какие кнопки соответствуют этому узлу
         matched_buttons = []
-        
+
         if node.kind == NodeKind.BEGIN:
             # Для BEGIN узлов ищем кнопки с position="before"
             matched_buttons = buttons_by_node_and_position.get((ast_node_id, "before"), [])
@@ -370,7 +370,7 @@ def build_answer_objects_from_cfg(
             # Для атомарных действий обычно создается одна кнопка (с position="before"),
             # но мы берем все кнопки для данного node_id на случай, если их несколько
             matched_buttons = buttons_by_node_id.get(ast_node_id, [])
-        
+
         if not matched_buttons:
             # Если кнопка не найдена, пропускаем узел
             warnings.warn(
@@ -378,7 +378,7 @@ def build_answer_objects_from_cfg(
                 stacklevel=2
             )
             continue
-        
+
         # Для каждой найденной кнопки создаем answerObject
         for button in matched_buttons:
             button_id = button.get("action_id")
@@ -393,7 +393,7 @@ def build_answer_objects_from_cfg(
                     "isRightCol": False,
                 }
             )
-    
+
     # Проверяем неиспользованные кнопки
     for button in all_buttons:
         button_id = button.get("action_id")
@@ -406,7 +406,7 @@ def build_answer_objects_from_cfg(
                 f"(no corresponding mandatory CFG node found)",
                 stacklevel=2
             )
-    
+
     return ans
 
 

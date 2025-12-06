@@ -65,7 +65,7 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
     trace_acts: list[TraceAct | None] = [
         build_trace_act(cfg, interaction) for interaction in all_interactions(lines)
     ] # все действия трассы для задачи, которые вообще могут понадобиться
-    
+
     if trace_acts:
         # Для самого первого акта трассы (начало алгоритма) задаём флаг для удобства поиска в дальнейшем.
         # Этот акт не имеет кнопки в UI и неявно уже выполнен.

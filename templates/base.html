@@ -308,10 +308,10 @@
         }
 
         function printAnswers() {
-            let str = "Map.of(\n";
+            let str = "List.of(\n";
             for (let i = 0; i < ans.length; i++) {
                 const [key, value] = ans[i];
-                str += `\t${key}, "${value}"`;
+                str += `\tPair.of(${key}, "${value}")`;
                 if (i < ans.length - 1) {
                     str += ",\n";
                 }

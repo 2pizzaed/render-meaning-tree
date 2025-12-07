@@ -1,6 +1,7 @@
 # Define dataclasses matching the constructs structure
 
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Optional, Self
 
@@ -28,7 +29,7 @@ class RoleInListType(SelfValidatedEnum):
 class InterruptionType(SelfValidatedEnum):
     """Interruption types for constraints & effects"""
     NO_INTERRUPTION = "no_interruption"
-    GENERIC_INTERRUPTION = "generic_interruption"  # присутствует прерывание любого вида.
+    GENERIC_INTERRUPTION = "generic_interruption"  # присутствует прерывание любого вида (break, continue, return, exception).
     BREAK = "break"
     CONTINUE = "continue"
     RETURN = "return"
@@ -323,6 +324,93 @@ class ConstructSpec(DictLikeDataclass):
                 for tr in self.transitions
                 if tr.from_ in roles]
 
+    def fill_interruption_edges(self):
+        """Добавляет переходы по прерываниям из всех действий в конец конструкта (END).
+        
+        Для каждого действия (кроме BEGIN и END):
+        - Если нет переходов с прерываниями, добавляет переход на END с GENERIC_INTERRUPTION
+        - Если есть частичное покрытие прерываний, выдает предупреждение в stderr
+        
+        Полное покрытие считается, если есть:
+        - GENERIC_INTERRUPTION (логически включает все виды прерываний), или
+        - Все 4 конкретных типа: BREAK, CONTINUE, RETURN, EXCEPTION
+        """
+        # Конкретные виды прерываний (без GENERIC_INTERRUPTION)
+        specific_interruption_types = {
+            InterruptionType.BREAK,
+            InterruptionType.CONTINUE,
+            InterruptionType.RETURN,
+            InterruptionType.EXCEPTION,
+        }
+        
+        for action in self.actions:
+            # Пропускаем BEGIN и END
+            if action.role in (BEGIN, END):
+                continue
+            
+            # Находим все переходы из этого действия
+            transitions = self.find_transitions_from_action(action)
+            
+            # Собираем виды прерываний, которые уже покрыты переходами
+            covered_interruptions = set()
+            has_any_interruption = False
+            has_generic_interruption = False
+            
+            for tr in transitions:
+                if tr.constraints and tr.constraints.interruption_mode:
+                    interruption_mode = tr.constraints.interruption_mode
+                    # Игнорируем NO_INTERRUPTION, None, ANY
+                    if interruption_mode not in (
+                        InterruptionType.NO_INTERRUPTION,
+                        InterruptionType.ANY,
+                        None
+                    ):
+                        covered_interruptions.add(interruption_mode)
+                        has_any_interruption = True
+                        if interruption_mode == InterruptionType.GENERIC_INTERRUPTION:
+                            has_generic_interruption = True
+            
+            # Если нет переходов с прерываниями - добавляем GENERIC_INTERRUPTION на END
+            if not has_any_interruption:
+                # Проверяем, что такого перехода еще нет
+                existing_interruption_transition = any(
+                    tr.from_ == action.role and
+                    tr.to == END and
+                    tr.constraints and
+                    tr.constraints.interruption_mode == InterruptionType.GENERIC_INTERRUPTION
+                    for tr in self.transitions
+                )
+                
+                if not existing_interruption_transition:
+                    new_transition = TransitionSpec(
+                        from_=action.role,
+                        to=END,
+                        constraints=Constraints(interruption_mode=InterruptionType.GENERIC_INTERRUPTION),
+                        construct=self
+                    )
+                    self.transitions.append(new_transition)
+            
+            # Проверяем полноту покрытия
+            elif has_any_interruption:
+                # Полное покрытие: есть GENERIC_INTERRUPTION или все 4 конкретных типа
+                is_full_coverage = (
+                    has_generic_interruption or
+                    specific_interruption_types.issubset(covered_interruptions)
+                )
+                
+                # Если покрытие неполное - выдаем предупреждение
+                if not is_full_coverage:
+                    covered_specific = covered_interruptions & specific_interruption_types
+                    missing_specific = specific_interruption_types - covered_interruptions
+                    print(
+                        f"Warning: Incomplete interruption specification for action '{action.role}' "
+                        f"in construct '{self.name}'. "
+                        f"Covered: {[i.value for i in covered_interruptions]}, "
+                        f"Missing specific types: {[i.value for i in missing_specific]}. "
+                        f"Consider adding GENERIC_INTERRUPTION or all specific types.",
+                        file=sys.stderr
+                    )
+
     def find_target_action_for_transition(
             self,
             tr: TransitionSpec,
@@ -385,6 +473,9 @@ def load_constructs(path="./constructs.yml", debug=False):
     for cname, cbody in constructs_raw.items():
         # Create ConstructSpec using DictLikeDataclass.make
         cs = ConstructSpec.make({"name": cname, **cbody})
+        
+        # Заполняем переходы по прерываниям после загрузки
+        cs.fill_interruption_edges()
 
         constructs[cname] = cs
 

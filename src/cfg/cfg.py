@@ -102,6 +102,11 @@ class NodeKind(SelfValidatedEnum):
 class IDGen:
     def __init__(self, start: int=1):
         self._c = itertools.count(start)
+        self._start = start
+
+    def reset(self):
+        self._c = itertools.count(self._start)
+
     def next(self, prefix="id"):
         return f"{prefix}_{next(self._c)}"
 

@@ -44,4 +44,4 @@ except OSError as e:
 q = build_question(lang,
                    content,
                    "debug_" + Path(path).name if debug and path != "-" else None)
-print(json.dumps(q, indent=4))
+print(json.dumps(q, ensure_ascii=False))

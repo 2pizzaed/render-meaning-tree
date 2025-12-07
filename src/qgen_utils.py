@@ -13,8 +13,6 @@ from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import (
     TraceScenarioConfig,
-    all_interactions,
-    build_trace_act,
     generate_trace_variants,
 )
 from src.code_renderer import CodeHighlightGenerator
@@ -63,54 +61,55 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
     )
     exporter.set_var("STATE", situation)
 
-    trace_acts: list[TraceAct | None] = [
-        build_trace_act(cfg, interaction) for interaction in all_interactions(lines)
-    ] # все действия трассы для задачи, которые вообще могут понадобиться
+    scenarios = [
+        TraceScenarioConfig(name="default"),
+        # TraceScenarioConfig(name="alt", condition_sequences={...}),
+    ]
 
-    if trace_acts and trace_acts[0]:
-        # Для самого первого акта трассы (начало алгоритма) задаём флаг для удобства поиска в дальнейшем.
-        # Этот акт не имеет кнопки в UI и неявно уже выполнен.
-        trace_acts[0].is_known_correct = True
+    trace_results = generate_trace_variants(cfg, scenarios)
 
-    for trace_act in trace_acts:
-        exporter.add_object(trace_act)
+    # Пока экспортируем только первую сгенерированную трассу,
+    # остальные сценарии можно будет добавить при необходимости.
+    main_trace = trace_results[0].trace_acts
+    # Используем add_trace вместо add_object, чтобы установить связи directlyBeforeOf
+    exporter.add_trace(main_trace)
 
     # Добавляем пути между узлами
     paths = determine_all_paths_between_opaque_nodes(cfg)
     if paths:
         exporter.add_paths(paths)
 
-    return exporter.export_cfg(cfg, None), cfg, trace_acts
+    return exporter.export_cfg(cfg, None), cfg, main_trace
 
-
+@warnings.deprecated("Use alternative methods for generating LOQI variants")
 def build_loqi_variants(
     ast_json: dict[str, Any],
     trace_configs: list[TraceScenarioConfig] | None,
 ) -> tuple[list[LoqiVariant], CFG | None]:
     """Генерирует несколько LOQI-описаний для одного CFG с различными трассами выполнения.
-    
+
     Создаёт несколько вариантов экспорта, где CFG и описание алгоритма остаются одинаковыми,
     но трассы выполнения различаются в зависимости от заданных сценариев. Это позволяет
     создать набор вариантов выполнения программы с разными путями ветвления и количеством
     итераций циклов.
-    
+
     Процесс:
     1. Строит CFG из AST
     2. Генерирует трассы для каждого сценария (TraceScenarioConfig)
     3. Для каждой трассы создаёт отдельный LOQI-файл с одинаковым CFG, но разной трассой
     4. Устанавливает связи directlyBeforeOf между актами трассы
-    
+
     Args:
         ast_json: JSON-представление AST программы
         trace_configs: Список конфигураций сценариев трассировки. Если None, используется
                       один сценарий по умолчанию.
-    
+
     Returns:
         Кортеж (список вариантов LOQI, CFG). Каждый вариант содержит:
         - name: имя сценария
         - loqi: текст LOQI-файла
         - trace_acts: список актов трассы с установленными связями
-    
+
     Example:
         configs = [
             TraceScenarioConfig(name="true_branch", condition_sequences={1: [True]}),
@@ -120,8 +119,6 @@ def build_loqi_variants(
         # variants[0] - LOQI для сценария "true_branch"
         # variants[1] - LOQI для сценария "false_branch"
     """
-    raise DeprecationWarning("This function is deprecated. Use alternative methods for generating LOQI variants.")
-
     constructs = load_constructs("constructs.yml")
     program_root = ASTNodeWrapper(ast_node=ast_json)
     builder = CFGBuilder(constructs)

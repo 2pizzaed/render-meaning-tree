@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
+from src.cfg.cfg import idgen
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
@@ -30,6 +31,7 @@ class TestComplexProblemBuild(unittest.TestCase):
 
         # Перебираем все файлы в task_data
         for file in task_data_path.iterdir():
+            idgen.reset()
             # if file.stem not in ('21', ):
             #     continue
 

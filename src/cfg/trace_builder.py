@@ -17,6 +17,7 @@
 
 import random
 import sys
+import warnings
 from collections import defaultdict, deque
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ class UserInteraction:
     atom: bool
 
 
+@warnings.deprecated("Use trace scenarios and building using cfg instead")
 def all_interactions(lines_data: list[dict[str, list]]) -> Generator[UserInteraction]:
     for line in lines_data:
         for button in line.get("buttons", []):
@@ -480,6 +482,7 @@ def _get_ast_id(node: Node) -> int | None:
     return None
 
 
+@warnings.deprecated("Use trace scenarios and building using cfg instead")
 def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
     for node in cfg.nodes.values():
         if not node.metadata.wrapped_ast or not isinstance(
@@ -516,7 +519,7 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
     print(f"Warning: No matching node found for interaction: {interaction}", file=sys.stderr)
     return None
 
-
+@warnings.deprecated("Use trace scenarios and building using cfg instead")
 def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[TraceAct]:
     trace = []
     for interaction in interactions:

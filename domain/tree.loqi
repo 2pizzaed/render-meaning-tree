@@ -10,7 +10,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     RU_explanation="Во время прерывания происходит только завершение составных действий; ${A} не может начать выполняться.";
                 ];
             };
-            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd and $begin.active) }) out true else {
+            ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd and $begin.is_known_correct) }) out true else {
                 conclude : error [
                     skill = "is_in_compound_construct_ending";
                     RU_explanation="Во время прерывания происходит досрочное завершение уже начавшихся действий; ${A} сейчас не выполняется.";
@@ -128,7 +128,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 conclude : null;
             };
             // Является ли А завершением именно самого близкого по трассе к L0 вызова этой же функции ( который при этом не имел на завершения?)
-            var closerCall : TraceAct = findExtreme func [$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode and $func.active
+            var closerCall : TraceAct = findExtreme func [$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode and $func.is_known_correct
                 ] among TraceAct act {$act->hasASTNode.ast_node == "function_call" and
                     $act->hasCFGNode.kind == "BEGIN"
                     and

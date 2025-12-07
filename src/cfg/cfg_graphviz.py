@@ -21,6 +21,7 @@ import networkx as nx
 from networkx.drawing.nx_pydot import to_pydot
 
 from src.cfg.cfg import CFG
+from src.cfg.abstractions import InterruptionType
 from src.cfg.cfg_visualizer import (
     _build_networkx_graph,
     _get_node_color,
@@ -59,7 +60,35 @@ def visualize_cfg_graphviz(
     for nid in G.nodes:
         H.add_node(nid, label=G.nodes[nid].get('label', str(nid)))
     for src, dst in G.edges:
-        H.add_edge(src, dst, label=G[src][dst].get('label', ''))
+        edge_data = G[src][dst]
+        label = edge_data.get('label', '')
+        # Сохраняем информацию о прерываниях для стилизации рёбер
+        has_interruption = False
+        
+        # Проверяем edge_obj (для обычных рёбер)
+        edge_obj = edge_data.get('edge_obj')
+        if edge_obj and edge_obj.constraints and edge_obj.constraints.interruption_mode:
+            interruption_mode = edge_obj.constraints.interruption_mode
+            # Проверяем, есть ли прерывание (не NO_INTERRUPTION, не None, не ANY)
+            if interruption_mode not in (
+                None,
+                InterruptionType.NO_INTERRUPTION,
+                InterruptionType.ANY
+            ):
+                has_interruption = True
+        
+        # Проверяем path_obj (для прямых путей)
+        path_obj = edge_data.get('path_obj')
+        if path_obj and path_obj.constraints and path_obj.constraints.interruption_mode:
+            interruption_mode = path_obj.constraints.interruption_mode
+            if interruption_mode not in (
+                None,
+                InterruptionType.NO_INTERRUPTION,
+                InterruptionType.ANY
+            ):
+                has_interruption = True
+        
+        H.add_edge(src, dst, label=label, has_interruption=has_interruption)
 
     # 3) Конвертируем «чистый» граф в pydot
     p = to_pydot(H)
@@ -87,11 +116,15 @@ def visualize_cfg_graphviz(
         src = e.get_source().strip('"')
         dst = e.get_destination().strip('"')
         if H.has_edge(src, dst):
-            lbl = H[src][dst].get('label', '')
+            edge_data = H[src][dst]
+            lbl = edge_data.get('label', '')
             if lbl:
                 e.set_label(lbl)
                 e.set_fontsize("9")
                 e.set_color("gray50")
+            # Если есть прерывание - делаем ребро пунктирным
+            if edge_data.get('has_interruption', False):
+                e.set_style("dashed")
 
     # 6) Сохранение PNG
     p.write_png(output_file)

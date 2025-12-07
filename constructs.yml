@@ -497,6 +497,19 @@ try_except_structure:
         interruption_mode: any  # В любом случае
     - from_: finally
       to: END
+      # polyfill interruption exits...
+    - from_: try
+      to: END
+      constraints:
+        interruption_mode: return
+    - from_: try
+      to: END
+      constraints:
+        interruption_mode: break
+    - from_: try
+      to: END
+      constraints:
+        interruption_mode: continue
 
 
 # --------------------------------

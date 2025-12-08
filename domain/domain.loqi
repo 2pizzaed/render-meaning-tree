@@ -343,9 +343,9 @@ class PathInfo {
 	rel hasEffects(Effect) : {* -> *} ;
 	rel hasConstraints(Constraint) : {* -> 1} ;
 
-	rel firstMiddleAction(Node) : {* -> 1} ;
-	rel firstMiddleCondition(Node) : {* -> 1} ;
-	rel firstMiddleFrameChange(Node) : {* -> 1} ;
+	rel hasFirstMiddleAction(Node) : {* -> 1} ;
+	rel hasFirstMiddleCondition(Node) : {* -> 1} ;
+	rel hasFirstMiddleFrameChange(Node) : {* -> 1} ;
 } [
 	RU.localizedName = "Путь по графу CFG и информация о достижимости" ;
 	EN.localizedName = "Path within a CFG & reachability info" ;

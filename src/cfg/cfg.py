@@ -261,13 +261,61 @@ class CFG:
         self.begin_node.metadata.has_corresponding_end = self.end_node
 
     def _add_edge(self, *other_edges: Edge):
-        """ Add edges to the CFG, skipping duplicates """
+        """ Add edges to the CFG, merging edges with same src and dst by combining constraints and effects """
         for e in other_edges:
-            if any(e.compare(e2) for e2 in self.edges):
-                continue
-            self.edges.append(e)
-            # update .cfg for newly added edge
-            e.cfg = self
+            # Проверяем, есть ли уже Edge с такими же src и dst
+            existing_edge = None
+            for existing in self.edges:
+                if existing.src == e.src and existing.dst == e.dst:
+                    existing_edge = existing
+                    break
+            
+            if existing_edge:
+                # Найден Edge с такими же src и dst - объединяем constraints и effects
+                # Объединяем constraints
+                merged_constraints = Constraints.merge(
+                    existing_edge.constraints,
+                    e.constraints
+                )
+                
+                # Объединяем effects (списки effects)
+                existing_effects_list = existing_edge.effects or []
+                new_effects_list = e.effects or []
+                
+                # Пытаемся объединить каждый effect из нового списка с существующими
+                merged_effects_list = list(existing_effects_list)
+                
+                for new_effect in new_effects_list:
+                    merged_with_existing = False
+                    for i, existing_effect in enumerate(merged_effects_list):
+                        merged_effect = Effects.merge(existing_effect, new_effect)
+                        if merged_effect is not None:
+                            # Успешно объединено
+                            merged_effects_list[i] = merged_effect
+                            merged_with_existing = True
+                            break
+                    
+                    if not merged_with_existing:
+                        # Не удалось объединить - добавляем как новый
+                        merged_effects_list.append(new_effect)
+                
+                # Обновляем существующий Edge
+                existing_edge.constraints = merged_constraints
+                existing_edge.effects = merged_effects_list if merged_effects_list else None
+                
+                # Объединяем metadata: если у обоих есть abstract_transition, сохраняем существующий
+                # (в будущем можно расширить для хранения списка transitions)
+                
+                # Edge объединен с существующим
+            else:
+                # Полное совпадение (дубликат) - пропускаем
+                if any(e.compare(e2) for e2 in self.edges):
+                    continue
+                
+                # Новый Edge - добавляем
+                self.edges.append(e)
+                # update .cfg for newly added edge
+                e.cfg = self
 
     def add_node(self,
                  kind: str | NodeKind,

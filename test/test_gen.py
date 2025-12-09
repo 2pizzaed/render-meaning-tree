@@ -29,8 +29,11 @@ class TestComplexProblemBuild(unittest.TestCase):
         # Загружаем конструкции
         constructs = load_constructs("constructs.yml")
 
+        files = task_data_path.iterdir()
+        # files = [task_data_path / "2_functions.py"]
+
         # Перебираем все файлы в task_data
-        for file in task_data_path.iterdir():
+        for file in files:
             idgen.reset()
             # if file.stem not in ('21', ):
             #     continue

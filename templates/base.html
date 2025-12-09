@@ -263,11 +263,9 @@
                                     {% if debug %}
                                     {% if token.node_id %} data-node-id="{{ token.node_id }}" {% endif %} 
                                     data-token-id="{{ token.id }}" 
-                                    data-node-type="{{ token.node_type }}" 
+                                    data-node-type="{{ token.node_type }}"
                                     {% endif %}
-                                >
-                                {{- token.value -}}
-                            </span>
+                                >{{ token.value | replace(" ", "&nbsp;") | safe }}</span>
                                 {%- for button in line.buttons if button.position == 'after' and button.index == token.index -%}
                                 <button class="action-button {{ button.style }} {{ button.type }}"
                                         id="answer_{{button.action_id}}"

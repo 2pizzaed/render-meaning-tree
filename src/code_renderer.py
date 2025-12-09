@@ -510,7 +510,7 @@ class CodeHighlightGenerator:
             token_type = token.get("token_type", "unknown")
             token_id = token.get("id")
 
-            newlines_in_token = token_value == "\n"
+            newlines_in_token = token_value == "\n" or token_value == "\r\n"
 
             if newlines_in_token == 0:
                 # Токен на текущей строке
@@ -599,7 +599,7 @@ class CodeHighlightGenerator:
 
                 # формируем токен
                 tok = {
-                    "value": token_value,
+                    "value": token_value.rstrip("\r\n"),
                     "type": token_type,
                     "css_class": css_class,
                     "node_id": node_start_id,
@@ -618,7 +618,7 @@ class CodeHighlightGenerator:
                 while current_byte_pos < len(self.source) and \
                     self.source[current_byte_pos:current_byte_pos + 1].isspace():
                     current_byte_pos += 1
-            else:
+            if token_value.endswith("\n"):
                 # Добавляем пробелы между токенами перед сохранением строки
                 spaced_tokens = self._add_spacing_between_tokens(
                     current_line_tokens,

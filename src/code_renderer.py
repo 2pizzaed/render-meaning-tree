@@ -506,7 +506,7 @@ class CodeHighlightGenerator:
         total_buttons = 0
 
         for i, token in enumerate(self.token_list):
-            token_value = token.get("value", "")
+            token_value = token.get("value", "").rstrip("\r")
             token_type = token.get("token_type", "unknown")
             token_id = token.get("id")
 
@@ -611,8 +611,15 @@ class CodeHighlightGenerator:
                     tok["color"] = node_colors.get(node_start_id) or node_colors.get(node_end_id)
                 current_line_tokens.append(tok)
 
+
                 # пропустить все пробельные символы и корректно учесть их в текущей байтовой позиции кода
                 current_byte_pos += len(token_value.encode("utf-8"))
+                # особое внимание к \r
+                while (
+                    current_byte_pos < len(self.source)
+                    and self.source[current_byte_pos : current_byte_pos + 1] == b'\r'
+                ):
+                    current_byte_pos += 1
                 if i + 1 < len(self.token_list) and self.token_list[i + 1].get("type", "") == "whitespace":
                     continue
                 while current_byte_pos < len(self.source) and \
@@ -624,7 +631,18 @@ class CodeHighlightGenerator:
                     current_line_tokens,
                     buttons_on_line,
                 )
-                current_byte_pos += 1
+                current_byte_pos += len(token_value.encode("utf-8"))
+                if (
+                    i + 1 < len(self.token_list)
+                    and self.token_list[i + 1].get("type", "") != "whitespace"
+                ):
+                    while (
+                        current_byte_pos < len(self.source)
+                        and self.source[current_byte_pos : current_byte_pos + 1].isspace()
+                    ):
+                        if self.source[current_byte_pos : current_byte_pos + 1] == b'\n':
+                            lines_data.append({"tokens": [], "buttons": []})
+                        current_byte_pos += 1
 
                 lines_data.append({"tokens": spaced_tokens, "buttons": buttons_on_line})
                 current_line_tokens = []

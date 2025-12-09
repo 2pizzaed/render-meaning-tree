@@ -86,7 +86,7 @@ class PathInfo(DictLikeDataclass):
         self.via_edges.append(edge)
 
         self.add_constraints(edge.constraints)
-        self.add_effects(*edge.effects, *target_node.effects)
+        self.add_effects(*edge.effects or (), *target_node.effects or ())
 
         # update all info...
         self.to_ = target_node

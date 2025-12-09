@@ -59,7 +59,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         };
 
         // Нет непрозрачных УСЛОВИЙ, ищем непрозрачные действия
-        var M : Node = find Node m { P2=>firstMiddleAction($m) };
+        var M : Node = find Node m { P2=>hasFirstMiddleAction($m) };
     	// сначала должно быть произойти <M>
     	conclude : error [
             skill="many_actions_in_require_selection";

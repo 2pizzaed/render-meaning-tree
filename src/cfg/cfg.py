@@ -335,10 +335,14 @@ class CFG:
 
         final_metadata = metadata or Metadata()
         # Извлекаем effects из ActionSpec, если есть
+        # Effects применяются только к ATOM и END, не к BEGIN
         final_effects = []
         if final_metadata.abstract_action:
             if final_metadata.abstract_action.effects:
-                final_effects = final_metadata.abstract_action.effects
+                node_kind = NodeKind(kind)
+                # Effects применяются только к ATOM и END, не к BEGIN
+                if node_kind != NodeKind.BEGIN:
+                    final_effects = final_metadata.abstract_action.effects
 
         if not subgraph:
             # Узел может быть служебным началом или концом CFG, или атомом (в середине).
@@ -374,11 +378,17 @@ class CFG:
                               cfg=self)
             self.nodes[nid] = enter_node
 
+            # Для leave_node (END) нужно пересчитать effects, так как он должен получать effects из ActionSpec
+            leave_effects = []
+            if final_metadata.abstract_action and final_metadata.abstract_action.effects:
+                # END узлы должны получать effects
+                leave_effects = final_metadata.abstract_action.effects
+
             kind = NodeKind.END
             nid = idgen.next(kind.value)
             leave_node = Node(id=nid, kind=kind, role_in_construct=role,
                               metadata=final_metadata,
-                              effects=final_effects,
+                              effects=leave_effects,
                               cfg=self)
             self.nodes[nid] = leave_node
 

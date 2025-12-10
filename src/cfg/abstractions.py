@@ -37,6 +37,76 @@ class InterruptionType(SelfValidatedEnum):
     ANY = "any"  # Прерывание может быть, а может и не быть: и то и то разрешено.
     DEFAULT = NO_INTERRUPTION  # alias
 
+    @classmethod
+    def _get_specific_types(cls) -> set['InterruptionType']:
+        """Конкретные типы прерываний (без GENERIC_INTERRUPTION, NO_INTERRUPTION, ANY)"""
+        return {cls.BREAK, cls.CONTINUE, cls.RETURN, cls.EXCEPTION}
+
+    @classmethod
+    def merge(cls, this: Optional['InterruptionType'], other: Optional['InterruptionType']) -> Optional['InterruptionType']:
+        """Объединить два типа прерывания согласно правилам:
+        - Одинаковые значения → возвращается оно же
+        - GENERIC_INTERRUPTION + конкретное → GENERIC_INTERRUPTION
+        - NO_INTERRUPTION + GENERIC_INTERRUPTION → ANY
+        - Два разных конкретных типа → GENERIC_INTERRUPTION
+        - ANY + любое → ANY
+        - None обрабатывается как отсутствие значения
+        """
+        # Если оба None
+        if this is None and other is None:
+            return None
+        
+        # Если один None, возвращаем другой
+        if this is None:
+            return other
+        if other is None:
+            return this
+        
+        # Если одинаковые - возвращаем само значение
+        if this == other:
+            return this
+        
+        # ANY + любое = ANY
+        if this == cls.ANY or other == cls.ANY:
+            return cls.ANY
+        
+        specific_types = cls._get_specific_types()
+        
+        # NO_INTERRUPTION + GENERIC_INTERRUPTION = ANY (в любом порядке)
+        if (this == cls.NO_INTERRUPTION and other == cls.GENERIC_INTERRUPTION) or \
+           (this == cls.GENERIC_INTERRUPTION and other == cls.NO_INTERRUPTION):
+            return cls.ANY
+        
+        # GENERIC_INTERRUPTION + конкретное = GENERIC_INTERRUPTION (в любом порядке)
+        if this == cls.GENERIC_INTERRUPTION and other in specific_types:
+            return cls.GENERIC_INTERRUPTION
+        if other == cls.GENERIC_INTERRUPTION and this in specific_types:
+            return cls.GENERIC_INTERRUPTION
+        
+        # Два разных конкретных типа → GENERIC_INTERRUPTION
+        if this in specific_types and other in specific_types:
+            return cls.GENERIC_INTERRUPTION
+        
+        # NO_INTERRUPTION + конкретное → возвращаем ANY
+        # По логике: если есть NO_INTERRUPTION и конкретное, то это означает,
+        # что прерывание может быть (конкретное) или не быть (NO_INTERRUPTION) = ANY
+        if (this == cls.NO_INTERRUPTION and other in specific_types) or \
+           (other == cls.NO_INTERRUPTION and this in specific_types):
+            return cls.ANY
+        
+        # Если не подошло ни одно правило, возвращаем более общее значение
+        # (приоритет: ANY > GENERIC_INTERRUPTION > конкретные > NO_INTERRUPTION)
+        if this == cls.GENERIC_INTERRUPTION:
+            return this
+        if other == cls.GENERIC_INTERRUPTION:
+            return other
+        if this in specific_types:
+            return this
+        if other in specific_types:
+            return other
+        
+        return this  # fallback
+
 
 class CallStackAction(SelfValidatedEnum):
     """Call stack actions for effects"""
@@ -199,7 +269,8 @@ class Constraints(DictLikeDataclass):
     @classmethod
     def merge(cls, this: Self, other: Self) -> Self:
         """ Объединить ограничения из последовательных узлов/рёбер, заполняя незаполненное, если указано.
-         В случае "конфликта" -- в обоих заполнено -- берётся значение из левого (значение `any` имеет низший приоритет).
+         В случае "конфликта" -- в обоих заполнено -- используется специальная логика слияния для interruption_mode,
+         для остальных полей берётся значение из левого (значение `any` имеет низший приоритет).
          """
         if this is not None and not isinstance(this, cls):
             raise TypeError(f"Expected {cls.__name__} instance for 'this', got {type(this)!r}")
@@ -213,12 +284,20 @@ class Constraints(DictLikeDataclass):
 
         result = cls()
         for name in this.keys():
-            existing_value = this[name] if other is not None else None
+            existing_value = this[name]
+            new_value = other[name]
+            
+            # Специальная логика для interruption_mode
+            if name == 'interruption_mode':
+                merged_interruption = InterruptionType.merge(existing_value, new_value)
+                result[name] = merged_interruption
+                continue
+            
+            # Для остальных полей - стандартная логика
             if existing_value is not None:  ###  and existing_value != 'any':
                 result[name] = existing_value
                 continue
 
-            new_value = other[name] if this is not None else None
             if new_value is not None and result[name] == 'any':
                 # rewriting weak `any` value with any  value `new_value` is.
                 result[name] = new_value

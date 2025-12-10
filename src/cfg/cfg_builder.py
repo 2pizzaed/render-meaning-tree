@@ -28,6 +28,7 @@ _seen_unknown_construct_types: set[str | None] = set()
 class CFGBuilder:
     constructs: dict[str, ConstructSpec]
     func_cfgs: dict[str, CFG]
+    collect_global_functions_only: bool = False
 
     def __init__(self, constructs_map: dict[str, ConstructSpec], collect_global_functions_only: bool = False):
         self.constructs = constructs_map
@@ -436,13 +437,15 @@ class CFGBuilder:
         body_construct = self.find_construct_for_astnode(body_wast)
         self.make_cfg_for_construct(body_construct, body_wast, cfg=func_cfg)
 
-        # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
-        cfg = self._create_simple_cfg(f"function_{func_name}_definition_registered")
+        if 0:
+            # not used so far.
+            # Возвращаем пустой CFG (чтобы определение не попало в основной поток)
+            cfg = self._create_simple_cfg(f"function_{func_name}_definition_registered")
 
-        print(f'INFO: made CFG for **DEF** of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'), 
-              file=sys.stderr)
+            print(f'INFO: made CFG for **DEF** of func `{func_name}`', 'id: ', wrapped_ast.ast_node.get('id'),
+                  file=sys.stderr)
 
-        return cfg
+            return cfg
 
     def _make_cfg_for_function_call(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
         """Обрабатывает вызов функции: связывает с CFG функции из func_cfgs."""
@@ -547,8 +550,9 @@ class CFGBuilder:
         Returns:
             CFG for a compound node or None for an atom.
         """
+        is_program_root = isinstance(wrapped_ast.ast_node, dict) and wrapped_ast.ast_node.get('type') == 'program_entry_point'
         # Предварительный сбор определений функций, если это корневой узел программы
-        if isinstance(wrapped_ast.ast_node, dict) and wrapped_ast.ast_node.get('type') == 'program_entry_point':
+        if is_program_root:
             self._collect_function_definitions(wrapped_ast.ast_node)
 
 
@@ -569,6 +573,12 @@ class CFGBuilder:
 
         # Обычные узлы
         cfg = self.make_cfg_for_construct(construct, wrapped_ast, parent_action=parent_action)
+
+        # if is_program_root:
+        #     # добавить все определения функций
+        #     for func_cfg in self.func_cfgs.values():
+        #         cfg.merge(func_cfg)
+                
         return cfg
 
 

@@ -261,8 +261,8 @@ class Behaviour(DictLikeDataclass):
 @dataclass
 class Constraints(DictLikeDataclass):
     """Constraints for transitions"""
-    condition_value: Optional[OptionalBoolValue] = OptionalBoolValue.ANY
-    interruption_mode: Optional[InterruptionType] = InterruptionType.ANY
+    condition_value: Optional[OptionalBoolValue] = OptionalBoolValue.DEFAULT
+    interruption_mode: Optional[InterruptionType] = InterruptionType.DEFAULT
     # # Additional constraints can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
@@ -277,10 +277,11 @@ class Constraints(DictLikeDataclass):
         if other is not None and not isinstance(other, cls):
             raise TypeError(f"Expected {cls.__name__} instance for 'other', got {type(other)!r}")
 
+        # Конвертируем пустоту в осмысленное значение по умолчанию
         if this is None:
-            return other if other is not None else cls()
+            this = cls()
         if other is None:
-            return this
+            other = cls()
 
         result = cls()
         for name in this.keys():

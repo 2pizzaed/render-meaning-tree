@@ -8,14 +8,15 @@ class Expr:
     left: 'Expr | None' = None
     right: 'Expr | None' = None
 
-    def eval(self) -> int:
-        if self.value is not None:
-            return self.value
-        if self.op == "+" and self.left and self.right:
-            return self.left.eval() + self.right.eval()
-        if self.op == "*" and self.left and self.right:
-            return self.left.eval() * self.right.eval()
-        return 0
+
+def eval(expr: Expr) -> int:
+    if expr.value is not None:
+        return expr.value
+    if expr.op == "+" and expr.left and expr.right:
+        return eval(expr.left) + eval(expr.right)
+    if expr.op == "*" and expr.left and expr.right:
+        return eval(expr.left) * eval(expr.right)
+    return 0
 
 
 # 2 + 9 * (3 + 5)
@@ -33,4 +34,4 @@ ex = Expr(
     ),
 )
 
-print(ex.eval())
+print(eval(ex))

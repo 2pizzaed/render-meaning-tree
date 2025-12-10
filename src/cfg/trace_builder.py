@@ -22,8 +22,8 @@ from collections import defaultdict, deque
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from src.cfg.abstractions import OptionalBoolValue
-from src.cfg.cfg import CFG, Node, NodeKind, TraceAct
+from src.cfg.abstractions import InterruptionType, OptionalBoolValue
+from src.cfg.cfg import CFG, Edge, Node, NodeKind, TraceAct
 from src.code_renderer import ButtonType
 
 
@@ -273,6 +273,7 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
     current = cfg.begin_node
     steps = 0
     terminated_by_limit = False
+    interruption_state = InterruptionType.NO_INTERRUPTION
 
     while current and steps < scenario.max_steps:
         steps += 1
@@ -288,13 +289,21 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
         if current == cfg.end_node:
             break
 
-        next_node, condition_value = _choose_next_node(
+        # Применяем эффекты interruption_start из текущего узла
+        interruption_state = _apply_node_effects(current, interruption_state)
+
+        next_node, condition_value, chosen_edge = _choose_next_node(
             cfg,
             current,
             visit_counts[current.id],
             scenario,
             provider,
+            interruption_state,
         )
+
+        # Применяем эффекты interruption_stop из выбранного ребра
+        if chosen_edge:
+            interruption_state = _apply_edge_effects(chosen_edge, interruption_state)
 
         if current.is_mandatory() and record_index < len(visited_nodes):
             visited_nodes[record_index].condition_value = (
@@ -319,12 +328,14 @@ def _choose_next_node(
     visit_count: int,
     scenario: TraceScenarioConfig,
     provider: _ConditionDecisionProvider,
-) -> tuple[Node | None, OptionalBoolValue | None]:
+    interruption_state: InterruptionType,
+) -> tuple[Node | None, OptionalBoolValue | None, Edge | None]:
     """Выбирает следующий узел для перехода из текущего узла.
 
     Логика выбора:
     - Для узлов-условий: запрашивает значение из провайдера и выбирает соответствующее ребро
     - Для обычных узлов: выбирает первое доступное ребро
+    - Фильтрует рёбра по interruption_mode в constraints с учётом текущего состояния прерывания
 
     Важная особенность - защита от бесконечных циклов:
     Если узел посещён (max_visits_per_node - 1) раз и текущее решение True
@@ -337,36 +348,45 @@ def _choose_next_node(
         visit_count: Количество уже выполненных посещений этого узла
         scenario: Конфигурация сценария
         provider: Провайдер решений для условий
+        interruption_state: Текущее состояние прерывания
 
     Returns:
-        Кортеж (следующий_узел, значение_условия). Значение условия None для не-условий.
+        Кортеж (следующий_узел, значение_условия, выбранное_ребро).
+        Значение условия None для не-условий.
     """
     edges = cfg.edges_from_node(node)
     if not edges:
-        return None, None
+        return None, None, None
+
+    # Фильтруем рёбра по состоянию прерывания
+    available_edges = _filter_edges_by_interruption(edges, interruption_state)
+    
+    # Если после фильтрации не осталось доступных рёбер, возвращаем None
+    if not available_edges:
+        return None, None, None
 
     if node.is_condition():
         decision = provider.request(node)
-        chosen_edge = _edge_for_condition(edges, decision)
+        chosen_edge = _edge_for_condition(available_edges, decision)
 
         # Защита от бесконечных циклов: если приближаемся к лимиту и решение True,
         # переключаемся на False, чтобы выйти из цикла
         if visit_count >= scenario.max_visits_per_node - 1 and decision == OptionalBoolValue.true:
-            alternate_edge = _edge_for_condition(edges, OptionalBoolValue.false)
+            alternate_edge = _edge_for_condition(available_edges, OptionalBoolValue.false)
             if alternate_edge:
                 decision = OptionalBoolValue.false
                 chosen_edge = alternate_edge
 
         if chosen_edge is None:
             # fallback to any available edge
-            chosen_edge = edges[0]
+            chosen_edge = available_edges[0]
 
         provider.commit(node, decision)
-        return cfg.nodes.get(chosen_edge.dst), decision
+        return cfg.nodes.get(chosen_edge.dst), decision, chosen_edge
 
-    # Некасательные узлы: выбираем первое ребро
-    chosen = edges[0]
-    return cfg.nodes.get(chosen.dst), None
+    # Некасательные узлы: выбираем первое доступное ребро
+    chosen = available_edges[0]
+    return cfg.nodes.get(chosen.dst), None, chosen
 
 
 def _edge_for_condition(edges: list, decision: OptionalBoolValue | None):
@@ -480,6 +500,121 @@ def _get_ast_id(node: Node) -> int | None:
     if node.metadata.wrapped_ast and isinstance(node.metadata.wrapped_ast.ast_node, dict):
         return node.metadata.wrapped_ast.ast_node.get("id")
     return None
+
+
+def _apply_node_effects(node: Node, current_state: InterruptionType) -> InterruptionType:
+    """Применяет эффекты interruption_start из узла.
+
+    Проверяет все эффекты узла и применяет interruption_start, если он задан.
+    Если interruption_start не равен NO_INTERRUPTION, он заменяет текущее состояние.
+
+    Args:
+        node: Узел CFG с эффектами
+        current_state: Текущее состояние прерывания
+
+    Returns:
+        Новое состояние прерывания после применения эффектов узла
+    """
+    if not node.effects:
+        return current_state
+
+    for effect in node.effects:
+        if effect.interruption_start and effect.interruption_start != InterruptionType.NO_INTERRUPTION:
+            return effect.interruption_start
+
+    return current_state
+
+
+def _apply_edge_effects(edge: Edge, current_state: InterruptionType) -> InterruptionType:
+    """Применяет эффекты interruption_stop из ребра.
+
+    Проверяет все эффекты ребра и применяет interruption_stop, если он задан.
+    Если interruption_stop соответствует текущему состоянию прерывания,
+    состояние сбрасывается в NO_INTERRUPTION.
+
+    Args:
+        edge: Ребро CFG с эффектами
+        current_state: Текущее состояние прерывания
+
+    Returns:
+        Новое состояние прерывания после применения эффектов ребра
+    """
+    if not edge.effects:
+        return current_state
+
+    for effect in edge.effects:
+        if effect.interruption_stop:
+            # Если interruption_stop соответствует текущему состоянию, сбрасываем его
+            if effect.interruption_stop == current_state:
+                return InterruptionType.NO_INTERRUPTION
+            # Если interruption_stop = GENERIC_INTERRUPTION, сбрасываем любое конкретное прерывание
+            if (
+                effect.interruption_stop == InterruptionType.GENERIC_INTERRUPTION
+                and current_state != InterruptionType.NO_INTERRUPTION
+            ):
+                return InterruptionType.NO_INTERRUPTION
+
+    return current_state
+
+
+def _filter_edges_by_interruption(
+    edges: list[Edge], interruption_state: InterruptionType
+) -> list[Edge]:
+    """Фильтрует рёбра по interruption_mode в constraints.
+
+    Логика фильтрации:
+    - interruption_mode = ANY → ребро доступно всегда
+    - interruption_mode = NO_INTERRUPTION → доступно только при состоянии NO_INTERRUPTION
+    - interruption_mode = конкретное_прерывание → доступно только при соответствующем состоянии
+    - interruption_mode = None (отсутствие constraints) → подразумевает NO_INTERRUPTION,
+      доступно только при состоянии NO_INTERRUPTION
+
+    Когда текущее состояние = NO_INTERRUPTION:
+    Доступны только рёбра с interruption_mode = ANY, NO_INTERRUPTION или None.
+
+    Args:
+        edges: Список рёбер для фильтрации
+        interruption_state: Текущее состояние прерывания
+
+    Returns:
+        Отфильтрованный список рёбер, доступных при текущем состоянии прерывания
+    """
+    filtered = []
+
+    for edge in edges:
+        # Если у ребра нет constraints, interruption_mode подразумевает NO_INTERRUPTION
+        if edge.constraints is None or edge.constraints.interruption_mode is None:
+            # Доступно только при NO_INTERRUPTION
+            if interruption_state == InterruptionType.NO_INTERRUPTION:
+                filtered.append(edge)
+            continue
+
+        interruption_mode = edge.constraints.interruption_mode
+
+        # ANY доступно всегда
+        if interruption_mode == InterruptionType.ANY:
+            filtered.append(edge)
+            continue
+
+        # NO_INTERRUPTION доступно только при NO_INTERRUPTION
+        if interruption_mode == InterruptionType.NO_INTERRUPTION:
+            if interruption_state == InterruptionType.NO_INTERRUPTION:
+                filtered.append(edge)
+            continue
+
+        # Конкретное прерывание доступно только при соответствующем состоянии
+        if interruption_mode == interruption_state:
+            filtered.append(edge)
+            continue
+
+        # GENERIC_INTERRUPTION доступно при любом конкретном прерывании
+        if (
+            interruption_mode == InterruptionType.GENERIC_INTERRUPTION
+            and interruption_state != InterruptionType.NO_INTERRUPTION
+        ):
+            filtered.append(edge)
+
+    return filtered
 
 
 @warnings.deprecated("Use trace scenarios and building using cfg instead")

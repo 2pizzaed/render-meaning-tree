@@ -151,6 +151,7 @@ class CodeHighlightGenerator:
         node_token_pos: Literal["start", "middle", "end"],
         node_id: int | None,
         button_position: Literal["start", "end"],  # 'start' или 'end'
+        next_token: dict[str, Any] | None
     ) -> list[tuple[ButtonType | None, ButtonStyle]]:
         """Определить, нужна ли интерактивная кнопка в данной позиции токенов и если нужна, то какая
 
@@ -182,6 +183,7 @@ class CodeHighlightGenerator:
         is_simple_statement = self.analyzer.is_simple_statement(node_id)
         # is_compound_statement = self.analyzer.is_compound_statement(node_id)
         is_nested_call = self.analyzer.is_nested_call(node_id, False)
+        is_function_call = self.analyzer.is_function_call(node_id)
         is_header = self.analyzer.is_loop_or_condition_header(node_id)
         for_component = self.analyzer.determine_for_loop_component(node_id)
 
@@ -207,14 +209,14 @@ class CodeHighlightGenerator:
             possible_buttons.append(("question", "outlined"))
 
         # Вложенный вызов функции
-        if is_nested_call:
+        if is_nested_call or is_function_call:
             if button_position == "start" and node_token_pos == "start":
                 possible_buttons.append(("step-into", "filled"))
             if button_position == "end" and node_token_pos == "end":
                 possible_buttons.append(("step-out", "filled"))
 
         # Простой statement
-        if is_simple_statement and button_position == "start":
+        if is_simple_statement and button_position == "start" and node_token_pos == "end":
             possible_buttons.append(("play", "filled"))
 
         # Сложные statements, но не блоки и ветви условий - решено удалить
@@ -411,6 +413,7 @@ class CodeHighlightGenerator:
     def _add_buttons_if_needed(
         self,
         token,
+        next_token,
         token_pos,
         node_token_pos,
         node_id,
@@ -431,7 +434,8 @@ class CodeHighlightGenerator:
         # Определяем тип кнопки
         pos_for_button = node_token_pos if node_token_pos != "single" else position
         buttons = self._determine_button_type(
-            token, pos_for_button, node_id, position
+            token, pos_for_button, node_id, position,
+            next_token
         )
 
         for button_type, button_style in buttons:
@@ -509,6 +513,9 @@ class CodeHighlightGenerator:
             token_value = token.get("value", "").rstrip("\r")
             token_type = token.get("token_type", "unknown")
             token_id = token.get("id")
+            next_token = None
+            if i + 1 < len(self.token_list):
+                next_token = self.token_list[i + 1]
 
             newlines_in_token = token_value == "\n" or token_value == "\r\n"
 
@@ -551,6 +558,27 @@ class CodeHighlightGenerator:
                     node_end_id, current_byte_pos + len(token_value.encode("utf-8")) - 1, token
                 )
 
+                # Патч случаев, когда нам нужно изменить стартовый узел на его детей
+                # (например, expression_statement на вложенный function_call)
+                # нужно для корректного отображения кнопок захода и выхода из функции
+
+                if (
+                    node_end_id
+                    and self.analyzer
+                    and not self.analyzer.is_function_call(node_end_id)
+                ):
+                    nodes = self.analyzer.find_children(node_end_id, 2)
+                    for child in nodes:
+                        child_id = child.get("id")
+                        child_pos = self.analyzer.source_map.get("map", {}).get(str(child_id), [])
+                        matches_pos = child_pos and (child_pos[0] + child_pos[1]) == (
+                            current_byte_pos  + len(token_value.encode("utf-8"))
+                        )
+                        if child_id and self.analyzer.is_function_call(child_id) and matches_pos:
+                            node_end_id = child_id
+                            node_end_type = self.analyzer.get_node_type_by_id(node_end_id)
+                            break
+
                 # Обработка псевдо-токенов
                 if token.get("is_pseudo") and token.get("type") == "whitespace":
                     css_class = "token-whitespace"
@@ -572,6 +600,7 @@ class CodeHighlightGenerator:
                 # Проверяем, нужна ли кнопка в начале токена
                 total_buttons = self._add_buttons_if_needed(
                     token,
+                    next_token,
                     token_pos,
                     node_token_pos,
                     node_start_id,
@@ -586,6 +615,7 @@ class CodeHighlightGenerator:
                 # Проверяем, нужна ли кнопка в конце токена
                 total_buttons = self._add_buttons_if_needed(
                     token,
+                    next_token,
                     token_pos,
                     node_token_end_pos,
                     node_end_id,

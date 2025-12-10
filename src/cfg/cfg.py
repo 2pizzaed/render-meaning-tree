@@ -387,7 +387,7 @@ class CFG:
         # update .cfg for newly added nodes
         for node in subgraph.nodes.values():
             node.cfg = self
-            node.role_in_construct = node.role_in_construct and ('+' + node.role_in_construct)  # change to prevent conflicts... ?
+            node.role_in_construct = node.role_in_construct and ('.' + node.role_in_construct)  # change to prevent conflicts... ?
 
     def connect(self, src: Node | str, dst: Node | str, constraints=None, metadata: Metadata=None):
         src_id = src.id if isinstance(src, Node) else src

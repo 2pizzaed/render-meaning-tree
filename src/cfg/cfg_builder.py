@@ -203,8 +203,7 @@ class CFGBuilder:
         # Проверяем, не была ли функция уже обработана
         if func_name in self.func_cfgs:
             raise NotImplementedError(f"Multiple definitions of function '{func_name}' encountered in input AST! This is not supported yet, aborting.")
-            return
-        
+
         # Создаем CFG для функции
         wrapped_ast = ASTNodeWrapper(ast_node=func_node)
         construct = self.find_construct_for_astnode(wrapped_ast)
@@ -349,8 +348,6 @@ class CFGBuilder:
                 call_cfg = self._make_cfg_for_function_call(call_construct, call_wrapped_ast)
             else:
                 raise ValueError(call_node)
-                # Создаем простой CFG для вызова
-                call_cfg = self._create_simple_function_call_cfg(func_name, call_wrapped_ast)
             
             if call_cfg:
                 # Добавляем содержимое CFG вызова функции в основной CFG.

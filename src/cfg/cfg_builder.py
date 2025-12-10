@@ -29,11 +29,13 @@ class CFGBuilder:
     constructs: dict[str, ConstructSpec]
     func_cfgs: dict[str, CFG]
     collect_global_functions_only: bool = False
+    pending_function_calls: list[tuple[CFG, str, ConstructSpec, ASTNodeWrapper]]
 
     def __init__(self, constructs_map: dict[str, ConstructSpec], collect_global_functions_only: bool = False):
         self.constructs = constructs_map
         self.func_cfgs = {}
         self.collect_global_functions_only = collect_global_functions_only
+        self.pending_function_calls = []
 
     def _determine_node_appearance(
         self,
@@ -298,7 +300,8 @@ class CFGBuilder:
 
     def _inject_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict], parent_action: ActionSpec | None = None, wrapped_ast: ASTNodeWrapper | None = None, construct: ConstructSpec | None = None) -> CFG:
         """
-        Обрабатывает найденные вызовы функций и встраивает их в CFG.
+        Обрабатывает найденные вызовы функций и создает цепочку обёрток вызовов.
+        Связывание с телами функций будет выполнено позже через _link_function_calls.
         
         Args:
             base_cfg: Базовый (пустой) CFG для встраивания вызовов
@@ -308,7 +311,7 @@ class CFGBuilder:
             construct: ConstructSpec для действия
 
         Returns:
-            CFG с встроенными вызовами функций
+            CFG с обёртками вызовов функций (без встроенных тел)
         """
         if not function_calls:
             return base_cfg
@@ -323,7 +326,7 @@ class CFGBuilder:
                 base_cfg.begin_node.metadata.wrapped_ast = wrapped_ast
                 base_cfg.end_node.metadata.wrapped_ast = wrapped_ast
         
-        # Создаем цепочку вызовов функций
+        # Создаем цепочку обёрток вызовов функций
         current_node = base_cfg.begin_node
         
         for call_node in function_calls:
@@ -331,29 +334,20 @@ class CFGBuilder:
             if not func_name:
                 continue
             
-            # Проверяем наличие определения функции
-            func_cfg = self.func_cfgs.get(func_name)
-            if not func_cfg:
-                print(
-                    f'Warning: function "{func_name}" not found in func_cfgs, skipping call',
-                    file=sys.stderr,
-                )
-                continue
-            
-            # Создаем CFG для вызова функции
+            # Создаем CFG для вызова функции (только обёртку)
             call_wrapped_ast = ASTNodeWrapper(ast_node=call_node)
             call_construct = self.find_construct_for_astnode(call_wrapped_ast)
             
             if call_construct and call_construct.name == FUNC_CALL_CONSTRUCT:
-                # Используем существующий механизм обработки вызовов
+                # Используем существующий механизм обработки вызовов (создаёт только обёртку)
                 call_cfg = self._make_cfg_for_function_call(call_construct, call_wrapped_ast)
             else:
                 raise ValueError(call_node)
             
             if call_cfg:
-                # Добавляем содержимое CFG вызова функции в основной CFG.
+                # Добавляем содержимое CFG вызова функции в основной CFG (обёртка с BEGIN/END)
                 base_cfg.merge(call_cfg)
-                # Встраиваем CFG вызова в цепочку
+                # Создаем цепочку обёрток вызовов
                 base_cfg.connect(current_node, call_cfg.begin_node)
                 current_node = call_cfg.end_node
         
@@ -376,6 +370,60 @@ class CFGBuilder:
             )
         
         return base_cfg
+
+    def _link_function_calls(self) -> None:
+        """
+        Связывает незавершенные вызовы функций с готовыми CFG функций.
+        Вызывается после того, как все функции построены.
+        """
+        for call_cfg, func_name, construct, wrapped_ast in self.pending_function_calls:
+            # Ищем CFG функции в func_cfgs
+            func_cfg = self.func_cfgs.get(func_name)
+            if not func_cfg:
+                print(
+                    f'Warning: function "{func_name}" not found in func_cfgs, skipping call linking',
+                    file=sys.stderr,
+                )
+                continue
+            
+            # После merge узлы из call_cfg попадают в родительский CFG
+            # Используем CFG, который содержит узлы (после merge это родительский CFG)
+            target_cfg = call_cfg.begin_node.cfg
+            
+            # Узлы функции могут уже быть в target_cfg (если это рекурсивный вызов внутри той же функции)
+            # или они будут добавлены через merge func_cfg в основной CFG
+            # В любом случае, нужно убедиться, что узлы функции доступны в target_cfg
+            func_node_pair = func_cfg.begin_node, func_cfg.end_node
+            
+            # Проверяем, находятся ли узлы функции уже в target_cfg
+            if func_node_pair[0].id not in target_cfg.nodes:
+                target_cfg.add_existing_node(*func_node_pair)
+            
+            # Создаем рёбра, связывая с абстрактными переходами с эффектами call_stack
+            # BEGIN -> func (с эффектом add_frame)
+            begin_to_func_transition = construct.find_transitions_from_action(construct.role2action[BEGIN])[0]
+            target_cfg.connect(call_cfg.begin_node, func_node_pair[0], metadata=Metadata(
+                abstract_transition=begin_to_func_transition,
+            ))
+            
+            # func -> END (с эффектом drop_frame)
+            func_to_end_transition = construct.find_transitions_from_action(construct.role2action['func'])[0]
+            target_cfg.connect(func_node_pair[1], call_cfg.end_node, metadata=Metadata(
+                abstract_transition=func_to_end_transition,
+            ))
+            
+            # Увеличиваем счётчик вызовов
+            func_cfg.begin_node.metadata.call_count += 1
+            
+            print(
+                f"INFO: linked call of func `{func_name}` to its CFG (target_cfg={target_cfg.name}, call_cfg={call_cfg.name})",
+                "id: ",
+                wrapped_ast.ast_node.get("id"),
+                file=sys.stderr,
+            )
+        
+        # Очищаем список незавершенных вызовов после связывания
+        self.pending_function_calls.clear()
 
     def _create_simple_function_call_cfg(self, func_name: str, wrapped_ast: ASTNodeWrapper) -> CFG:
         """
@@ -448,7 +496,8 @@ class CFGBuilder:
             return cfg
 
     def _make_cfg_for_function_call(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
-        """Обрабатывает вызов функции: связывает с CFG функции из func_cfgs."""
+        """Обрабатывает вызов функции: создает только обёртку (BEGIN/END) без встраивания тела функции.
+        Связывание с телом функции будет выполнено позже через _link_function_calls."""
         # Извлекаем имя функции
         func_name = self._extract_function_name(wrapped_ast, construct)
         if not func_name:
@@ -459,18 +508,7 @@ class CFGBuilder:
             # Обрабатываем как обычный compound без call stack эффектов
             return self.make_cfg_for_construct(construct, wrapped_ast)
         
-        # Ищем CFG функции в func_cfgs
-        func_cfg = self.func_cfgs.get(func_name)
-        if not func_cfg:
-            print(
-                f'Warning: function "{func_name}" not found in func_cfgs, treating as regular compound',
-                file=sys.stderr,
-            )
-            # Обрабатываем как обычный compound, без эффектов call_stack
-            return self.make_cfg_for_construct(construct, wrapped_ast)
-        
-        # Создаем CFG вызова, встраивая CFG функции
-        # Создаем CFG через конструкт, но заменяем тело функции на сохраненный CFG
+        # Создаем CFG вызова - только обёртку с BEGIN/END узлами
         call_cfg = CFG("function_call", construct=construct)
         
         # Добавляем метаданные: узел AST (abstract_action уже установлен через construct)
@@ -490,48 +528,13 @@ class CFGBuilder:
             action=construct.role2action.get(END),
         )
 
-        if False and func_cfg.begin_node.metadata.call_count == 0:
-            # Первый раз используем функцию --- берём весь подграф.
-            # Встраиваем CFG функции как subgraph
-            func_node_pair = call_cfg.add_node(
-                kind=NodeKind.BEGIN,
-                role='func',
-                # metadata=Metadata(
-                #     abstract_action=construct.role2action['func'],
-                #     wrapped_ast=wrapped_ast,
-                #     primary=True,
-                # ),
-                subgraph=func_cfg
-            )
-            self._apply_node_appearance(
-                func_node_pair,
-                construct=construct,
-                action=construct.role2action.get('func'),
-            )
-        else:
-            # В каком-либо месте CFG эта функция уже встроена / будет встроена через другой вызов.
-            # Не встраиваем подграф функции повторно, просто ссылаемся на его концы (во избежание дублирования)
-            func_node_pair = func_cfg.begin_node, func_cfg.end_node
-            call_cfg.add_existing_node(*func_node_pair)
-        
-        # Создаем рёбра, связывая с абстрактными переходами с эффектами call_stack
-        # BEGIN -> func (с эффектом add_frame)
-        begin_to_func_transition = construct.find_transitions_from_action(construct.role2action[BEGIN])[0]
-        call_cfg.connect(call_cfg.begin_node, func_node_pair[0], metadata=Metadata(
-            abstract_transition=begin_to_func_transition,
-        ))
-        
-        # func -> END (с эффектом drop_frame)
-        func_to_end_transition = construct.find_transitions_from_action(construct.role2action['func'])[0]
-        call_cfg.connect(func_node_pair[1], call_cfg.end_node, metadata=Metadata(
-            abstract_transition=func_to_end_transition,
-        ))
-        
-        # Увеличиваем счётчик вызовов
-        func_cfg.begin_node.metadata.call_count += 1
+        # Сохраняем информацию о вызове для последующего связывания
+        # Сохраняем все вызовы, даже если функция ещё не построена (например, при рекурсивных вызовах)
+        # Проверка наличия функции будет выполнена позже в _link_function_calls
+        self.pending_function_calls.append((call_cfg, func_name, construct, wrapped_ast))
 
         print(
-            f"INFO: made CFG for call of func `{func_name}`",
+            f"INFO: made CFG wrapper for call of func `{func_name}` (will be linked later)",
             "id: ",
             wrapped_ast.ast_node.get("id"),
             file=sys.stderr,
@@ -581,10 +584,13 @@ class CFGBuilder:
         # Обычные узлы
         cfg = self.make_cfg_for_construct(construct, wrapped_ast, parent_action=parent_action)
 
-        # if is_program_root:
-        #     # добавить все определения функций
-        #     for func_cfg in self.func_cfgs.values():
-        #         cfg.merge(func_cfg)
+        if is_program_root:
+            # добавить все определения функций
+            for func_cfg in self.func_cfgs.values():
+                cfg.merge(func_cfg)
+            
+            # Связать все вызовы функций с готовыми CFG функций
+            self._link_function_calls()
                 
         return cfg
 

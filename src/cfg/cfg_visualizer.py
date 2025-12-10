@@ -78,8 +78,8 @@ def _create_edge_label(edge: Edge) -> str:
         if mode == "exception":
             labels.append("exc")
         elif mode == "any":
-            pass
-            # labels.append("any")
+            # pass
+            labels.append("any")
         else:
             labels.append(str(mode)[:3])  # Обрезаем до 3 символов
 

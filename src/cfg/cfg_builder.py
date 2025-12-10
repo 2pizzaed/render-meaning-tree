@@ -489,23 +489,30 @@ class CFGBuilder:
             construct=construct,
             action=construct.role2action.get(END),
         )
-        
-        # Встраиваем CFG функции как subgraph
-        func_node_pair = call_cfg.add_node(
-            kind=NodeKind.BEGIN,
-            role='func',
-            # metadata=Metadata(
-            #     abstract_action=construct.role2action['func'],
-            #     wrapped_ast=wrapped_ast,
-            #     primary=True,
-            # ),
-            subgraph=func_cfg
-        )
-        self._apply_node_appearance(
-            func_node_pair,
-            construct=construct,
-            action=construct.role2action.get('func'),
-        )
+
+        if False and func_cfg.begin_node.metadata.call_count == 0:
+            # Первый раз используем функцию --- берём весь подграф.
+            # Встраиваем CFG функции как subgraph
+            func_node_pair = call_cfg.add_node(
+                kind=NodeKind.BEGIN,
+                role='func',
+                # metadata=Metadata(
+                #     abstract_action=construct.role2action['func'],
+                #     wrapped_ast=wrapped_ast,
+                #     primary=True,
+                # ),
+                subgraph=func_cfg
+            )
+            self._apply_node_appearance(
+                func_node_pair,
+                construct=construct,
+                action=construct.role2action.get('func'),
+            )
+        else:
+            # В каком-либо месте CFG эта функция уже встроена / будет встроена через другой вызов.
+            # Не встраиваем подграф функции повторно, просто ссылаемся на его концы (во избежание дублирования)
+            func_node_pair = func_cfg.begin_node, func_cfg.end_node
+            call_cfg.add_existing_node(*func_node_pair)
         
         # Создаем рёбра, связывая с абстрактными переходами с эффектами call_stack
         # BEGIN -> func (с эффектом add_frame)

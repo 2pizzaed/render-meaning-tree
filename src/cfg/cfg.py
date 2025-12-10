@@ -236,6 +236,21 @@ class CFG:
         cfg.nodes[node_id] = node
         cfg.begin_node = node
         cfg.end_node = node
+        
+        # Отладочная печать для узлов, связанных с AST
+        if metadata.wrapped_ast:
+            construct_context = None
+            if metadata.abstract_action and metadata.abstract_action.construct:
+                construct_context = metadata.abstract_action.construct.name
+            
+            ast_info = metadata.wrapped_ast.describe() if hasattr(metadata.wrapped_ast, 'describe') else str(metadata.wrapped_ast.ast_node.get('type', 'unknown'))
+            print(
+                f"DEBUG create_atomic: Created atomic node {node_id} (kind={kind.value}, role={role}) "
+                f"for AST: {ast_info} "
+                f"in CFG: {name} "
+                f"construct: {construct_context or 'N/A'}",
+                file=sys.stderr
+            )
 
         return cfg
 
@@ -317,6 +332,14 @@ class CFG:
                 # update .cfg for newly added edge
                 e.cfg = self
 
+    def add_existing_node(self,
+                 *nodes: Node):
+        """ Bring some existing node from other CFG to this CFG as-is. """
+        for node in nodes:
+            self.nodes[node.id] = node
+        # return node
+
+
     def add_node(self,
                  kind: str | NodeKind,
                  role: str=None,
@@ -342,6 +365,26 @@ class CFG:
                         effects=final_effects,
                         cfg=self)
             self.nodes[nid] = node
+            
+            # Отладочная печать для узлов, связанных с AST
+            if final_metadata.wrapped_ast:
+                # Определяем контекст
+                cfg_context = self.name
+                construct_context = None
+                if hasattr(self, 'construct') and self.construct:
+                    construct_context = self.construct.name
+                elif final_metadata.abstract_action and final_metadata.abstract_action.construct:
+                    construct_context = final_metadata.abstract_action.construct.name
+                
+                ast_info = final_metadata.wrapped_ast.describe() if hasattr(final_metadata.wrapped_ast, 'describe') else str(final_metadata.wrapped_ast.ast_node.get('type', 'unknown'))
+                print(
+                    f"DEBUG add_node: Created node {nid} (kind={node_kind.value}, role={role}) "
+                    f"for AST: {ast_info} "
+                    f"in CFG: {cfg_context} "
+                    f"construct: {construct_context or 'N/A'}",
+                    file=sys.stderr
+                )
+            
             return node
         else:
             # Node is a wrapper over a compound.
@@ -364,6 +407,26 @@ class CFG:
                               effects=[],  # no effects for begin node.
                               cfg=self)
             self.nodes[nid] = enter_node
+            
+            # Отладочная печать для узлов, связанных с AST (enter_node)
+            if final_metadata.wrapped_ast:
+                cfg_context = self.name
+                construct_context = None
+                if hasattr(self, 'construct') and self.construct:
+                    construct_context = self.construct.name
+                elif final_metadata.abstract_action and final_metadata.abstract_action.construct:
+                    construct_context = final_metadata.abstract_action.construct.name
+                
+                ast_info = final_metadata.wrapped_ast.describe() if hasattr(final_metadata.wrapped_ast, 'describe') else str(final_metadata.wrapped_ast.ast_node.get('type', 'unknown'))
+                subgraph_info = subgraph.name if subgraph else 'None'
+                print(
+                    f"DEBUG add_node: Created enter_node {nid} (kind={kind.value}, role={role}) "
+                    f"for AST: {ast_info} "
+                    f"wrapping subgraph: {subgraph_info} "
+                    f"in CFG: {cfg_context} "
+                    f"construct: {construct_context or 'N/A'}",
+                    file=sys.stderr
+                )
 
             kind = NodeKind.END
             nid = idgen.next(kind.value)
@@ -372,6 +435,26 @@ class CFG:
                               effects=final_effects,
                               cfg=self)
             self.nodes[nid] = leave_node
+            
+            # Отладочная печать для узлов, связанных с AST (leave_node)
+            if final_metadata.wrapped_ast:
+                cfg_context = self.name
+                construct_context = None
+                if hasattr(self, 'construct') and self.construct:
+                    construct_context = self.construct.name
+                elif final_metadata.abstract_action and final_metadata.abstract_action.construct:
+                    construct_context = final_metadata.abstract_action.construct.name
+                
+                ast_info = final_metadata.wrapped_ast.describe() if hasattr(final_metadata.wrapped_ast, 'describe') else str(final_metadata.wrapped_ast.ast_node.get('type', 'unknown'))
+                subgraph_info = subgraph.name if subgraph else 'None'
+                print(
+                    f"DEBUG add_node: Created leave_node {nid} (kind={kind.value}, role={role}) "
+                    f"for AST: {ast_info} "
+                    f"wrapping subgraph: {subgraph_info} "
+                    f"in CFG: {cfg_context} "
+                    f"construct: {construct_context or 'N/A'}",
+                    file=sys.stderr
+                )
 
             # connect subgraph
             self.connect(enter_node, subgraph.begin_node)

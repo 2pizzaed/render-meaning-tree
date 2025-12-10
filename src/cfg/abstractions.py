@@ -50,17 +50,17 @@ class InterruptionType(SelfValidatedEnum):
         - NO_INTERRUPTION + GENERIC_INTERRUPTION → ANY
         - Два разных конкретных типа → GENERIC_INTERRUPTION
         - ANY + любое → ANY
-        - None обрабатывается как отсутствие значения
+        - None подразумевает NO_INTERRUPTION
         """
         # Если оба None
         if this is None and other is None:
             return None
         
-        # Если один None, возвращаем другой
+        # Если None, то подменяем явным типом
         if this is None:
-            return other
+            this = cls.NO_INTERRUPTION
         if other is None:
-            return this
+            other = cls.NO_INTERRUPTION
         
         # Если одинаковые - возвращаем само значение
         if this == other:

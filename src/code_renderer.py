@@ -216,7 +216,7 @@ class CodeHighlightGenerator:
                 possible_buttons.append(("step-out", "filled"))
 
         # Простой statement
-        if is_simple_statement and button_position == "start" and node_token_pos == "end":
+        if is_simple_statement and button_position == "start":
             possible_buttons.append(("play", "filled"))
 
         # Сложные statements, но не блоки и ветви условий - решено удалить
@@ -530,16 +530,16 @@ class CodeHighlightGenerator:
                 # (например, expression_statement на вложенный function_call)
                 # нужно для корректного отображения кнопок захода и выхода из функции
 
-                if node_start_id and self.analyzer and not self.analyzer.is_function_call(node_start_id):
-                    nodes = self.analyzer.find_children(node_start_id, 2)
-                    for child in nodes:
-                        child_id = child.get("id")
-                        child_pos = self.analyzer.source_map.get("map", {}).get(str(child_id), [])
-                        matches_pos = child_pos and child_pos[0] == current_byte_pos
-                        if child_id and self.analyzer.is_function_call(child_id) and matches_pos:
+                if node_start_type == "expression_statement" and self.analyzer and node_start_id:
+                    node = self.analyzer.get_node_by_id(node_start_id)
+                    if node:
+                        child = node.get("expression", {})
+                        child_id = child.get("id", 0)
+                        if self.analyzer.is_function_call(
+                            child_id
+                        ):
                             node_start_id = child_id
-                            node_start_type = self.analyzer.get_node_type_by_id(node_start_id)
-                            break
+                            node_start_type = child.get("type", "")
 
                 css_class = self.TOKEN_TYPE_CLASSES.get(token_type, "token-unknown")
                 token_pos = len(current_line_tokens)
@@ -562,22 +562,14 @@ class CodeHighlightGenerator:
                 # (например, expression_statement на вложенный function_call)
                 # нужно для корректного отображения кнопок захода и выхода из функции
 
-                if (
-                    node_end_id
-                    and self.analyzer
-                    and not self.analyzer.is_function_call(node_end_id)
-                ):
-                    nodes = self.analyzer.find_children(node_end_id, 2)
-                    for child in nodes:
-                        child_id = child.get("id")
-                        child_pos = self.analyzer.source_map.get("map", {}).get(str(child_id), [])
-                        matches_pos = child_pos and (child_pos[0] + child_pos[1]) == (
-                            current_byte_pos  + len(token_value.encode("utf-8"))
-                        )
-                        if child_id and self.analyzer.is_function_call(child_id) and matches_pos:
+                if node_end_type == "expression_statement" and self.analyzer and node_end_id:
+                    node = self.analyzer.get_node_by_id(node_end_id)
+                    if node:
+                        child = node.get("expression", {})
+                        child_id = child.get("id", 0)
+                        if self.analyzer.is_function_call(child_id):
                             node_end_id = child_id
-                            node_end_type = self.analyzer.get_node_type_by_id(node_end_id)
-                            break
+                            node_end_type = child.get("type", "")
 
                 # Обработка псевдо-токенов
                 if token.get("is_pseudo") and token.get("type") == "whitespace":

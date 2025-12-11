@@ -330,7 +330,7 @@ def determine_all_paths_through(cfg: CFG, from_: str = None, to_: str = None) ->
 
     # Выбираем кратчайший путь
     if completed_paths:
-        shortest = min(completed_paths, key=lambda p: p.ast_actions)
+        shortest = min(completed_paths, key=lambda p: p.opaque_actions)
         # shortest.ways_count = ways
         return [shortest]
     else:
@@ -435,8 +435,40 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
             if path.is_direct is not None:  # direct or indirect, but not incomplete
                 result_paths.append(path)
 
+    # Дедупликация: для одинаковых (from_, to_, constraints) оставляем кратчайший путь
+    def constraints_key(constraints: Constraints | None) -> tuple:
+        """Создаёт ключ для сравнения constraints."""
+        if constraints is None:
+            return (None, None)
+        return (
+            constraints.condition_value.value if constraints.condition_value else None,
+            constraints.interruption_mode.value if constraints.interruption_mode else None,
+        )
+
+    # Группируем пути по (from_, to_, constraints, is_direct)
+    paths_by_key: dict[tuple[str, str, tuple, bool | None], list[PathInfo]] = {}
+    for path in result_paths:
+        if path.from_ is None or path.to_ is None:
+            continue
+        key = (
+            path.from_.id,
+            path.to_.id,
+            constraints_key(path.constraints),
+            path.is_direct,
+        )
+        if key not in paths_by_key:
+            paths_by_key[key] = []
+        paths_by_key[key].append(path)
+
+    # Для каждой группы оставляем кратчайший путь (по opaque_actions)
+    deduplicated_paths: list[PathInfo] = []
+    for paths_group in paths_by_key.values():
+        shortest = min(paths_group, key=lambda p: p.opaque_actions)
+        deduplicated_paths.append(shortest)
+
     # Сортируем по длине пути (от коротких к длинным)
-    result_paths.sort(key=lambda p: p.ast_actions)
+    deduplicated_paths.sort(key=lambda p: p.opaque_actions)
+    result_paths = deduplicated_paths
 
     # После вычисления всех путей обновляем информацию в узлах
     for node in cfg.nodes.values():

@@ -42,6 +42,45 @@ class InterruptionType(SelfValidatedEnum):
         """Конкретные типы прерываний (без GENERIC_INTERRUPTION, NO_INTERRUPTION, ANY)"""
         return {cls.BREAK, cls.CONTINUE, cls.RETURN, cls.EXCEPTION}
 
+    def fits(self, other: 'InterruptionType | None') -> bool:
+        """Проверяет, покрывает ли текущий тип прерывания запрошенный.
+        
+        Логика:
+        - ANY покрывает всё (кроме None)
+        - GENERIC_INTERRUPTION покрывает все конкретные типы (BREAK, CONTINUE, RETURN, EXCEPTION)
+        - Конкретный тип покрывает только себя
+        - NO_INTERRUPTION покрывает только NO_INTERRUPTION
+        - None считается как NO_INTERRUPTION
+        
+        Args:
+            other: Запрошенный тип прерывания для проверки
+            
+        Returns:
+            True, если текущий тип покрывает запрошенный
+        """
+        if other is None:
+            other = InterruptionType.NO_INTERRUPTION
+        
+        # ANY покрывает всё
+        if self == InterruptionType.ANY:
+            return True
+        
+        # Точное совпадение
+        if self == other:
+            return True
+        
+        # NO_INTERRUPTION покрывает только NO_INTERRUPTION
+        if self == InterruptionType.NO_INTERRUPTION:
+            return other == InterruptionType.NO_INTERRUPTION
+        
+        # GENERIC_INTERRUPTION покрывает все конкретные типы
+        if self == InterruptionType.GENERIC_INTERRUPTION:
+            specific_types = self._get_specific_types()
+            return other in specific_types
+        
+        # Конкретный тип покрывает только себя (уже проверено выше)
+        return False
+
     @classmethod
     def merge(cls, this: Optional['InterruptionType'], other: Optional['InterruptionType']) -> Optional['InterruptionType']:
         """Объединить два типа прерывания согласно правилам:

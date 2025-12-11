@@ -566,14 +566,8 @@ def _apply_edge_effects(edge: Edge, current_state: InterruptionType) -> Interrup
 
     for effect in edge.effects:
         if effect.interruption_stop:
-            # Если interruption_stop соответствует текущему состоянию, сбрасываем его
-            if effect.interruption_stop == current_state:
-                return InterruptionType.NO_INTERRUPTION
-            # Если interruption_stop = GENERIC_INTERRUPTION, сбрасываем любое конкретное прерывание
-            if (
-                effect.interruption_stop == InterruptionType.GENERIC_INTERRUPTION
-                and current_state != InterruptionType.NO_INTERRUPTION
-            ):
+            # Если interruption_stop покрывает текущее состояние, сбрасываем его
+            if effect.interruption_stop.fits(current_state):
                 return InterruptionType.NO_INTERRUPTION
 
     return current_state
@@ -618,23 +612,11 @@ def _filter_edges_by_interruption(
             filtered.append(edge)
             continue
 
-        # NO_INTERRUPTION доступно только при NO_INTERRUPTION
-        if interruption_mode == InterruptionType.NO_INTERRUPTION:
-            if interruption_state == InterruptionType.NO_INTERRUPTION:
-                filtered.append(edge)
-            continue
-
-        # Конкретное прерывание доступно только при соответствующем состоянии
-        if interruption_mode == interruption_state:
+        # Проверяем, покрывает ли interruption_mode текущее состояние прерывания
+        # Ребро доступно, если требуемый режим покрывает текущее состояние
+        if interruption_mode.fits(interruption_state):
             filtered.append(edge)
             continue
-
-        # GENERIC_INTERRUPTION доступно при любом конкретном прерывании
-        if (
-            interruption_mode == InterruptionType.GENERIC_INTERRUPTION
-            and interruption_state != InterruptionType.NO_INTERRUPTION
-        ):
-            filtered.append(edge)
 
     return filtered
 

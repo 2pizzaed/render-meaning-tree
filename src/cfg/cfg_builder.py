@@ -1,4 +1,5 @@
 import sys
+from collections import deque
 from typing import Optional
 
 from src.cfg.abstractions import (
@@ -6,6 +7,7 @@ from src.cfg.abstractions import (
     ActionSpec,
     AppearanceType,
     DEFAULT_APPEARANCE_PROFILE, KindChain,
+    InterruptionType,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata, NodeKind
@@ -715,6 +717,17 @@ class CFGBuilder:
                         sub_cfg.begin_node.metadata = sub_cfg.end_node.metadata = node_metadata
                         sub_cfg.begin_node.role_in_construct = sub_cfg.end_node.role_in_construct = target_action.role
                         node23 = sub_cfg.begin_node, sub_cfg.end_node
+                        
+                        # Если подграф содержит источники прерывания, нужно добавить рёбра прерывания
+                        # от источников в подграфе до END родительской конструкции
+                        sub_sources = self._find_interruption_sources(sub_cfg)
+                        if sub_sources:
+                            # Находим END родительской конструкции (текущий CFG)
+                            parent_end = cfg.end_node
+                            for source_node, inter_type in sub_sources:
+                                # Распространяем прерывание от источника в подграфе до END родительского CFG
+                                # Но только если прерывание не остановлено в подграфе
+                                self._propagate_interruption(cfg, source_node, inter_type, parent_end)
                     else:
                         # No subCFG returned, make trivial transit node.
                         node23 = cfg.add_node(
@@ -746,4 +759,212 @@ class CFGBuilder:
                 if node_pair[0] is not node_pair[1]:
                     processed_ids.add(node_pair[0].id)
             # end of for.
+        
+        # Добавляем рёбра прерывания избирательно после построения CFG
+        self._add_selective_interruption_edges(cfg)
+        
         return cfg
+
+    def _find_interruption_sources(self, cfg: CFG) -> list[tuple[Node, InterruptionType]]:
+        """Находит все источники прерывания в CFG.
+        
+        Источники прерывания - это узлы с interruption_start в effects.
+        
+        Args:
+            cfg: CFG для поиска источников прерывания
+            
+        Returns:
+            Список кортежей (узел, тип прерывания) для каждого источника
+        """
+        sources = []
+        for node in cfg.nodes.values():
+            if not node.effects:
+                continue
+            for effect in node.effects:
+                if (effect.interruption_start and 
+                    effect.interruption_start != InterruptionType.NO_INTERRUPTION):
+                    sources.append((node, effect.interruption_start))
+        return sources
+
+    def _find_parent_end_node(self, node: Node) -> Node | None:
+        """Находит END узел родительской конструкции по AST иерархии.
+        
+        Поднимается по иерархии AST (через wrapped_ast.parent) и ищет соответствующий
+        END узел в CFG. Прерывание должно распространяться до этого узла.
+        
+        Args:
+            node: Узел CFG, для которого ищется родительский END
+            
+        Returns:
+            END узел родительской конструкции или None, если не найден
+        """
+        if not node.metadata.wrapped_ast:
+            return None
+        
+        # Поднимаемся по иерархии AST
+        current_ast = node.metadata.wrapped_ast.parent
+        if not current_ast:
+            # Нет родителя - прерывание должно идти до END текущего CFG
+            if node.cfg and node.cfg.end_node:
+                return node.cfg.end_node
+            return None
+        
+        # Ищем соответствующий CFG узел для родительского AST узла
+        # Нужно найти узел с таким же wrapped_ast в родительском CFG
+        # Обычно это будет END узел подграфа, который был встроен в родительский CFG
+        
+        # Проверяем текущий CFG на наличие узла с родительским AST
+        if node.cfg:
+            for cfg_node in node.cfg.nodes.values():
+                if (cfg_node.metadata.wrapped_ast and 
+                    cfg_node.metadata.wrapped_ast.ast_node == current_ast.ast_node and
+                    cfg_node.kind == NodeKind.END):
+                    return cfg_node
+        
+        # Если не нашли в текущем CFG, возможно нужно подняться выше
+        # Для этого нужно найти родительский CFG, но у нас нет прямой ссылки на него
+        # Пока возвращаем END текущего CFG как fallback
+        if node.cfg and node.cfg.end_node:
+            return node.cfg.end_node
+        
+        return None
+
+    def _propagate_interruption(
+        self, 
+        cfg: CFG, 
+        source: Node, 
+        interruption_type: InterruptionType,
+        target_end: Node | None = None
+    ) -> None:
+        """Распространяет прерывание от источника по существующим рёбрам.
+        
+        Прерывание распространяется от источника до target_end (или END текущего CFG),
+        учитывая interruption_stop на рёбрах и узлах.
+        
+        Args:
+            cfg: CFG для распространения прерывания
+            source: Узел-источник прерывания
+            interruption_type: Тип прерывания
+            target_end: Целевой END узел (если None, используется END текущего CFG)
+        """
+        if target_end is None:
+            target_end = cfg.end_node
+        
+        if not target_end:
+            return
+        
+        # Поиск в ширину от источника до target_end
+        visited = {source.id}
+        queue = deque([(source, interruption_type)])
+        nodes_needing_interruption_edge = set()  # Узлы, от которых нужно добавить рёбра прерывания
+        
+        while queue:
+            current_node, current_interruption = queue.popleft()
+            
+            # Если достигли целевого узла, не обрабатываем дальше
+            if current_node == target_end:
+                continue
+            
+            # Проверяем, не остановлено ли прерывание на текущем узле (через effects узла)
+            active_interruption = current_interruption
+            if current_node.effects:
+                for effect in current_node.effects:
+                    if effect.interruption_stop:
+                        if effect.interruption_stop.fits(active_interruption):
+                            active_interruption = InterruptionType.NO_INTERRUPTION
+                            break
+            
+            # Если прерывание остановлено на узле, не продолжаем
+            if active_interruption == InterruptionType.NO_INTERRUPTION:
+                continue
+            
+            # Проверяем, есть ли уже ребро прерывания от current_node до target_end
+            has_interruption_edge = False
+            for existing_edge in cfg.edges_from_node(current_node):
+                if (existing_edge.dst == target_end.id and
+                    existing_edge.constraints and
+                    existing_edge.constraints.interruption_mode):
+                    interruption_mode = existing_edge.constraints.interruption_mode
+                    if interruption_mode.fits(active_interruption):
+                        has_interruption_edge = True
+                        break
+            
+            # Если нет ребра прерывания, отмечаем узел
+            if not has_interruption_edge:
+                nodes_needing_interruption_edge.add((current_node, active_interruption))
+            
+            # Проверяем все исходящие рёбра для распространения
+            has_valid_outgoing = False
+            for edge in cfg.edges_from_node(current_node):
+                next_node = cfg.nodes.get(edge.dst)
+                if not next_node:
+                    continue
+                
+                # Пропускаем target_end - он обрабатывается отдельно
+                if next_node == target_end:
+                    continue
+                
+                # Проверяем interruption_stop на ребре
+                edge_interruption = active_interruption
+                if edge.effects:
+                    for effect in edge.effects:
+                        if effect.interruption_stop:
+                            if effect.interruption_stop.fits(active_interruption):
+                                edge_interruption = InterruptionType.NO_INTERRUPTION
+                                break
+                
+                # Если прерывание остановлено, не продолжаем распространение по этому ребру
+                if edge_interruption == InterruptionType.NO_INTERRUPTION:
+                    continue
+                
+                # Продолжаем распространение
+                if next_node.id not in visited:
+                    visited.add(next_node.id)
+                    queue.append((next_node, edge_interruption))
+                    has_valid_outgoing = True
+            
+            # Если у узла нет валидных исходящих рёбер (кроме возможного прерывания),
+            # обязательно добавляем ребро прерывания
+            if not has_valid_outgoing and not has_interruption_edge:
+                nodes_needing_interruption_edge.add((current_node, active_interruption))
+        
+        # Добавляем рёбра прерывания от отмеченных узлов
+        from src.cfg.abstractions import Constraints
+        for node, inter_type in nodes_needing_interruption_edge:
+            # Проверяем, нет ли уже такого ребра (на случай дубликатов)
+            has_edge = False
+            for existing_edge in cfg.edges_from_node(node):
+                if (existing_edge.dst == target_end.id and
+                    existing_edge.constraints and
+                    existing_edge.constraints.interruption_mode):
+                    existing_mode = existing_edge.constraints.interruption_mode
+                    # Проверяем, покрывает ли существующий режим требуемый или наоборот
+                    if (existing_mode.fits(inter_type) or inter_type.fits(existing_mode)):
+                        has_edge = True
+                        break
+            
+            if not has_edge:
+                cfg.connect(
+                    node,
+                    target_end,
+                    metadata=None,
+                    constraints=Constraints(interruption_mode=inter_type)
+                )
+
+    def _add_selective_interruption_edges(self, cfg: CFG) -> None:
+        """Добавляет рёбра прерывания избирательно для CFG.
+        
+        Находит все источники прерывания и распространяет прерывание от каждого
+        до соответствующего END узла родительской конструкции.
+        
+        Args:
+            cfg: CFG для добавления рёбер прерывания
+        """
+        sources = self._find_interruption_sources(cfg)
+        
+        for source_node, interruption_type in sources:
+            # Находим целевой END узел (родительской конструкции)
+            target_end = self._find_parent_end_node(source_node)
+            
+            # Распространяем прерывание
+            self._propagate_interruption(cfg, source_node, interruption_type, target_end)

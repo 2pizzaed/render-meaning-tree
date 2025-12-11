@@ -38,6 +38,7 @@ class TraceAct(DictLikeDataclass):
                            Устанавливается при построении трассы, связывая акты в порядке
                            их выполнения. Последний акт имеет None.
         button_type: Тип кнопки для UI (не экспортируется в LOQI)
+        incomplete_interruption: Тип незавершённого прерывания (если акт помечен как начало прерывания)
     """
     wrapped_ast: ASTNodeWrapper
     cfg_node: 'Node'
@@ -47,6 +48,7 @@ class TraceAct(DictLikeDataclass):
     condition_value: OptionalBoolValue | None = None
     directly_before_of: 'TraceAct | None' = None  # Следующий акт в трассе (цепочка выполнения)
     button_type: str | None = None # Нужно для корректного поиска действий трассы. Экспортировать не нужно!
+    incomplete_interruption: 'InterruptionType | None' = None  # Тип незавершённого прерывания
 
 
 @dataclass

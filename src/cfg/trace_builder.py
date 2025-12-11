@@ -122,6 +122,7 @@ class TraceScenarioConfig:
 class VisitedNode:
     node: Node
     condition_value: OptionalBoolValue | None = None
+    incomplete_interruption: InterruptionType | None = None
 
 
 @dataclass
@@ -290,7 +291,27 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
             break
 
         # Применяем эффекты interruption_start из текущего узла
+        previous_interruption_state = interruption_state
         interruption_state = _apply_node_effects(current, interruption_state)
+        
+        # Если прерывание только что началось, нужно найти первую кнопку и пометить её
+        if (previous_interruption_state == InterruptionType.NO_INTERRUPTION and 
+            interruption_state != InterruptionType.NO_INTERRUPTION):
+            # Прерывание только что началось - находим первую кнопку от текущего узла
+            first_button_node = _find_first_mandatory_node_from(cfg, current)
+            if first_button_node and first_button_node != current:
+                # Если текущий узел не является кнопкой, добавляем путь до первой кнопки
+                # и помечаем её незавершённым прерыванием
+                if current.is_mandatory() and record_index < len(visited_nodes):
+                    # Текущий узел уже добавлен - помечаем его незавершённым прерыванием
+                    visited_nodes[record_index].incomplete_interruption = interruption_state
+                else:
+                    # Нужно добавить первую кнопку с пометкой незавершённого прерывания
+                    # Переходим к первой кнопке напрямую
+                    current = first_button_node
+                    if current.is_mandatory():
+                        visited_nodes.append(VisitedNode(node=current, incomplete_interruption=interruption_state))
+                    continue
 
         next_node, condition_value, chosen_edge = _choose_next_node(
             cfg,
@@ -445,6 +466,7 @@ def _visited_to_trace_acts(visited: list[VisitedNode]) -> list[TraceAct]:
                 is_known_correct=False,
                 condition_value=record.condition_value,
                 button_type=_infer_button_type(node),
+                incomplete_interruption=record.incomplete_interruption,
             )
         )
 

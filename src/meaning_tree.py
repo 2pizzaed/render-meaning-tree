@@ -12,6 +12,7 @@ JAVA_EXECUTABLE = "java"
 JAR_RUN = [
     JAVA_EXECUTABLE,
     "-Dfile.encoding=UTF-8",
+    "-Dstdin.encoding=UTF-8",
     "-Dstdout.encoding=UTF-8",
     "-Dstderr.encoding=UTF-8",
     "-jar",

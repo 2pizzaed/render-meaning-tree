@@ -108,7 +108,7 @@ class CodeHighlightGenerator:
         if not self.analyzer:
             return None
 
-        map_data = self.analyzer.source_map.get("map", {})
+        map_data = self.analyzer.source_map.get("byte_positions", {})
 
         candidates = []
         for node_id, positions in map_data.items():
@@ -365,7 +365,7 @@ class CodeHighlightGenerator:
         if not node_id or not self.analyzer:
             return "middle"
 
-        map_data = self.analyzer.source_map.get("map", {})
+        map_data = self.analyzer.source_map.get("byte_positions", {})
         positions = map_data.get(str(node_id))
         if not positions or len(positions) != 2:
             return "middle"

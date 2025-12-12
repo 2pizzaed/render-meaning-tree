@@ -59,7 +59,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Сохраняем AST JSON в genout
             ast_json_path = genout_path / f"{file.stem}.json"
             with open(ast_json_path, "w", encoding="utf-8") as f:
-                json.dump(ast_json, f, indent=2)
+                json.dump(ast_json, f, indent=2, ensure_ascii=False)
 
             source_map: dict[str, Any] | None = convert(
                 code, language, language, source_map=True
@@ -68,10 +68,18 @@ class TestComplexProblemBuild(unittest.TestCase):
             if source_map is None:
                 self.fail(f"Failed to convert code for {file.name}")
 
+            map_json_path = genout_path / f"{file.stem}_map.json"
+            with open(map_json_path, "w", encoding="utf-8") as f:
+                json.dump(source_map, f, indent=2, ensure_ascii=False)
+
             tokens = to_tokens(language, source_map["source_code"])
 
             if tokens is None:
                 self.fail(f"Failed to tokenize code for {file.name}")
+
+            tok_json_path = genout_path / f"{file.stem}_tokens.json"
+            with open(tok_json_path, "w", encoding="utf-8") as f:
+                json.dump(tokens, f, indent=2, ensure_ascii=False)
 
             htmlgen = CodeHighlightGenerator()
             htmlgen.debug = True

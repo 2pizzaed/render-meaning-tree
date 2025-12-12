@@ -5,6 +5,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
+from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg import idgen
@@ -56,11 +57,6 @@ class TestComplexProblemBuild(unittest.TestCase):
             if not ast_json:
                 self.fail(f"Failed to generate AST for {file.name}")
 
-            # Сохраняем AST JSON в genout
-            ast_json_path = genout_path / f"{file.stem}.json"
-            with open(ast_json_path, "w", encoding="utf-8") as f:
-                json.dump(ast_json, f, indent=2, ensure_ascii=False)
-
             source_map: dict[str, Any] | None = convert(
                 code, language, language, source_map=True
             ) # type: ignore
@@ -71,6 +67,12 @@ class TestComplexProblemBuild(unittest.TestCase):
             map_json_path = genout_path / f"{file.stem}_map.json"
             with open(map_json_path, "w", encoding="utf-8") as f:
                 json.dump(source_map, f, indent=2, ensure_ascii=False)
+            ast_json_path = genout_path / f"{file.stem}.json"
+            ast_json = source_map.get("origin", {}).get("root_node")
+            with open(ast_json_path, "w", encoding="utf-8") as f:
+                json.dump(ast_json, f, indent=2, ensure_ascii=False)
+
+            ast = ASTNodeAnalyzer(ast_json, source_map)
 
             tokens = to_tokens(language, source_map["source_code"])
 
@@ -148,7 +150,9 @@ class TestComplexProblemBuild(unittest.TestCase):
             png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
             visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
 
-            answ = build_answer_objects_from_cfg(cfg, lines_data, include_end_button=False)
+            answ = build_answer_objects_from_cfg(cfg,
+                                                 lines_data,
+                                                 include_end_button=False, ast=ast)
             answ_clear = {}
             for a in answ:
                 answ_clear[a["answerId"]] = a["domainInfo"]

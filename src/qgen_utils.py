@@ -372,10 +372,15 @@ def build_answer_objects_from_cfg(
 
         if not matched_buttons:
             # Если кнопка не найдена, пропускаем узел
-            ast_node_type = ast.get_node_type_by_id(ast_node_id) if ast else ''
+            ast_node = (ast.get_node_by_id(ast_node_id) if ast else {}) or {}
+            ast_node_type = ast_node.get("type", "") or "N/A"
+            ast_parent = ast_node.get("parent", {})
+            ast_parent = (ast.get_node_by_id(ast_parent) if ast and ast_parent else {}) or {}
+            ast_parent_type = ast_parent.get("type", "") or "N/A"
+            ast_parent_id = ast_parent.get("id", "") or "N/A"
             warnings.warn(
-                f"No button found for mandatory CFG node {node.id} (kind={node.kind.value}, ast_node_id={ast_node_id or 'N/A'}, ast_node_type={ast_node_type})",
-                stacklevel=2
+                f"No button found for mandatory CFG node {node.id} (kind={node.kind.value}, ast_node=<{ast_node_id}, {ast_node_type}>, ast_node_parent=<{ast_parent_id}, {ast_parent_type}>)",
+                stacklevel=2,
             )
             continue
 
@@ -399,13 +404,18 @@ def build_answer_objects_from_cfg(
         button_id = button.get("action_id")
         if button_id and button_id not in used_button_ids:
             node_id = button.get("node_id")
-            node_type = ast.get_node_type_by_id(node_id) if ast and node_id else ''
             position = button.get("position")
             button_type = button.get("type")
+            ast_node = (ast.get_node_by_id(node_id) if node_id and ast else {}) or {}
+            ast_node_type = ast_node.get("type", "") or "N/A"
+            ast_parent = ast_node.get("parent", {})
+            ast_parent = (ast.get_node_by_id(ast_parent) if ast and ast_parent else {}) or {}
+            ast_parent_type = ast_parent.get("type", "") or "N/A"
+            ast_parent_id = ast_parent.get("id", "") or "N/A"
             warnings.warn(
-                f"Button not used: action_id={button_id}, ast_node_id={node_id}, ast_node_type={node_type or 'N/A'}, position={position}, type={button_type} "
+                f"Button not used: action_id={button_id}, ast_node=<{node_id}, {ast_node_type}>, ast_node_parent=<{ast_parent_id}, {ast_parent_type}> position={position}, type={button_type} "
                 f"(no corresponding mandatory CFG node found)",
-                stacklevel=2
+                stacklevel=2,
             )
 
     return ans

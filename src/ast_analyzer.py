@@ -88,6 +88,9 @@ class ASTNodeAnalyzer:
         node_parent_types.insert(0, node_type)
         return node_parent_types
 
+    def instanceof(self, node_id: int, type: str):
+        return type in self.get_node_types_hierarchy(node_id)
+
     def is_function_call(self, node_id: int) -> bool:
         """Проверить, является ли узел вызовом функции"""
         node_types = self.get_node_types_hierarchy(node_id)

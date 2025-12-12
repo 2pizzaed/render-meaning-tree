@@ -3,6 +3,7 @@ import hashlib
 import math
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -472,6 +473,32 @@ class CodeHighlightGenerator:
 
         return total_buttons
 
+    def _patch_invalid_node_type(self,
+                                 node_id: int | None,
+                                 node_type: str,
+                                 check_type: str,
+                                 child_name: str,
+                                 target_type_lambda: Callable[[int], bool],
+                                 strict_typecheck: bool = True
+                                 ) -> tuple[int | None, str]:
+        # Патч случаев, когда нам нужно изменить стартовый узел на его детей
+        # (например, expression_statement на вложенный function_call)
+        # нужно для корректного отображения кнопок захода и выхода из функции
+        if not node_id:
+            return node_id, node_type
+        if strict_typecheck or not self.analyzer:
+            type_check = node_type == check_type
+        else:
+            type_check = self.analyzer.instanceof(node_id, check_type)
+        if type_check and self.analyzer and node_id:
+            node = self.analyzer.get_node_by_id(node_id)
+            if node:
+                child = node.get(child_name, {})
+                child_id = child.get("id", 0)
+                if target_type_lambda(child_id):
+                    return child_id, child.get("type", "")
+        return node_id, node_type
+
     def prepare_interactive_data(
         self,
         source_map: dict[str, Any],
@@ -526,20 +553,27 @@ class CodeHighlightGenerator:
                 node_start_id = self._get_node_at_position(current_byte_pos, token, "start")
                 node_start_type = self.analyzer.get_node_type_by_id(node_start_id) if node_start_id else ""
 
-                # Патч случаев, когда нам нужно изменить стартовый узел на его детей
-                # (например, expression_statement на вложенный function_call)
-                # нужно для корректного отображения кнопок захода и выхода из функции
-
-                if node_start_type == "expression_statement" and self.analyzer and node_start_id:
-                    node = self.analyzer.get_node_by_id(node_start_id)
-                    if node:
-                        child = node.get("expression", {})
-                        child_id = child.get("id", 0)
-                        if self.analyzer.is_function_call(
-                            child_id
-                        ):
-                            node_start_id = child_id
-                            node_start_type = child.get("type", "")
+                node_start_id, node_start_type = self._patch_invalid_node_type(
+                    node_start_id, node_start_type,
+                    "expression_statement", "expression",
+                    self.analyzer.is_function_call, True
+                    )
+                node_start_id, node_start_type = self._patch_invalid_node_type(
+                    node_start_id,
+                    node_start_type,
+                    "binary_expression",
+                    "left_operand",
+                    self.analyzer.is_function_call,
+                    False,
+                )
+                node_start_id, node_start_type = self._patch_invalid_node_type(
+                    node_start_id,
+                    node_start_type,
+                    "unary_expression",
+                    "operand",
+                    self.analyzer.is_function_call,
+                    False,
+                )
 
                 css_class = self.TOKEN_TYPE_CLASSES.get(token_type, "token-unknown")
                 token_pos = len(current_line_tokens)
@@ -558,18 +592,30 @@ class CodeHighlightGenerator:
                     node_end_id, current_byte_pos + len(token_value.encode("utf-8")) - 1, token
                 )
 
-                # Патч случаев, когда нам нужно изменить стартовый узел на его детей
-                # (например, expression_statement на вложенный function_call)
-                # нужно для корректного отображения кнопок захода и выхода из функции
-
-                if node_end_type == "expression_statement" and self.analyzer and node_end_id:
-                    node = self.analyzer.get_node_by_id(node_end_id)
-                    if node:
-                        child = node.get("expression", {})
-                        child_id = child.get("id", 0)
-                        if self.analyzer.is_function_call(child_id):
-                            node_end_id = child_id
-                            node_end_type = child.get("type", "")
+                node_end_id, node_end_type = self._patch_invalid_node_type(
+                    node_end_id,
+                    node_end_type,
+                    "expression_statement",
+                    "expression",
+                    self.analyzer.is_function_call,
+                    True,
+                )
+                node_end_id, node_end_type = self._patch_invalid_node_type(
+                    node_end_id,
+                    node_end_type,
+                    "binary_expression",
+                    "right_operand",
+                    self.analyzer.is_function_call,
+                    False,
+                )
+                node_end_id, node_end_type = self._patch_invalid_node_type(
+                    node_end_id,
+                    node_end_type,
+                    "unary_expression",
+                    "operand",
+                    self.analyzer.is_function_call,
+                    False,
+                )
 
                 # Обработка псевдо-токенов
                 if token.get("is_pseudo") and token.get("type") == "whitespace":

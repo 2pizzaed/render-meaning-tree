@@ -300,6 +300,17 @@ class CFGBuilder:
         except (AttributeError, KeyError, TypeError):
             return None
 
+    def _is_simple_expression_statement_with_single_call(self, wrapped_ast: ASTNodeWrapper | None, function_calls: list[dict]) -> bool:
+        """Проверяет, является ли expression_statement простым (состоит только из одного function_call)"""
+        if not wrapped_ast or not isinstance(wrapped_ast.ast_node, dict):
+            return False
+        if wrapped_ast.ast_node.get('type') != 'expression_statement':
+            return False
+        expression = wrapped_ast.ast_node.get('expression', {})
+        if not isinstance(expression, dict) or expression.get('type') != 'function_call':
+            return False
+        return len(function_calls) == 1
+
     def _inject_function_calls_in_cfg(self, base_cfg: CFG, function_calls: list[dict], parent_action: ActionSpec | None = None, wrapped_ast: ASTNodeWrapper | None = None, construct: ConstructSpec | None = None) -> CFG:
         """
         Обрабатывает найденные вызовы функций и создает цепочку обёрток вызовов.
@@ -364,6 +375,11 @@ class CFGBuilder:
                 action=parent_action, 
                 has_function_calls=True
             )
+            # Специальный случай: если expression_statement состоит только из одного function_call,
+            # не создаем кнопку для BEGIN узла expression_statement (оставляем appearance = NONE)
+            if self._is_simple_expression_statement_with_single_call(wrapped_ast, function_calls):
+                base_cfg.begin_node.appearance = AppearanceType.NONE
+            
             self._apply_node_appearance(
                 base_cfg.end_node, 
                 construct=construct, 

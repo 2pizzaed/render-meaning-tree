@@ -211,10 +211,16 @@ class PathInfo(DictLikeDataclass):
         return new_path
 
     def add_constraints(self, *other_constraints: Constraints):
-        """ Добавить непустые ограничения (из последовательных узлов/рёбер)  """
-        for constraint in other_constraints:
-            if constraint:
-                self.constraints = Constraints.merge(self.constraints, constraint)
+        """ Взять первое ограничение -- если пустое, то создать стандартное ограничение по умолчанию.
+        Не заменять существующее.
+        """
+        if self.constraints:
+            # Не заменять существующее.
+            return
+        first_constraint = next(iter(other_constraints), None)
+        if not first_constraint:
+            first_constraint = Constraints()
+        self.constraints = first_constraint
 
 
     def add_effects(self, *other_effects: Effects):

@@ -339,12 +339,17 @@ class PathInfo(DictLikeDataclass, WithEffectsMixin):
                     self.firstMiddleCondition = node
                     break
 
-        for edge in self.via_edges:  # все.
+        for edge in self.via_edges[:-1]:  # все, кроме последнего.
             if edge.effects:
                 for effect in edge.effects:
                     if effect.call_stack in (CallStackAction.ADD_FRAME, CallStackAction.DROP_FRAME):
-                        self.firstMiddleFrameChange = self.cfg.nodes[edge.dst]
-                        break
+                        dst_node = self.cfg.nodes[edge.dst]
+                        # Дополнительно проверяем, что узел назначения не является последним узлом пути (middle)
+                        if dst_node != self.to_:
+                            self.firstMiddleFrameChange = dst_node
+                            break
+                if self.firstMiddleFrameChange:
+                    break
 
     def update_directness(self, target_node: Node | None = None):
         """Обновить статус прямоты/опосредованности пути.

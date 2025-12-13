@@ -374,8 +374,8 @@ func_def_structure:
       kind: compound
       identification:
         property: 'body'
-      effects:
-        - interruption_stop: return
+      # effects:
+      #   - interruption_stop: return
   transitions:
     - from_: BEGIN
       to: func_body
@@ -397,6 +397,8 @@ func_call_structure:
     - role: func
       kind: compound
       # identification: func def lookup (see Python code)
+      effects:
+        - interruption_stop: return
   transitions:
     - from_: BEGIN
       to: func
@@ -404,6 +406,8 @@ func_call_structure:
         - call_stack: add_frame        # при входе в функцию создаём стековый фрейм
     - from_: func
       to: END
+      constraints:
+        interruption_mode: any  # В любом случае
       effects:
         - call_stack: drop_frame       # при выходе убираем фрейм
 

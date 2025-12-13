@@ -70,7 +70,9 @@ class PathInfo(DictLikeDataclass, WithEffectsMixin):
             self.from_.id,
             self.to_.id,
             self.is_direct,
-            len(self.via_nodes)))
+            len(self.via_nodes),
+            self.constraints,
+        ))
 
     def is_loop(self) -> bool:
         """ True, если заканчивается на тот же узел, что и начинается.
@@ -300,8 +302,9 @@ class PathInfo(DictLikeDataclass, WithEffectsMixin):
             Конечное состояние прерывания после прохождения пути
         """
         # Начинаем с начального interruption_mode
-        current_mode = self.get_initial_interruption_mode() or InterruptionType.NO_INTERRUPTION
-        
+        # (ANY: для пустого пути мы ещё не знаем, какого типа прерывание в нём будет: в дальнейшем ограничится до фактического через пересечение.)
+        current_mode = self.get_initial_interruption_mode() or InterruptionType.ANY
+
         # Проходим по всем эффектам пути в порядке их добавления
         for effect in self.effects:
             if not effect or not effect.changes_interruption_mode():

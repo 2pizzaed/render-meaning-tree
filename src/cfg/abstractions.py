@@ -403,6 +403,9 @@ class Constraints(DictLikeDataclass):
     # # Additional constraints can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
 
+    def __hash__(self):
+        return hash((self.condition_value, self.interruption_mode))
+
     @classmethod
     def merge(cls, this: Self, other: Self) -> Self:
         """ Объединить ограничения из последовательных узлов/рёбер, заполняя незаполненное, если указано.

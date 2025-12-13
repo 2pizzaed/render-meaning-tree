@@ -387,7 +387,7 @@ func_def_structure:
 # --------------------------------
 func_call_structure:
   kind: inline.call
-  ast_node: function_call
+  ast_node: ['function_call', 'method_call']
   actions:
     - role: name
       kind: identifier
@@ -526,10 +526,16 @@ inline_atom_structure:
     'int_literal',
     'add_operator',
     'eq_operator',
-    'lt_operator',
+    'reference_eq_operator',
     'continue_statement',
+    'lt_operator',
     'gt_operator',
     'le_operator',
+    'ge_operator',
+    'contains_operator',
+    'short_circuit_and_operator',
+    'short_circuit_or_operator',
+    'multiple_assignment_statement',
     # TODO: add new here
   ]
 

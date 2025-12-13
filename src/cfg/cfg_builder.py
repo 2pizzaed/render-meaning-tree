@@ -183,11 +183,11 @@ class CFGBuilder:
             for func_node in function_def_nodes:
                 self._process_function_definition_node(func_node)
 
-        if self.func_cfgs:
-            print(
-                f"INFO: prepared {len(self.func_cfgs)} CFG(s) for func definition(s): {', '.join(self.func_cfgs.keys())}",
-                file=sys.stderr,
-            )
+        # if self.func_cfgs:
+        #     print(
+        #         f"INFO: prepared {len(self.func_cfgs)} CFG(s) for func definition(s): {', '.join(self.func_cfgs.keys())}",
+        #         file=sys.stderr,
+        #     )
 
     def _process_function_definition_node(self, func_node: dict) -> None:
         """
@@ -433,12 +433,12 @@ class CFGBuilder:
             # Увеличиваем счётчик вызовов
             func_cfg.begin_node.metadata.call_count += 1
             
-            print(
-                f"INFO: linked call of func `{func_name}` to its CFG (target_cfg={target_cfg.name}, call_cfg={call_cfg.name})",
-                "id: ",
-                wrapped_ast.ast_node.get("id"),
-                file=sys.stderr,
-            )
+            # print(
+            #     f"INFO: linked call of func `{func_name}` to its CFG (target_cfg={target_cfg.name}, call_cfg={call_cfg.name})",
+            #     "id: ",
+            #     wrapped_ast.ast_node.get("id"),
+            #     file=sys.stderr,
+            # )
         
         # Очищаем список незавершенных вызовов после связывания
         self.pending_function_calls.clear()
@@ -551,12 +551,12 @@ class CFGBuilder:
         # Проверка наличия функции будет выполнена позже в _link_function_calls
         self.pending_function_calls.append((call_cfg, func_name, construct, wrapped_ast))
 
-        print(
-            f"INFO: made CFG wrapper for call of func `{func_name}` (will be linked later)",
-            "id: ",
-            wrapped_ast.ast_node.get("id"),
-            file=sys.stderr,
-        )
+        # print(
+        #     f"INFO: made CFG wrapper for call of func `{func_name}` (will be linked later)",
+        #     "id: ",
+        #     wrapped_ast.ast_node.get("id"),
+        #     file=sys.stderr,
+        # )
 
         return call_cfg
 

@@ -81,6 +81,85 @@ class InterruptionType(SelfValidatedEnum):
         # Конкретный тип покрывает только себя (уже проверено выше)
         return False
 
+    def intersection(self, other: 'InterruptionType | None') -> 'InterruptionType | None':
+        """Вычисляет пересечение двух типов прерываний.
+        
+        Возвращает более конкретное значение, если типы пересекаются (совместимы),
+        или None, если типы не пересекаются.
+        
+        Логика:
+        - Если типы совместимы (оба покрывают общее значение), возвращается более конкретное
+        - Порядок конкретности: конкретные типы > GENERIC_INTERRUPTION > NO_INTERRUPTION > ANY
+        - Если типы не пересекаются, возвращается None
+        
+        Args:
+            other: Другой тип прерывания для вычисления пересечения
+            
+        Returns:
+            Более конкретное значение из пересечения, или None, если типы не пересекаются
+        """
+        if other is None:
+            other = InterruptionType.NO_INTERRUPTION
+        
+        # Если типы одинаковые, возвращаем их
+        if self == other:
+            return self
+        
+        # Проверяем, пересекаются ли типы
+        # Типы пересекаются, если один покрывает другой (или оба покрывают общее значение)
+        self_fits_other = self.fits(other)
+        other_fits_self = other.fits(self)
+        
+        # Если типы не пересекаются (ни один не покрывает другой и они не одинаковые)
+        if not self_fits_other and not other_fits_self:
+            return None
+        
+        # Определяем более конкретное значение
+        # Порядок конкретности: конкретные типы > GENERIC_INTERRUPTION > NO_INTERRUPTION > ANY
+        specific_types = self._get_specific_types()
+        
+        # Если один из типов - конкретный, он более конкретный
+        if self in specific_types:
+            if other in specific_types:
+                # Оба конкретные и одинаковые (уже проверено выше) - не должно произойти
+                return self
+            # self конкретный, other - нет, значит self более конкретный
+            return self
+        if other in specific_types:
+            # other конкретный, self - нет, значит other более конкретный
+            return other
+        
+        # Если один из типов - GENERIC_INTERRUPTION
+        if self == InterruptionType.GENERIC_INTERRUPTION:
+            if other == InterruptionType.ANY:
+                return self  # GENERIC_INTERRUPTION более конкретный, чем ANY
+            # other должен быть NO_INTERRUPTION, но они не пересекаются
+            return None
+        if other == InterruptionType.GENERIC_INTERRUPTION:
+            if self == InterruptionType.ANY:
+                return other  # GENERIC_INTERRUPTION более конкретный, чем ANY
+            # self должен быть NO_INTERRUPTION, но они не пересекаются
+            return None
+        
+        # Если один из типов - NO_INTERRUPTION
+        if self == InterruptionType.NO_INTERRUPTION:
+            if other == InterruptionType.ANY:
+                return self  # NO_INTERRUPTION более конкретный, чем ANY
+            # other должен быть GENERIC_INTERRUPTION, но они не пересекаются
+            return None
+        if other == InterruptionType.NO_INTERRUPTION:
+            if self == InterruptionType.ANY:
+                return other  # NO_INTERRUPTION более конкретный, чем ANY
+            # self должен быть GENERIC_INTERRUPTION, но они не пересекаются
+            return None
+        
+        # Если оба - ANY, возвращаем ANY
+        if self == InterruptionType.ANY and other == InterruptionType.ANY:
+            return self
+        
+        # Fallback (не должно произойти)
+        return None
+
     @classmethod
     def merge(cls, this: Optional['InterruptionType'], other: Optional['InterruptionType']) -> Optional['InterruptionType']:
         """Объединить два типа прерывания согласно правилам:
@@ -340,6 +419,65 @@ class Constraints(DictLikeDataclass):
 
             if new_value is not None and result[name] == 'any':
                 # rewriting weak `any` value with any  value `new_value` is.
+                result[name] = new_value
+
+        return result
+
+    @classmethod
+    def chain_merge(cls, this: Self, other: Self) -> Self:
+        """Объединить ограничения из последовательных узлов/рёбер в цепочку.
+        
+        Для interruption_mode выбирает более узкое (конкретное) значение через intersection.
+        Для остальных полей использует ту же логику, что и merge (берётся значение из левого,
+        значение `any` имеет низший приоритет).
+        
+        Args:
+            this: Первое ограничение
+            other: Второе ограничение
+            
+        Returns:
+            Объединённое ограничение с более узким значением для interruption_mode
+        """
+        if this is not None and not isinstance(this, cls):
+            raise TypeError(f"Expected {cls.__name__} instance for 'this', got {type(this)!r}")
+        if other is not None and not isinstance(other, cls):
+            raise TypeError(f"Expected {cls.__name__} instance for 'other', got {type(other)!r}")
+
+        # Конвертируем пустоту в осмысленное значение по умолчанию
+        if this is None:
+            this = cls()
+        if other is None:
+            other = cls()
+
+        result = cls()
+        for name in this.keys():
+            existing_value = this[name]
+            new_value = other[name]
+            
+            # Специальная логика для interruption_mode: выбираем более узкое значение
+            if name == 'interruption_mode':
+                # Если оба значения заданы, используем intersection для выбора более узкого
+                if existing_value is not None and new_value is not None:
+                    intersection = existing_value.intersection(new_value)
+                    if intersection is not None:
+                        result[name] = intersection
+                    else:
+                        # Если не пересекаются, используем значение из левого (this)
+                        result[name] = existing_value
+                elif existing_value is not None:
+                    result[name] = existing_value
+                elif new_value is not None:
+                    result[name] = new_value
+                # Если оба None, оставляем None (или значение по умолчанию)
+                continue
+            
+            # Для остальных полей - стандартная логика (как в merge)
+            if existing_value is not None:
+                result[name] = existing_value
+                continue
+
+            if new_value is not None and result[name] == 'any':
+                # rewriting weak `any` value with any value `new_value` is.
                 result[name] = new_value
 
         return result

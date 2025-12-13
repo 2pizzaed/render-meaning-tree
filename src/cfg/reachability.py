@@ -8,6 +8,7 @@ from src.cfg.abstractions import (
     CallStackAction,
     Constraints,
     Effects,
+    InterruptionType,
 )
 from src.cfg.cfg import idgen
 from src.common_utils import DictLikeDataclass
@@ -89,6 +90,23 @@ class PathInfo(DictLikeDataclass):
             # Do not allow loops.
             return False
 
+        # Проверка совместимости interruption_mode
+        # Получаем конечный interruption_mode текущего пути
+        final_mode = self.get_final_interruption_mode()
+        
+        # Получаем начальный interruption_mode добавляемого ребра
+        edge_initial_mode = None
+        if edge.constraints and edge.constraints.interruption_mode:
+            edge_initial_mode = edge.constraints.interruption_mode
+        else:
+            edge_initial_mode = InterruptionType.NO_INTERRUPTION
+        
+        # Проверяем совместимость через intersection
+        intersection = final_mode.intersection(edge_initial_mode)
+        if intersection is None:
+            # Типы не пересекаются - шаг нельзя добавить
+            return False
+
         # register new step in chains
         self.via_nodes.append(target_node)
         self.via_edges.append(edge)
@@ -147,6 +165,21 @@ class PathInfo(DictLikeDataclass):
             # Дальнейшее наращивание циклических путей невозможно.
             return None
 
+        # Проверка совместимости interruption_mode
+        # Получаем конечный interruption_mode первого пути
+        path1_final_mode = path1.get_final_interruption_mode()
+        
+        # Получаем начальный interruption_mode второго пути
+        path2_initial_mode = path2.get_initial_interruption_mode()
+        if path2_initial_mode is None:
+            path2_initial_mode = InterruptionType.NO_INTERRUPTION
+        
+        # Проверяем совместимость через intersection
+        intersection = path1_final_mode.intersection(path2_initial_mode)
+        if intersection is None:
+            # Типы не пересекаются - пути нельзя соединить
+            return None
+
         # Инициализируем via_nodes и via_edges для path1, если они не инициализированы
         if not path1.via_nodes or not path1.via_edges:
             if path1.from_:
@@ -188,7 +221,15 @@ class PathInfo(DictLikeDataclass):
         new_path.via_nodes = combined_nodes
         new_path.via_edges = combined_edges
 
-        new_path.add_constraints(path1.constraints, path2.constraints)
+        # Используем chain_merge для объединения constraints двух путей
+        if path1.constraints and path2.constraints:
+            new_path.constraints = Constraints.chain_merge(path1.constraints, path2.constraints)
+        elif path1.constraints:
+            new_path.constraints = path1.constraints
+        elif path2.constraints:
+            new_path.constraints = path2.constraints
+        else:
+            new_path.constraints = Constraints()
         new_path.add_effects(*path1.effects, *path2.effects)
 
         # Суммируем метрики
@@ -210,16 +251,33 @@ class PathInfo(DictLikeDataclass):
 
         return new_path
 
-    def add_constraints(self, *other_constraints: Constraints):
+    def add_constraints(self, *other_constraints: Constraints) -> bool:
         """ Взять первое ограничение -- если пустое, то создать стандартное ограничение по умолчанию.
-        Не заменять существующее.
+        Для последующих: interruption mode: Добавлять как пересечение к существующему через chain_merge.
+        \\\ Не заменять существующее.
         """
-        if self.constraints:
-            # Не заменять существующее.
+        if not other_constraints:
+            if not self.constraints:
+                self.constraints = Constraints()
             return
+        
+        # Если constraints уже есть, объединяем с новыми через chain_merge
+        if self.constraints:
+            for constraint in other_constraints:
+                if constraint:
+                    self.constraints = Constraints.chain_merge(self.constraints, constraint)
+            return
+        
+        # Если constraints нет, берём первое и объединяем с остальными
         first_constraint = next(iter(other_constraints), None)
         if not first_constraint:
             first_constraint = Constraints()
+        else:
+            # Объединяем первое с остальными constraints через chain_merge
+            for constraint in other_constraints:
+                if constraint and constraint is not first_constraint:
+                    first_constraint = Constraints.chain_merge(first_constraint, constraint)
+        
         self.constraints = first_constraint
 
 
@@ -231,6 +289,57 @@ class PathInfo(DictLikeDataclass):
                     self.effects.append(effect)
                 else:
                     self.effects[-1] = merged
+
+    def get_initial_interruption_mode(self) -> 'InterruptionType | None':
+        """Получить начальный interruption_mode пути.
+        
+        Возвращает constraint первого ребра/перехода пути.
+        Если constraints отсутствует или interruption_mode не задан, возвращает None
+        (что эквивалентно NO_INTERRUPTION).
+        
+        Returns:
+            Начальный interruption_mode из constraints пути, или None
+        """
+        if self.constraints and self.constraints.interruption_mode:
+            return self.constraints.interruption_mode
+        return None
+
+    def get_final_interruption_mode(self) -> 'InterruptionType':
+        """Вычислить конечный interruption_mode пути.
+        
+        Вычисляет конечное состояние прерывания после прохождения пути,
+        учитывая все эффекты interruption_start и interruption_stop.
+        
+        Алгоритм:
+        1. Начинает с начального interruption_mode (или NO_INTERRUPTION, если не задан)
+        2. Проходит по всем эффектам пути в порядке их добавления
+        3. Для каждого эффекта:
+           - Если есть interruption_start и он не равен NO_INTERRUPTION, заменяет текущее состояние
+           - Если есть interruption_stop и он покрывает текущее состояние, устанавливает NO_INTERRUPTION
+        
+        Returns:
+            Конечное состояние прерывания после прохождения пути
+        """
+        # Начинаем с начального interruption_mode
+        current_mode = self.get_initial_interruption_mode()
+        if current_mode is None:
+            current_mode = InterruptionType.NO_INTERRUPTION
+        
+        # Проходим по всем эффектам пути в порядке их добавления
+        for effect in self.effects:
+            if not effect:
+                continue
+            
+            # Применяем interruption_start (если задан и не равен NO_INTERRUPTION)
+            if effect.interruption_start and effect.interruption_start != InterruptionType.NO_INTERRUPTION:
+                current_mode = effect.interruption_start
+            
+            # Применяем interruption_stop (если задан и покрывает текущее состояние)
+            if effect.interruption_stop:
+                if effect.interruption_stop.fits(current_mode):
+                    current_mode = InterruptionType.NO_INTERRUPTION
+        
+        return current_mode
 
     def renew_first_middle_action(self):
         """ Обновить информацию о первом непрозрачном действии, условии и смене фрейма стека на пути. """

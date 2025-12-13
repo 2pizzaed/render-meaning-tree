@@ -69,11 +69,10 @@ def visualize_cfg_graphviz(
         edge_obj = edge_data.get('edge_obj')
         if edge_obj and edge_obj.constraints and edge_obj.constraints.interruption_mode:
             interruption_mode = edge_obj.constraints.interruption_mode
-            # Проверяем, есть ли прерывание (не NO_INTERRUPTION, не None, не ANY)
+            # Проверяем, есть ли прерывание (не NO_INTERRUPTION, не None)
             if interruption_mode not in (
                 None,
                 InterruptionType.NO_INTERRUPTION,
-                InterruptionType.ANY
             ):
                 has_interruption = True
         
@@ -84,7 +83,6 @@ def visualize_cfg_graphviz(
             if interruption_mode not in (
                 None,
                 InterruptionType.NO_INTERRUPTION,
-                InterruptionType.ANY
             ):
                 has_interruption = True
         

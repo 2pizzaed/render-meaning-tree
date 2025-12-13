@@ -35,6 +35,7 @@ class TestComplexProblemBuild(unittest.TestCase):
 
         # Перебираем все файлы в task_data
         for file in files:
+            # Начинаем нумерацию узлов с начала для каждого файла, таким образом, порядок обработки файлов не влияет на id узлов.
             idgen.reset()
             # if file.stem not in ('21', ):
             #     continue

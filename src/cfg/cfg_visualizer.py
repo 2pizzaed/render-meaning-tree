@@ -101,13 +101,24 @@ def _create_path_label(path: 'PathInfo') -> str:
         parts.append(f"steps:{path.cfg_steps}")
 
     if getattr(path, "ast_actions", None):
-        parts.append(f"ast:{path.ast_actions}")
+        parts.append(f"ast:{path.opaque_actions}")
 
     if getattr(path, "conditions", None):
         parts.append(f"cond:{path.conditions}")
 
     if getattr(path, "frame_changes", None):
         parts.append(f"frames:{path.frame_changes}")
+
+    # Interruption mode
+    if hasattr(path.constraints, 'interruption_mode') and path.constraints.interruption_mode:
+        mode = path.constraints.interruption_mode
+        if mode == "exception":
+            parts.append("exc")
+        elif mode == "any":
+            # pass
+            parts.append("any")
+        else:
+            parts.append(str(mode)[:3])  # Обрезаем до 3 символов
 
     if not parts:
         return ""

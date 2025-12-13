@@ -119,34 +119,31 @@ class PathInfo(DictLikeDataclass, WithEffectsMixin):
         self.to_ = target_node
         self.cfg_steps = (self.cfg_steps or 0) + 1
 
-        if True: # or target_node.metadata.wrapped_ast is not None:
+        # check transparency of this action...
+        action = target_node.metadata.abstract_action
+        if action:
+            self.ast_actions = (self.ast_actions or 0) + 1
 
-            # check transparency of this action...
-            action = target_node.metadata.abstract_action
-            if action:
-                self.ast_actions = (self.ast_actions or 0) + 1
+            if target_node.is_mandatory():
+                # mandatory action/button
+                self.opaque_actions = (self.opaque_actions or 0) + 1
+                # conditions
+                if target_node.is_condition():
+                    self.conditions = (self.conditions or 0) + 1
 
-                if target_node.is_mandatory():
-                    # mandatory action/button
-                    self.opaque_actions = (self.opaque_actions or 0) + 1
-                    # conditions
-                    if target_node.is_condition():
-                        self.conditions = (self.conditions or 0) + 1
+            else:
+                # no button is associated with this node.
+                self.transparent_actions = (self.transparent_actions or 0) + 1
 
-                else:
-                    # no button is associated with this node.
-                    self.transparent_actions = (self.transparent_actions or 0) + 1
-
-
-                # frames
-                if action.effects:
-                    for effect in action.effects:
-                        if effect.call_stack:
-                            self.frame_changes = (self.frame_changes or 0) + 1
-                            if effect.call_stack == CallStackAction.ADD_FRAME:
-                                self.frames_added = (self.frames_added or 0) + 1
-                            elif effect.call_stack == CallStackAction.DROP_FRAME:
-                                self.frames_dropped = (self.frames_dropped or 0) + 1
+            # frames
+            if action.effects:
+                for effect in action.effects:
+                    if effect.call_stack:
+                        self.frame_changes = (self.frame_changes or 0) + 1
+                        if effect.call_stack == CallStackAction.ADD_FRAME:
+                            self.frames_added = (self.frames_added or 0) + 1
+                        elif effect.call_stack == CallStackAction.DROP_FRAME:
+                            self.frames_dropped = (self.frames_dropped or 0) + 1
 
         self.renew_first_middle_action()#target_node
         self.update_directness()

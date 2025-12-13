@@ -443,41 +443,6 @@ class CFGBuilder:
         # Очищаем список незавершенных вызовов после связывания
         self.pending_function_calls.clear()
 
-    def _create_simple_function_call_cfg(self, func_name: str, wrapped_ast: ASTNodeWrapper) -> CFG:
-        """
-        Создает простой CFG для вызова функции без использования конструкта.
-        
-        Args:
-            func_name: Имя вызываемой функции
-            wrapped_ast: Обёртка AST узла вызова
-            
-        Returns:
-            CFG для вызова функции
-        """
-        raise DeprecationWarning()
-        func_cfg = self.func_cfgs.get(func_name)
-        if not func_cfg:
-            return None
-        
-        call_cfg = CFG("simple_function_call")
-        
-        # Встраиваем CFG функции как subgraph
-        func_node_pair = call_cfg.add_node(
-            kind=NodeKind.BEGIN,
-            role='func',
-            metadata=Metadata(
-                wrapped_ast=wrapped_ast,
-                primary=True,
-            ),
-            subgraph=func_cfg
-        )
-        
-        # Создаем рёбра BEGIN -> func -> END
-        call_cfg.connect(call_cfg.begin_node, func_node_pair[0])
-        call_cfg.connect(func_node_pair[1], call_cfg.end_node)
-        
-        return call_cfg
-
     def _handle_function_definition(self, construct: ConstructSpec, wrapped_ast: ASTNodeWrapper) -> CFG:
         """Обрабатывает определение функции: создает CFG для тела функции и сохраняет в func_cfgs."""
         # Извлекаем имя функции

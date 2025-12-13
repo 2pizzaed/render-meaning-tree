@@ -387,7 +387,8 @@ func_def_structure:
 # --------------------------------
 func_call_structure:
   kind: inline.call
-  ast_node: ['function_call', 'method_call']
+  ast_node: ['function_call']
+  # ast_node: ['function_call', 'method_call']  # cannot support methods so far
   actions:
     - role: name
       kind: identifier

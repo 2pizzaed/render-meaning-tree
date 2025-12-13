@@ -513,7 +513,7 @@ try_except_structure:
 
 
 # --------------------------------
-# Заглушка для всех простых действий
+# Заглушка для всех простых действий (с одной кнопкой СТАРТ)
 # --------------------------------
 inline_atom_structure:
   kind: inline
@@ -535,10 +535,16 @@ inline_atom_structure:
 
 
 # --------------------------------
-# Заглушка для комментария
+# Заглушка для комментария и др. незначимых для CFG действий (без кнопок)
 # --------------------------------
-comment_structure:
-  kind: inline.noop
-  ast_node: comment
+noop_structure:
+  kind: noop
+  ast_node: [
+    'comment',
+    'class_definition',
+    'import_module',
+    'import_members_from_module',
+    # TODO: add more no-op ast node types here
+  ]
 
 

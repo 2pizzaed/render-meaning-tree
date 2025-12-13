@@ -361,6 +361,7 @@ class Effects(DictLikeDataclass):
 
     def changes_interruption_mode(self):
         # Any of interruption_start or interruption_stop is not empty.
+        # Note: interruption_stop may be set but not affect actual interruption-state if no interruption has been triggered before during a real program run.
         return (self.interruption_stop is not None or
                 self.interruption_start is not None or
                 self.interruption_stop != InterruptionType.NO_INTERRUPTION or

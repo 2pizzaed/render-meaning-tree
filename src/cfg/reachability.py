@@ -111,10 +111,10 @@ class PathInfo(DictLikeDataclass, WithEffectsMixin):
         self.via_nodes.append(target_node)
         self.via_edges.append(edge)
 
-        self.via_edges.append(edge)
         if not self.changes_interruption_mode():
             # ограничения применяются только до первой смены прерывания.
             self.add_constraints(edge.constraints)
+            
         self.add_effects(*edge.effects or (), *target_node.effects or ())
 
         # update all info...
@@ -219,9 +219,12 @@ class PathInfo(DictLikeDataclass, WithEffectsMixin):
         new_path.via_nodes = combined_nodes
         new_path.via_edges = combined_edges
 
-        new_path.constraints = path1.constraints
-        if not path1.changes_interruption_mode():
-            # ограничения применяются только до первой смены прерывания.
+        # new_path.constraints = path1.constraints
+        new_path.add_constraints(path1.constraints)
+
+        should_merge_2nd_constraints = path1.is_direct is None or not path1.changes_interruption_mode()
+        # ограничения применяются для получения прямых путей, а для остальных --- только до первой смены прерывания.
+        if should_merge_2nd_constraints:
             new_path.add_constraints(path2.constraints)
             
         new_path.add_effects(*path1.effects, *path2.effects)

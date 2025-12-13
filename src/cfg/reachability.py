@@ -64,6 +64,13 @@ class PathInfo(DictLikeDataclass):
             assert self.from_
             self.via_nodes.append(self.from_)
 
+    def __hash__(self):
+        return hash((
+            self.from_.id,
+            self.to_.id,
+            self.is_direct,
+            len(self.via_nodes)))
+
     def is_loop(self) -> bool:
         """ True, если заканчивается на тот же узел, что и начинается.
         Это допустимо, но дальнейшее наращивание пути-цикла невозможно. """
@@ -378,10 +385,12 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
         # Для простоты проверяем только наличие пути с такой же последовательностью узлов
         existing = False
         if path.via_nodes:
-            path_signature = tuple(node.id for node in path.via_nodes)
+            path_signature = hash(path)
+            # path_signature = tuple(node.id for node in path.via_nodes)
             for existing_path in paths_cache[key]:
                 if existing_path.via_nodes:
-                    existing_signature = tuple(node.id for node in existing_path.via_nodes)
+                    existing_signature = hash(existing_path)
+                    # existing_signature = tuple(node.id for node in existing_path.via_nodes)
                     if path_signature == existing_signature:
                         existing = True
                         break

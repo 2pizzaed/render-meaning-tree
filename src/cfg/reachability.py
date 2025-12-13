@@ -405,8 +405,8 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
 
 
     def chain_paths(
-            source__is_direct: bool | None,
-            target__is_direct: bool,
+            source__is_direct: list[bool | None],
+            target__is_direct: list[bool],
             length_limit = None,
             END_priority = False,
             algorithm_end: Node = cfg.end_node
@@ -415,85 +415,63 @@ def determine_all_paths_between_opaque_nodes(cfg: CFG) -> list[PathInfo]:
         length_limit: максимальная длина цепочки, из которой может быть составлен целевой путь (None = не ограничено)
         END_priority: если True, то пути, заканчивающаяся концом алгоритма (`algorithm_end`), не подпадают под ограничение длины.
         """
-        # todo: использовать paths_cache и paths_from_node
-        ...
+        while True:
+            new_paths_found = 0
+            
+            # Получаем все пути с source__is_direct
+            source_paths = []
+            for paths_list in paths_cache.values():
+                for path in paths_list:
+                    if path.is_direct in source__is_direct:
+                        source_paths.append(path)
+            
+            # Для каждого исходного пути ищем пути, которые можно к нему присоединить
+            for path1 in source_paths:
+                if path1.to_ is None:
+                    continue
+                
+                # Используем paths_from_node для эффективного поиска продолжений
+                continuation_paths = paths_from_node.get(path1.to_.id, [])
+                
+                for path2 in continuation_paths:
+                    # Проверяем, что path2 имеет нужный source__is_direct
+                    if path2.is_direct not in source__is_direct:
+                        continue
+                    
+                    # Пробуем объединить пути
+                    combined = PathInfo.concatenate_paths(path1, path2)
+                    if combined is None:
+                        continue
+                    
+                    # Проверяем, что результат имеет нужный target__is_direct
+                    if combined.is_direct not in target__is_direct:
+                        continue
+                    
+                    # Проверяем ограничение по длине
+                    if length_limit is not None:
+                        # Если END_priority=True и путь заканчивается на algorithm_end, пропускаем проверку
+                        if not (END_priority and combined.to_ == algorithm_end):
+                            # Подсчитываем длину цепочки (количество opaque_actions)
+                            chain_length = combined.opaque_actions or 0
+                            if chain_length > length_limit:
+                                continue
+                    
+                    # Добавляем путь в кэш
+                    if add_path_to_cache(combined):
+                        new_paths_found += 1
+            
+            # Если новая итерация не дала новых путей, останавливаемся
+            if new_paths_found == 0:
+                break
 
 
 
     # Итеративное построение более длинных путей, останавливаясь на "непрозрачных" узлах (которые "с кнопками").
-    # Цикл по target__is_direct:
     # 1. Сначала прямые из неполных (None -> True)
+    chain_paths([None], [None, True])
     # 2. Затем непрямые(опосредованные) из прямых (True -> False)
-    # 3. Затем один проход комбинирования непрямых путей с прямыми/неполными для нахождения дополнительных путей
-    chain_paths(None, True)
-    chain_paths(True, False, length_limit=4, END_priority=True)
-
-    # TODO: refactor to use chain_paths()
-
-    for target__is_direct in (None, True, False):
-      # Для путей с is_direct == False делаем только один проход, чтобы избежать бесконечного цикла
-      max_iterations = 1 if target__is_direct is False else float('inf')
-      iteration = 0
-      
-      while iteration < max_iterations:
-        new_paths_found = 0
-        iteration += 1
-
-        # Получаем все текущие пути для итерации с заданным is_direct
-        current_paths = []
-        for paths_list in paths_cache.values():
-            for path in paths_list:
-                if path.is_direct is target__is_direct:
-                    current_paths.extend(paths_list)
-
-        # Для путей с is_direct == False комбинируем только с путями, имеющими is_direct == True или None,
-        # чтобы избежать бесконечного цикла комбинирования False с False
-        if target__is_direct is False:
-            other_paths = []
-            for paths_list in paths_cache.values():
-                for path in paths_list:
-                    if path.is_direct in (None, True):
-                        other_paths.extend(paths_list)
-            
-            # Комбинируем пути с is_direct == False с путями, имеющими is_direct == True или None
-            for path1 in current_paths:
-                for path2 in other_paths:
-                    if path1 is path2:
-                        continue
-
-                    # Пробуем объединить пути
-                    combined = PathInfo.concatenate_paths(path1, path2)
-                    if combined is not None:
-                        if add_path_to_cache(combined):
-                            new_paths_found += 1
-            
-            # Также комбинируем в обратном порядке
-            for path1 in other_paths:
-                for path2 in current_paths:
-                    if path1 is path2:
-                        continue
-
-                    # Пробуем объединить пути
-                    combined = PathInfo.concatenate_paths(path1, path2)
-                    if combined is not None:
-                        if add_path_to_cache(combined):
-                            new_paths_found += 1
-        else:
-            # Для путей с is_direct == None или True комбинируем как обычно
-            for path1 in current_paths:
-                for path2 in current_paths:
-                    if path1 is path2:
-                        continue
-
-                    # Пробуем объединить пути
-                    combined = PathInfo.concatenate_paths(path1, path2)
-                    if combined is not None:
-                        if add_path_to_cache(combined):
-                            new_paths_found += 1
-
-        # Если новая итерация не дала новых путей, останавливаемся
-        if new_paths_found == 0:
-            break
+    # Ограничиваем длину цепочки до 4, но пути к концу алгоритма имеют приоритет
+    chain_paths([True, False], [False], length_limit=4, END_priority=True)
 
     # Фильтруем результат: оставляем только пути между opaque узлами
     result_paths: list[PathInfo] = []

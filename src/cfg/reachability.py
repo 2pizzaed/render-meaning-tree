@@ -8,14 +8,14 @@ from src.cfg.abstractions import (
     CallStackAction,
     Constraints,
     Effects,
-    InterruptionType,
+    InterruptionType, WithEffectsMixin,
 )
 from src.cfg.cfg import idgen
 from src.common_utils import DictLikeDataclass
 
 
 @dataclass
-class PathInfo(DictLikeDataclass):
+class PathInfo(DictLikeDataclass, WithEffectsMixin):
     """General info about a finite path on CFG.
        Путь по графу: конечный, задаётся двумя узлами и представляет собой кратчайший путь между ними.
        Может замыкаться на одном действии AST, но при этом не будет на самом деле замкнутым, т.к. начало и конец действия обычно представлены различными узлами CFG.
@@ -97,9 +97,7 @@ class PathInfo(DictLikeDataclass):
         # Получаем начальный interruption_mode добавляемого ребра
         edge_initial_mode = None
         if edge.constraints and edge.constraints.interruption_mode:
-            edge_initial_mode = edge.constraints.interruption_mode
-        else:
-            edge_initial_mode = InterruptionType.NO_INTERRUPTION
+            edge_initial_mode = edge.constraints.interruption_mode or InterruptionType.DEFAULT
         
         # Проверяем совместимость через intersection
         intersection = final_mode.intersection(edge_initial_mode)
@@ -111,7 +109,10 @@ class PathInfo(DictLikeDataclass):
         self.via_nodes.append(target_node)
         self.via_edges.append(edge)
 
-        self.add_constraints(edge.constraints)
+        self.via_edges.append(edge)
+        if not self.changes_interruption_mode():
+            # ограничения применяются только до первой смены прерывания.
+            self.add_constraints(edge.constraints)
         self.add_effects(*edge.effects or (), *target_node.effects or ())
 
         # update all info...
@@ -170,9 +171,7 @@ class PathInfo(DictLikeDataclass):
         path1_final_mode = path1.get_final_interruption_mode()
         
         # Получаем начальный interruption_mode второго пути
-        path2_initial_mode = path2.get_initial_interruption_mode()
-        if path2_initial_mode is None:
-            path2_initial_mode = InterruptionType.NO_INTERRUPTION
+        path2_initial_mode = path2.get_initial_interruption_mode() or InterruptionType.DEFAULT
         
         # Проверяем совместимость через intersection
         intersection = path1_final_mode.intersection(path2_initial_mode)
@@ -221,15 +220,11 @@ class PathInfo(DictLikeDataclass):
         new_path.via_nodes = combined_nodes
         new_path.via_edges = combined_edges
 
-        # Используем chain_merge для объединения constraints двух путей
-        if path1.constraints and path2.constraints:
-            new_path.constraints = Constraints.chain_merge(path1.constraints, path2.constraints)
-        elif path1.constraints:
-            new_path.constraints = path1.constraints
-        elif path2.constraints:
-            new_path.constraints = path2.constraints
-        else:
-            new_path.constraints = Constraints()
+        new_path.constraints = path1.constraints
+        if not path1.changes_interruption_mode():
+            # ограничения применяются только до первой смены прерывания.
+            new_path.add_constraints(path2.constraints)
+            
         new_path.add_effects(*path1.effects, *path2.effects)
 
         # Суммируем метрики
@@ -251,35 +246,22 @@ class PathInfo(DictLikeDataclass):
 
         return new_path
 
-    def add_constraints(self, *other_constraints: Constraints) -> bool:
+    def add_constraints(self, *other_constraints: Constraints):
         """ Взять первое ограничение -- если пустое, то создать стандартное ограничение по умолчанию.
         Для последующих: interruption mode: Добавлять как пересечение к существующему через chain_merge.
-        \\\ Не заменять существующее.
+        Соглашение о вызове внешним кодом: ограничения не следует добавлять, если путь уже имеет смены режима прерывания, а добавляемые ограничения должны быть так же до смены режима прерывания.
         """
         if not other_constraints:
-            if not self.constraints:
-                self.constraints = Constraints()
             return
-        
-        # Если constraints уже есть, объединяем с новыми через chain_merge
-        if self.constraints:
-            for constraint in other_constraints:
-                if constraint:
-                    self.constraints = Constraints.chain_merge(self.constraints, constraint)
-            return
-        
-        # Если constraints нет, берём первое и объединяем с остальными
-        first_constraint = next(iter(other_constraints), None)
-        if not first_constraint:
-            first_constraint = Constraints()
-        else:
-            # Объединяем первое с остальными constraints через chain_merge
-            for constraint in other_constraints:
-                if constraint and constraint is not first_constraint:
-                    first_constraint = Constraints.chain_merge(first_constraint, constraint)
-        
-        self.constraints = first_constraint
 
+        if not self.constraints:
+            # Если constraints нет, берём первое и объединяем с остальными...
+            self.constraints = next(iter(other_constraints), None) or Constraints()
+            other_constraints = other_constraints[1:]
+
+        # Объединяем constraints с новыми через chain_merge, по порядку.
+        for constraint in other_constraints:
+            self.constraints = Constraints.chain_merge(self.constraints, constraint)
 
     def add_effects(self, *other_effects: Effects):
         """ Добавить непустые эффекты (из последовательных узлов/рёбер) """
@@ -321,13 +303,11 @@ class PathInfo(DictLikeDataclass):
             Конечное состояние прерывания после прохождения пути
         """
         # Начинаем с начального interruption_mode
-        current_mode = self.get_initial_interruption_mode()
-        if current_mode is None:
-            current_mode = InterruptionType.NO_INTERRUPTION
+        current_mode = self.get_initial_interruption_mode() or InterruptionType.NO_INTERRUPTION
         
         # Проходим по всем эффектам пути в порядке их добавления
         for effect in self.effects:
-            if not effect:
+            if not effect or not effect.changes_interruption_mode():
                 continue
             
             # Применяем interruption_start (если задан и не равен NO_INTERRUPTION)

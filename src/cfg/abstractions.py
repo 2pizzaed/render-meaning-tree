@@ -105,7 +105,7 @@ class InterruptionType(SelfValidatedEnum):
         if self == other:
             return self
         
-        # Проверяем, пересекаются ли типы
+        # Проверяем, пересекаются ли типы...
         # Типы пересекаются, если один покрывает другой (или оба покрывают общее значение)
         self_fits_other = self.fits(other)
         other_fits_self = other.fits(self)
@@ -121,8 +121,8 @@ class InterruptionType(SelfValidatedEnum):
         # Если один из типов - конкретный, он более конкретный
         if self in specific_types:
             if other in specific_types:
-                # Оба конкретные и одинаковые (уже проверено выше) - не должно произойти
-                return self
+                # Оба конкретные, но неодинаковые (одинаковость уже проверена выше)
+                return None
             # self конкретный, other - нет, значит self более конкретный
             return self
         if other in specific_types:
@@ -146,16 +146,19 @@ class InterruptionType(SelfValidatedEnum):
             if other == InterruptionType.ANY:
                 return self  # NO_INTERRUPTION более конкретный, чем ANY
             # other должен быть GENERIC_INTERRUPTION, но они не пересекаются
+            assert other == InterruptionType.NO_INTERRUPTION, other
             return None
         if other == InterruptionType.NO_INTERRUPTION:
             if self == InterruptionType.ANY:
                 return other  # NO_INTERRUPTION более конкретный, чем ANY
             # self должен быть GENERIC_INTERRUPTION, но они не пересекаются
+            assert self == InterruptionType.NO_INTERRUPTION, other
             return None
         
         # Если оба - ANY, возвращаем ANY
-        if self == InterruptionType.ANY and other == InterruptionType.ANY:
-            return self
+        # (равенство проверено выше)
+        # if self == InterruptionType.ANY and other == InterruptionType.ANY:
+        #     return self
         
         # Fallback (не должно произойти)
         return None
@@ -356,7 +359,23 @@ class Effects(DictLikeDataclass):
                     return None
         return result
 
+    def changes_interruption_mode(self):
+        # Any of interruption_start or interruption_stop is not empty.
+        return (self.interruption_stop is not None or
+                self.interruption_start is not None or
+                self.interruption_stop != InterruptionType.NO_INTERRUPTION or
+                self.interruption_start != InterruptionType.NO_INTERRUPTION)
 
+class WithEffectsMixin:
+    def changes_interruption_mode(self):
+        """ Retrieves self.effects and checks them for Effects.changes_interruption_mode(). """
+        if hasattr(self, 'effects'):
+            if isinstance(self.effects, list):
+                return any((isinstance(effect, Effects) and effect.changes_interruption_mode())
+                           for effect in self.effects)
+            if isinstance(self.effects, Effects):
+                return self.effects.changes_interruption_mode()
+        return False
 
 @dataclass
 class Identification(DictLikeDataclass):
@@ -457,18 +476,12 @@ class Constraints(DictLikeDataclass):
             # Специальная логика для interruption_mode: выбираем более узкое значение
             if name == 'interruption_mode':
                 # Если оба значения заданы, используем intersection для выбора более узкого
-                if existing_value is not None and new_value is not None:
-                    intersection = existing_value.intersection(new_value)
-                    if intersection is not None:
-                        result[name] = intersection
-                    else:
-                        # Если не пересекаются, используем значение из левого (this)
-                        result[name] = existing_value
-                elif existing_value is not None:
+                intersection = (existing_value or InterruptionType.DEFAULT).intersection(new_value or InterruptionType.DEFAULT)
+                if intersection is not None:
+                    result[name] = intersection
+                else:
+                    # Если не пересекаются, используем значение из левого (this)
                     result[name] = existing_value
-                elif new_value is not None:
-                    result[name] = new_value
-                # Если оба None, оставляем None (или значение по умолчанию)
                 continue
             
             # Для остальных полей - стандартная логика (как в merge)

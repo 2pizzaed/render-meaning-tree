@@ -10,7 +10,7 @@ from src.cfg.abstractions import (
     Constraints,
     ConstructSpec,
     Effects,
-    TransitionSpec, ActionKind, OptionalBoolValue,
+    TransitionSpec, ActionKind, OptionalBoolValue, WithEffectsMixin,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
@@ -117,7 +117,7 @@ idgen = IDGen(100)
 
 
 @dataclass(kw_only=True)
-class Node(FactSerializable):
+class Node(FactSerializable, WithEffectsMixin):
     id: str
     role_in_construct: str  # for internal usage
     kind: NodeKind
@@ -166,7 +166,7 @@ class Node(FactSerializable):
             target.append(path)
 
 @dataclass(kw_only=True)
-class Edge(FactSerializable):
+class Edge(FactSerializable, WithEffectsMixin):
     id: str
     src: str
     dst: str

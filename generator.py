@@ -18,18 +18,6 @@ def detect_lang(path: str):
             return "java"
 
 
-def get_scenario_name_from_question(question: dict) -> str:
-    """Извлекает имя сценария из вопроса для формирования имени файла."""
-    # Имя сценария может быть в questionName или в metadataList
-    qname = question.get("commonQuestion", {}).get("questionData", {}).get("questionName", "")
-    # Если имя содержит подчёркивание, возможно это base_name_scenario_name
-    if "_" in qname:
-        parts = qname.rsplit("_", 1)
-        if len(parts) == 2:
-            return parts[1]
-    return "default"
-
-
 parser = argparse.ArgumentParser(
     description="Генератор вопросов из исходного кода"
 )
@@ -108,25 +96,37 @@ if args.output_dir:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    for i, question in enumerate(questions):
-        # Определяем имя сценария
-        if scenario_names_list and i < len(scenario_names_list):
+    # Если планов нет, всегда будет один сценарий "default"
+    # Если планы есть, используем имена из планов
+    if scenario_names_list and len(scenario_names_list) == len(questions):
+        # Используем имена сценариев из планов
+        for i, question in enumerate(questions):
             scenario_name = scenario_names_list[i]
-        else:
-            # Fallback: пытаемся извлечь из имени вопроса
-            scenario_name = get_scenario_name_from_question(question)
-        
-        # Формируем имя файла
-        if scenario_name == "default" and len(questions) == 1:
-            # Если только один вопрос с default, используем просто base_name
-            filename = output_dir / f"{base_name}.json"
-        else:
-            # Иначе добавляем имя сценария
-            filename = output_dir / f"{base_name}_{scenario_name}.json"
-        
-        # Записываем вопрос в файл
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(question, f, indent=2, ensure_ascii=False)
+            
+            # Формируем имя файла
+            if scenario_name == "default" and len(questions) == 1:
+                # Если только один вопрос с default, используем просто base_name
+                filename = output_dir / f"{base_name}.json"
+            else:
+                # Иначе добавляем имя сценария
+                filename = output_dir / f"{base_name}_{scenario_name}.json"
+            
+            # Записываем вопрос в файл
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(question, f, indent=2, ensure_ascii=False)
+    else:
+        # Если планов нет или их количество не совпадает, используем только base_name
+        # (всегда будет один вопрос со сценарием "default")
+        for i, question in enumerate(questions):
+            if len(questions) == 1:
+                filename = output_dir / f"{base_name}.json"
+            else:
+                # На случай, если всё-таки несколько вопросов без планов
+                filename = output_dir / f"{base_name}_{i+1}.json"
+            
+            # Записываем вопрос в файл
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(question, f, indent=2, ensure_ascii=False)
 else:
     # Выводим в stdout только первый вопрос (для обратной совместимости)
     first_question = questions[0]

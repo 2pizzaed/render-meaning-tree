@@ -3,12 +3,20 @@
 
 Предоставляет функцию для извлечения и экспорта информации о том, какие значения
 (true/false) были назначены каким условиям при генерации трассы выполнения программы.
+Также предоставляет функции для загрузки планов условий из JSON файлов.
 """
 
+import json
+import warnings
+from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from src.cfg.abstractions import OptionalBoolValue
-from src.cfg.cfg import TraceAct
+from src.cfg.cfg import CFG, TraceAct
+
+# Константа для унификации seed по умолчанию
+DEFAULT_SEED = 59
 
 
 def export_condition_decisions(
@@ -86,4 +94,205 @@ def export_condition_decisions(
         "scenario_name": scenario_name,
         "conditions": conditions,
     }
+
+
+def load_condition_plans(
+    plan_source: str | Path | dict[str, Any]
+) -> dict[str, Any]:
+    """Загружает план условий из JSON файла или словаря.
+
+    Поддерживает два формата:
+    - Полный формат (экспортированный): содержит ast_id, cfg_node_id, condition_value, position_in_trace
+    - Упрощённый формат: содержит только cfg_node_id и condition_value
+
+    Также поддерживает файлы с несколькими сценариями (ключ "scenarios" со списком).
+
+    Args:
+        plan_source: Путь к JSON файлу, объект Path или словарь с данными плана
+
+    Returns:
+        Словарь с планом условий. Если файл содержит несколько сценариев,
+        возвращает словарь с ключом "scenarios" (список) и опционально "seed".
+        Если файл содержит один сценарий, возвращает словарь с ключом "scenario_name" и "conditions".
+
+    Example:
+        # Загрузка из файла
+        plan = load_condition_plans("scenarios.json")
+
+        # Загрузка из словаря
+        plan = load_condition_plans({"scenario_name": "default", "conditions": [...]})
+    """
+    if isinstance(plan_source, (str, Path)):
+        path = Path(plan_source)
+        if not path.exists():
+            raise FileNotFoundError(f"Plan file not found: {path}")
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = plan_source
+
+    # Если это файл с несколькими сценариями
+    if "scenarios" in data:
+        return data
+
+    # Если это один сценарий, нормализуем формат
+    if "scenario_name" in data or "conditions" in data:
+        return data
+
+    raise ValueError(
+        "Invalid plan format: expected 'scenarios' (list) or 'scenario_name'/'conditions' keys"
+    )
+
+
+def plan_to_scenario_config(
+    plan: dict[str, Any], cfg: CFG, default_seed: int = DEFAULT_SEED
+) -> "TraceScenarioConfig":
+    """Преобразует план условий в TraceScenarioConfig.
+
+    Преобразует план условий (словарь) в TraceScenarioConfig для использования
+    при генерации трассы. Использует cfg_node_id для поиска узла в CFG и извлечения ast_id.
+
+    Args:
+        plan: Словарь с планом условий (результат load_condition_plans)
+        cfg: Граф потока управления для поиска узлов
+        default_seed: Seed по умолчанию, если не указан в плане
+
+    Returns:
+        TraceScenarioConfig с настроенными condition_sequences
+
+    Raises:
+        ValueError: Если план имеет неверный формат
+    """
+    from src.cfg.trace_builder import ConditionDecisionSchedule, TraceScenarioConfig
+
+    # Извлекаем имя сценария
+    scenario_name = plan.get("scenario_name", "default")
+
+    # Извлекаем seed (может быть в корне плана или в сценарии)
+    seed = plan.get("seed", default_seed)
+
+    # Извлекаем условия
+    conditions = plan.get("conditions", [])
+
+    # Создаём словарь для группировки условий по ast_id
+    # Ключ: ast_id, Значение: список значений условия в порядке появления
+    condition_sequences: dict[int, list[bool]] = defaultdict(list)
+
+    # Словарь для отслеживания cfg_node_id -> ast_id (для случаев, когда ast_id недоступен)
+    cfg_to_ast: dict[str, int] = {}
+
+    for condition in conditions:
+        cfg_node_id = condition.get("cfg_node_id")
+        condition_value_str = condition.get("condition_value")
+
+        if not cfg_node_id or not condition_value_str:
+            warnings.warn(
+                f"Skipping condition without cfg_node_id or condition_value: {condition}",
+                stacklevel=2,
+            )
+            continue
+
+        # Преобразуем строковое значение в bool
+        if condition_value_str == "true":
+            condition_value = True
+        elif condition_value_str == "false":
+            condition_value = False
+        else:
+            warnings.warn(
+                f"Unknown condition_value '{condition_value_str}', expected 'true' or 'false'",
+                stacklevel=2,
+            )
+            continue
+
+        # Пытаемся найти узел в CFG
+        node = cfg.nodes.get(cfg_node_id)
+        if not node:
+            warnings.warn(
+                f"CFG node '{cfg_node_id}' not found, skipping condition",
+                stacklevel=2,
+            )
+            continue
+
+        # Извлекаем ast_id из узла
+        ast_id = None
+        if (
+            node.metadata
+            and node.metadata.wrapped_ast
+            and isinstance(node.metadata.wrapped_ast.ast_node, dict)
+        ):
+            ast_id = node.metadata.wrapped_ast.ast_node.get("id")
+
+        if ast_id is None:
+            # Если ast_id недоступен, используем cfg_node_id как ключ (но это не идеально)
+            # Попробуем найти ast_id через другие условия, которые уже были обработаны
+            if cfg_node_id in cfg_to_ast:
+                ast_id = cfg_to_ast[cfg_node_id]
+            else:
+                warnings.warn(
+                    f"AST ID not found for CFG node '{cfg_node_id}', skipping condition",
+                    stacklevel=2,
+                )
+                continue
+
+        # Сохраняем соответствие для будущего использования
+        cfg_to_ast[cfg_node_id] = ast_id
+
+        # Добавляем значение в последовательность для этого ast_id
+        condition_sequences[ast_id].append(condition_value)
+
+    # Преобразуем в формат ConditionDecisionSchedule
+    schedule_dict: dict[int, ConditionDecisionSchedule] = {}
+    for ast_id, values in condition_sequences.items():
+        schedule_dict[ast_id] = ConditionDecisionSchedule(values=values)
+
+    return TraceScenarioConfig(
+        name=scenario_name,
+        condition_sequences=schedule_dict,
+        seed=seed,
+    )
+
+
+def load_scenarios_from_file(
+    scenarios_file: str | Path, default_seed: int = DEFAULT_SEED
+) -> list[dict[str, Any]]:
+    """Загружает список сценариев из файла.
+
+    Поддерживает два формата:
+    1. Файл с одним сценарием: {"scenario_name": "...", "conditions": [...]}
+    2. Файл с несколькими сценариями: {"seed": ..., "scenarios": [...]}
+
+    Args:
+        scenarios_file: Путь к JSON файлу со сценариями
+        default_seed: Seed по умолчанию, если не указан в файле
+
+    Returns:
+        Список словарей с планами сценариев. Каждый словарь содержит:
+        - scenario_name: имя сценария
+        - conditions: список условий
+        - seed: seed для этого сценария (если указан в корне файла)
+    """
+    path = Path(scenarios_file)
+    if not path.exists():
+        return []
+
+    data = load_condition_plans(path)
+
+    # Если это файл с несколькими сценариями
+    if "scenarios" in data:
+        file_seed = data.get("seed", default_seed)
+        scenarios = []
+        for scenario in data["scenarios"]:
+            # Добавляем seed в каждый сценарий, если он не указан явно
+            if "seed" not in scenario:
+                scenario = {**scenario, "seed": file_seed}
+            scenarios.append(scenario)
+        return scenarios
+
+    # Если это один сценарий, возвращаем список с одним элементом
+    if "scenario_name" in data or "conditions" in data:
+        if "seed" not in data:
+            data = {**data, "seed": default_seed}
+        return [data]
+
+    return []
 

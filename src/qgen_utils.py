@@ -9,6 +9,11 @@ from src.cfg.abstractions import InterruptionType, SituationState, load_construc
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import CFG, NodeKind, TraceAct
 from src.cfg.cfg_builder import CFGBuilder
+from src.cfg.condition_exporter import (
+    DEFAULT_SEED,
+    load_scenarios_from_file,
+    plan_to_scenario_config,
+)
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import (
@@ -38,7 +43,23 @@ def find_tags(mt: dict[str, Any], language: str) -> list[str]:
     return [language]
 
 
-def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
+def build_loqi(
+    ast_json: dict[str, Any],
+    lines: list[dict[str, list[Any]]],
+    scenarios: list[TraceScenarioConfig] | list[dict[str, Any]] | None = None,
+) -> tuple[list[str], CFG, list[list[TraceAct]]]:
+    """Строит CFG и генерирует трассы для заданных сценариев.
+
+    Args:
+        ast_json: JSON-представление AST программы
+        lines: Данные строк с кнопками
+        scenarios: Список конфигураций сценариев (TraceScenarioConfig) или планов (dict).
+                   Если None, используется один сценарий по умолчанию.
+                   Если список словарей (планов), они будут преобразованы в TraceScenarioConfig.
+
+    Returns:
+        Кортеж (list[loqi_text], cfg, list[trace_acts]) - всегда списки, даже для одного сценария.
+    """
     constructs = load_constructs("constructs.yml")
     program_root = ASTNodeWrapper(ast_node=ast_json)
     b = CFGBuilder(constructs)
@@ -46,40 +67,49 @@ def build_loqi(ast_json: dict[str, Any], lines: list[dict[str, list[Any]]]):
     cfg = b.make_cfg_for_ast(program_root)
 
     if cfg is None:
-        return None, None, []
+        return [], None, []
 
     # Оптимизируем CFG
     cfg.optimize()
 
-    # Экспортируем в LOQI
-    exporter = LoqiExporter()
+    # Преобразуем планы в TraceScenarioConfig, если нужно
+    if scenarios and len(scenarios) > 0 and isinstance(scenarios[0], dict):
+        scenarios = [
+            plan_to_scenario_config(plan, cfg) for plan in scenarios
+        ]
 
-    exporter.add_object(
-        situation := SituationState(
-            interruption_state=InterruptionType.NO_INTERRUPTION,
-        )
-    )
-    exporter.set_var("STATE", situation)
-
-    scenarios = [
-        TraceScenarioConfig(name="default"),
-        # TraceScenarioConfig(name="alt", condition_sequences={...}),
-    ]
+    # Используем переданные сценарии или сценарий по умолчанию
+    if scenarios is None:
+        scenarios = [TraceScenarioConfig(name="default", seed=DEFAULT_SEED)]
 
     trace_results = generate_trace_variants(cfg, scenarios)
 
-    # Пока экспортируем только первую сгенерированную трассу,
-    # остальные сценарии можно будет добавить при необходимости.
-    main_trace = trace_results[0].trace_acts
-    # Используем add_trace вместо add_object, чтобы установить связи directlyBeforeOf
-    exporter.add_trace(main_trace)
-
-    # Добавляем пути между узлами
+    # Добавляем пути между узлами (одинаковые для всех сценариев)
     paths = determine_all_paths_between_opaque_nodes(cfg)
-    if paths:
-        exporter.add_paths(paths)
 
-    return exporter.export_cfg(cfg, None), cfg, main_trace
+    # Генерируем LOQI для каждого сценария
+    loqi_texts = []
+    trace_acts_list = []
+
+    for result in trace_results:
+        exporter = LoqiExporter()
+        exporter.add_object(
+            situation := SituationState(
+                interruption_state=InterruptionType.NO_INTERRUPTION,
+            )
+        )
+        exporter.set_var("STATE", situation)
+
+        exporter.add_trace(result.trace_acts)
+
+        if paths:
+            exporter.add_paths(paths)
+
+        loqi_text = exporter.export_cfg(cfg, None)
+        loqi_texts.append(loqi_text)
+        trace_acts_list.append(result.trace_acts)
+
+    return loqi_texts, cfg, trace_acts_list
 
 @warnings.deprecated("Use alternative methods for generating LOQI variants")
 def build_loqi_variants(
@@ -421,10 +451,12 @@ def build_answer_objects_from_cfg(
     return ans
 
 
-def build_question(language: str,
-                   code_snippet: str,
-                   debug_question_name: str | None = None
-) -> dict[str, Any] | None:
+def build_question(
+    language: str,
+    code_snippet: str,
+    debug_question_name: str | None = None,
+    scenario_plans: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]] | None:
     mt = to_dict(language, code_snippet)
     source_map: dict[str, Any] | None = convert(code_snippet,
                                                 language, language,
@@ -447,10 +479,17 @@ def build_question(language: str,
         source_map
     )
 
-    loqi, cfg, trace_acts = build_loqi(mt, lines_data)
-    if not loqi or not cfg:
+    # Загружаем и преобразуем планы сценариев, если заданы
+    # Планы будут преобразованы внутри build_loqi после построения CFG
+    scenarios = None
+    if scenario_plans:
+        # Сохраняем планы для преобразования после построения CFG
+        scenarios = scenario_plans
+
+    loqi_texts, cfg, trace_acts_list = build_loqi(mt, lines_data, scenarios)
+    if not loqi_texts or not cfg:
         print("No valid loqi output", file=sys.stderr)
-        return
+        return None
 
     tags = 0
     match language:
@@ -461,48 +500,68 @@ def build_question(language: str,
         case "c++":
             tags |= 2
 
-    qname = debug_question_name or create_question_name(mt, code_snippet)
-    answ = build_answer_objects_from_cfg(cfg, lines_data, ast=ast_analyzer, include_end_button=False)
-    return {
-        "commonQuestion": {
-            "questionData": {
-                "questionType": "ORDER",
-                "questionText": html,
-                "questionName": qname,
-                "questionDomainType": "OrderActs",
-                "options": {
-                    "showTrace": True,
-                    "requireContext": True,
-                    "requireAllAnswers": True,
-                    "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
-                    "multipleSelectionEnabled": True,
-                    "showSupplementaryQuestions": False,
+    base_qname = debug_question_name or create_question_name(mt, code_snippet)
+
+    # Получаем имена сценариев для формирования имён вопросов
+    scenario_names = []
+    if scenarios and len(scenarios) > 0:
+        if isinstance(scenarios[0], dict):
+            scenario_names = [plan.get("scenario_name", "default") for plan in scenarios]
+        else:
+            scenario_names = [scenario.name for scenario in scenarios]
+    else:
+        scenario_names = ["default"]
+
+    # Создаём вопрос для каждого сценария
+    questions = []
+    for i, (loqi, trace_acts) in enumerate(zip(loqi_texts, trace_acts_list)):
+        scenario_name = scenario_names[i] if i < len(scenario_names) else "default"
+        qname = f"{base_qname}_{scenario_name}" if scenario_name != "default" else base_qname
+        answ = build_answer_objects_from_cfg(
+            cfg, lines_data, ast=ast_analyzer, include_end_button=False
+        )
+        questions.append({
+            "commonQuestion": {
+                "questionData": {
+                    "questionType": "ORDER",
+                    "questionText": html,
+                    "questionName": qname,
+                    "questionDomainType": "OrderActs",
+                    "options": {
+                        "showTrace": True,
+                        "requireContext": True,
+                        "requireAllAnswers": True,
+                        "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
+                        "multipleSelectionEnabled": True,
+                        "showSupplementaryQuestions": False,
+                    },
+                    "answerObjects": answ,
+                    "statementFacts": pack_rdf(loqi),
                 },
-                "answerObjects": answ,
-                "statementFacts": pack_rdf(loqi),
+                "concepts": find_concepts(mt),
+                "tags": find_tags(mt, language),
+                "negativeLaws": [],
             },
-            "concepts": find_concepts(mt),
-            "tags": find_tags(mt, language),
-            "negativeLaws": [],
-        },
-        "metadataList": [{  # TODO
-            "name": qname,
-            "domainShortname": "ctrl_flow_dt25",
-            "templateId": mt.get("unique_hash", 0),
-            "tagBits": tags,
-            "conceptBits": 0,
-            "lawBits": 0,
-            "violationBits": 0,
-            "traceConceptBits": 0,
-            "solutionStructuralComplexity": 0.5,
-            "integralComplexity": 0.5,
-            "solutionSteps": len(trace_acts) - 1,  # !!
-            "distinctErrorCount": 3,  # !! TODO
-            "version": 2,
-            "structureHash": mt.get("unique_hash", 0),
-            "origin": "debug",
-            "originLicense": "Public Domain",
-            "treeHashCode": mt.get("unique_hash", 0),
-            "skillBits": 0
-        }],
-    }
+            "metadataList": [{
+                "name": qname,
+                "domainShortname": "ctrl_flow_dt25",
+                "templateId": mt.get("unique_hash", 0),
+                "tagBits": tags,
+                "conceptBits": 0,
+                "lawBits": 0,
+                "violationBits": 0,
+                "traceConceptBits": 0,
+                "solutionStructuralComplexity": 0.5,
+                "integralComplexity": 0.5,
+                "solutionSteps": len(trace_acts) - 1,
+                "distinctErrorCount": 3,  # !! TODO
+                "version": 2,
+                "structureHash": mt.get("unique_hash", 0),
+                "origin": "debug",
+                "originLicense": "Public Domain",
+                "treeHashCode": mt.get("unique_hash", 0),
+                "skillBits": 0
+            }],
+        })
+
+    return questions

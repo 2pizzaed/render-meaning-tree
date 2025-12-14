@@ -10,7 +10,12 @@ from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg import idgen
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
-from src.cfg.condition_exporter import export_condition_decisions
+from src.cfg.condition_exporter import (
+    DEFAULT_SEED,
+    export_condition_decisions,
+    load_scenarios_from_file,
+    plan_to_scenario_config,
+)
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
@@ -110,47 +115,64 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Оптимизируем CFG
             cfg.optimize()
 
-            # Экспортируем в LOQI
-            exporter = LoqiExporter()
-            loqi_path = (genout_path / f"{file.stem}.loqi").absolute()
-
-            exporter.add_object(
-                situation := SituationState(
-                    interruption_state=InterruptionType.NO_INTERRUPTION,
-                )
-            )
-            exporter.set_var("STATE", situation)
-
-            # Конфигурации трасс: сейчас используем один сценарий по умолчанию,
-            # но оставляем возможность добавить несколько.
-            scenarios = [
-                TraceScenarioConfig(name="default", seed=59),
-                # TraceScenarioConfig(name="alt", condition_sequences={...}),
-            ]
+            # Загружаем планы сценариев из файла (если существует)
+            scenarios_file = current_dir / "data" / "task_code" / f"{file.stem}_scenarios.json"
+            if scenarios_file.exists():
+                scenario_plans = load_scenarios_from_file(scenarios_file)
+                scenarios = [
+                    plan_to_scenario_config(plan, cfg) for plan in scenario_plans
+                ]
+            else:
+                # Используем сценарий по умолчанию
+                scenarios = [
+                    TraceScenarioConfig(name="default", seed=DEFAULT_SEED),
+                ]
 
             trace_results = generate_trace_variants(cfg, scenarios)
+            self.assertTrue(len(trace_results) > 0)
 
-            # Пока экспортируем только первую сгенерированную трассу,
-            # остальные сценарии можно будет добавить при необходимости.
-            main_trace = trace_results[0].trace_acts
-            self.assertTrue(len(main_trace))
-            # Используем add_trace вместо add_object, чтобы установить связи directlyBeforeOf
-            exporter.add_trace(main_trace)
-
-            # Добавляем пути между узлами
+            # Добавляем пути между узлами (одинаковые для всех сценариев)
             paths = determine_all_paths_between_opaque_nodes(cfg)
-            if paths:
-                exporter.add_paths(paths)
 
-            exporter.export_cfg(cfg, str(loqi_path))
+            # Экспортируем каждый сценарий отдельно
+            exported_files = []
+            for result in trace_results:
+                scenario_name = result.scenario.name
+                main_trace = result.trace_acts
+                self.assertTrue(len(main_trace))
 
-            # Экспортируем информацию о назначенных значениях условий
-            condition_decisions = export_condition_decisions(
-                main_trace, scenario_name=trace_results[0].scenario.name
-            )
-            conditions_path = genout_path / f"{file.stem}_conditions.json"
-            with open(conditions_path, "w", encoding="utf-8") as f:
-                json.dump(condition_decisions, f, indent=2, ensure_ascii=False)
+                # Создаём отдельный экспортер для каждого сценария
+                exporter = LoqiExporter()
+                exporter.add_object(
+                    situation := SituationState(
+                        interruption_state=InterruptionType.NO_INTERRUPTION,
+                    )
+                )
+                exporter.set_var("STATE", situation)
+
+                # Используем add_trace вместо add_object, чтобы установить связи directlyBeforeOf
+                exporter.add_trace(main_trace)
+
+                # Добавляем пути между узлами
+                if paths:
+                    exporter.add_paths(paths)
+
+                # Формируем имена файлов
+                file_suffix = "" if scenario_name == "default" else f"_{scenario_name}"
+                loqi_path = (genout_path / f"{file.stem}{file_suffix}.loqi").absolute()
+                conditions_path = genout_path / f"{file.stem}{file_suffix}_conditions.json"
+
+                # Экспортируем LOQI файл
+                exporter.export_cfg(cfg, str(loqi_path))
+                exported_files.append(loqi_path)
+
+                # Экспортируем информацию о назначенных значениях условий
+                condition_decisions = export_condition_decisions(
+                    main_trace, scenario_name=scenario_name
+                )
+                with open(conditions_path, "w", encoding="utf-8") as f:
+                    json.dump(condition_decisions, f, indent=2, ensure_ascii=False)
+                exported_files.append(conditions_path)
 
             # Визуализируем CFG в PNG (режим с рёбрами)
             png_path = (genout_path / f"{file.stem}-edge.png").absolute()
@@ -179,7 +201,7 @@ class TestComplexProblemBuild(unittest.TestCase):
 
             print(f"Processed {file.name}:")
             print(f"  AST JSON: {ast_json_path}")
-            print(f"  LOQI: {loqi_path}")
-            print(f"  Conditions: {conditions_path}")
+            for exported_file in exported_files:
+                print(f"  {exported_file.name}: {exported_file}")
             print(f"  PNG (edges): {png_path}")
             print(f"  PNG (paths): {png_pathinfo_path}")

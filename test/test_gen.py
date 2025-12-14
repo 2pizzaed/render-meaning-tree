@@ -10,6 +10,7 @@ from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg import idgen
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz
+from src.cfg.condition_exporter import export_condition_decisions
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
@@ -143,6 +144,14 @@ class TestComplexProblemBuild(unittest.TestCase):
 
             exporter.export_cfg(cfg, str(loqi_path))
 
+            # Экспортируем информацию о назначенных значениях условий
+            condition_decisions = export_condition_decisions(
+                main_trace, scenario_name=trace_results[0].scenario.name
+            )
+            conditions_path = genout_path / f"{file.stem}_conditions.json"
+            with open(conditions_path, "w", encoding="utf-8") as f:
+                json.dump(condition_decisions, f, indent=2, ensure_ascii=False)
+
             # Визуализируем CFG в PNG (режим с рёбрами)
             png_path = (genout_path / f"{file.stem}-edge.png").absolute()
             visualize_cfg_graphviz(cfg, str(png_path))
@@ -171,5 +180,6 @@ class TestComplexProblemBuild(unittest.TestCase):
             print(f"Processed {file.name}:")
             print(f"  AST JSON: {ast_json_path}")
             print(f"  LOQI: {loqi_path}")
+            print(f"  Conditions: {conditions_path}")
             print(f"  PNG (edges): {png_path}")
             print(f"  PNG (paths): {png_pathinfo_path}")

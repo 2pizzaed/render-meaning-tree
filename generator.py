@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from src.cfg.condition_exporter import load_scenarios_from_file
-from src.qgen_utils import build_question
+from src.qgen_utils import build_questions
 
 debug = True
 
@@ -85,7 +85,7 @@ if path != "-":
         # Сохраняем имена сценариев для использования при формировании имён файлов
         scenario_names_list = [plan.get("scenario_name", "default") for plan in scenario_plans]
 
-questions = build_question(
+questions = build_questions(
     lang,
     content,
     "debug_" + Path(path).name if debug and path != "-" else None,

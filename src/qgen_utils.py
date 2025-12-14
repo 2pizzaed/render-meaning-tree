@@ -43,7 +43,7 @@ def find_tags(mt: dict[str, Any], language: str) -> list[str]:
     return [language]
 
 
-def build_loqi(
+def build_loqis(
     ast_json: dict[str, Any],
     lines: list[dict[str, list[Any]]],
     scenarios: list[TraceScenarioConfig] | list[dict[str, Any]] | None = None,
@@ -451,7 +451,7 @@ def build_answer_objects_from_cfg(
     return ans
 
 
-def build_question(
+def build_questions(
     language: str,
     code_snippet: str,
     debug_question_name: str | None = None,
@@ -480,13 +480,13 @@ def build_question(
     )
 
     # Загружаем и преобразуем планы сценариев, если заданы
-    # Планы будут преобразованы внутри build_loqi после построения CFG
+    # Планы будут преобразованы внутри build_loqis после построения CFG
     scenarios = None
     if scenario_plans:
         # Сохраняем планы для преобразования после построения CFG
         scenarios = scenario_plans
 
-    loqi_texts, cfg, trace_acts_list = build_loqi(mt, lines_data, scenarios)
+    loqi_texts, cfg, trace_acts_list = build_loqis(mt, lines_data, scenarios)
     if not loqi_texts or not cfg:
         print("No valid loqi output", file=sys.stderr)
         return None

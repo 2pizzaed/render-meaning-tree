@@ -124,7 +124,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Конфигурации трасс: сейчас используем один сценарий по умолчанию,
             # но оставляем возможность добавить несколько.
             scenarios = [
-                TraceScenarioConfig(name="default"),
+                TraceScenarioConfig(name="default", seed=59),
                 # TraceScenarioConfig(name="alt", condition_sequences={...}),
             ]
 

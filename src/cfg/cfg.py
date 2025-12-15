@@ -90,7 +90,7 @@ class NodeKind(SelfValidatedEnum):
     BEGIN = BEGIN
     END = END
     ATOM = "atom"
-    ANY = "any"
+    ANY = "any"  # TODO: deprecate
 
 # class NodeRole(SelfValidatedEnum):
 #     """Роли узлов CFG."""

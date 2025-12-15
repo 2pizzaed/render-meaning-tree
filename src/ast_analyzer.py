@@ -6,6 +6,7 @@ class ASTNodeAnalyzer:
     """Анализатор узлов AST для определения типов кнопок"""
 
     def __init__(self, ast_tree: dict[str, Any], source_map: dict[str, Any]):
+        """ ast_tree: AST in MeaningTree format """
         self.ast_tree = ast_tree
         self.source_map = source_map
         self.nodes_cache = {}

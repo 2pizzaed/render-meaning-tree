@@ -712,7 +712,10 @@ class CodeHighlightGenerator:
                             lines_data.append({"tokens": [], "buttons": []})
                         current_byte_pos += 1
 
-                lines_data.append({"tokens": spaced_tokens, "buttons": buttons_on_line})
+                lines_data.append({
+                    "tokens": spaced_tokens,
+                    "buttons": buttons_on_line,
+                })
                 current_line_tokens = []
                 buttons_on_line = []
 

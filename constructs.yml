@@ -11,6 +11,7 @@ global_statements_structure:
   kind: compound.sequence.program
   ast_node: program_entry_point
   _locale_trace_name: "program"
+  _locale_pronoun: "she"
   actions:
     - role: first
       kind: auto
@@ -40,6 +41,8 @@ global_statements_structure:
 # --------------------------------
 simple_ifelse_structure:
   kind: compound.alternative_0              # тип действия (ветвление)
+  _locale_trace_name: "selection"  # or alternative (TODO)
+  _locale_pronoun: "she"
   actions:
     - role: cond             # условие ветвления
       kind: inline.condition        # true / false
@@ -69,6 +72,8 @@ simple_ifelse_structure:
 if_structure:
   kind: compound.alternative              # тип действия (ветвление)
   ast_node: if_statement
+  _locale_trace_name: "selection"  # or alternative (TODO)
+  _locale_pronoun: "she"
   actions:
     - role: first_cond             # первое условие ветвления
       kind: inline.condition        # true / false
@@ -77,6 +82,8 @@ if_structure:
         # property: condition
         property_path: 'branches / [0] / condition'
         role_in_list: first_in_list
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
       generalization: cond
       # metadata:
       #   assumed_value: true
@@ -88,6 +95,8 @@ if_structure:
         # property: condition
         property_path: '^ / [next] / condition'
         role_in_list: next_in_list
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
       generalization: cond
       _locale_trace_name: "condition"  # Имеет приоритет над конструктом.
     - role: if_branch           # ветка при true

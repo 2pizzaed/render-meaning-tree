@@ -14,6 +14,23 @@ class ASTNodeAnalyzer:
         self.nodes_hierarchy_reference = node_hierarchy()
         self._build_nodes_cache()
 
+    def get_code_piece_by_id(self, ast_id: int | str) -> str | None:
+        source_code = self.source_map['source_code']
+        byte_positions_for_id = self.source_map['byte_positions'].get(str(ast_id))
+        if not byte_positions_for_id:
+            return None
+        start_byte, length = byte_positions_for_id
+        return source_code[start_byte:start_byte + length]
+
+    def get_code_line_number_by_id(self, ast_id: int | str) -> int | None:
+        """ 1-based line number for start position """
+        source_code = self.source_map['source_code']
+        byte_positions_for_id = self.source_map['byte_positions'].get(str(ast_id))
+        if not byte_positions_for_id:
+            return None
+        start_byte, _length = byte_positions_for_id
+        return source_code[:start_byte].count('\n') + 1
+
     def _build_nodes_cache(self):
         """Построить кэш узлов по ID для быстрого доступа"""
 
@@ -78,6 +95,8 @@ class ASTNodeAnalyzer:
             "do_while_loop",
             "if_statement",
             "switch_statement",
+            # ??? >>>
+            "program_entry_point",
         }
 
         return self.get_node_type_by_id(node_id) in compound_types

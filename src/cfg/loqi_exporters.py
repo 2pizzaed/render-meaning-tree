@@ -21,6 +21,7 @@ from .abstractions import (
 from .cfg import CFG, Edge, Metadata, Node, TraceAct
 from .loqi_exporter import NameRegistry, ObjectExporter
 from .reachability import PathInfo
+from ..ast_analyzer import ASTNodeAnalyzer
 
 # use classmethod as decorator
 registered = ObjectExporter.register_class
@@ -572,13 +573,46 @@ class ASTNodeWrapperExporter(ObjectExporter):
     def get_class_name(self, obj: ASTNodeWrapper) -> str:
         return "ASTNodeWrapper"
 
+    def get_ast_node_analyzer(self, obj: ASTNodeWrapper) -> ASTNodeAnalyzer | None:
+        root_node = obj.get_root()
+        if root_node:
+            analyzer = root_node._astnodeanalyzer
+            if analyzer:
+                return analyzer
+        return None
+
+    def get_code_piece_ext(self, obj: ASTNodeWrapper) -> str | None:
+        ast_node = obj.ast_node
+        if not isinstance(ast_node, dict):
+            return None
+        ast_id = ast_node['id']
+        analyzer = self.get_ast_node_analyzer(obj)
+        if analyzer:
+            code_piece = analyzer.get_code_piece_by_id(ast_id) or ''
+            code_piece = code_piece.strip()
+
+            if '\n' in code_piece or analyzer.is_compound_statement(ast_id):
+                # Составное действие.
+                # Возьмем тип и пристыкуем номер строки, если нашли.
+                s = analyzer.get_node_type_by_id(ast_id)
+                # s = s.rsplit('_', 1)[0]  # отрезаем правую часть (*_statement, *_loop, ...)
+                s = s.replace('_', '-')  # Заменяем подчерки на дефисы.
+                line = analyzer.get_code_line_number_by_id(ast_id)
+                if line:
+                    s = f'{s} на стр. {line}'
+                return s
+            else:
+                # Простые действия и выражения: берем целиком.
+                return code_piece
+        return None
+
     def export_properties(self, obj: ASTNodeWrapper) -> dict[str, Any]:
         # import json
         properties = obj.describe()
         # properties["ast_node"] = json.dumps(obj.ast_node)
         # properties["current_condition_value"] = ???
         if properties["ast_id"]:
-            properties["_code_piece"] = ' ...TODO'
+            properties["_code_piece"] = self.get_code_piece_ext(obj) or ''
         return properties
 
     def export_relationships(self, obj: ASTNodeWrapper) -> dict[str, list[Any]]:
@@ -589,6 +623,12 @@ class ASTNodeWrapperExporter(ObjectExporter):
             relationships["hasParent"] = [obj.parent]
 
         return relationships
+
+    def export_metadata(self, obj: ASTNodeWrapper) -> dict[str, Any]:
+        entries = {
+            "RU.localizedName": self.get_code_piece_ext(obj) or '',
+        }
+        return entries
 
 
 @registered

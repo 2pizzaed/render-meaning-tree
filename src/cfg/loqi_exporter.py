@@ -162,12 +162,17 @@ class ObjectExporter(ExporterManager, ABC):
         """Получить отношения (ссылки на другие объекты). Возвращает объекты, а не их имена."""
         pass
 
+    def export_metadata(self, obj: Any) -> dict[str, Any]:
+        """Получить скалярные аннотации для объекта."""
+        return {}  # no metadata by default
+
     def export_object(self, obj: Any) -> str:
         """Экспортирует объект в loqi-формат."""
         name = self.register_object(obj)
         class_name = self.get_class_name(obj)
         properties = self.export_properties(obj)
         relationships = self.export_relationships(obj)
+        metadata = self.export_metadata(obj)
 
         lines = [f"obj {name} : {class_name} {{"]
 
@@ -187,7 +192,19 @@ class ObjectExporter(ExporterManager, ABC):
                 if obj_name:
                     lines.append(f"  {rel_name}({obj_name});")
 
-        lines.append("}")
+        if not metadata:
+            lines.append("}")
+        else:
+            # Добавляем метаданные (специальная секция в конце определения объекта)
+            lines.append("} [")
+            for prop_name, prop_value in metadata.items():
+                converted_value = ValueConverter.convert_value(
+                    prop_value,
+                    obj.__class__.__annotations__.get(prop_name, Any))
+                if converted_value is not None:
+                    lines.append(f"  {prop_name} = {converted_value};")
+
+            lines.append("]")
         return "\n".join(lines)
 
 

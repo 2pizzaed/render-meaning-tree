@@ -233,7 +233,6 @@ class ActionSpec {
 } [
 	RU.localizedName = "спецификация действия" ;
 	EN.localizedName = "action specification" ;
-
 ]
 
 class TransitionSpec {
@@ -263,7 +262,6 @@ class ConstructSpec {
 } [
 	RU.localizedName = "спецификация конструкции" ;
 	EN.localizedName = "construct specification" ;
-
 ]
 
 
@@ -353,7 +351,6 @@ class PathInfo {
 } [
 	RU.localizedName = "Путь по графу CFG и информация о достижимости" ;
 	EN.localizedName = "Path within a CFG & reachability info" ;
-
 ]
 
 
@@ -370,7 +367,6 @@ class ASTNodeWrapper {
 } [
 	RU.localizedName = "обёртка узла AST" ;
 	EN.localizedName = "AST node wrapper" ;
-
 ]
 
 // ... Что-то про цепочки значения условий ???

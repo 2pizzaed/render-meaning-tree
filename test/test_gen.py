@@ -56,6 +56,8 @@ class TestComplexProblemBuild(unittest.TestCase):
                 language = "c++"
             elif language == "java":
                 language = "java"
+            else:
+                continue
 
             with open(file, encoding="utf-8") as f:
                 code = f.read()

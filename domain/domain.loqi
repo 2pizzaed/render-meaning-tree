@@ -399,7 +399,10 @@ class TraceAct {
 	rel isCloserToThan(TraceAct, TraceAct) : closer to beforeOf ;
 	rel isFurtherFromThan(TraceAct, TraceAct) : further to beforeOf ;
 	rel hasNextTraceAct(TraceAct) : {1 -> 1} ;   // Линейное отношение "непосредственно следующий" в цепочке актов трассы
-}
+} [
+	RU.localizedName = "действие в трассе" ;
+	EN.localizedName = "trace act" ;
+]
 
 
 

@@ -32,6 +32,7 @@ class CFGBuilder:
     func_cfgs: dict[str, CFG]
     collect_global_functions_only: bool = False
     pending_function_calls: list[tuple[CFG, str, ConstructSpec, ASTNodeWrapper]]
+    program_root: ASTNodeWrapper = None
 
     def __init__(self, constructs_map: dict[str, ConstructSpec], collect_global_functions_only: bool = False):
         self.constructs = constructs_map
@@ -210,7 +211,7 @@ class CFGBuilder:
             raise NotImplementedError(f"Multiple definitions of function '{func_name}' encountered in input AST! This is not supported yet, aborting.")
 
         # Создаем CFG для функции
-        wrapped_ast = ASTNodeWrapper(ast_node=func_node)
+        wrapped_ast = ASTNodeWrapper(ast_node=func_node, parent=self.program_root)
         construct = self.find_construct_for_astnode(wrapped_ast)
         if construct:
             self._handle_function_definition(construct, wrapped_ast)
@@ -348,7 +349,7 @@ class CFGBuilder:
                 continue
             
             # Создаем CFG для вызова функции (только обёртку)
-            call_wrapped_ast = ASTNodeWrapper(ast_node=call_node)
+            call_wrapped_ast = ASTNodeWrapper(ast_node=call_node, parent=wrapped_ast)
             call_construct = self.find_construct_for_astnode(call_wrapped_ast)
             
             if call_construct and call_construct.name == FUNC_CALL_CONSTRUCT:
@@ -546,6 +547,7 @@ class CFGBuilder:
         is_program_root = isinstance(wrapped_ast.ast_node, dict) and wrapped_ast.ast_node.get('type') == 'program_entry_point'
         # Предварительный сбор определений функций, если это корневой узел программы
         if is_program_root:
+            self.program_root = wrapped_ast
             self._collect_function_definitions(wrapped_ast.ast_node)
 
 

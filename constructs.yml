@@ -8,8 +8,9 @@
 # Глобальные операторы -- разновидность блока { ... }
 # --------------------------------
 global_statements_structure:
-  kind: compound.sequence
+  kind: compound.sequence.program
   ast_node: program_entry_point
+  _locale_trace_name: "program"
   actions:
     - role: first
       kind: auto
@@ -79,6 +80,7 @@ if_structure:
       generalization: cond
       # metadata:
       #   assumed_value: true
+      _locale_trace_name: "condition"  # Имеет приоритет над конструктом.
     - role: next_cond             # следующее условие ветвления
       kind: inline.condition
       identification:
@@ -87,6 +89,7 @@ if_structure:
         property_path: '^ / [next] / condition'
         role_in_list: next_in_list
       generalization: cond
+      _locale_trace_name: "condition"  # Имеет приоритет над конструктом.
     - role: if_branch           # ветка при true
       kind: compound
       identification:
@@ -417,6 +420,7 @@ func_call_structure:
 return_action:
   kind: inline  # this kind matters
   ast_node: return_statement
+  _locale_trace_name: 'return'
   effects:
     - interruption_start: return
 
@@ -543,6 +547,7 @@ inline_atom_structure:
     'multiple_assignment_statement',
     # TODO: add new here
   ]
+  _locale_trace_name: 'inline'  # просто действие
 
 
 # --------------------------------

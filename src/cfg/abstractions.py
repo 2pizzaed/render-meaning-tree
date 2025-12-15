@@ -272,6 +272,7 @@ class ActionKind(SelfValidatedEnum):
     COMPOUND = "compound"  # нечто составное: блок или алгоритмическая структура.
     INLINE = "inline"  # однострочное действие: простой statement или condition; становится `atom` в CFG, если не содержит вызовов функций.
     # other
+    PROGRAM = "program"  # for usage as constraint.
     ANY = "any"  # for usage as constraint.
     AUTO = "auto"  # "see underlying Construct instead": в контексте роли действия в структуре не всегда понятен его kind, в этом случае задаётся auto, что означает: надо посмотреть на kind алгоритмической структуры самого действия.
 
@@ -511,6 +512,8 @@ class ActionSpec(DictLikeDataclass):
     identification: Identification = field(default_factory=Identification)  # not exported; for CFG construction only.
     behaviour: Behaviour = field(default_factory=Behaviour)
     construct: 'ConstructSpec | None' = None
+    _locale_trace_name: str = ''  # собственное имя действия для трассы.
+    _locale_pronoun: str = ''  #  he / she / it (по умолчанию считать it).
 
     def find_node_data(self, wrapped_ast: 'aw.ASTNodeWrapper', previous_action_data: 'aw.ASTNodeWrapper'=None) -> (
             'aw.ASTNodeWrapper | None'):
@@ -548,6 +551,8 @@ class ConstructSpec(DictLikeDataclass):
     actions: list[ActionSpec] = field(default_factory=list)
     transitions: list[TransitionSpec] = field(default_factory=list)
     effects: list[Effects] = field(default_factory=list)
+    _locale_trace_name: str = ''
+    _locale_pronoun: str = ''
     # metadata: Metadata = field(default_factory=Metadata)
     role2action: dict[str, ActionSpec] | None = None  # Заполняется автоматически после создания объекта.
 

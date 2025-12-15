@@ -149,6 +149,8 @@ class ActionSpecExporter(ObjectExporter):
                 properties["kind"] = kinds[0].value
         if obj.generalization:
             properties["generalization"] = obj.generalization
+        properties["_locale_trace_name"] = obj._locale_trace_name
+        properties["_locale_pronoun"] = obj._locale_pronoun
         return properties
 
     def export_relationships(self, obj: ActionSpec) -> dict[str, list[Any]]:
@@ -250,6 +252,8 @@ class ConstructSpecExporter(ObjectExporter):
                 properties["kind"] = kinds[0].value
         # if obj.ast_node:   #internal.
         #     properties["ast_node"] = obj.ast_node
+        properties["_locale_trace_name"] = obj._locale_trace_name
+        properties["_locale_pronoun_locale_trace_name"] = obj._locale_trace_name
         return properties
 
     def export_relationships(self, obj: ConstructSpec) -> dict[str, list[Any]]:
@@ -573,6 +577,8 @@ class ASTNodeWrapperExporter(ObjectExporter):
         properties = obj.describe()
         # properties["ast_node"] = json.dumps(obj.ast_node)
         # properties["current_condition_value"] = ???
+        if properties["ast_id"]:
+            properties["_code_piece"] = ' ...TODO'
         return properties
 
     def export_relationships(self, obj: ASTNodeWrapper) -> dict[str, list[Any]]:

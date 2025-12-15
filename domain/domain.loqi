@@ -224,6 +224,8 @@ class ActionSpec {
 	obj prop generalization: string ;
 	obj prop kind: string ;
 	obj prop appearanceType: AppearanceType ;
+	obj prop _locale_trace_name: string ;
+	obj prop _locale_pronoun: string ;  // he she it
 
 	rel hasConstruct(ConstructSpec) ;
 	rel hasEffects(Effect) ;
@@ -251,6 +253,8 @@ class TransitionSpec {
 class ConstructSpec {
 	obj prop name: string ;
 	obj prop kind: string ;
+	obj prop _locale_trace_name: string ;
+	obj prop _locale_pronoun: string ;  // he she it
 
 	rel hasActions(ActionSpec) ;
 	rel hasTransitions(TransitionSpec) ;
@@ -358,6 +362,7 @@ class PathInfo {
 class ASTNodeWrapper {
 	obj prop ast_id: int ;
 	obj prop ast_node: string ;
+	obj prop _code_piece: string ;  // имя действия для трассы
 
 	rel hasParent(ASTNodeWrapper) : {* -> 1} ;
 	rel hasChildren(ASTNodeWrapper) ;

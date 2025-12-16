@@ -34,6 +34,7 @@ def visualize_cfg_graphviz(
     engine: Literal["dot", "neato", "fdp", "sfdp", "twopi", "circo"] = "dot",
     rankdir: Literal["TB", "BT", "LR", "RL"] = "TB",
     paths_instead_of_edges: bool = False,
+    indirect_paths: bool = False,
 ) -> str:
     """Визуализирует CFG с помощью Graphviz (pydot), сохраняя PNG.
 
@@ -42,7 +43,9 @@ def visualize_cfg_graphviz(
         output_file: Путь к выходному PNG-файлу.
         engine: Движок layout Graphviz (по умолчанию "dot").
         rankdir: Направление ранжирования (TB/LR/BT/RL).
-        paths_instead_of_edges: Если True, визуализировать прямые пути (PathInfo) вместо рёбер.
+        paths_instead_of_edges: Если True, визуализировать пути (PathInfo) вместо рёбер.
+        indirect_paths: Если True и paths_instead_of_edges=True, визуализировать непрямые пути (is_direct == False).
+                       Если False и paths_instead_of_edges=True, визуализировать прямые пути (is_direct == True).
 
     Returns:
         Путь к сохранённому PNG-файлу.
@@ -52,7 +55,7 @@ def visualize_cfg_graphviz(
         return output_file
 
     # 1) Переиспользуем сборку networkx-графа
-    G: nx.DiGraph = _build_networkx_graph(cfg, paths_instead_of_edges=paths_instead_of_edges)
+    G: nx.DiGraph = _build_networkx_graph(cfg, paths_instead_of_edges=paths_instead_of_edges, indirect_paths=indirect_paths)
 
     # 2) Сформируем «чистый» граф только с сериализуемыми атрибутами,
     #    чтобы избежать проблем nx_pydot с произвольными объектами.

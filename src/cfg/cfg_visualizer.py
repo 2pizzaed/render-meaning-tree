@@ -126,7 +126,7 @@ def _create_path_label(path: 'PathInfo') -> str:
     return "\\n".join(parts)
 
 
-def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
+def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False, indirect_paths=False) -> nx.DiGraph:
     """Конвертирует CFG в NetworkX DiGraph.
     
     Добавляет все узлы и рёбра из CFG в NetworkX граф.
@@ -134,8 +134,10 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
     
     Args:
         cfg: Граф потока управления
-        paths_instead_of_edges: Если True, визуализировать прямые пути (PathInfo) вместо рёбер.
+        paths_instead_of_edges: Если True, визуализировать пути (PathInfo) вместо рёбер.
                                В этом режиме отображаются только обязательные (mandatory) узлы.
+        indirect_paths: Если True и paths_instead_of_edges=True, визуализировать непрямые пути (is_direct == False).
+                       Если False и paths_instead_of_edges=True, визуализировать прямые пути (is_direct == True).
     """
     G = nx.DiGraph()
 
@@ -154,8 +156,15 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False) -> nx.DiGraph:
 
         for node in cfg.nodes.values():
             for path in getattr(node, "direct_out_paths", []):
-                if path is None or path.is_direct is not True:
+                if path is None:
                     continue
+                # Фильтрация по типу пути
+                if indirect_paths:
+                    if path.is_direct is not False:  # Показываем только непрямые пути
+                        continue
+                else:
+                    if path.is_direct is not True:  # Показываем только прямые пути
+                        continue
                 if not path.from_ or not path.to_:
                     continue
                 # В режиме pathinfo показываем только пути между обязательными узлами

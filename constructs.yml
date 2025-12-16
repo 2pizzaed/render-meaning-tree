@@ -37,11 +37,12 @@ global_statements_structure:
       to_when_absent: END
 
 # --------------------------------
+# NOTE: DEPRECATED ! For reference only.
 # Условный оператор (if / else-if / else)
 # --------------------------------
 simple_ifelse_structure:
   kind: compound.alternative_0              # тип действия (ветвление)
-  _locale_trace_name: "selection"  # or alternative (TODO)
+  _locale_trace_name: "alternative"
   _locale_pronoun: "she"
   actions:
     - role: cond             # условие ветвления
@@ -72,7 +73,7 @@ simple_ifelse_structure:
 if_structure:
   kind: compound.alternative              # тип действия (ветвление)
   ast_node: if_statement
-  _locale_trace_name: "selection"  # or alternative (TODO)
+  _locale_trace_name: "alternative"
   _locale_pronoun: "she"
   actions:
     - role: first_cond             # первое условие ветвления

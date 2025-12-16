@@ -362,6 +362,8 @@ for_range_structure:
 block_structure:
   kind: compound.sequence.block
   ast_node: compound_statement
+  _locale_trace_name: "block"
+  _locale_pronoun: "he"
   actions:
     - role: first
       kind: auto
@@ -412,6 +414,8 @@ func_call_structure:
   kind: inline.call
   ast_node: ['function_call']
   # ast_node: ['function_call', 'method_call']  # cannot support methods so far
+  _locale_trace_name: "function_call"
+  _locale_pronoun: "he"
   actions:
     - role: name
       kind: identifier

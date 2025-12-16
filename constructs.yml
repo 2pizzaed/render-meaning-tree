@@ -575,7 +575,6 @@ inline_atom_structure:
     'multiple_assignment_statement',
     # TODO: add new here
   ]
-  _locale_trace_name: 'inline'  # просто действие
 
 
 # --------------------------------

@@ -11,7 +11,7 @@ global_statements_structure:
   kind: compound.sequence.program
   ast_node: program_entry_point
   _locale_trace_name: "statement"
-  _locale_pronoun: "she"
+  _locale_pronoun: "it"
   actions:
     - role: first
       kind: auto
@@ -143,6 +143,8 @@ while_structure:
   actions:
     - role: cond
       kind: inline.condition
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
       identification:
         property: condition
     - role: body
@@ -178,6 +180,8 @@ while_else_structure:
   actions:
     - role: cond
       kind: inline.condition
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
     - role: body
       kind: compound
       effects:
@@ -217,6 +221,8 @@ do_while_structure:
         - interruption_stop: continue
     - role: cond
       kind: inline.condition
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
   transitions:
     - from_: BEGIN
       to: body
@@ -246,6 +252,8 @@ for_structure:
       kind: inline
     - role: cond
       kind: inline.condition
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
       behaviour:
         assumed_value: true
     - role: body
@@ -289,6 +297,8 @@ for_each_structure:
         property: container
     - role: cond
       kind: inline.condition
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
       identification:
         property: item
     - role: body
@@ -330,6 +340,8 @@ for_range_structure:
         property_path: 'range / start'
     - role: cond
       kind: inline.condition
+      _locale_trace_name: "condition"
+      _locale_pronoun: "it"
       identification:
         property_path: 'range / stop'
     - role: body

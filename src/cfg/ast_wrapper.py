@@ -12,7 +12,7 @@ class ASTNodeWrapper:
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None
     # metadata: 'dict | cfg.Metadata' = field(default_factory=dict)  # TODO remove
-    _astnodeanalyzer: ASTNodeAnalyzer = None
+    _astnodeanalyzer: ASTNodeAnalyzer = None  # Note: set for root only (when parent is not set).
 
     def get(self,
             role: str,

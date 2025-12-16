@@ -104,7 +104,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             )
 
             # Создаём ASTNodeWrapper
-            program_root = ASTNodeWrapper(ast_node=ast_json)
+            program_root = ASTNodeWrapper(ast_node=ast_json, _astnodeanalyzer=ast)
 
             b = CFGBuilder(constructs)
 

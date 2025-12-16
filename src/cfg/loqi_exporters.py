@@ -604,6 +604,7 @@ class ASTNodeWrapperExporter(ObjectExporter):
             else:
                 # Простые действия и выражения: берем целиком.
                 return code_piece
+        # return 'None: no analyzer!!!'
         return None
 
     def export_properties(self, obj: ASTNodeWrapper) -> dict[str, Any]:

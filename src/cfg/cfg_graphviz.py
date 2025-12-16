@@ -26,6 +26,7 @@ from src.cfg.cfg_visualizer import (
     _build_networkx_graph,
     _get_node_color,
 )
+from src.cfg.reachability import PathInfo
 
 
 def visualize_cfg_graphviz(
@@ -35,6 +36,7 @@ def visualize_cfg_graphviz(
     rankdir: Literal["TB", "BT", "LR", "RL"] = "TB",
     paths_instead_of_edges: bool = False,
     indirect_paths: bool = False,
+    paths: list[PathInfo] = None,
 ) -> str:
     """Визуализирует CFG с помощью Graphviz (pydot), сохраняя PNG.
 
@@ -55,7 +57,7 @@ def visualize_cfg_graphviz(
         return output_file
 
     # 1) Переиспользуем сборку networkx-графа
-    G: nx.DiGraph = _build_networkx_graph(cfg, paths_instead_of_edges=paths_instead_of_edges, indirect_paths=indirect_paths)
+    G: nx.DiGraph = _build_networkx_graph(cfg, paths_instead_of_edges=paths_instead_of_edges, indirect_paths=indirect_paths, paths=paths)
 
     # 2) Сформируем «чистый» граф только с сериализуемыми атрибутами,
     #    чтобы избежать проблем nx_pydot с произвольными объектами.

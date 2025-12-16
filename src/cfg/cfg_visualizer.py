@@ -100,8 +100,8 @@ def _create_path_label(path: 'PathInfo') -> str:
     if getattr(path, "cfg_steps", None):
         parts.append(f"steps:{path.cfg_steps}")
 
-    if getattr(path, "ast_actions", None):
-        parts.append(f"ast:{path.opaque_actions}")
+    if getattr(path, "opaque_actions", None):
+        parts.append(f"opaque:{path.opaque_actions}")
 
     if getattr(path, "conditions", None):
         parts.append(f"cond:{path.conditions}")
@@ -126,7 +126,7 @@ def _create_path_label(path: 'PathInfo') -> str:
     return "\\n".join(parts)
 
 
-def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False, indirect_paths=False) -> nx.DiGraph:
+def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False, indirect_paths=False, paths: list['PathInfo'] = None,) -> nx.DiGraph:
     """Конвертирует CFG в NetworkX DiGraph.
     
     Добавляет все узлы и рёбра из CFG в NetworkX граф.
@@ -149,37 +149,43 @@ def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False, indirect_paths
         label = _create_node_label(node)
         G.add_node(node_id, label=label, node_obj=node)
 
-    direct_paths_added = False
+    any_paths_added = False
 
     if paths_instead_of_edges:
         seen_paths: set[str] = set()
 
-        for node in cfg.nodes.values():
-            for path in getattr(node, "direct_out_paths", []):
-                if path is None:
-                    continue
-                # Фильтрация по типу пути
-                if indirect_paths:
-                    if path.is_direct is not False:  # Показываем только непрямые пути
-                        continue
-                else:
-                    if path.is_direct is not True:  # Показываем только прямые пути
-                        continue
-                if not path.from_ or not path.to_:
-                    continue
-                # В режиме pathinfo показываем только пути между обязательными узлами
-                if not path.from_.is_mandatory() or not path.to_.is_mandatory():
-                    continue
-                path_id = getattr(path, "id", None)
-                if path_id:
-                    if path_id in seen_paths:
-                        continue
-                    seen_paths.add(path_id)
-                label = _create_path_label(path)
-                G.add_edge(path.from_.id, path.to_.id, label=label, path_obj=path, edge_obj=None)
-                direct_paths_added = True
+        if indirect_paths:
+            # Для непрямых путей получаем их напрямую из параметра
+            assert paths, 'please provide paths'
+            paths_to_process = paths
+        else:
+            # Для прямых путей используем зарегистрированные в узлах
+            paths_to_process = []
+            for node in cfg.nodes.values():
+                paths_to_process.extend(getattr(node, "direct_out_paths", []))
 
-    if not direct_paths_added:
+        for path in paths_to_process:
+            if path is None:
+                continue
+            # Фильтрация по типу пути (для прямых путей уже отфильтрованы в узлах)
+            if not indirect_paths:
+                if path.is_direct is not True:  # Показываем только прямые пути
+                    continue
+            if not path.from_ or not path.to_:
+                continue
+            # В режиме pathinfo показываем только пути между обязательными узлами
+            if not path.from_.is_mandatory() or not path.to_.is_mandatory():
+                continue
+            path_id = getattr(path, "id", None)
+            if path_id:
+                if path_id in seen_paths:
+                    continue
+                seen_paths.add(path_id)
+            label = _create_path_label(path)
+            G.add_edge(path.from_.id, path.to_.id, label=label, path_obj=path, edge_obj=None)
+            any_paths_added = True
+
+    if not any_paths_added:
         # Добавляем рёбра (только если оба узла существуют)
         for edge in cfg.edges:
             # Проверяем, что оба узла существуют в CFG

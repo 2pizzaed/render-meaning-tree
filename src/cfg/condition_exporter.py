@@ -14,6 +14,8 @@ from typing import Any
 
 from src.cfg.abstractions import InterruptionType, OptionalBoolValue
 from src.cfg.cfg import CFG, TraceAct
+if 0:
+    from src.cfg.trace_builder import TraceScenarioConfig
 
 # Константа для унификации seed по умолчанию
 DEFAULT_SEED = 59
@@ -232,7 +234,7 @@ def load_condition_plans(
 
 
 def plan_to_scenario_config(
-    plan: dict[str, Any], cfg: CFG, default_seed: int = DEFAULT_SEED
+    plan: 'dict[str, Any] | TraceScenarioConfig', cfg: CFG, default_seed: int = DEFAULT_SEED
 ) -> "TraceScenarioConfig":
     """Преобразует план условий в TraceScenarioConfig.
 

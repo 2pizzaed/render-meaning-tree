@@ -88,7 +88,6 @@ if_structure:
       generalization: cond
       # metadata:
       #   assumed_value: true
-      _locale_trace_name: "condition"  # Имеет приоритет над конструктом.
     - role: next_cond             # следующее условие ветвления
       kind: inline.condition
       identification:
@@ -99,7 +98,6 @@ if_structure:
       _locale_trace_name: "condition"
       _locale_pronoun: "it"
       generalization: cond
-      _locale_trace_name: "condition"  # Имеет приоритет над конструктом.
     - role: if_branch           # ветка при true
       kind: compound
       identification:
@@ -134,6 +132,8 @@ if_structure:
 while_structure:
   kind: compound.loop
   ast_node: while_loop
+  _locale_trace_name: "loop"
+  _locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -167,6 +167,8 @@ while_structure:
 while_else_structure:
   kind: compound.loop
   ast_node: while_else_loop
+  _locale_trace_name: "loop"
+  _locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -200,6 +202,8 @@ while_else_structure:
 do_while_structure:
   kind: compound.loop
   ast_node: do_while_loop  # TODO !!??
+  _locale_trace_name: "loop"
+  _locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -229,6 +233,8 @@ do_while_structure:
 for_structure:
   kind: compound.loop
   ast_node: general_for_loop
+  _locale_trace_name: "loop"
+  _locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -268,6 +274,8 @@ for_structure:
 for_each_structure:
   kind: compound.loop
   ast_node: for_each_loop
+  _locale_trace_name: "loop"
+  _locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -307,6 +315,8 @@ for_each_structure:
 for_range_structure:
   kind: compound.loop
   ast_node: range_for_loop
+  _locale_trace_name: "loop"
+  _locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:

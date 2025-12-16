@@ -5,7 +5,9 @@
 from typing import Any
 
 from src.cfg.abstractions import InterruptionType, OptionalBoolValue
+from src.locale_utils import Locales
 
+from ..ast_analyzer import ASTNodeAnalyzer
 from . import ASTNodeWrapper
 
 # Импорты для типов объектов
@@ -21,7 +23,6 @@ from .abstractions import (
 from .cfg import CFG, Edge, Metadata, Node, TraceAct
 from .loqi_exporter import NameRegistry, ObjectExporter
 from .reachability import PathInfo
-from ..ast_analyzer import ASTNodeAnalyzer
 
 # use classmethod as decorator
 registered = ObjectExporter.register_class
@@ -354,6 +355,19 @@ class NodeExporter(ObjectExporter):
     def get_class_name(self, obj: Node) -> str:
         return "Node"
 
+    def export_metadata(self, obj: Node) -> dict[str, Any]:
+        loc = Locales("definitions")
+        if action := obj.metadata.abstract_action:
+            localized = loc.get(action._locale_trace_name, "ru") or ""
+        else:
+            localized = ""
+        ast: ASTNodeWrapperExporter = self.get_exporter_for(obj.metadata.wrapped_ast)
+        localized += " " + ast.get_code_piece_ext(obj.metadata.wrapped_ast)
+        entries = {
+            "RU.localizedName": localized,
+        }
+        return entries
+
     def export_properties(self, obj: Node) -> dict[str, Any]:
         properties = {
             "id": obj.id,
@@ -599,7 +613,7 @@ class ASTNodeWrapperExporter(ObjectExporter):
                 s = s.replace('_', '-')  # Заменяем подчерки на дефисы.
                 line = analyzer.get_code_line_number_by_id(ast_id)
                 if line:
-                    s = f'{s} на стр. {line}'
+                    s = f'<code>{s}</code> на строке {line}'
                 return s
             else:
                 # Простые действия и выражения: берем целиком.
@@ -624,12 +638,6 @@ class ASTNodeWrapperExporter(ObjectExporter):
             relationships["hasParent"] = [obj.parent]
 
         return relationships
-
-    def export_metadata(self, obj: ASTNodeWrapper) -> dict[str, Any]:
-        entries = {
-            "RU.localizedName": self.get_code_piece_ext(obj) or '',
-        }
-        return entries
 
 
 @registered
@@ -682,6 +690,17 @@ class TraceActExporter(ObjectExporter):
             "is_known_correct": obj.is_known_correct,
         }
         return properties
+
+    def export_metadata(self, obj: TraceAct) -> dict[str, Any]:
+        node_exporter: NodeExporter = self.get_exporter_for(obj.cfg_node)
+        if node_exporter:
+            localized = node_exporter.export_metadata(obj.cfg_node)["RU.localizedName"] or ""
+        else:
+            localized = ''
+        entries = {
+            "RU.localizedName": localized,
+        }
+        return entries
 
     def get_preferred_name(self, obj: TraceAct) -> str:
         if self._trace:

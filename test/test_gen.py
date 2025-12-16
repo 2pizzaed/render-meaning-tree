@@ -13,6 +13,7 @@ from src.cfg.cfg_graphviz import visualize_cfg_graphviz
 from src.cfg.condition_exporter import (
     DEFAULT_SEED,
     export_condition_decisions,
+    export_trace_acts,
     load_scenarios_from_file,
     plan_to_scenario_config,
 )
@@ -163,6 +164,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                 file_suffix = "" if scenario_name == "default" else f"_{scenario_name}"
                 loqi_path = (genout_path / f"{file.stem}{file_suffix}.loqi").absolute()
                 conditions_path = genout_path / f"{file.stem}{file_suffix}_conditions.json"
+                trace_path = genout_path / f"{file.stem}{file_suffix}_trace.json"
 
                 # Экспортируем LOQI файл
                 exporter.export_cfg(cfg, str(loqi_path))
@@ -175,6 +177,12 @@ class TestComplexProblemBuild(unittest.TestCase):
                 with open(conditions_path, "w", encoding="utf-8") as f:
                     json.dump(condition_decisions, f, indent=2, ensure_ascii=False)
                 exported_files.append(conditions_path)
+
+                # Экспортируем полную трассу
+                trace_info = export_trace_acts(main_trace, scenario_name=scenario_name)
+                with open(trace_path, "w", encoding="utf-8") as f:
+                    json.dump(trace_info, f, indent=2, ensure_ascii=False)
+                exported_files.append(trace_path)
 
             # Визуализируем CFG в PNG (режим с рёбрами)
             png_path = (genout_path / f"{file.stem}-edge.png").absolute()

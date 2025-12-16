@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from src.cfg.abstractions import OptionalBoolValue
+from src.cfg.abstractions import InterruptionType, OptionalBoolValue
 from src.cfg.cfg import CFG, TraceAct
 
 # Константа для унификации seed по умолчанию
@@ -93,6 +93,93 @@ def export_condition_decisions(
     return {
         "scenario_name": scenario_name,
         "conditions": conditions,
+    }
+
+
+def export_trace_acts(
+    trace_acts: list[TraceAct], scenario_name: str = "default"
+) -> dict[str, Any]:
+    """Экспортирует полную трассу (список всех TraceAct) в удобный JSON-формат.
+
+    Args:
+        trace_acts: Список актов трассы выполнения программы
+        scenario_name: Имя сценария трассировки (по умолчанию "default")
+
+    Returns:
+        Словарь с информацией о трассе:
+        {
+            "scenario_name": str,
+            "trace": [
+                {
+                    "position_in_trace": int,
+                    "ast_id": int | None,
+                    "cfg_node_id": str | None,
+                    "condition_value": str | None,
+                    "button_type": str | None,
+                    "is_known_correct": bool,
+                    "incomplete_interruption": str | None,
+                    "node_description": str | None,
+                },
+                ...
+            ]
+        }
+    """
+    trace_items: list[dict[str, Any]] = []
+
+    for position, trace_act in enumerate(trace_acts):
+        # AST ID
+        ast_id = None
+        if (
+            trace_act.wrapped_ast
+            and isinstance(trace_act.wrapped_ast.ast_node, dict)
+        ):
+            ast_id = trace_act.wrapped_ast.ast_node.get("id")
+
+        # CFG node info
+        cfg_node_id = trace_act.cfg_node.id if trace_act.cfg_node else None
+        node_description = (
+            trace_act.cfg_node.describe() if trace_act.cfg_node else None
+        )
+
+        # Condition value
+        condition_value_str: str | None
+        if trace_act.condition_value is None:
+            condition_value_str = None
+        elif trace_act.condition_value == OptionalBoolValue.true:
+            condition_value_str = "true"
+        elif trace_act.condition_value == OptionalBoolValue.false:
+            condition_value_str = "false"
+        else:
+            condition_value_str = str(trace_act.condition_value.value)
+
+        # Incomplete interruption
+        incomplete_interruption_str: str | None = None
+        if (
+            trace_act.incomplete_interruption
+            and trace_act.incomplete_interruption != InterruptionType.NO_INTERRUPTION
+        ):
+            incomplete_interruption_str = str(
+                trace_act.incomplete_interruption.value
+                if hasattr(trace_act.incomplete_interruption, "value")
+                else trace_act.incomplete_interruption
+            )
+
+        trace_items.append(
+            {
+                "position_in_trace": position,
+                "ast_id": ast_id,
+                "cfg_node_id": cfg_node_id,
+                "condition_value": condition_value_str,
+                "button_type": trace_act.button_type,
+                "is_known_correct": trace_act.is_known_correct,
+                "incomplete_interruption": incomplete_interruption_str,
+            }
+            | ({"node_description": node_description} if node_description else {})
+        )
+
+    return {
+        "scenario_name": scenario_name,
+        "trace": trace_items,
     }
 
 

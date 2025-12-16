@@ -255,7 +255,7 @@ class ConstructSpecExporter(ObjectExporter):
         # if obj.ast_node:   #internal.
         #     properties["ast_node"] = obj.ast_node
         properties["_locale_trace_name"] = obj._locale_trace_name
-        properties["_locale_pronoun_locale_trace_name"] = obj._locale_trace_name
+        properties["_locale_pronoun"] = obj._locale_pronoun
         return properties
 
     def export_relationships(self, obj: ConstructSpec) -> dict[str, list[Any]]:

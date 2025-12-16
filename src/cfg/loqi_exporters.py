@@ -26,7 +26,7 @@ from .reachability import PathInfo
 
 # use classmethod as decorator
 registered = ObjectExporter.register_class
-
+loc = Locales("definitions")
 
 @registered
 class EffectsExporter(ObjectExporter):
@@ -356,7 +356,6 @@ class NodeExporter(ObjectExporter):
         return "Node"
 
     def export_metadata(self, obj: Node) -> dict[str, Any]:
-        loc = Locales("definitions")
         if action := obj.metadata.abstract_action:
             construct = obj.metadata.abstract_action.construct
             localized = loc.get(action._locale_trace_name or \

@@ -28,6 +28,43 @@ from .reachability import PathInfo
 registered = ObjectExporter.register_class
 loc = Locales("definitions")
 
+# Кэш для конструктов (ленивая загрузка)
+_constructs_cache: dict[str, ConstructSpec] | None = None
+
+def _find_construct_for_ast_node(wrapped_ast: ASTNodeWrapper | None) -> ConstructSpec | None:
+    """Находит конструкт, соответствующий AST-узлу.
+    
+    Для действий с kind: auto нужно использовать конструкт, соответствующий
+    самому AST-узлу, а не родительский конструкт действия.
+    
+    Args:
+        wrapped_ast: Обёртка AST-узла
+        
+    Returns:
+        ConstructSpec, соответствующий AST-узлу, или None если не найден
+    """
+    if not wrapped_ast:
+        return None
+    
+    global _constructs_cache
+    if _constructs_cache is None:
+        from src.cfg.abstractions import load_constructs
+        _constructs_cache = load_constructs("constructs.yml", debug=False)
+    
+    ast_node = wrapped_ast.ast_node
+    if not isinstance(ast_node, dict):
+        return None
+    
+    node_type = ast_node.get("type")
+    if not node_type:
+        return None
+    
+    for construct in _constructs_cache.values():
+        if node_type in construct.supported_ast_nodes():
+            return construct
+    
+    return None
+
 @registered
 class EffectsExporter(ObjectExporter):
     """Экспортер для класса Effects."""
@@ -356,12 +393,23 @@ class NodeExporter(ObjectExporter):
         return "Node"
 
     def export_metadata(self, obj: Node) -> dict[str, Any]:
+        loc_key = None
         if action := obj.metadata.abstract_action:
-            construct = obj.metadata.abstract_action.construct
-            localized = loc.get(action._locale_trace_name or \
-                (construct._locale_trace_name if construct else ""), "ru") or ""
+            # Для действий с kind: auto используем конструкт, соответствующий AST-узлу,
+            # а не родительский конструкт действия
+            if action._locale_trace_name:
+                loc_key = action._locale_trace_name
+            else:
+                # Ищем конструкт для AST-узла
+                ast_construct = _find_construct_for_ast_node(obj.metadata.wrapped_ast)
+                if ast_construct and ast_construct._locale_trace_name:
+                    loc_key = ast_construct._locale_trace_name
+
+        if loc_key:
+            localized = loc.get(loc_key, "ru") or ""
         else:
             localized = ""
+
         ast: ASTNodeWrapperExporter = self.get_exporter_for(obj.metadata.wrapped_ast)
         code_info = ast.get_code_piece_ext(obj.metadata.wrapped_ast)
         if code_info:
@@ -601,6 +649,12 @@ class ASTNodeWrapperExporter(ObjectExporter):
     def get_code_piece_ext(self, obj: ASTNodeWrapper) -> str | None:
         ast_node = obj.ast_node
         if not isinstance(ast_node, dict):
+            # # try to go up ...?
+            # obj = obj.parent.parent if obj.parent else obj
+            # if not isinstance(ast_node, dict):
+            #     # return 'None: not a dict!!!'
+            #     return None
+            # return 'None: not a dict!!!'
             return None
         ast_id = ast_node['id']
         analyzer = self.get_ast_node_analyzer(obj)

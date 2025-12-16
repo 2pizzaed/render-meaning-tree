@@ -725,6 +725,7 @@ def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
 
 @warnings.deprecated("Use trace scenarios and building using cfg instead")
 def build_trace_for(cfg: CFG, interactions: list[UserInteraction]) -> list[TraceAct]:
+    raise DeprecationWarning()
     trace = []
     for interaction in interactions:
         for node in cfg.nodes.values():

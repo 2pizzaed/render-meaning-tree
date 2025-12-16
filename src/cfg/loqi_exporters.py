@@ -358,11 +358,15 @@ class NodeExporter(ObjectExporter):
     def export_metadata(self, obj: Node) -> dict[str, Any]:
         loc = Locales("definitions")
         if action := obj.metadata.abstract_action:
-            localized = loc.get(action._locale_trace_name, "ru") or ""
+            construct = obj.metadata.abstract_action.construct
+            localized = loc.get(action._locale_trace_name or \
+                (construct._locale_trace_name if construct else ""), "ru") or ""
         else:
             localized = ""
         ast: ASTNodeWrapperExporter = self.get_exporter_for(obj.metadata.wrapped_ast)
-        localized += " " + ast.get_code_piece_ext(obj.metadata.wrapped_ast)
+        code_info = ast.get_code_piece_ext(obj.metadata.wrapped_ast)
+        if code_info:
+            localized += (" " if localized else '') + code_info
         entries = {
             "RU.localizedName": localized,
         }
@@ -607,13 +611,8 @@ class ASTNodeWrapperExporter(ObjectExporter):
 
             if '\n' in code_piece or analyzer.is_compound_statement(ast_id):
                 # Составное действие.
-                # Возьмем тип и пристыкуем номер строки, если нашли.
-                s = analyzer.get_node_type_by_id(ast_id)
-                # s = s.rsplit('_', 1)[0]  # отрезаем правую часть (*_statement, *_loop, ...)
-                s = s.replace('_', '-')  # Заменяем подчерки на дефисы.
                 line = analyzer.get_code_line_number_by_id(ast_id)
-                if line:
-                    s = f'<code>{s}</code> на строке {line}'
+                s = f'на строке {line}' if line else ''
                 return s
             else:
                 # Простые действия и выражения: берем целиком.

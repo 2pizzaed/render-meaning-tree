@@ -193,8 +193,8 @@ class TestComplexProblemBuild(unittest.TestCase):
             visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
 
             # Визуализируем CFG в PNG (режим с непрямыми путями)
-            png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
-            visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
+            # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
+            # visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
 
             answ = build_answer_objects_from_cfg(cfg,
                                                  lines_data,

@@ -615,7 +615,7 @@ class ASTNodeWrapperExporter(ObjectExporter):
                 return s
             else:
                 # Простые действия и выражения: берем целиком.
-                return code_piece
+                return f"<code>{code_piece}</code>"
         # return 'None: no analyzer!!!'
         return None
 

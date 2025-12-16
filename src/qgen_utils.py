@@ -46,8 +46,9 @@ def find_tags(mt: dict[str, Any], language: str) -> list[str]:
 def build_loqis(
     ast_json: dict[str, Any],
     lines: list[dict[str, list[Any]]],
+    ast_analyzer: ASTNodeAnalyzer,
     scenarios: list[TraceScenarioConfig] | list[dict[str, Any]] | None = None,
-) -> tuple[list[str], CFG, list[list[TraceAct]]]:
+) -> tuple[list[str], CFG | None, list[list[TraceAct]]]:
     """Строит CFG и генерирует трассы для заданных сценариев.
 
     Args:
@@ -61,7 +62,7 @@ def build_loqis(
         Кортеж (list[loqi_text], cfg, list[trace_acts]) - всегда списки, даже для одного сценария.
     """
     constructs = load_constructs("constructs.yml")
-    program_root = ASTNodeWrapper(ast_node=ast_json)
+    program_root = ASTNodeWrapper(ast_node=ast_json, _astnodeanalyzer=ast_analyzer)
     b = CFGBuilder(constructs)
     # Генерируем CFG
     cfg = b.make_cfg_for_ast(program_root)
@@ -486,7 +487,7 @@ def build_questions(
         # Сохраняем планы для преобразования после построения CFG
         scenarios = scenario_plans
 
-    loqi_texts, cfg, trace_acts_list = build_loqis(mt, lines_data, scenarios)
+    loqi_texts, cfg, trace_acts_list = build_loqis(mt, lines_data, ast_analyzer, scenarios)
     if not loqi_texts or not cfg:
         print("No valid loqi output", file=sys.stderr)
         return None

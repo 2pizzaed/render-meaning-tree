@@ -10,7 +10,7 @@
 global_statements_structure:
   kind: compound.sequence.program
   ast_node: program_entry_point
-  _locale_trace_name: "program"
+  _locale_trace_name: "statement"
   _locale_pronoun: "she"
   actions:
     - role: first
@@ -27,8 +27,12 @@ global_statements_structure:
       generalization: item
     - role: BEGIN
       kind: program
+      _locale_trace_name: "program"
+      _locale_pronoun: "she"
     - role: END
       kind: program
+      _locale_trace_name: "program"
+      _locale_pronoun: "she"
   transitions:
     - from_: BEGIN
       to: first

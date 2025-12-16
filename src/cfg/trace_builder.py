@@ -22,7 +22,7 @@ from collections import defaultdict, deque
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from src.cfg.abstractions import InterruptionType, OptionalBoolValue
+from src.cfg.abstractions import CallStackAction, InterruptionType, OptionalBoolValue
 from src.cfg.cfg import CFG, Edge, Node, NodeKind, TraceAct
 from src.code_renderer import ButtonType
 
@@ -270,6 +270,9 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
     """
     provider = _ConditionDecisionProvider(cfg, scenario)
     visit_counts: dict[str, int] = defaultdict(int)
+    # Стек вызовов функций: содержит ast_id узлов-вызовов (обёрток func_call)
+    # Используется только для выбора корректного ребра возврата из общего CFG тела функции.
+    call_stack: list[int] = []
     visited_nodes: list[VisitedNode] = []
     current = cfg.begin_node
     steps = 0
@@ -313,6 +316,9 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
                         visited_nodes.append(VisitedNode(node=current, incomplete_interruption=interruption_state))
                     continue
 
+        # Верхушка стека вызовов на момент выбора следующего узла
+        current_call_ast_id = call_stack[-1] if call_stack else None
+
         next_node, condition_value, chosen_edge = _choose_next_node(
             cfg,
             current,
@@ -320,10 +326,25 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
             scenario,
             provider,
             interruption_state,
+            current_call_ast_id,
         )
 
-        # Применяем эффекты interruption_stop из выбранного ребра
+        # Применяем эффекты выбранного ребра:
+        # 1) обновляем стек вызовов по call_stack
+        # 2) обновляем состояние прерываний через interruption_stop
         if chosen_edge:
+            if chosen_edge.effects:
+                for effect in chosen_edge.effects:
+                    if effect.call_stack == CallStackAction.ADD_FRAME:
+                        # В стек кладём ast_id узла-вызова (обёртка func_call),
+                        # которым является текущий CFG-узел.
+                        ast_id = _get_ast_id(current)
+                        if ast_id is not None:
+                            call_stack.append(ast_id)
+                    elif effect.call_stack == CallStackAction.DROP_FRAME and call_stack:
+                        # Выход из функции: снимаем верхний кадр стека
+                        call_stack.pop()
+
             interruption_state = _apply_edge_effects(chosen_edge, interruption_state)
 
         if current.is_mandatory() and record_index < len(visited_nodes):
@@ -350,6 +371,7 @@ def _choose_next_node(
     scenario: TraceScenarioConfig,
     provider: _ConditionDecisionProvider,
     interruption_state: InterruptionType,
+    current_call_ast_id: int | None,
 ) -> tuple[Node | None, OptionalBoolValue | None, Edge | None]:
     """Выбирает следующий узел для перехода из текущего узла.
 
@@ -370,6 +392,15 @@ def _choose_next_node(
         scenario: Конфигурация сценария
         provider: Провайдер решений для условий
         interruption_state: Текущее состояние прерывания
+
+    Args:
+        cfg: Граф потока управления
+        node: Текущий узел
+        visit_count: Количество уже выполненных посещений этого узла
+        scenario: Конфигурация сценария
+        provider: Провайдер решений для условий
+        interruption_state: Текущее состояние прерывания
+        current_call_ast_id: ast_id верхнего кадра стека вызовов (обёртки func_call)
 
     Returns:
         Кортеж (следующий_узел, значение_условия, выбранное_ребро).
@@ -405,7 +436,41 @@ def _choose_next_node(
         provider.commit(node, decision)
         return cfg.nodes.get(chosen_edge.dst), decision, chosen_edge
 
-    # Некасательные узлы: выбираем первое доступное ребро
+    # Неусловные узлы: обычно выбираем первое доступное ребро.
+    # Специальный случай — общий END тела функции, из которого есть несколько
+    # выходов к разным обёрткам вызовов одной и той же функции (в т.ч. рекурсивных).
+    # В этом случае используем вершину стека вызовов, чтобы выбрать корректное ребро.
+
+    # Попытка стек-ориентированного выбора для конца функции
+    if node.kind == NodeKind.END and current_call_ast_id is not None:
+        # Среди доступных рёбер ищем те, которые сбрасывают кадр стека (DROP_FRAME).
+        # Такие рёбра соответствуют возвратам из функции к обёрткам вызовов.
+        candidates_with_drop: list[Edge] = []
+        for edge in available_edges:
+            if not edge.effects:
+                continue
+            for effect in edge.effects:
+                if effect.call_stack == CallStackAction.DROP_FRAME:
+                    candidates_with_drop.append(edge)
+                    break
+
+        if candidates_with_drop:
+            # Сначала ищем ребро, ведущее к обёртке вызова с ast_id, совпадающим
+            # с верхушкой стека вызовов. Это обеспечивает корректный возврат по стеку.
+            for edge in candidates_with_drop:
+                dst_node = cfg.nodes.get(edge.dst)
+                if not dst_node:
+                    continue
+                dst_ast_id = _get_ast_id(dst_node)
+                if dst_ast_id is not None and dst_ast_id == current_call_ast_id:
+                    return dst_node, None, edge
+
+            # Если точного совпадения по ast_id нет (деградация для нестандартных случаев),
+            # используем первое ребро с DROP_FRAME, чтобы сохранить прежнюю семантику.
+            fallback_edge = candidates_with_drop[0]
+            return cfg.nodes.get(fallback_edge.dst), None, fallback_edge
+
+    # Обычный случай: берём первое доступное ребро
     chosen = available_edges[0]
     return cfg.nodes.get(chosen.dst), None, chosen
 

@@ -3,7 +3,10 @@ import unittest
 from src.cfg.abstractions import (
     ActionSpec,
     AppearanceType,
+    CallStackAction,
     Constraints,
+    Effects,
+    InterruptionType,
     KindChain,
     OptionalBoolValue,
 )
@@ -74,6 +77,64 @@ class TraceBuilderTests(unittest.TestCase):
         # Second visit should flip to False to exit the loop before exceeding the limit
         self.assertEqual(condition_values[-2:], [OptionalBoolValue.true, OptionalBoolValue.false])
         self.assertFalse(results[0].terminated_by_limit)
+
+    def test_function_end_prefers_edge_matching_call_stack_top(self):
+        """Проверяет, что _choose_next_node выбирает ребро с DROP_FRAME,
+        ведущее к обёртке вызова с ast_id, совпадающим с вершиной стека."""
+
+        from src.cfg.trace_builder import _ConditionDecisionProvider, _choose_next_node
+
+        cfg = CFG("call_stack_edge_choice")
+
+        # Общий конец функции
+        FUNC_AST_ID = 200
+        CALL1_AST_ID = 101
+        CALL2_AST_ID = 102
+
+        func_end = cfg.add_node(NodeKind.END, role="func_body_end", metadata=_make_metadata("block", FUNC_AST_ID))
+        call1_end = cfg.add_node(NodeKind.END, role="call1_end", metadata=_make_metadata("inline", CALL1_AST_ID))
+        call2_end = cfg.add_node(NodeKind.END, role="call2_end", metadata=_make_metadata("inline", CALL2_AST_ID))
+
+        # Делаем узлы обязательными, чтобы они были допустимыми целями
+        for n in (func_end, call1_end, call2_end):
+            n.appearance = AppearanceType.MANDATORY
+
+        drop_frame_effect = Effects(call_stack=CallStackAction.DROP_FRAME)
+
+        # Два ребра возврата с DROP_FRAME к разным обёрткам вызовов
+        e1 = cfg.connect(func_end, call1_end)
+        e1.effects.append(drop_frame_effect)
+        e2 = cfg.connect(func_end, call2_end)
+        e2.effects.append(drop_frame_effect)
+
+        scenario = TraceScenarioConfig(name="call_stack_choice", randomize_missing_conditions=False)
+        provider = _ConditionDecisionProvider(cfg, scenario)
+
+        # Если на вершине стека CALL2_AST_ID, должно быть выбрано ребро к call2_end
+        next_node, cond_val, chosen_edge = _choose_next_node(
+            cfg,
+            func_end,
+            visit_count=1,
+            scenario=scenario,
+            provider=provider,
+            interruption_state=InterruptionType.NO_INTERRUPTION,
+            current_call_ast_id=CALL2_AST_ID,
+        )
+        self.assertIsNotNone(next_node)
+        self.assertEqual(next_node.metadata.wrapped_ast.ast_node.get("id"), CALL2_AST_ID)
+
+        # Если на вершине стека CALL1_AST_ID, должно быть выбрано ребро к call1_end
+        next_node, cond_val, chosen_edge = _choose_next_node(
+            cfg,
+            func_end,
+            visit_count=1,
+            scenario=scenario,
+            provider=provider,
+            interruption_state=InterruptionType.NO_INTERRUPTION,
+            current_call_ast_id=CALL1_AST_ID,
+        )
+        self.assertIsNotNone(next_node)
+        self.assertEqual(next_node.metadata.wrapped_ast.ast_node.get("id"), CALL1_AST_ID)
 
 
 if __name__ == "__main__":

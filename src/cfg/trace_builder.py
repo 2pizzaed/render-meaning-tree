@@ -22,7 +22,7 @@ from collections import defaultdict, deque
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from src.cfg.abstractions import CallStackAction, InterruptionType, OptionalBoolValue
+from src.cfg.abstractions import InterruptionType, OptionalBoolValue, Effects
 from src.cfg.cfg import CFG, Edge, Node, NodeKind, TraceAct
 from src.code_renderer import ButtonType
 
@@ -102,7 +102,7 @@ class TraceScenarioConfig:
     condition_sequences: Mapping[int, ConditionDecisionSchedule | Sequence[bool]] = field(
         default_factory=dict
     )
-    max_visits_per_node: int = 3
+    max_visits_per_node: int = 4
     max_steps: int = 500
     randomize_missing_conditions: bool = True
     seed: int | None = None
@@ -238,7 +238,12 @@ def generate_trace_variants(
     scenario_list = list(scenarios) if scenarios else [TraceScenarioConfig()]
     results: list[TraceGenerationResult] = []
     for scenario in scenario_list:
-        results.append(_generate_trace_for_scenario(cfg, scenario))
+        result = _generate_trace_for_scenario(cfg, scenario)
+        if result.terminated_by_limit:
+            # Skip incomplete traces!
+            print(f'WARN: Trace construction for scenario `{scenario.name}` was terminated by limit!', file=sys.stderr)
+            continue
+        results.append(result)
     return results
 
 
@@ -246,7 +251,7 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
     """Генерирует одну трассу для заданного сценария.
 
     Алгоритм построения трассы:
-    1. Начинаем с BEGIN узла CFG
+    1. Начинаем с BEGIN-узла CFG
     2. Для каждого узла:
        - Если узел обязательный (is_mandatory), добавляем его в трассу
        - Если узел - условие, запрашиваем значение из провайдера
@@ -272,7 +277,7 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
     visit_counts: dict[str, int] = defaultdict(int)
     # Стек вызовов функций: содержит ast_id узлов-вызовов (обёрток func_call)
     # Используется только для выбора корректного ребра возврата из общего CFG тела функции.
-    call_stack: list[int] = []
+    entered_stack: list[int] = []  # ids of ASTNodes
     visited_nodes: list[VisitedNode] = []
     current = cfg.begin_node
     steps = 0
@@ -290,34 +295,47 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
         if current.is_mandatory():
             visited_nodes.append(VisitedNode(node=current))
 
+        # update stack according to node type...
+        if current.kind == NodeKind.BEGIN:
+            entered_stack.append(current.get_ast_id())
+        elif current.kind == NodeKind.END:
+            ast_id = current.get_ast_id()
+            leaving_ast_id = entered_stack.pop()
+            assert leaving_ast_id == ast_id
+        # ATOM: no change.
+
         if current == cfg.end_node:
             break
 
         # Применяем эффекты interruption_start из текущего узла
         previous_interruption_state = interruption_state
-        interruption_state = _apply_node_effects(current, interruption_state)
+        interruption_state = _apply_effects(current.effects, interruption_state)
         
+        ###
+        # print(entered_stack, interruption_state, current.effects)
+        ###
+
         # Если прерывание только что началось, нужно найти первую кнопку и пометить её
-        if (previous_interruption_state == InterruptionType.NO_INTERRUPTION and 
-            interruption_state != InterruptionType.NO_INTERRUPTION):
-            # Прерывание только что началось - находим первую кнопку от текущего узла
-            first_button_node = _find_first_mandatory_node_from(cfg, current)
-            if first_button_node and first_button_node != current:
-                # Если текущий узел не является кнопкой, добавляем путь до первой кнопки
-                # и помечаем её незавершённым прерыванием
-                if current.is_mandatory() and record_index < len(visited_nodes):
-                    # Текущий узел уже добавлен - помечаем его незавершённым прерыванием
-                    visited_nodes[record_index].incomplete_interruption = interruption_state
-                else:
-                    # Нужно добавить первую кнопку с пометкой незавершённого прерывания
-                    # Переходим к первой кнопке напрямую
-                    current = first_button_node
-                    if current.is_mandatory():
-                        visited_nodes.append(VisitedNode(node=current, incomplete_interruption=interruption_state))
-                    continue
+        # if (previous_interruption_state == InterruptionType.NO_INTERRUPTION and
+            # interruption_state != InterruptionType.NO_INTERRUPTION):
+            # # Прерывание только что началось - находим первую кнопку от текущего узла
+            # first_button_node = _find_first_mandatory_node_from(cfg, current)
+            # if first_button_node and first_button_node != current:
+            #     # Если текущий узел не является кнопкой, добавляем путь до первой кнопки
+            #     # и помечаем её незавершённым прерыванием
+            #     if current.is_mandatory() and record_index < len(visited_nodes):
+            #         # Текущий узел уже добавлен - помечаем его незавершённым прерыванием
+            #         visited_nodes[record_index].incomplete_interruption = interruption_state
+            #     else:
+            #         # Нужно добавить первую кнопку с пометкой незавершённого прерывания
+            #         # Переходим к первой кнопке напрямую
+            #         current = first_button_node
+            #         if current.is_mandatory():
+            #             visited_nodes.append(VisitedNode(node=current, incomplete_interruption=interruption_state))
+            #         continue
 
         # Верхушка стека вызовов на момент выбора следующего узла
-        current_call_ast_id = call_stack[-1] if call_stack else None
+        current_context_ast_id = entered_stack[-1] if entered_stack else None
 
         next_node, condition_value, chosen_edge = _choose_next_node(
             cfg,
@@ -326,26 +344,26 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
             scenario,
             provider,
             interruption_state,
-            current_call_ast_id,
+            current_context_ast_id,
         )
 
         # Применяем эффекты выбранного ребра:
         # 1) обновляем стек вызовов по call_stack
         # 2) обновляем состояние прерываний через interruption_stop
         if chosen_edge:
-            if chosen_edge.effects:
-                for effect in chosen_edge.effects:
-                    if effect.call_stack == CallStackAction.ADD_FRAME:
-                        # В стек кладём ast_id узла-вызова (обёртка func_call),
-                        # которым является текущий CFG-узел.
-                        ast_id = _get_ast_id(current)
-                        if ast_id is not None:
-                            call_stack.append(ast_id)
-                    elif effect.call_stack == CallStackAction.DROP_FRAME and call_stack:
-                        # Выход из функции: снимаем верхний кадр стека
-                        call_stack.pop()
+            # if chosen_edge.effects:
+                # for effect in chosen_edge.effects:
+                #     if effect.call_stack == CallStackAction.ADD_FRAME:
+                #         # В стек кладём ast_id узла-вызова (обёртка func_call),
+                #         # которым является текущий CFG-узел.
+                #         ast_id = _get_ast_id(current)
+                #         if ast_id is not None:
+                #             entered_stack.append(ast_id)
+                #     elif effect.call_stack == CallStackAction.DROP_FRAME and entered_stack:
+                #         # Выход из функции: снимаем верхний кадр стека
+                #         entered_stack.pop()
 
-            interruption_state = _apply_edge_effects(chosen_edge, interruption_state)
+            interruption_state = _apply_effects(chosen_edge.effects, interruption_state)
 
         if current.is_mandatory() and record_index < len(visited_nodes):
             visited_nodes[record_index].condition_value = (
@@ -371,7 +389,7 @@ def _choose_next_node(
     scenario: TraceScenarioConfig,
     provider: _ConditionDecisionProvider,
     interruption_state: InterruptionType,
-    current_call_ast_id: int | None,
+    current_context_ast_id: int | None,
 ) -> tuple[Node | None, OptionalBoolValue | None, Edge | None]:
     """Выбирает следующий узел для перехода из текущего узла.
 
@@ -392,27 +410,19 @@ def _choose_next_node(
         scenario: Конфигурация сценария
         provider: Провайдер решений для условий
         interruption_state: Текущее состояние прерывания
-
-    Args:
-        cfg: Граф потока управления
-        node: Текущий узел
-        visit_count: Количество уже выполненных посещений этого узла
-        scenario: Конфигурация сценария
-        provider: Провайдер решений для условий
-        interruption_state: Текущее состояние прерывания
-        current_call_ast_id: ast_id верхнего кадра стека вызовов (обёртки func_call)
+        current_context_ast_id: ast_id верхнего кадра стека вызовов (обёртки func_call)
 
     Returns:
         Кортеж (следующий_узел, значение_условия, выбранное_ребро).
-        Значение условия None для не-условий.
+        Значение условия: None для не-условий.
     """
     edges = cfg.edges_from_node(node)
     if not edges:
         return None, None, None
 
     # Фильтруем рёбра по состоянию прерывания
-    available_edges = _filter_edges_by_interruption(edges, interruption_state)
-    
+    available_edges = _filter_edges_by_interruption(edges, interruption_state, current_context_ast_id, cfg)
+
     # Если после фильтрации не осталось доступных рёбер, возвращаем None
     if not available_edges:
         return None, None, None
@@ -442,33 +452,33 @@ def _choose_next_node(
     # В этом случае используем вершину стека вызовов, чтобы выбрать корректное ребро.
 
     # Попытка стек-ориентированного выбора для конца функции
-    if node.kind == NodeKind.END and current_call_ast_id is not None:
-        # Среди доступных рёбер ищем те, которые сбрасывают кадр стека (DROP_FRAME).
-        # Такие рёбра соответствуют возвратам из функции к обёрткам вызовов.
-        candidates_with_drop: list[Edge] = []
-        for edge in available_edges:
-            if not edge.effects:
-                continue
-            for effect in edge.effects:
-                if effect.call_stack == CallStackAction.DROP_FRAME:
-                    candidates_with_drop.append(edge)
-                    break
-
-        if candidates_with_drop:
-            # Сначала ищем ребро, ведущее к обёртке вызова с ast_id, совпадающим
-            # с верхушкой стека вызовов. Это обеспечивает корректный возврат по стеку.
-            for edge in candidates_with_drop:
-                dst_node = cfg.nodes.get(edge.dst)
-                if not dst_node:
-                    continue
-                dst_ast_id = _get_ast_id(dst_node)
-                if dst_ast_id is not None and dst_ast_id == current_call_ast_id:
-                    return dst_node, None, edge
-
-            # Если точного совпадения по ast_id нет (деградация для нестандартных случаев),
-            # используем первое ребро с DROP_FRAME, чтобы сохранить прежнюю семантику.
-            fallback_edge = candidates_with_drop[0]
-            return cfg.nodes.get(fallback_edge.dst), None, fallback_edge
+    # if node.kind == NodeKind.END and current_context_ast_id is not None:
+    #     # Среди доступных рёбер ищем те, которые сбрасывают кадр стека (DROP_FRAME).
+    #     # Такие рёбра соответствуют возвратам из функции к обёрткам вызовов.
+    #     candidates_with_drop: list[Edge] = []
+    #     for edge in available_edges:
+    #         if not edge.effects:
+    #             continue
+    #         for effect in edge.effects:
+    #             if effect.call_stack == CallStackAction.DROP_FRAME:
+    #                 candidates_with_drop.append(edge)
+    #                 break
+    #
+    #     if candidates_with_drop:
+    #         # Сначала ищем ребро, ведущее к обёртке вызова с ast_id, совпадающим
+    #         # с верхушкой стека вызовов. Это обеспечивает корректный возврат по стеку.
+    #         for edge in candidates_with_drop:
+    #             dst_node = cfg.nodes.get(edge.dst)
+    #             if not dst_node:
+    #                 continue
+    #             dst_ast_id = _get_ast_id(dst_node)
+    #             if dst_ast_id is not None and dst_ast_id == current_context_ast_id:
+    #                 return dst_node, None, edge
+    #
+    #         # Если точного совпадения по ast_id нет (деградация для нестандартных случаев),
+    #         # используем первое ребро с DROP_FRAME, чтобы сохранить прежнюю семантику.
+    #         fallback_edge = candidates_with_drop[0]
+    #         return cfg.nodes.get(fallback_edge.dst), None, fallback_edge
 
     # Обычный случай: берём первое доступное ребро
     chosen = available_edges[0]
@@ -589,47 +599,26 @@ def _get_ast_id(node: Node) -> int | None:
     return None
 
 
-def _apply_node_effects(node: Node, current_state: InterruptionType) -> InterruptionType:
+def _apply_effects(effects: list[Effects], current_state: InterruptionType) -> InterruptionType:
     """Применяет эффекты interruption_start из узла.
 
     Проверяет все эффекты узла и применяет interruption_start, если он задан.
     Если interruption_start не равен NO_INTERRUPTION, он заменяет текущее состояние.
 
     Args:
-        node: Узел CFG с эффектами
+        effects: список эффектов
         current_state: Текущее состояние прерывания
 
     Returns:
         Новое состояние прерывания после применения эффектов узла
     """
-    if not node.effects:
+    if not effects:
         return current_state
 
-    for effect in node.effects:
+    for effect in effects:
         if effect.interruption_start and effect.interruption_start != InterruptionType.NO_INTERRUPTION:
             return effect.interruption_start
 
-    return current_state
-
-
-def _apply_edge_effects(edge: Edge, current_state: InterruptionType) -> InterruptionType:
-    """Применяет эффекты interruption_stop из ребра.
-
-    Проверяет все эффекты ребра и применяет interruption_stop, если он задан.
-    Если interruption_stop соответствует текущему состоянию прерывания,
-    состояние сбрасывается в NO_INTERRUPTION.
-
-    Args:
-        edge: Ребро CFG с эффектами
-        current_state: Текущее состояние прерывания
-
-    Returns:
-        Новое состояние прерывания после применения эффектов ребра
-    """
-    if not edge.effects:
-        return current_state
-
-    for effect in edge.effects:
         if effect.interruption_stop:
             # Если interruption_stop покрывает текущее состояние, сбрасываем его
             if effect.interruption_stop.fits(current_state):
@@ -638,8 +627,34 @@ def _apply_edge_effects(edge: Edge, current_state: InterruptionType) -> Interrup
     return current_state
 
 
+# def _apply_edge_effects(edge: Edge, current_state: InterruptionType) -> InterruptionType:
+#     """Применяет эффекты interruption_stop из ребра.
+#
+#     Проверяет все эффекты ребра и применяет interruption_stop, если он задан.
+#     Если interruption_stop соответствует текущему состоянию прерывания,
+#     состояние сбрасывается в NO_INTERRUPTION.
+#
+#     Args:
+#         edge: Ребро CFG с эффектами
+#         current_state: Текущее состояние прерывания
+#
+#     Returns:
+#         Новое состояние прерывания после применения эффектов ребра
+#     """
+#     if not edge.effects:
+#         return current_state
+#
+#     for effect in edge.effects:
+#         if effect.interruption_stop:
+#             # Если interruption_stop покрывает текущее состояние, сбрасываем его
+#             if effect.interruption_stop.fits(current_state):
+#                 return InterruptionType.NO_INTERRUPTION
+#
+#     return current_state
+
+
 def _filter_edges_by_interruption(
-    edges: list[Edge], interruption_state: InterruptionType
+    edges: list[Edge], interruption_state: InterruptionType, current_context_ast_id: int | None, cfg: CFG,
 ) -> list[Edge]:
     """Фильтрует рёбра по interruption_mode в constraints.
 
@@ -663,31 +678,36 @@ def _filter_edges_by_interruption(
     filtered = []
 
     for edge in edges:
-        # Если у ребра нет constraints, interruption_mode подразумевает NO_INTERRUPTION
-        if edge.constraints is None or edge.constraints.interruption_mode is None:
-            # Доступно только при NO_INTERRUPTION
-            if interruption_state == InterruptionType.NO_INTERRUPTION:
-                filtered.append(edge)
-            continue
+        # # Если у ребра нет constraints, interruption_mode подразумевает NO_INTERRUPTION
+        if edge.constraints is None:
+            interruption_constraint = None
+        else:
+            interruption_constraint = edge.constraints.interruption_mode
 
-        interruption_mode = edge.constraints.interruption_mode
+        if not interruption_constraint:
+            interruption_constraint = InterruptionType.DEFAULT  # i.e. NO_INTERRUPTION
 
-        # ANY доступно всегда
-        if interruption_mode == InterruptionType.ANY:
-            filtered.append(edge)
-            continue
-
-        # Проверяем, покрывает ли interruption_mode текущее состояние прерывания
+        # Проверяем, покрывает ли interruption_constraint текущее состояние прерывания
         # Ребро доступно, если требуемый режим покрывает текущее состояние
-        if interruption_mode.fits(interruption_state):
-            filtered.append(edge)
+        if not interruption_constraint.fits(interruption_state):
+            # не покрывает!
             continue
+
+        # Завершиться должно то, что началось ранее.
+        if current_context_ast_id is not None:
+            target_node = cfg.nodes.get(edge.dst)
+            if target_node and target_node.kind == NodeKind.END and target_node.get_ast_id() != current_context_ast_id:
+                # возврат не туда!
+                continue
+
+        filtered.append(edge)
 
     return filtered
 
 
 @warnings.deprecated("Use trace scenarios and building using cfg instead")
 def build_trace_act(cfg: CFG, interaction: UserInteraction) -> TraceAct | None:
+    raise DeprecationWarning()
     for node in cfg.nodes.values():
         if not node.metadata.wrapped_ast or not isinstance(
             node.metadata.wrapped_ast.ast_node, dict

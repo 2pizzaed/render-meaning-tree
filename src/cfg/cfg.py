@@ -65,6 +65,13 @@ class Metadata(DictLikeDataclass):
     has_corresponding_end: Optional['Node'] = None
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
+    construct: ConstructSpec = None  # to take abstract_action from it when abstract_action is not passed, do not use after init completed!
+
+    def __post_init__(self):
+        if self.construct is not None and isinstance(self.construct, ConstructSpec):
+            # END is universal & makes sense for effects.
+            self.abstract_action = self.construct.find_action_by_role(END)
+            self.construct = None  # removed, do not use it anymore.
 
     def is_empty(self) -> bool:
         """Проверяет, содержит ли metadata значимую информацию."""
@@ -130,9 +137,15 @@ class Node(FactSerializable, WithEffectsMixin):
     # # If node wraps a subgraph, keep reference
     # subgraph: Optional["CFG"] = None
 
+    def __hash__(self):
+        return hash(self.id)
+
     def describe(self) -> str:
-        ast_id = self.metadata.wrapped_ast.ast_node.get('id') if self.metadata.wrapped_ast else None
+        ast_id = self.get_ast_id()
         return f'Node( id={self.id}, kind={self.kind.value}, role_in_construct={self.role_in_construct}, action={self.metadata.abstract_action.role if self.metadata.abstract_action else None}, ast_id={ast_id!r} )'
+
+    def get_ast_id(self) -> int | None:
+        return self.metadata.wrapped_ast.ast_node.get('id') if self.metadata.wrapped_ast else None
 
     def is_mandatory(self) -> bool:
         return self.appearance == AppearanceType.MANDATORY
@@ -222,7 +235,9 @@ class CFG:
         metadata = metadata or Metadata()
         effects: list[Effects] = []
         if metadata.abstract_action and metadata.abstract_action.effects:
-            effects = metadata.abstract_action.effects
+            effects += metadata.abstract_action.effects
+            if metadata.abstract_action.construct and metadata.abstract_action.role == END:
+                effects += metadata.abstract_action.construct.effects
 
         kind = NodeKind(kind)
         node_id = idgen.next(kind.value)
@@ -335,16 +350,21 @@ class CFG:
         """ Add a node to the CFG. If subgraph is provided, it will be wrapped in enter and leave nodes.
             Returns the node or a tuple of enter and leave nodes if subgraph is provided. """
 
+        ###
+        # print(f'+node :: kind: {kind}, role: {role}, metadata: {metadata}, subgraph: {subgraph}')
+        # assert metadata is not None
+        ###
+
         final_metadata = metadata or Metadata()
-        # Извлекаем effects из ActionSpec, если есть
+        # Извлекаем effects из ActionSpec, если есть, и из самого конструкта для END в конструкте
         # Effects применяются только к ATOM и END, не к BEGIN
         final_effects = []
         if final_metadata.abstract_action:
             if final_metadata.abstract_action.effects:
-                node_kind = NodeKind(kind)
-                # Effects применяются только к ATOM и END, не к BEGIN
-                if node_kind != NodeKind.BEGIN:
-                    final_effects = final_metadata.abstract_action.effects
+                final_effects += final_metadata.abstract_action.effects
+                if final_metadata.abstract_action.construct and final_metadata.abstract_action.role == END:
+                    final_effects += final_metadata.abstract_action.construct.effects
+
 
         if not subgraph:
             # Узел может быть служебным началом или концом CFG, или атомом (в середине).
@@ -380,17 +400,14 @@ class CFG:
                               cfg=self)
             self.nodes[nid] = enter_node
 
-            # Для leave_node (END) нужно пересчитать effects, так как он должен получать effects из ActionSpec
-            leave_effects = []
-            if final_metadata.abstract_action and final_metadata.abstract_action.effects:
-                # END узлы должны получать effects
-                leave_effects = final_metadata.abstract_action.effects
+            # leave_node (END)
+            # END-узлы должны получать effects
 
             kind = NodeKind.END
             nid = idgen.next(kind.value)
             leave_node = Node(id=nid, kind=kind, role_in_construct=role,
                               metadata=final_metadata,
-                              effects=leave_effects,
+                              effects=final_effects,
                               cfg=self)
             self.nodes[nid] = leave_node
 

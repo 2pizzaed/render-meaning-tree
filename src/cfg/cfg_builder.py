@@ -462,7 +462,7 @@ class CFGBuilder:
 
         # Создаем пустой CFG для функции и сохраняем его в словаре.
         # Это нужно, чтобы рекурсивное обращение видело обёртку CFG и могло использовать границы для добавления рёбер ещё до полного определения.
-        self.func_cfgs[func_name] = func_cfg = CFG("func_" + func_name)
+        self.func_cfgs[func_name] = func_cfg = CFG("func_" + func_name, construct=construct)
 
         # Наполняем CFG для тела функции
         body_wast = wrapped_ast.get('body')
@@ -607,10 +607,10 @@ class CFGBuilder:
             function_calls = self._find_function_calls_in_ast(wrapped_ast.ast_node)
 
         if function_calls:
-            base_cfg = CFG(cfg_name)
+            base_cfg = CFG(cfg_name, construct=construct)
             return self._inject_function_calls_in_cfg(base_cfg, function_calls, parent_action=parent_action, wrapped_ast=wrapped_ast, construct=construct)
 
-        metadata = Metadata(wrapped_ast=wrapped_ast)
+        metadata = Metadata(wrapped_ast=wrapped_ast, construct=construct)
         atomic_cfg = CFG.create_atomic(cfg_name, metadata=metadata)
         self._apply_node_appearance(atomic_cfg.begin_node, construct=construct)
         return atomic_cfg

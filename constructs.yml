@@ -452,6 +452,7 @@ func_call_structure:
       constraints:
         interruption_mode: any  # В любом случае
       effects:
+        - interruption_stop: return
         - call_stack: drop_frame       # при выходе убираем фрейм
 
 # --------------------------------

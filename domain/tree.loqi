@@ -4,16 +4,16 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
     ask (STATE.interruption_state != InterruptionType:no_interruption) {
         false -> out;
         true -> {
-            ask (A->hasCFGNode.kind == "END") out true else {
+            ask (A->hasCFGNode.kind == NodeKind:END) out true else {
                 conclude : error [
                     skill = "compound_constructs_present";
-                    RU.explanation="Во время прерывания происходит только завершение составных действий; ${A} не может начать выполняться.";
+                    RU.explanation="Когда происходит ${STATE.interruption_state},  происходит только завершение составных действий; ${A} не может начать выполняться.";
                 ];
             };
             ask (forAny TraceAct begin [ true ] { (A->hasCFGNode == $begin->hasCFGNode->hasMetadata->hasCorrespondingEnd and $begin.is_known_correct) }) out true else {
                 conclude : error [
                     skill = "is_in_compound_construct_ending";
-                    RU.explanation="Во время прерывания происходит досрочное завершение уже начавшихся действий; ${A} сейчас не выполняется.";
+                    RU.explanation="Когда происходит ${STATE.interruption_state}, досрочно завершаются уже начавшиеся действия; ${A} сейчас не выполняется.";
                 ];
             };
 
@@ -43,10 +43,30 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 
     	// Существует ли какой угодно путь от L0 до A ?
         var P2 : PathInfo = (find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode}) out true else {
+        	// Поищем обратный путь (когда А в недалёком прошлом).
+        	// Существует ли какой угодно путь от A до L0 ?
+	        var P4 : PathInfo = (find PathInfo p { $p->to_ == L0->hasCFGNode and $p->from_ == A->hasCFGNode}) out false else {
+
+	        	ask (forAny TraceAct prev [$prev.is_known_correct == true] {$prev->hasCFGNode == A->hasCFGNode}) out false else {
+		        	// Действие выполнено в трассе, т.е. имеет акт.
+	        		conclude: error [
+	        		    skill="refer_execution_history";
+	        		    RU.explanation="Действие ${A} уже выполнилось и не должно выполняться повторно.";
+	        		];
+		        };
+
+	        	// Действие не было выполнено в трассе, т.е. не имеет акта.
+	        	conclude: error [
+	        	    skill="refer_not_executed";
+	        	    RU.explanation="В программе всё выполняется одно за другим. После ${L0} действие ${A} уже не может выполниться.";
+	        	    // В программе всё выполняется в поступательном порядке.
+	        	];
+	        };
+
         	// Действие А нельзя выполнять сейчас, так как находятся в иной области кода, чем L0
             conclude: error [
                 skill="two_execution_points_has_path";
-                RU.explanation="Действие ${A} нельзя выполнять сейчас, т.к. находится в иной области кода, чем ${L0}.";
+                RU.explanation="Действие ${A} нельзя выполнять сейчас, т.к. находится слишком далеко от текущей позиции --- ${L0}.";
             ];
         };
 
@@ -62,6 +82,13 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 
         // Нет непрозрачных УСЛОВИЙ, ищем непрозрачные действия
         var M : Node = find Node m { P2=>hasFirstMiddleAction($m) };
+        // May be useful ??
+        // out true else {
+        //     conclude : correct [
+        //         skill="many_actions_in_require_selection";
+        //         RU_explanation="Нет мешающих действий на пути от ${L0} к ${A}";
+        //     ];
+        // };
     	// сначала должно быть произойти <M>
     	conclude : error [
             skill="many_actions_in_require_selection";
@@ -89,10 +116,22 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                     skill="interruption_state_matches_constraint";
                     RU.explanation="При текущем режиме прерывания не может выполниться действие ${A}.";
                 ];}
-                body -> {conclude : error [
+                body -> {
+
+                	// Найти альтернативный переход ET (Expected Transition), выходящий из L0, и требующий текущее значение условия в L0
+                	var ET : Edge = find Edge e {$e->hasSource == P->from_
+                	    and $e != P
+                	    and forAny Constraint c {$e=>hasConstraints($c)}  // (у перехода есть ограничения)
+                	    and L0.condition_value == $e->hasConstraints.condition_value} out true else {
+                		// (Не найден такой переход!!! Скорее всего, проблема в CFG.)
+                	    conclude : null;
+                	};
+
+                	conclude : error [
                     skill="interruption_state_matches_constraint";
-                    RU.explanation="При текущем режиме прерывания должно выполниться действие ${$ET->hasDestination}, но не ${A}";
-                ];}
+                    RU.explanation="При текущем режиме прерывания должно выполниться действие ${ET->hasDestination}, но не ${A}";
+	                ];
+	            }
             };
         };
         conditionCheck -> {
@@ -119,30 +158,44 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             };
             conclude : error [
                 skill="condition_value_allows_transition";
-                RU.explanation="При текущем значении условия должно выполниться действие ${$ET->hasDestination}, но не ${A}.";
+                RU.explanation="При текущем значении условия должно выполниться действие ${ET->hasDestination}, но не ${A}.";
             ];
         };
         // В правильный ли вызов функции вернулись? (CFG не даёт нам информации об этом, так как считает, что возврат из функции в любой из её вызовов допустИм.)
         functionReturn -> {
         	// Является ли А завершением вызова некоторой функции?
-            ask (A->hasASTNode.ast_node == "function_call" and A->hasCFGNode.kind == "END") out true else {
+            ask (A->hasASTNode.ast_node == "function_call" and A->hasCFGNode.kind == NodeKind:END) out true else {
             	// НЕТ: Дальше не проверяем.
-                conclude : null;
+                conclude : null [
+                	skill = "DEBUG: not-a-call.";
+                ];
             };
             // Является ли А завершением именно самого близкого по трассе к L0 вызова этой же функции ( который при этом не имел на завершения?)
-            var closerCall : TraceAct = findExtreme func [$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode and $func.is_known_correct
-                ] among TraceAct act {$act->hasASTNode.ast_node == "function_call" and
-                    $act->hasCFGNode.kind == "BEGIN"
-                    and
-                    not (forAny TraceAct _e {$act=>hasActAsCorrespondingEnd($_e)})}
+            // var closerCall : TraceAct = findExtreme func [$func=>isCloserToThan($act, L0) and $func->hasASTNode== A->hasASTNode and $func.is_known_correct
+            //     ] among TraceAct act {$act->hasASTNode.ast_node == "function_call" and
+            //         $act->hasCFGNode.kind == NodeKind:BEGIN
+            //         and
+            //         not (forAny TraceAct _e {$act=>hasActAsCorrespondingEnd($_e)})}
+
+            // Тупо берём ожидаемый узел из трассы.
+            var ExpectedCallAct : TraceAct = (L0->directlyBeforeOf);
+            ask (ExpectedCallAct->hasASTNode.ast_node == "function_call" and ExpectedCallAct->hasCFGNode.kind == NodeKind:END) out true else {
+            	conclude : error [
+            	    skill="is_function_call_ended_at_time";
+            	    RU.explanation="Функция не может завершиться сейчас; Вместо ${A}, нужно сначала завершить ${ExpectedCallAct->hasCFGNode}.";
+            	];
+            };
+            ask (A->hasASTNode == ExpectedCallAct->hasASTNode)
             out false else {
             	// ДА: Вернулись в нужный вызов.
             	// TODO: Добавить скилл is_function_call_jumping_correct как корректно применённый.
-                conclude : null;
+                conclude : null [
+                	skill = "DEBUG: RETURN OK";
+                ];
             };
             conclude : error [
                 skill="is_function_call_jumping_correct";
-                RU.explanation="При завершении вызовов сначала завершаются внутренние вызовы согласно стеку вызовов (в обратном порядке); Вместо ${A}, нужно сначала завершить ${closerCall}.";
+                RU.explanation="При завершении вызовов сначала завершаются внутренние вызовы согласно стеку вызовов (в обратном порядке); Вместо ${A}, нужно сначала завершить ${ExpectedCallAct}.";
             ];
         };
     };

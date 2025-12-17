@@ -292,7 +292,7 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
             break
 
         record_index = len(visited_nodes)
-        if current.is_mandatory():
+        if current.is_mandatory()  or current == cfg.end_node:
             visited_nodes.append(VisitedNode(node=current))
 
         # update stack according to node type...

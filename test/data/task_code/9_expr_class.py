@@ -12,9 +12,9 @@ class Expr:
 def eval(expr: Expr) -> int:
     if expr.value is not None:
         return expr.value
-    if expr.op == "+" and expr.left and expr.right:
+    elif expr.op == "+" and expr.left and expr.right:
         return eval(expr.left) + eval(expr.right)
-    if expr.op == "*" and expr.left and expr.right:
+    elif expr.op == "*" and expr.left and expr.right:
         return eval(expr.left) * eval(expr.right)
     return 0
 

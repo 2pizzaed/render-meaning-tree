@@ -310,10 +310,6 @@ def _generate_trace_for_scenario(cfg: CFG, scenario: TraceScenarioConfig) -> Tra
         # Применяем эффекты interruption_start из текущего узла
         previous_interruption_state = interruption_state
         interruption_state = _apply_effects(current.effects, interruption_state)
-        
-        ###
-        # print(entered_stack, interruption_state, current.effects)
-        ###
 
         # Верхушка стека вызовов на момент выбора следующего узла
         current_context_ast_id = entered_stack[-1] if entered_stack else None

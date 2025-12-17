@@ -102,7 +102,7 @@ class TraceScenarioConfig:
     condition_sequences: Mapping[int, ConditionDecisionSchedule | Sequence[bool]] = field(
         default_factory=dict
     )
-    max_visits_per_node: int = 4
+    max_visits_per_node: int = 10
     max_steps: int = 500
     randomize_missing_conditions: bool = True
     seed: int | None = None

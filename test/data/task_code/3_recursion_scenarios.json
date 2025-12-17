@@ -1,0 +1,61 @@
+{
+  "scenarios": [
+{
+  "scenario_name": "short",
+  "conditions": [
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "position_in_trace": 4,
+      "cfg_node_id": "atom_107",
+      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
+    }
+  ]
+},{
+  "scenario_name": "long",
+  "conditions": [
+    {
+      "ast_id": 8,
+      "condition_value": "false",
+      "position_in_trace": 4,
+      "cfg_node_id": "atom_107",
+      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "position_in_trace": 6,
+      "cfg_node_id": "atom_133",
+      "node_description": "Node( id=atom_133, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=18 )"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "position_in_trace": 9,
+      "cfg_node_id": "atom_107",
+      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "position_in_trace": 10,
+      "cfg_node_id": "atom_133",
+      "node_description": "Node( id=atom_133, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=18 )"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "position_in_trace": 13,
+      "cfg_node_id": "atom_107",
+      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "position_in_trace": 14,
+      "cfg_node_id": "atom_133",
+      "node_description": "Node( id=atom_133, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=18 )"
+    }
+  ]
+}
+]}

@@ -219,4 +219,4 @@ class TestComplexProblemBuild(unittest.TestCase):
                 print(f"  {exported_file.name}: {exported_file}")
             print(f"  PNG (edges): {png_path}")
             print(f"  PNG (paths): {png_pathinfo_path}")
-            print(f"  PNG (indirect paths): {png_indirect_paths_path}")
+            # print(f"  PNG (indirect paths): {png_indirect_paths_path}")

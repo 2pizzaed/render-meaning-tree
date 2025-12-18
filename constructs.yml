@@ -462,6 +462,7 @@ return_action:
   kind: inline  # this kind matters
   ast_node: return_statement
   _locale_trace_name: 'return'
+  _locale_pronoun: 'it'
   effects:
     - interruption_start: return
 

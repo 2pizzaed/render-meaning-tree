@@ -664,6 +664,8 @@ class ASTNodeWrapperExporter(ObjectExporter):
 
             if '\n' in code_piece or analyzer.is_compound_statement(ast_id):
                 # Составное действие.
+                return ''
+                # OFF: "программа на строке 1"
                 line = analyzer.get_code_line_number_by_id(ast_id)
                 s = f'на строке {line}' if line else ''
                 return s

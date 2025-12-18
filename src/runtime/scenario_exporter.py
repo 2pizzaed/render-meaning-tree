@@ -215,18 +215,44 @@ def build_line_to_ast_id_for_conditions(
     """
     line_to_ast_id: dict[int, int] = {}
     
-    # Типы узлов, которые являются условными конструкциями
-    condition_parent_types = {
-        'if_statement', 'while_statement', 'for_statement',
-        'conditional_expression',  # тернарный оператор
-    }
-    
     for ast_id, node in ast_analyzer.nodes_cache.items():
         node_type = node.get('type', '')
         
-        # Для if/while/for нужно найти условие внутри
-        if node_type in condition_parent_types:
-            # Ищем условие (обычно в поле 'condition' или 'test')
+        # Для if_statement условие находится в branches[].condition
+        if node_type == 'if_statement':
+            branches = node.get('branches', [])
+            for branch in branches:
+                if isinstance(branch, dict):
+                    condition_node = branch.get('condition')
+                    if condition_node and isinstance(condition_node, dict):
+                        cond_id = condition_node.get('id')
+                        if cond_id:
+                            line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                            if line:
+                                line_to_ast_id[line] = cond_id
+        
+        # Для while_statement условие в condition
+        elif node_type == 'while_statement':
+            condition_node = node.get('condition')
+            if condition_node and isinstance(condition_node, dict):
+                cond_id = condition_node.get('id')
+                if cond_id:
+                    line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                    if line:
+                        line_to_ast_id[line] = cond_id
+        
+        # Для for_statement условие в condition (если есть)
+        elif node_type == 'for_statement':
+            condition_node = node.get('condition')
+            if condition_node and isinstance(condition_node, dict):
+                cond_id = condition_node.get('id')
+                if cond_id:
+                    line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                    if line:
+                        line_to_ast_id[line] = cond_id
+        
+        # Тернарный оператор (conditional_expression)
+        elif node_type == 'conditional_expression':
             condition_node = node.get('condition') or node.get('test')
             if condition_node and isinstance(condition_node, dict):
                 cond_id = condition_node.get('id')

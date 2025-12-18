@@ -717,10 +717,21 @@ class RuntimeInfoExporter(ObjectExporter):
         # LOQI не поддерживает отсутствующие скалярные свойства - выводим все поля
         return {
             "function_name": obj.function_name or "",
-            "function_args": json.dumps(obj.function_args, ensure_ascii=False) if obj.function_args else "",
+            "function_args": self._safe_json_dumps(obj.function_args) if obj.function_args else "",
             "return_value": repr(obj.return_value) if obj.return_value is not None else "",
-            "print_outputs": json.dumps(obj.print_outputs, ensure_ascii=False) if obj.print_outputs else "",
+            "print_outputs": self._safe_json_dumps(obj.print_outputs) if obj.print_outputs else "",
         }
+    
+    def _safe_json_dumps(self, obj: Any) -> str:
+        """Безопасная сериализация в JSON с обработкой несериализуемых объектов."""
+        def default_serializer(o):
+            # Для несериализуемых объектов возвращаем repr
+            return repr(o)
+        
+        try:
+            return json.dumps(obj, ensure_ascii=False, default=default_serializer)
+        except Exception:
+            return repr(obj)
 
     def export_relationships(self, obj: RuntimeInfo) -> dict[str, list[Any]]:
         return {}

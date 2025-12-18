@@ -23,7 +23,12 @@ from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 from src.qgen_utils import build_answer_objects_from_cfg
-from src.runtime import execute_with_trace, enrich_trace_with_runtime
+from src.runtime import (
+    execute_with_trace,
+    enrich_trace_with_runtime,
+    export_scenario_from_trace,
+    build_line_to_ast_id_for_conditions,
+)
 
 
 class TestComplexProblemBuild(unittest.TestCase):
@@ -149,12 +154,37 @@ class TestComplexProblemBuild(unittest.TestCase):
 
             # Выполняем код с runtime трассировкой (только для Python)
             runtime_trace = None
-            if False and language == "python":
+            generated_scenario = None
+            if language == "python":
                 try:
-                    runtime_trace = execute_with_trace(code, filename=str(file))
+                    # Строим маппинг line -> ast_id для условий
+                    line_to_ast_id = build_line_to_ast_id_for_conditions(ast)
+                    
+                    # Выполняем код с захватом условий
+                    runtime_trace = execute_with_trace(
+                        code,
+                        filename=str(file),
+                        track_conditions=True,
+                        line_to_ast_id=line_to_ast_id,
+                    )
+                    
                     if runtime_trace.exception:
                         print(f"  Warning: Runtime execution failed: {runtime_trace.exception}")
-                        runtime_trace = None
+                        # Всё равно сохраняем сценарий, если есть условия
+                    
+                    # Генерируем сценарий из runtime трассы
+                    if runtime_trace.condition_evaluations:
+                        generated_scenario = export_scenario_from_trace(
+                            runtime_trace,
+                            scenario_name="runtime"
+                        )
+                        
+                        # Сохраняем сценарий в файл
+                        scenario_output_path = genout_path / f"{file.stem}_runtime_scenarios.json"
+                        with open(scenario_output_path, "w", encoding="utf-8") as f:
+                            json.dump(generated_scenario, f, indent=2, ensure_ascii=False)
+                        print(f"  Generated scenario: {scenario_output_path.name} ({len(runtime_trace.condition_evaluations)} conditions)")
+                    
                 except Exception as e:
                     print(f"  Warning: Could not execute code for runtime tracing: {e}")
 

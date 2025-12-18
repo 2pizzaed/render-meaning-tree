@@ -73,6 +73,7 @@ class ConditionInstrumenter(ast.NodeTransformer):
     Attributes:
         source_lines: Строки исходного кода для извлечения текста условий
         line_to_ast_id: Маппинг номер строки -> ast_id из meaning-tree
+        line_offset: Смещение строк между Python AST и meaning-tree
     """
     
     def __init__(
@@ -88,6 +89,17 @@ class ConditionInstrumenter(ast.NodeTransformer):
         """
         self.source_lines = source_code.splitlines()
         self.line_to_ast_id = line_to_ast_id or {}
+        
+        # Вычисляем смещение строк: meaning-tree может начинать нумерацию
+        # с первой непустой строки
+        self.line_offset = 0
+        for i, line in enumerate(self.source_lines):
+            if line.strip():
+                # Первая непустая строка на позиции i
+                # Python AST будет нумеровать её как i+1 (1-based)
+                # Если meaning-tree нумерует её как 1, смещение = i
+                self.line_offset = i
+                break
     
     def _get_expr_text(self, node: ast.expr) -> str:
         """Извлекает текст выражения из исходного кода."""
@@ -114,7 +126,15 @@ class ConditionInstrumenter(ast.NodeTransformer):
             AST-узел вызова __trace_condition__
         """
         line_no = getattr(test_node, 'lineno', 0)
+        
+        # Пробуем найти ast_id с учётом возможного смещения строк
+        # meaning-tree может нумеровать с первой непустой строки
         ast_id = self.line_to_ast_id.get(line_no, 0)
+        if ast_id == 0 and self.line_offset > 0:
+            # Пробуем скорректированную строку
+            corrected_line = line_no - self.line_offset
+            ast_id = self.line_to_ast_id.get(corrected_line, 0)
+        
         expr_text = self._get_expr_text(test_node)
         
         # Создаём вызов: __trace_condition__(ast_id, line_no, cond_type, expr_text, <expr>)

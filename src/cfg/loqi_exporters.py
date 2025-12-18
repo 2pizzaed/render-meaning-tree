@@ -2,6 +2,7 @@
 Конкретные экспортеры для каждого типа объектов из abstractions.py и cfg.py.
 """
 
+import json
 from typing import Any
 
 from src.cfg.abstractions import InterruptionType, OptionalBoolValue
@@ -20,7 +21,7 @@ from .abstractions import (
     SituationState,
     TransitionSpec,
 )
-from .cfg import CFG, Edge, Metadata, Node, TraceAct
+from .cfg import CFG, Edge, Metadata, Node, RuntimeInfo, TraceAct
 from .loqi_exporter import NameRegistry, ObjectExporter
 from .reachability import PathInfo
 
@@ -695,6 +696,37 @@ class ASTNodeWrapperExporter(ObjectExporter):
 
 
 @registered
+class RuntimeInfoExporter(ObjectExporter):
+    """Экспортер для класса RuntimeInfo.
+    
+    Экспортирует информацию о runtime значениях: аргументы функций,
+    возвращаемые значения, вывод print.
+    """
+
+    def get_supported_types(self) -> list[type]:
+        return [RuntimeInfo]
+
+    def get_class_name(self, obj: RuntimeInfo) -> str:
+        return "RuntimeInfo"
+
+    def get_preferred_name(self, obj: RuntimeInfo) -> str:
+        # Уникальное имя на основе id объекта
+        return f"runtime_info_{id(obj) % 100_000}"
+
+    def export_properties(self, obj: RuntimeInfo) -> dict[str, Any]:
+        # LOQI не поддерживает отсутствующие скалярные свойства - выводим все поля
+        return {
+            "function_name": obj.function_name or "",
+            "function_args": json.dumps(obj.function_args, ensure_ascii=False) if obj.function_args else "",
+            "return_value": repr(obj.return_value) if obj.return_value is not None else "",
+            "print_outputs": json.dumps(obj.print_outputs, ensure_ascii=False) if obj.print_outputs else "",
+        }
+
+    def export_relationships(self, obj: RuntimeInfo) -> dict[str, list[Any]]:
+        return {}
+
+
+@registered
 class TraceActExporter(ObjectExporter):
     """Экспортер для класса TraceAct.
     
@@ -775,6 +807,7 @@ class TraceActExporter(ObjectExporter):
                                    (для BEGIN/END пар)
         - directlyBeforeOf: связь со следующим актом в трассе, формирующая цепочку
                           последовательности выполнения программы
+        - hasRuntimeInfo: связь с информацией о runtime значениях (аргументы, возврат, print)
         
         Args:
             obj: Акты трассы для экспорта связей
@@ -788,6 +821,7 @@ class TraceActExporter(ObjectExporter):
             "hasActionSpec": [obj.action_spec],
             "hasActAsCorrespondingEnd": [obj.corresponding_end] if obj.corresponding_end else [],
             "directlyBeforeOf": [obj.directly_before_of] if obj.directly_before_of else [],
+            "hasRuntimeInfo": [obj.runtime_info] if obj.runtime_info else [],
         }
         return relationships
 

@@ -23,6 +23,7 @@ from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
 from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 from src.qgen_utils import build_answer_objects_from_cfg
+from src.runtime import execute_with_trace, enrich_trace_with_runtime
 
 
 class TestComplexProblemBuild(unittest.TestCase):
@@ -146,6 +147,17 @@ class TestComplexProblemBuild(unittest.TestCase):
             trace_results = generate_trace_variants(cfg, scenarios)
             self.assertTrue(len(trace_results) > 0)
 
+            # Выполняем код с runtime трассировкой (только для Python)
+            runtime_trace = None
+            if language == "python":
+                try:
+                    runtime_trace = execute_with_trace(code, filename=str(file))
+                    if runtime_trace.exception:
+                        print(f"  Warning: Runtime execution failed: {runtime_trace.exception}")
+                        runtime_trace = None
+                except Exception as e:
+                    print(f"  Warning: Could not execute code for runtime tracing: {e}")
+
             # Добавляем пути между узлами (одинаковые для всех сценариев)
             paths = determine_all_paths_between_opaque_nodes(cfg)
 
@@ -155,6 +167,10 @@ class TestComplexProblemBuild(unittest.TestCase):
                 scenario_name = result.scenario.name
                 main_trace = result.trace_acts
                 self.assertTrue(len(main_trace))
+
+                # Обогащаем трассу runtime информацией
+                if runtime_trace is not None:
+                    enrich_trace_with_runtime(main_trace, runtime_trace, ast)
 
                 # Создаём отдельный экспортер для каждого сценария
                 exporter = LoqiExporter()

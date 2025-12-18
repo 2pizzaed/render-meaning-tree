@@ -297,5 +297,170 @@ result = is_even(4)
         self.assertEqual(func_names, ['is_even', 'is_odd', 'is_even', 'is_odd', 'is_even'])
 
 
+class TestEnrichTraceWithRuntime(unittest.TestCase):
+    """Тесты для функции enrich_trace_with_runtime и интеграции с TraceAct."""
+    
+    def test_runtime_info_model(self):
+        """Тест: RuntimeInfo dataclass работает корректно."""
+        from src.cfg.cfg import RuntimeInfo
+        
+        # Создаём RuntimeInfo с данными
+        info = RuntimeInfo(
+            function_args={'n': 5, 'x': 'test'},
+            return_value=120,
+            print_outputs=['Hello', 'World'],
+            function_name='factorial'
+        )
+        
+        self.assertEqual(info.function_args, {'n': 5, 'x': 'test'})
+        self.assertEqual(info.return_value, 120)
+        self.assertEqual(info.print_outputs, ['Hello', 'World'])
+        self.assertEqual(info.function_name, 'factorial')
+    
+    def test_runtime_info_defaults(self):
+        """Тест: RuntimeInfo имеет корректные значения по умолчанию."""
+        from src.cfg.cfg import RuntimeInfo
+        
+        info = RuntimeInfo()
+        
+        self.assertIsNone(info.function_args)
+        self.assertIsNone(info.return_value)
+        self.assertIsNone(info.print_outputs)
+        self.assertIsNone(info.function_name)
+    
+    def test_export_trace_acts_with_runtime_info(self):
+        """Тест: export_trace_acts корректно экспортирует runtime_info."""
+        from src.cfg.cfg import RuntimeInfo, TraceAct, Node, NodeKind, Metadata
+        from src.cfg.ast_wrapper import ASTNodeWrapper
+        from src.cfg.condition_exporter import export_trace_acts
+        
+        # Создаём минимальный TraceAct с runtime_info
+        wrapped_ast = ASTNodeWrapper(ast_node={'id': 1, 'type': 'function_definition'})
+        node = Node(
+            id='test_node',
+            kind=NodeKind.BEGIN,
+            role_in_construct='test',
+            metadata=Metadata(wrapped_ast=wrapped_ast)
+        )
+        
+        trace_act = TraceAct(
+            wrapped_ast=wrapped_ast,
+            cfg_node=node,
+            action_spec=None,
+            corresponding_end=None,
+            is_known_correct=False,
+            runtime_info=RuntimeInfo(
+                function_name='test_func',
+                function_args={'a': 1, 'b': 2},
+                return_value=3,
+            )
+        )
+        
+        result = export_trace_acts([trace_act], scenario_name='test')
+        
+        self.assertEqual(result['scenario_name'], 'test')
+        self.assertEqual(len(result['trace']), 1)
+        
+        item = result['trace'][0]
+        self.assertIn('runtime_info', item)
+        self.assertEqual(item['runtime_info']['function_name'], 'test_func')
+        self.assertEqual(item['runtime_info']['function_args'], {'a': 1, 'b': 2})
+        self.assertEqual(item['runtime_info']['return_value'], 3)
+    
+    def test_export_trace_acts_without_runtime_info(self):
+        """Тест: export_trace_acts работает без runtime_info."""
+        from src.cfg.cfg import TraceAct, Node, NodeKind, Metadata
+        from src.cfg.ast_wrapper import ASTNodeWrapper
+        from src.cfg.condition_exporter import export_trace_acts
+        
+        wrapped_ast = ASTNodeWrapper(ast_node={'id': 1, 'type': 'test'})
+        node = Node(
+            id='test_node',
+            kind=NodeKind.ATOM,
+            role_in_construct='test',
+            metadata=Metadata(wrapped_ast=wrapped_ast)
+        )
+        
+        trace_act = TraceAct(
+            wrapped_ast=wrapped_ast,
+            cfg_node=node,
+            action_spec=None,
+            corresponding_end=None,
+            is_known_correct=False,
+            runtime_info=None  # Нет runtime_info
+        )
+        
+        result = export_trace_acts([trace_act])
+        
+        item = result['trace'][0]
+        self.assertNotIn('runtime_info', item)
+    
+    def test_safe_json_value_conversion(self):
+        """Тест: _safe_json_value корректно преобразует значения."""
+        from src.cfg.condition_exporter import _safe_json_value
+        
+        # Простые типы
+        self.assertEqual(_safe_json_value(42), 42)
+        self.assertEqual(_safe_json_value(3.14), 3.14)
+        self.assertEqual(_safe_json_value('hello'), 'hello')
+        self.assertEqual(_safe_json_value(True), True)
+        self.assertEqual(_safe_json_value(None), None)
+        
+        # Списки
+        self.assertEqual(_safe_json_value([1, 2, 3]), [1, 2, 3])
+        
+        # Словари
+        self.assertEqual(_safe_json_value({'a': 1}), {'a': 1})
+        
+        # Вложенные структуры
+        nested = {'list': [1, 2], 'dict': {'x': 'y'}}
+        self.assertEqual(_safe_json_value(nested), nested)
+
+
+class TestMatcherIntegration(unittest.TestCase):
+    """Интеграционные тесты для matcher с реальным выполнением."""
+    
+    def test_enrich_preserves_trace_structure(self):
+        """Тест: enrich_trace_with_runtime сохраняет структуру трассы."""
+        from src.runtime import enrich_trace_with_runtime
+        from src.runtime.models import RuntimeTrace, FunctionCall, FunctionReturn
+        from src.cfg.cfg import TraceAct, Node, NodeKind, Metadata
+        from src.cfg.ast_wrapper import ASTNodeWrapper
+        
+        # Создаём пустую runtime трассу
+        runtime_trace = RuntimeTrace()
+        
+        # Создаём простой TraceAct
+        wrapped_ast = ASTNodeWrapper(ast_node={'id': 1, 'type': 'test'})
+        node = Node(
+            id='node1',
+            kind=NodeKind.ATOM,
+            role_in_construct='test',
+            metadata=Metadata(wrapped_ast=wrapped_ast)
+        )
+        trace_act = TraceAct(
+            wrapped_ast=wrapped_ast,
+            cfg_node=node,
+            action_spec=None,
+            corresponding_end=None,
+            is_known_correct=False
+        )
+        
+        trace_acts = [trace_act]
+        
+        # Создаём mock ASTNodeAnalyzer
+        class MockAnalyzer:
+            user_defined_function_names = set()
+            def get_code_line_number_by_id(self, ast_id):
+                return 1
+        
+        # Обогащаем (с пустой runtime трассой)
+        result = enrich_trace_with_runtime(trace_acts, runtime_trace, MockAnalyzer())
+        
+        # Проверяем, что структура сохранилась
+        self.assertEqual(len(result), 1)
+        self.assertIs(result[0], trace_act)
+
+
 if __name__ == '__main__':
     unittest.main()

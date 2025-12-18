@@ -46,6 +46,12 @@ from src.runtime.executor import (
     trace_function_calls,
 )
 
+# Функции сопоставления с TraceAct
+from src.runtime.matcher import (
+    enrich_trace_with_runtime,
+    enrich_single_scenario,
+)
+
 __all__ = [
     # Модели
     'RuntimeEvent',
@@ -60,4 +66,7 @@ __all__ = [
     'execute_file_with_trace',
     'execute_and_print_trace',
     'trace_function_calls',
+    # Функции сопоставления
+    'enrich_trace_with_runtime',
+    'enrich_single_scenario',
 ]

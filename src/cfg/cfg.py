@@ -1,7 +1,7 @@
 import itertools
 import sys
 from dataclasses import dataclass, field
-from typing import Iterable, Optional, Self, TYPE_CHECKING
+from typing import Any, Iterable, Optional, Self, TYPE_CHECKING
 
 from src.cfg.abstractions import (
     DEFAULT_APPEARANCE_PROFILE,
@@ -18,6 +18,25 @@ from src.serializers.types import FactSerializable
 
 if TYPE_CHECKING:
     from src.cfg.reachability import PathInfo
+
+
+@dataclass
+class RuntimeInfo(DictLikeDataclass):
+    """Информация о runtime значениях для акта трассы.
+    
+    Содержит данные, собранные при реальном выполнении программы:
+    аргументы функций, возвращаемые значения, вывод print.
+    
+    Attributes:
+        function_args: Аргументы при вызове функции (имя -> значение)
+        return_value: Возвращаемое значение функции
+        print_outputs: Список строк, выведенных через print на этом шаге
+        function_name: Имя функции (для вызовов и возвратов)
+    """
+    function_args: dict[str, Any] | None = None
+    return_value: Any | None = None
+    print_outputs: list[str] | None = None
+    function_name: str | None = None
 
 
 @dataclass
@@ -49,6 +68,7 @@ class TraceAct(DictLikeDataclass):
     directly_before_of: 'TraceAct | None' = None  # Следующий акт в трассе (цепочка выполнения)
     button_type: str | None = None # Нужно для корректного поиска действий трассы. Экспортировать не нужно!
     incomplete_interruption: 'InterruptionType | None' = None  # Тип незавершённого прерывания
+    runtime_info: RuntimeInfo | None = None  # Информация о runtime значениях (аргументы, возврат, print)
 
 
 @dataclass

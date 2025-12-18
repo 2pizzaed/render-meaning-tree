@@ -121,6 +121,12 @@ def export_trace_acts(
                     "is_known_correct": bool,
                     "incomplete_interruption": str | None,
                     "node_description": str | None,
+                    "runtime_info": {
+                        "function_name": str | None,
+                        "function_args": dict | None,
+                        "return_value": Any | None,
+                        "print_outputs": list[str] | None,
+                    } | None,
                 },
                 ...
             ]
@@ -166,23 +172,70 @@ def export_trace_acts(
                 else trace_act.incomplete_interruption
             )
 
-        trace_items.append(
-            {
-                "position_in_trace": position,
-                "ast_id": ast_id,
-                "cfg_node_id": cfg_node_id,
-                "condition_value": condition_value_str,
-                "button_type": trace_act.button_type,
-                "is_known_correct": trace_act.is_known_correct,
-                "incomplete_interruption": incomplete_interruption_str,
-            }
-            | ({"node_description": node_description} if node_description else {})
-        )
+        # Runtime info
+        runtime_info_dict: dict[str, Any] | None = None
+        if trace_act.runtime_info is not None:
+            ri = trace_act.runtime_info
+            runtime_info_dict = {}
+            if ri.function_name is not None:
+                runtime_info_dict["function_name"] = ri.function_name
+            if ri.function_args is not None:
+                # Преобразуем значения в JSON-совместимый формат
+                runtime_info_dict["function_args"] = _safe_json_value(ri.function_args)
+            if ri.return_value is not None:
+                runtime_info_dict["return_value"] = _safe_json_value(ri.return_value)
+            if ri.print_outputs is not None:
+                runtime_info_dict["print_outputs"] = ri.print_outputs
+            # Если словарь пустой, не добавляем его
+            if not runtime_info_dict:
+                runtime_info_dict = None
+
+        item = {
+            "position_in_trace": position,
+            "ast_id": ast_id,
+            "cfg_node_id": cfg_node_id,
+            "condition_value": condition_value_str,
+            "button_type": trace_act.button_type,
+            "is_known_correct": trace_act.is_known_correct,
+            "incomplete_interruption": incomplete_interruption_str,
+        }
+        
+        if node_description:
+            item["node_description"] = node_description
+        
+        if runtime_info_dict:
+            item["runtime_info"] = runtime_info_dict
+
+        trace_items.append(item)
 
     return {
         "scenario_name": scenario_name,
         "trace": trace_items,
     }
+
+
+def _safe_json_value(value: Any) -> Any:
+    """Преобразует значение в JSON-совместимый формат.
+    
+    Args:
+        value: Значение для преобразования
+        
+    Returns:
+        JSON-совместимое значение
+    """
+    if value is None:
+        return None
+    if isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_safe_json_value(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _safe_json_value(v) for k, v in value.items()}
+    # Для остальных типов используем repr
+    try:
+        return repr(value)
+    except Exception:
+        return f"<{type(value).__name__}>"
 
 
 def load_condition_plans(

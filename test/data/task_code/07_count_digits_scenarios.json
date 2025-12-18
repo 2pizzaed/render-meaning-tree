@@ -1,5 +1,5 @@
 {
-  "scenario_name": "runtime",
+  "scenario_name": "default",
   "conditions": [
     {
       "ast_id": 9,

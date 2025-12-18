@@ -176,7 +176,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                     if runtime_trace.condition_evaluations:
                         generated_scenario = export_scenario_from_trace(
                             runtime_trace,
-                            scenario_name="runtime"
+                            scenario_name="default"
                         )
                         
                         # Сохраняем сценарий в файл

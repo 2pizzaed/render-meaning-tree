@@ -73,7 +73,7 @@ class ConditionInstrumenter(ast.NodeTransformer):
     Attributes:
         source_lines: Строки исходного кода для извлечения текста условий
         line_to_ast_id: Маппинг номер строки -> ast_id из meaning-tree
-        line_offset: Смещение строк между Python AST и meaning-tree
+        ast_id_list: Отсортированный список (line, ast_id) для поиска ближайшего
     """
     
     def __init__(
@@ -90,16 +90,12 @@ class ConditionInstrumenter(ast.NodeTransformer):
         self.source_lines = source_code.splitlines()
         self.line_to_ast_id = line_to_ast_id or {}
         
-        # Вычисляем смещение строк: meaning-tree может начинать нумерацию
-        # с первой непустой строки
-        self.line_offset = 0
-        for i, line in enumerate(self.source_lines):
-            if line.strip():
-                # Первая непустая строка на позиции i
-                # Python AST будет нумеровать её как i+1 (1-based)
-                # Если meaning-tree нумерует её как 1, смещение = i
-                self.line_offset = i
-                break
+        # Создаём очередь ast_id, отсортированную по номеру строки
+        # meaning-tree трансформирует код (удаляет пустые строки, декораторы),
+        # поэтому номера строк не совпадают.
+        # Используем очередь: каждое условие берёт следующий ast_id по порядку
+        self._ast_id_queue = [ast_id for _, ast_id in sorted(self.line_to_ast_id.items())]
+        self._ast_id_index = 0
     
     def _get_expr_text(self, node: ast.expr) -> str:
         """Извлекает текст выражения из исходного кода."""
@@ -110,6 +106,22 @@ class ConditionInstrumenter(ast.NodeTransformer):
             if hasattr(node, 'lineno') and node.lineno <= len(self.source_lines):
                 return self.source_lines[node.lineno - 1].strip()
             return "<expr>"
+    
+    def _get_next_ast_id(self) -> int:
+        """Возвращает следующий ast_id из очереди.
+        
+        meaning-tree трансформирует код (удаляет пустые строки, декораторы),
+        поэтому номера строк не совпадают. Используем очередь: каждое
+        условие берёт следующий ast_id по порядку появления в коде.
+        
+        Returns:
+            ast_id или 0, если очередь исчерпана
+        """
+        if self._ast_id_index < len(self._ast_id_queue):
+            ast_id = self._ast_id_queue[self._ast_id_index]
+            self._ast_id_index += 1
+            return ast_id
+        return 0
     
     def _wrap_condition(
         self,
@@ -126,15 +138,7 @@ class ConditionInstrumenter(ast.NodeTransformer):
             AST-узел вызова __trace_condition__
         """
         line_no = getattr(test_node, 'lineno', 0)
-        
-        # Пробуем найти ast_id с учётом возможного смещения строк
-        # meaning-tree может нумеровать с первой непустой строки
-        ast_id = self.line_to_ast_id.get(line_no, 0)
-        if ast_id == 0 and self.line_offset > 0:
-            # Пробуем скорректированную строку
-            corrected_line = line_no - self.line_offset
-            ast_id = self.line_to_ast_id.get(corrected_line, 0)
-        
+        ast_id = self._get_next_ast_id()
         expr_text = self._get_expr_text(test_node)
         
         # Создаём вызов: __trace_condition__(ast_id, line_no, cond_type, expr_text, <expr>)

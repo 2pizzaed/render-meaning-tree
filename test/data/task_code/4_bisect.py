@@ -11,4 +11,4 @@ def guess_number(low, high):
         high = guess - 1 # Сужаем диапазон поиска вниз
     return guess_number(low, high)
 
-guess_number(0, 20)
+guess_number(0, 30)

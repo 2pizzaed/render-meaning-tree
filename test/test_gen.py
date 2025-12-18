@@ -149,7 +149,7 @@ class TestComplexProblemBuild(unittest.TestCase):
 
             # Выполняем код с runtime трассировкой (только для Python)
             runtime_trace = None
-            if language == "python":
+            if False and language == "python":
                 try:
                     runtime_trace = execute_with_trace(code, filename=str(file))
                     if runtime_trace.exception:

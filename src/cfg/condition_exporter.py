@@ -13,12 +13,41 @@ from pathlib import Path
 from typing import Any
 
 from src.cfg.abstractions import InterruptionType, OptionalBoolValue
-from src.cfg.cfg import CFG, TraceAct
+from src.cfg.cfg import CFG, Node, NodeKind, TraceAct
 if 0:
     from src.cfg.trace_builder import TraceScenarioConfig
 
 # Константа для унификации seed по умолчанию
 DEFAULT_SEED = 59
+
+
+def _find_cfg_node_by_ast_id(cfg: CFG, ast_id: int) -> Node | None:
+    """Находит CFG узел по ast_id (предпочитая ATOM/END над BEGIN).
+    
+    Ищет все узлы CFG, у которых ast_id совпадает с указанным,
+    и возвращает первый найденный узел типа ATOM или END.
+    Узлы типа BEGIN исключаются, так как они представляют начало
+    блока, а не само условие.
+    
+    Args:
+        cfg: Граф потока управления для поиска
+        ast_id: ID узла AST для поиска
+        
+    Returns:
+        Найденный узел CFG или None, если узел не найден
+    """
+    candidates = []
+    for node in cfg.nodes.values():
+        if node.get_ast_id() == ast_id:
+            candidates.append(node)
+    
+    # Предпочитаем ATOM, затем END, исключаем BEGIN
+    for kind in [NodeKind.ATOM, NodeKind.END]:
+        for node in candidates:
+            if node.kind == kind:
+                return node
+    
+    return None
 
 
 def export_condition_decisions(
@@ -325,11 +354,13 @@ def plan_to_scenario_config(
 
     for condition in conditions:
         cfg_node_id = condition.get("cfg_node_id")
+        ast_id_from_plan = condition.get("ast_id")
         condition_value_str = condition.get("condition_value")
 
-        if not cfg_node_id or not condition_value_str:
+        # Проверяем наличие condition_value (обязательное поле)
+        if not condition_value_str:
             warnings.warn(
-                f"Skipping condition without cfg_node_id or condition_value: {condition}",
+                f"Skipping condition without condition_value: {condition}",
                 stacklevel=2,
             )
             continue
@@ -346,11 +377,31 @@ def plan_to_scenario_config(
             )
             continue
 
-        # Пытаемся найти узел в CFG
-        node = cfg.nodes.get(cfg_node_id)
-        if not node:
+        # Находим узел CFG одним из двух способов
+        node = None
+        
+        if cfg_node_id:
+            # Способ 1: по cfg_node_id (приоритетный)
+            node = cfg.nodes.get(cfg_node_id)
+            if not node:
+                warnings.warn(
+                    f"CFG node '{cfg_node_id}' not found, skipping condition",
+                    stacklevel=2,
+                )
+                continue
+        elif ast_id_from_plan:
+            # Способ 2: по ast_id (поиск ATOM/END узла)
+            node = _find_cfg_node_by_ast_id(cfg, ast_id_from_plan)
+            if not node:
+                warnings.warn(
+                    f"CFG node with ast_id={ast_id_from_plan} not found, skipping condition",
+                    stacklevel=2,
+                )
+                continue
+        else:
+            # Нет ни cfg_node_id, ни ast_id
             warnings.warn(
-                f"CFG node '{cfg_node_id}' not found, skipping condition",
+                f"Skipping condition without cfg_node_id or ast_id: {condition}",
                 stacklevel=2,
             )
             continue

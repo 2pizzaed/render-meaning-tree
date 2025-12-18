@@ -462,5 +462,147 @@ class TestMatcherIntegration(unittest.TestCase):
         self.assertIs(result[0], trace_act)
 
 
+class TestConditionTracking(unittest.TestCase):
+    """Тесты для захвата значений условий и экспорта сценариев."""
+    
+    def test_condition_tracking_if(self):
+        """Тест: захват условий if-выражений."""
+        code = '''
+def check(x):
+    if x > 0:
+        return 'positive'
+    return 'non-positive'
+
+check(5)
+check(-3)
+'''
+        trace = execute_with_trace(code, track_conditions=True)
+        
+        # Должно быть 2 вычисления условия: x>0 для 5 и -3
+        conditions = trace.condition_evaluations
+        self.assertEqual(len(conditions), 2)
+        
+        # Первое условие True (5 > 0)
+        self.assertTrue(conditions[0].value)
+        self.assertEqual(conditions[0].condition_type, 'if')
+        
+        # Второе условие False (-3 > 0)
+        self.assertFalse(conditions[1].value)
+    
+    def test_condition_tracking_while(self):
+        """Тест: захват условий while-циклов."""
+        code = '''
+def countdown(n):
+    while n > 0:
+        n -= 1
+
+countdown(3)
+'''
+        trace = execute_with_trace(code, track_conditions=True)
+        
+        conditions = trace.condition_evaluations
+        # Должно быть 4 вычисления: True(3), True(2), True(1), False(0)
+        self.assertEqual(len(conditions), 4)
+        
+        # Проверяем последовательность
+        values = [c.value for c in conditions]
+        self.assertEqual(values, [True, True, True, False])
+        
+        # Все условия типа 'while'
+        for c in conditions:
+            self.assertEqual(c.condition_type, 'while')
+    
+    def test_condition_tracking_recursive(self):
+        """Тест: захват условий в рекурсивных функциях."""
+        code = '''
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+factorial(4)
+'''
+        trace = execute_with_trace(code, track_conditions=True)
+        
+        conditions = trace.condition_evaluations
+        # factorial(4), factorial(3), factorial(2), factorial(1)
+        # Условия: False, False, False, True
+        self.assertEqual(len(conditions), 4)
+        
+        values = [c.value for c in conditions]
+        self.assertEqual(values, [False, False, False, True])
+    
+    def test_scenario_export(self):
+        """Тест: экспорт сценария из трассы."""
+        from src.runtime import create_scenario_from_code
+        
+        code = '''
+def test(x):
+    if x > 0:
+        return True
+    return False
+
+test(1)
+test(-1)
+'''
+        scenario = create_scenario_from_code(code, scenario_name='test_scenario')
+        
+        self.assertEqual(scenario['scenario_name'], 'test_scenario')
+        self.assertIn('conditions', scenario)
+        self.assertEqual(len(scenario['conditions']), 2)
+        
+        # Проверяем формат условий
+        cond = scenario['conditions'][0]
+        self.assertIn('ast_id', cond)
+        self.assertIn('condition_value', cond)
+        self.assertIn('line_number', cond)
+        
+        # Значения должны быть строками "true"/"false"
+        self.assertIn(cond['condition_value'], ['true', 'false'])
+    
+    def test_build_condition_sequences(self):
+        """Тест: построение condition_sequences для TraceScenarioConfig."""
+        from src.runtime import build_condition_sequences_from_trace
+        
+        code = '''
+def loop():
+    i = 0
+    while i < 3:
+        i += 1
+
+loop()
+'''
+        trace = execute_with_trace(code, track_conditions=True)
+        sequences = build_condition_sequences_from_trace(trace)
+        
+        # Один ast_id (0, т.к. нет маппинга) с 4 значениями
+        self.assertIn(0, sequences)
+        self.assertEqual(sequences[0], [True, True, True, False])
+    
+    def test_condition_evaluation_model(self):
+        """Тест: модель ConditionEvaluation работает корректно."""
+        from src.runtime import ConditionEvaluation
+        
+        cond = ConditionEvaluation(
+            line_number=5,
+            ast_id=42,
+            value=True,
+            condition_type='if',
+            expression_text='x > 0'
+        )
+        
+        self.assertEqual(cond.line_number, 5)
+        self.assertEqual(cond.ast_id, 42)
+        self.assertTrue(cond.value)
+        self.assertEqual(cond.condition_type, 'if')
+        self.assertEqual(cond.expression_text, 'x > 0')
+        
+        # Проверяем describe()
+        desc = cond.describe()
+        self.assertIn('x > 0', desc)
+        self.assertIn('42', desc)
+        self.assertIn('True', desc)
+
+
 if __name__ == '__main__':
     unittest.main()

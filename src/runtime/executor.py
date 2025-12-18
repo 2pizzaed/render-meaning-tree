@@ -18,6 +18,8 @@ def execute_with_trace(
     filename: str = "<script>",
     globals_dict: dict[str, Any] | None = None,
     locals_dict: dict[str, Any] | None = None,
+    track_conditions: bool = False,
+    line_to_ast_id: dict[int, int] | None = None,
 ) -> RuntimeTrace:
     """Выполняет Python-код и возвращает трассу выполнения.
     
@@ -26,6 +28,8 @@ def execute_with_trace(
         filename: Имя файла для отображения в трассировке
         globals_dict: Глобальное пространство имён (если None, создаётся новое)
         locals_dict: Локальное пространство имён (если None, используется globals_dict)
+        track_conditions: Если True, инструментирует код для захвата значений условий
+        line_to_ast_id: Маппинг номер строки -> ast_id для связи с meaning-tree AST
         
     Returns:
         RuntimeTrace с собранными событиями выполнения
@@ -40,9 +44,24 @@ def execute_with_trace(
         ... result = factorial(5)
         ... print("Result:", result)
         ... '''
-        >>> trace = execute_with_trace(code)
+        >>> trace = execute_with_trace(code, track_conditions=True)
         >>> print(trace.describe())
     """
+    # Инструментируем код для захвата условий, если нужно
+    code_to_execute = source_code
+    condition_tracker_func = None
+    
+    if track_conditions:
+        from src.runtime.instrumenter import (
+            instrument_code,
+            clear_condition_events,
+            get_condition_events,
+            _trace_condition_impl,
+        )
+        clear_condition_events()
+        code_to_execute = instrument_code(source_code, line_to_ast_id)
+        condition_tracker_func = _trace_condition_impl
+    
     # Подготавливаем пространства имён
     if globals_dict is None:
         globals_dict = {
@@ -51,12 +70,16 @@ def execute_with_trace(
             '__builtins__': __builtins__,
         }
     
+    # Добавляем функцию трекера условий в глобальное пространство
+    if condition_tracker_func is not None:
+        globals_dict['__trace_condition__'] = condition_tracker_func
+    
     if locals_dict is None:
         locals_dict = globals_dict
     
     # Компилируем код
     try:
-        compiled_code = compile(source_code, filename, 'exec')
+        compiled_code = compile(code_to_execute, filename, 'exec')
     except SyntaxError as e:
         trace = RuntimeTrace(source_file=filename, source_code=source_code)
         trace.exception = e
@@ -65,7 +88,7 @@ def execute_with_trace(
     
     # Создаём трассировщик
     tracer = RuntimeTracer(target_filename=filename)
-    tracer.trace.source_code = source_code
+    tracer.trace.source_code = source_code  # Сохраняем оригинальный код
     
     # Выполняем код с трассировкой
     try:
@@ -76,6 +99,15 @@ def execute_with_trace(
         tracer.trace.exception_traceback = traceback.format_exc()
     finally:
         tracer.stop()
+    
+    # Добавляем события условий в трассу
+    if track_conditions:
+        condition_events = get_condition_events()
+        for event in condition_events:
+            tracer.trace.add_event(event)
+        # Пересортируем события по порядку (условия добавлены в конец)
+        # Но лучше сортировать по времени/порядку выполнения
+        # Для этого нам нужно интегрировать события по line_number
     
     return tracer.trace
 

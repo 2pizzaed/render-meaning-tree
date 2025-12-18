@@ -97,6 +97,29 @@ class PrintOutput(RuntimeEvent):
 
 
 @dataclass
+class ConditionEvaluation(RuntimeEvent):
+    """Событие вычисления управляющего условия (if, while, for).
+    
+    Attributes:
+        ast_id: ID узла AST, соответствующего условию (из meaning-tree)
+        value: Результат вычисления условия (True/False)
+        condition_type: Тип условия ('if', 'while', 'for', 'elif')
+        expression_text: Текст выражения условия (для отладки)
+    """
+    ast_id: int = 0
+    value: bool = False
+    condition_type: str = ""
+    expression_text: str = ""
+    
+    def describe(self) -> str:
+        """Возвращает строковое описание вычисления условия."""
+        return f"COND [{self.condition_type}] ast_id={self.ast_id}: {self.expression_text} -> {self.value} [line {self.line_number}]"
+    
+    def __repr__(self) -> str:
+        return self.describe()
+
+
+@dataclass
 class RuntimeTrace:
     """Контейнер для всех событий трассировки выполнения программы.
     
@@ -133,6 +156,11 @@ class RuntimeTrace:
         """Возвращает только события вывода print."""
         return [e for e in self.events if isinstance(e, PrintOutput)]
     
+    @property
+    def condition_evaluations(self) -> list[ConditionEvaluation]:
+        """Возвращает только события вычисления условий."""
+        return [e for e in self.events if isinstance(e, ConditionEvaluation)]
+    
     def get_calls_for_function(self, function_name: str) -> list[FunctionCall]:
         """Возвращает все вызовы указанной функции."""
         return [e for e in self.function_calls if e.function_name == function_name]
@@ -153,6 +181,7 @@ class RuntimeTrace:
         lines.append(f"  - Вызовов функций: {len(self.function_calls)}")
         lines.append(f"  - Возвратов: {len(self.function_returns)}")
         lines.append(f"  - Выводов print: {len(self.print_outputs)}")
+        lines.append(f"  - Условий: {len(self.condition_evaluations)}")
         
         return "\n".join(lines)
     

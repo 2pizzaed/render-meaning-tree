@@ -20,7 +20,9 @@ class ASTNodeAnalyzer:
         if not byte_positions_for_id:
             return None
         start_byte, length = byte_positions_for_id
-        return source_code[start_byte:start_byte + length]
+        # Конвертируем строку в байты, делаем срез, затем обратно в строку
+        source_bytes = source_code.encode('utf-8')
+        return source_bytes[start_byte:start_byte + length].decode('utf-8')
 
     def get_code_line_number_by_id(self, ast_id: int | str) -> int | None:
         """ 1-based line number for start position """
@@ -29,7 +31,9 @@ class ASTNodeAnalyzer:
         if not byte_positions_for_id:
             return None
         start_byte, _length = byte_positions_for_id
-        return source_code[:start_byte].count('\n') + 1
+        # Конвертируем строку в байты для корректного подсчёта
+        source_bytes = source_code.encode('utf-8')
+        return source_bytes[:start_byte].decode('utf-8').count('\n') + 1
 
     def _build_nodes_cache(self):
         """Построить кэш узлов по ID для быстрого доступа"""

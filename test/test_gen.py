@@ -44,8 +44,20 @@ class TestComplexProblemBuild(unittest.TestCase):
         for file in files:
             # Начинаем нумерацию узлов с начала для каждого файла, таким образом, порядок обработки файлов не влияет на id узлов.
             idgen.reset()
-            # if file.stem not in ('21', ):
-            #     continue
+            ###
+            if file.stem not in (
+                file.stem,  # NO FILTERING
+                # '1_onefunc_while',
+                # '3_recursion',
+                # '5_inf_recursion',
+                # '5_inf_recursion2',
+                '8_factorial',
+                # '9_expr_class',
+                # '11_fill',
+                # '12_dirscan',
+            ):
+                continue
+            ###
 
             print("Processing file:", file.name)
 

@@ -1,0 +1,53 @@
+{
+  "scenario_name": "runtime",
+  "conditions": [
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 14
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 15
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 16
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 17
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 18
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 19
+    }
+  ]
+}

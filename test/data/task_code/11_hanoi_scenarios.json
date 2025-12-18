@@ -1,0 +1,125 @@
+{
+  "scenario_name": "runtime",
+  "conditions": [
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 38
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 39
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 40
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 41
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 42
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 43
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 44
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 45
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 46
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 47
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 48
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 49
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 50
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 51
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n == 0",
+      "condition_type": "if",
+      "order": 52
+    }
+  ]
+}

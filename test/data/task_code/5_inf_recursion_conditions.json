@@ -1,0 +1,26 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 16,
+      "condition_value": "true",
+      "position_in_trace": 5,
+      "cfg_node_id": "atom_110",
+      "node_description": "Node( id=atom_110, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=16 )"
+    },
+    {
+      "ast_id": 16,
+      "condition_value": "true",
+      "position_in_trace": 8,
+      "cfg_node_id": "atom_110",
+      "node_description": "Node( id=atom_110, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=16 )"
+    },
+    {
+      "ast_id": 16,
+      "condition_value": "false",
+      "position_in_trace": 11,
+      "cfg_node_id": "atom_110",
+      "node_description": "Node( id=atom_110, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=16 )"
+    }
+  ]
+}

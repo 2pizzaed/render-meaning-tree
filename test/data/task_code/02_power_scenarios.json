@@ -1,0 +1,45 @@
+{
+  "scenario_name": "runtime",
+  "conditions": [
+    {
+      "ast_id": 12,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "exp == 0",
+      "condition_type": "if",
+      "order": 12
+    },
+    {
+      "ast_id": 12,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "exp == 0",
+      "condition_type": "if",
+      "order": 13
+    },
+    {
+      "ast_id": 12,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "exp == 0",
+      "condition_type": "if",
+      "order": 14
+    },
+    {
+      "ast_id": 12,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "exp == 0",
+      "condition_type": "if",
+      "order": 15
+    },
+    {
+      "ast_id": 12,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "exp == 0",
+      "condition_type": "if",
+      "order": 16
+    }
+  ]
+}

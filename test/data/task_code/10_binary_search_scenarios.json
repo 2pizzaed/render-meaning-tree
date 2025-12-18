@@ -1,0 +1,21 @@
+{
+  "scenario_name": "runtime",
+  "conditions": [
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "low > high",
+      "condition_type": "if",
+      "order": 4
+    },
+    {
+      "ast_id": 48,
+      "condition_value": "true",
+      "line_number": 6,
+      "expression_text": "lst[mid] == target",
+      "condition_type": "if",
+      "order": 5
+    }
+  ]
+}

@@ -7,4 +7,3 @@ def print_down_up(n):
     print("up:", n)
 
 print_down_up(4)
-

@@ -7,4 +7,3 @@ def hanoi(n, src, dst, tmp):
     hanoi(n - 1, tmp, dst, src)
 
 hanoi(2, 'A', 'C', 'B')
-

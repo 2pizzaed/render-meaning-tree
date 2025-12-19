@@ -6,11 +6,12 @@ def binary_search(lst, target, low, high):
     if lst[mid] == target:
         return mid
     elif lst[mid] > target:
-        return binary_search(lst, target, low, mid - 1)
+        index = binary_search(lst, target, low, mid - 1)
+        return index
     else:
-        return binary_search(lst, target, mid + 1, high)
+        index = binary_search(lst, target, mid + 1, high)
+        return index
 
 arr = [1, 3, 5, 7, 9, 11, 13]
 idx = binary_search(arr, 5, 0, len(arr) - 1)
 print("index of 5:", idx)
-

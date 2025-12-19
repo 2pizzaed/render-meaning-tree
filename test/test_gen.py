@@ -30,6 +30,7 @@ from src.runtime import (
     build_line_to_ast_id_for_conditions,
 )
 
+INJECT_RUNTIME_VALUES = False
 
 class TestComplexProblemBuild(unittest.TestCase):
     def test_generate(self):
@@ -155,7 +156,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Выполняем код с runtime трассировкой (только для Python)
             runtime_trace = None
             generated_scenario = None
-            if language == "python":
+            if INJECT_RUNTIME_VALUES and language == "python":
                 try:
                     # Строим маппинг line -> ast_id для условий
                     line_to_ast_id = build_line_to_ast_id_for_conditions(ast)
@@ -180,7 +181,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                         )
                         
                         # Сохраняем сценарий в файл
-                        scenario_output_path = genout_path / f"{file.stem}_runtime_scenarios.json"
+                        scenario_output_path = genout_path / f"{file.stem}_scenarios.json"
                         with open(scenario_output_path, "w", encoding="utf-8") as f:
                             json.dump(generated_scenario, f, indent=2, ensure_ascii=False)
                         print(f"  Generated scenario: {scenario_output_path.name} ({len(runtime_trace.condition_evaluations)} conditions)")

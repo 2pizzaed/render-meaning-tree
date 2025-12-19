@@ -548,10 +548,10 @@ def build_questions(
                 "domainShortname": "ctrl_flow_dt25",
                 "templateId": mt.get("unique_hash", 0),
                 "tagBits": tags,
-                "conceptBits": 0,
+                "conceptBits": 1024 - 1,  #stub! TODO
                 "lawBits": 0,
-                "violationBits": 0,
-                "traceConceptBits": 0,
+                "violationBits": 1024 - 1,  #stub! TODO
+                "traceConceptBits": 1024 - 1,  #stub! TODO
                 "solutionStructuralComplexity": 0.5,
                 "integralComplexity": 0.5,
                 "solutionSteps": len(trace_acts) - 1,
@@ -561,7 +561,7 @@ def build_questions(
                 "origin": "debug",
                 "originLicense": "Public Domain",
                 "treeHashCode": mt.get("unique_hash", 0),
-                "skillBits": 0
+                "skillBits": 1024 - 1  #stub! TODO
             }],
         })
 

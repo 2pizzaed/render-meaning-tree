@@ -1,0 +1,93 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 75,
+      "condition_value": "false",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 18
+    },
+    {
+      "ast_id": 86,
+      "condition_value": "true",
+      "line_number": 15,
+      "expression_text": "expr.op == '+'",
+      "condition_type": "if",
+      "order": 19
+    },
+    {
+      "ast_id": 75,
+      "condition_value": "true",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 20
+    },
+    {
+      "ast_id": 75,
+      "condition_value": "false",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 21
+    },
+    {
+      "ast_id": 86,
+      "condition_value": "false",
+      "line_number": 15,
+      "expression_text": "expr.op == '+'",
+      "condition_type": "if",
+      "order": 22
+    },
+    {
+      "ast_id": 105,
+      "condition_value": "true",
+      "line_number": 17,
+      "expression_text": "expr.op == '*'",
+      "condition_type": "if",
+      "order": 23
+    },
+    {
+      "ast_id": 75,
+      "condition_value": "true",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 24
+    },
+    {
+      "ast_id": 75,
+      "condition_value": "false",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 25
+    },
+    {
+      "ast_id": 86,
+      "condition_value": "true",
+      "line_number": 15,
+      "expression_text": "expr.op == '+'",
+      "condition_type": "if",
+      "order": 26
+    },
+    {
+      "ast_id": 75,
+      "condition_value": "true",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 27
+    },
+    {
+      "ast_id": 75,
+      "condition_value": "true",
+      "line_number": 13,
+      "expression_text": "expr.value is not None",
+      "condition_type": "if",
+      "order": 28
+    }
+  ]
+}

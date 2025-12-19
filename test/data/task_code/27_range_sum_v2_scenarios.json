@@ -2,42 +2,42 @@
   "scenario_name": "default",
   "conditions": [
     {
-      "ast_id": 8,
+      "ast_id": 12,
       "condition_value": "false",
       "line_number": 3,
-      "expression_text": "n <= 1",
+      "expression_text": "a > b",
       "condition_type": "if",
       "order": 12
     },
     {
-      "ast_id": 8,
+      "ast_id": 12,
       "condition_value": "false",
       "line_number": 3,
-      "expression_text": "n <= 1",
+      "expression_text": "a > b",
       "condition_type": "if",
       "order": 13
     },
     {
-      "ast_id": 8,
+      "ast_id": 12,
       "condition_value": "false",
       "line_number": 3,
-      "expression_text": "n <= 1",
+      "expression_text": "a > b",
       "condition_type": "if",
       "order": 14
     },
     {
-      "ast_id": 8,
+      "ast_id": 12,
       "condition_value": "false",
       "line_number": 3,
-      "expression_text": "n <= 1",
+      "expression_text": "a > b",
       "condition_type": "if",
       "order": 15
     },
     {
-      "ast_id": 8,
+      "ast_id": 12,
       "condition_value": "true",
       "line_number": 3,
-      "expression_text": "n <= 1",
+      "expression_text": "a > b",
       "condition_type": "if",
       "order": 16
     }

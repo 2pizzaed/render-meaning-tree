@@ -7,31 +7,23 @@
       "line_number": 3,
       "expression_text": "n <= 1",
       "condition_type": "if",
+      "order": 10
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 1",
+      "condition_type": "if",
+      "order": 11
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 1",
+      "condition_type": "if",
       "order": 12
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "false",
-      "line_number": 3,
-      "expression_text": "n <= 1",
-      "condition_type": "if",
-      "order": 13
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "false",
-      "line_number": 3,
-      "expression_text": "n <= 1",
-      "condition_type": "if",
-      "order": 14
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "false",
-      "line_number": 3,
-      "expression_text": "n <= 1",
-      "condition_type": "if",
-      "order": 15
     },
     {
       "ast_id": 8,
@@ -39,7 +31,7 @@
       "line_number": 3,
       "expression_text": "n <= 1",
       "condition_type": "if",
-      "order": 16
+      "order": 13
     }
   ]
 }

@@ -1,0 +1,29 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 11
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 12
+    },
+    {
+      "ast_id": 9,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "n <= 0",
+      "condition_type": "if",
+      "order": 13
+    }
+  ]
+}

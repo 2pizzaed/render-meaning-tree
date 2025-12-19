@@ -1,0 +1,21 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 12,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "b == 0",
+      "condition_type": "if",
+      "order": 6
+    },
+    {
+      "ast_id": 12,
+      "condition_value": "true",
+      "line_number": 3,
+      "expression_text": "b == 0",
+      "condition_type": "if",
+      "order": 7
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 49,
+      "condition_value": "true",
+      "line_number": 6,
+      "expression_text": "sign == 0",
+      "condition_type": "if",
+      "order": 3
+    }
+  ]
+}

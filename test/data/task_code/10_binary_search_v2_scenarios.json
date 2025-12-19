@@ -1,0 +1,69 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "low > high",
+      "condition_type": "if",
+      "order": 8
+    },
+    {
+      "ast_id": 48,
+      "condition_value": "false",
+      "line_number": 6,
+      "expression_text": "lst[mid] == target",
+      "condition_type": "if",
+      "order": 9
+    },
+    {
+      "ast_id": 57,
+      "condition_value": "true",
+      "line_number": 8,
+      "expression_text": "lst[mid] > target",
+      "condition_type": "if",
+      "order": 10
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "low > high",
+      "condition_type": "if",
+      "order": 11
+    },
+    {
+      "ast_id": 48,
+      "condition_value": "false",
+      "line_number": 6,
+      "expression_text": "lst[mid] == target",
+      "condition_type": "if",
+      "order": 12
+    },
+    {
+      "ast_id": 57,
+      "condition_value": "false",
+      "line_number": 8,
+      "expression_text": "lst[mid] > target",
+      "condition_type": "if",
+      "order": 13
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "expression_text": "low > high",
+      "condition_type": "if",
+      "order": 14
+    },
+    {
+      "ast_id": 48,
+      "condition_value": "true",
+      "line_number": 6,
+      "expression_text": "lst[mid] == target",
+      "condition_type": "if",
+      "order": 15
+    }
+  ]
+}

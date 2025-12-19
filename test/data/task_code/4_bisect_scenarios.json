@@ -2,46 +2,36 @@
   "scenario_name": "default",
   "conditions": [
     {
-      "ast_id": 40,
+      "ast_id": 49,
       "condition_value": "false",
-      "position_in_trace": 4,
-      "cfg_node_id": "atom_117",
-      "node_description": "Node( id=atom_117, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=40 )"
+      "line_number": 6,
+      "expression_text": "sign == 0",
+      "condition_type": "if",
+      "order": 5
     },
     {
-      "ast_id": 48,
+      "ast_id": 57,
       "condition_value": "false",
-      "position_in_trace": 5,
-      "cfg_node_id": "atom_136",
-      "node_description": "Node( id=atom_136, kind=atom, role_in_construct=..next_cond, action=next_cond, ast_id=48 )"
+      "line_number": 8,
+      "expression_text": "sign > 0",
+      "condition_type": "if",
+      "order": 6
     },
     {
-      "ast_id": 69,
+      "ast_id": 78,
       "condition_value": "true",
-      "position_in_trace": 6,
-      "cfg_node_id": "atom_154",
-      "node_description": "Node( id=atom_154, kind=atom, role_in_construct=..next_cond, action=next_cond, ast_id=69 )"
+      "line_number": 10,
+      "expression_text": "sign < 0",
+      "condition_type": "if",
+      "order": 7
     },
     {
-      "ast_id": 40,
-      "condition_value": "false",
-      "position_in_trace": 4,
-      "cfg_node_id": "atom_117",
-      "node_description": "Node( id=atom_117, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=40 )"
-    },
-    {
-      "ast_id": 48,
+      "ast_id": 49,
       "condition_value": "true",
-      "position_in_trace": 5,
-      "cfg_node_id": "atom_136",
-      "node_description": "Node( id=atom_136, kind=atom, role_in_construct=..next_cond, action=next_cond, ast_id=48 )"
-    },
-    {
-      "ast_id": 40,
-      "condition_value": "true",
-      "position_in_trace": 12,
-      "cfg_node_id": "atom_117",
-      "node_description": "Node( id=atom_117, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=40 )"
+      "line_number": 6,
+      "expression_text": "sign == 0",
+      "condition_type": "if",
+      "order": 8
     }
   ]
 }

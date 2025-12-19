@@ -1,0 +1,13 @@
+{
+  "scenario_name": "default",
+  "conditions": [
+    {
+      "ast_id": 38,
+      "condition_value": "false",
+      "line_number": 6,
+      "expression_text": "x < y",
+      "condition_type": "if",
+      "order": 2
+    }
+  ]
+}

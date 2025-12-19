@@ -7,7 +7,7 @@
       "line_number": 2,
       "expression_text": "n <= 2",
       "condition_type": "if",
-      "order": 20
+      "order": 12
     },
     {
       "ast_id": 8,
@@ -15,15 +15,7 @@
       "line_number": 2,
       "expression_text": "n <= 2",
       "condition_type": "if",
-      "order": 21
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "false",
-      "line_number": 2,
-      "expression_text": "n <= 2",
-      "condition_type": "if",
-      "order": 22
+      "order": 13
     },
     {
       "ast_id": 8,
@@ -31,7 +23,7 @@
       "line_number": 2,
       "expression_text": "n <= 2",
       "condition_type": "if",
-      "order": 23
+      "order": 14
     },
     {
       "ast_id": 8,
@@ -39,7 +31,7 @@
       "line_number": 2,
       "expression_text": "n <= 2",
       "condition_type": "if",
-      "order": 24
+      "order": 15
     },
     {
       "ast_id": 8,
@@ -47,31 +39,7 @@
       "line_number": 2,
       "expression_text": "n <= 2",
       "condition_type": "if",
-      "order": 25
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "false",
-      "line_number": 2,
-      "expression_text": "n <= 2",
-      "condition_type": "if",
-      "order": 26
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "true",
-      "line_number": 2,
-      "expression_text": "n <= 2",
-      "condition_type": "if",
-      "order": 27
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "true",
-      "line_number": 2,
-      "expression_text": "n <= 2",
-      "condition_type": "if",
-      "order": 28
+      "order": 16
     }
   ]
 }

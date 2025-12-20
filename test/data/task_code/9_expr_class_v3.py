@@ -13,14 +13,15 @@ def eval(expr: Expr) -> int:
     if expr.value is not None:
         return expr.value
     elif expr.op == "+":
-        temp1 = eval(expr.left)
-        temp2 = eval(expr.right)
-        return temp1 + temp2
+        left_val = eval(expr.left)
+        right_val = eval(expr.right)
+        return left_val + right_val
     elif expr.op == "*":
-        temp1 = eval(expr.left)
-        temp2 = eval(expr.right)
-        return temp1 * temp2
-    return 0
+        left_val = eval(expr.left)
+        right_val = eval(expr.right)
+        return left_val * right_val
+    else:
+        return 0
 
 
 # 4 + 7 * (1 + 3)

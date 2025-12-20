@@ -7,7 +7,7 @@ def guess_number(low, high):
         return guess  # Найдено
     elif sign > 0:
         low = guess + 1 # Сужаем диапазон поиска вверх
-    elif sign < 0:
+    else:
         high = guess - 1 # Сужаем диапазон поиска вниз
     result = guess_number(low, high)
     return result

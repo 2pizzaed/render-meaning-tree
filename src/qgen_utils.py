@@ -488,6 +488,26 @@ def build_questions(
         scenarios = scenario_plans
 
     loqi_texts, cfg, trace_acts_list = build_loqis(mt, lines_data, ast_analyzer, scenarios)
+    
+    # Применяем runtime данные из сценариев к трассам
+    if scenario_plans and len(scenario_plans) == len(trace_acts_list):
+        from src.runtime.matcher import enrich_trace_from_scenario
+        for i, (trace_acts, scenario_plan) in enumerate(zip(trace_acts_list, scenario_plans)):
+            # Проверяем, есть ли в сценарии события (новый формат) или условия (старый формат)
+            if scenario_plan.get("events") or scenario_plan.get("conditions"):
+                try:
+                    enriched = enrich_trace_from_scenario(
+                        trace_acts,
+                        scenario_plan,
+                        ast_analyzer
+                    )
+                    trace_acts_list[i] = enriched
+                except Exception as e:
+                    # Если не удалось применить данные из сценария, продолжаем без них
+                    warnings.warn(
+                        f"Failed to enrich trace from scenario '{scenario_plan.get('scenario_name', 'default')}': {e}",
+                        stacklevel=2
+                    )
     if not loqi_texts or not cfg:
         print("No valid loqi output", file=sys.stderr)
         return None

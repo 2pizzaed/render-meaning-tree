@@ -7,16 +7,34 @@
 Формат сценария:
 {
     "scenario_name": "default",
-    "conditions": [
+    "events": [
         {
+            "type": "condition",
             "ast_id": 16,
-            "condition_value": "true",
-            "position_in_trace": 5,
+            "value": "true",
+            "order": 1,
             "line_number": 3,
             "expression_text": "x > 0"
         },
-        ...
-    ]
+        {
+            "type": "function_call",
+            "ast_id": 15,
+            "function_name": "factorial",
+            "args": {"n": 5},
+            "order": 2,
+            "line_number": 5,
+            "call_line": 5
+        },
+        {
+            "type": "function_return",
+            "ast_id": 18,
+            "function_name": "factorial",
+            "return_value": 120,
+            "order": 3,
+            "line_number": 4
+        }
+    ],
+    "conditions": [...]  // Для обратной совместимости
 }
 """
 
@@ -24,54 +42,192 @@ import json
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
-from src.runtime.models import ConditionEvaluation, RuntimeTrace
+from src.runtime.models import (
+    ConditionEvaluation,
+    FunctionCall,
+    FunctionReturn,
+    RuntimeTrace,
+)
 
 if TYPE_CHECKING:
     from src.ast_analyzer import ASTNodeAnalyzer
 
 
+def _find_ast_id_for_event(
+    event: FunctionCall | FunctionReturn,
+    event_type: str,
+    ast_analyzer: "ASTNodeAnalyzer | None" = None,
+) -> int | None:
+    """Находит ast_id для события вызова или возврата функции.
+    
+    Args:
+        event: Событие FunctionCall или FunctionReturn
+        event_type: Тип события ("function_call" или "function_return")
+        ast_analyzer: Анализатор AST для поиска узлов (опционально)
+        
+    Returns:
+        ast_id узла или None, если не найден
+    """
+    if ast_analyzer is None:
+        return None
+    
+    # Определяем тип узла и номер строки для поиска
+    if event_type == "function_call":
+        node_type = "function_call"
+        search_line = event.call_line if hasattr(event, 'call_line') and event.call_line else event.line_number
+    elif event_type == "function_return":
+        node_type = "return_statement"
+        search_line = event.line_number
+    else:
+        return None
+    
+    if search_line is None:
+        return None
+    
+    # Ищем все узлы указанного типа на этой строке
+    candidates = []
+    for ast_id, node in ast_analyzer.nodes_cache.items():
+        node_type_found = node.get('type', '')
+        if node_type_found == node_type:
+            node_line = ast_analyzer.get_code_line_number_by_id(ast_id)
+            if node_line == search_line:
+                candidates.append((ast_id, node))
+    
+    # Если на строке несколько узлов, используем первый найденный
+    # В будущем можно улучшить логику сопоставления (например, по имени функции)
+    if candidates:
+        return candidates[0][0]
+    
+    return None
+
+
 def export_scenario_from_trace(
     trace: RuntimeTrace,
     scenario_name: str = "default",
+    ast_analyzer: "ASTNodeAnalyzer | None" = None,
 ) -> dict[str, Any]:
     """Создаёт сценарий из трассы выполнения.
     
+    Сохраняет все события (условия, вызовы, возвраты) в единый список events
+    с ast_id для всех типов событий.
+    
     Args:
-        trace: Трасса выполнения с событиями условий
+        trace: Трасса выполнения с событиями
         scenario_name: Имя сценария
+        ast_analyzer: Анализатор AST для получения ast_id (опционально)
         
     Returns:
-        Словарь сценария для сериализации в JSON
+        Словарь сценария для сериализации в JSON с полями:
+        - scenario_name: имя сценария
+        - events: список всех событий в порядке выполнения
+        - conditions: список условий (для обратной совместимости)
     """
-    conditions = []
+    events = []
+    conditions = []  # Для обратной совместимости
     
-    for event in trace.condition_evaluations:
-        condition_data = {
-            "ast_id": event.ast_id,
-            "condition_value": "true" if event.value else "false",
+    # Собираем все события в порядке выполнения
+    for event in trace.events:
+        event_data: dict[str, Any] = {
+            "order": event.order,
             "line_number": event.line_number,
         }
         
-        # Добавляем опциональные поля
-        if event.expression_text:
-            condition_data["expression_text"] = event.expression_text
-        if event.condition_type:
-            condition_data["condition_type"] = event.condition_type
-        if event.order:
-            condition_data["order"] = event.order
+        if isinstance(event, ConditionEvaluation):
+            event_data.update({
+                "type": "condition",
+                "ast_id": event.ast_id,
+                "value": "true" if event.value else "false",
+            })
             
-        conditions.append(condition_data)
+            # Опциональные поля
+            if event.expression_text:
+                event_data["expression_text"] = event.expression_text
+            if event.condition_type:
+                event_data["condition_type"] = event.condition_type
+            
+            events.append(event_data)
+            
+            # Также добавляем в conditions для обратной совместимости
+            conditions.append({
+                "ast_id": event.ast_id,
+                "condition_value": event_data["value"],
+                "line_number": event.line_number,
+                "order": event.order,
+                **({} if not event.expression_text else {"expression_text": event.expression_text}),
+                **({} if not event.condition_type else {"condition_type": event.condition_type}),
+            })
+        
+        elif isinstance(event, FunctionCall):
+            # Получаем ast_id узла function_call
+            ast_id = _find_ast_id_for_event(event, "function_call", ast_analyzer)
+            
+            event_data.update({
+                "type": "function_call",
+                "ast_id": ast_id,
+                "function_name": event.function_name,
+                "args": _safe_json_value(event.local_vars) if event.local_vars else {},
+            })
+            
+            if event.call_line:
+                event_data["call_line"] = event.call_line
+            
+            events.append(event_data)
+        
+        elif isinstance(event, FunctionReturn):
+            # Получаем ast_id узла return_statement
+            ast_id = _find_ast_id_for_event(event, "function_return", ast_analyzer)
+            
+            event_data.update({
+                "type": "function_return",
+                "ast_id": ast_id,
+                "function_name": event.function_name,
+            })
+            
+            # Сохраняем return_value, включая None (для валидации)
+            # При экспорте используем специальное значение для None
+            if event.return_value is None:
+                event_data["return_value"] = None  # Явно сохраняем None
+            else:
+                event_data["return_value"] = _safe_json_value(event.return_value)
+            
+            events.append(event_data)
     
     return {
         "scenario_name": scenario_name,
-        "conditions": conditions,
+        "events": events,
+        "conditions": conditions,  # Для обратной совместимости
     }
+
+
+def _safe_json_value(value: Any) -> Any:
+    """Преобразует значение в JSON-совместимый формат.
+    
+    Args:
+        value: Значение для преобразования
+        
+    Returns:
+        JSON-совместимое значение
+    """
+    if value is None:
+        return None
+    if isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_safe_json_value(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _safe_json_value(v) for k, v in value.items()}
+    # Для остальных типов используем repr
+    try:
+        return repr(value)
+    except Exception:
+        return f"<{type(value).__name__}>"
 
 
 def export_scenario_to_file(
     trace: RuntimeTrace,
     output_path: str | Path,
     scenario_name: str = "default",
+    ast_analyzer: "ASTNodeAnalyzer | None" = None,
 ) -> Path:
     """Экспортирует сценарий в JSON-файл.
     
@@ -79,12 +235,13 @@ def export_scenario_to_file(
         trace: Трасса выполнения
         output_path: Путь к выходному файлу
         scenario_name: Имя сценария
+        ast_analyzer: Анализатор AST для получения ast_id (опционально)
         
     Returns:
         Path к созданному файлу
     """
     output_path = Path(output_path)
-    scenario = export_scenario_from_trace(trace, scenario_name)
+    scenario = export_scenario_from_trace(trace, scenario_name, ast_analyzer)
     
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(scenario, f, indent=2, ensure_ascii=False)
@@ -147,6 +304,7 @@ def create_scenario_from_code(
     filename: str = "<script>",
     scenario_name: str = "default",
     line_to_ast_id: dict[int, int] | None = None,
+    ast_analyzer: "ASTNodeAnalyzer | None" = None,
 ) -> dict[str, Any]:
     """Выполняет код и создаёт сценарий из результата.
     
@@ -157,6 +315,7 @@ def create_scenario_from_code(
         filename: Имя файла
         scenario_name: Имя сценария
         line_to_ast_id: Маппинг номер строки -> ast_id
+        ast_analyzer: Анализатор AST для получения ast_id (опционально)
         
     Returns:
         Словарь сценария
@@ -170,7 +329,7 @@ def create_scenario_from_code(
         line_to_ast_id=line_to_ast_id,
     )
     
-    return export_scenario_from_trace(trace, scenario_name)
+    return export_scenario_from_trace(trace, scenario_name, ast_analyzer)
 
 
 def create_scenario_from_file(
@@ -272,8 +431,8 @@ def create_scenario_with_ast_analyzer(
 ) -> dict[str, Any]:
     """Создаёт сценарий с корректными ast_id из meaning-tree.
     
-    Использует ASTNodeAnalyzer для сопоставления условий
-    с их ast_id из meaning-tree AST.
+    Использует ASTNodeAnalyzer для сопоставления всех событий
+    (условия, вызовы, возвраты) с их ast_id из meaning-tree AST.
     
     Args:
         source_code: Исходный код Python
@@ -282,13 +441,17 @@ def create_scenario_with_ast_analyzer(
         scenario_name: Имя сценария
         
     Returns:
-        Словарь сценария с корректными ast_id
+        Словарь сценария с корректными ast_id для всех событий
     """
+    from src.runtime.executor import execute_with_trace
+    
     line_to_ast_id = build_line_to_ast_id_for_conditions(ast_analyzer)
     
-    return create_scenario_from_code(
+    trace = execute_with_trace(
         source_code,
         filename=filename,
-        scenario_name=scenario_name,
+        track_conditions=True,
         line_to_ast_id=line_to_ast_id,
     )
+    
+    return export_scenario_from_trace(trace, scenario_name, ast_analyzer)

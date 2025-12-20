@@ -323,6 +323,101 @@ def _match_print_outputs(
                     break
 
 
+def enrich_trace_from_scenario(
+    trace_acts: list[TraceAct],
+    scenario: dict[str, Any],
+    ast_analyzer: ASTNodeAnalyzer,
+) -> list[TraceAct]:
+    """Обогащает акты трассы данными из сценария без runtime выполнения.
+    
+    Использует ту же стратегию последовательного связывания, что и enrich_trace_with_runtime,
+    но берет данные из сохраненного сценария вместо RuntimeTrace.
+    
+    Args:
+        trace_acts: Список актов трассы для обогащения
+        scenario: Словарь сценария с полем events
+        ast_analyzer: Анализатор AST для получения номеров строк
+        
+    Returns:
+        Тот же список trace_acts с заполненными полями runtime_info и condition_value
+        
+    Raises:
+        ValueError: Если событие не соответствует ожидаемому акту
+        RuntimeError: Если требуемое событие отсутствует в сценарии
+    """
+    from src.cfg.condition_exporter import extract_runtime_data_from_scenario
+    from src.runtime.models import (
+        ConditionEvaluation,
+        FunctionCall,
+        FunctionReturn,
+    )
+    
+    # Извлекаем runtime данные из сценария
+    runtime_data = extract_runtime_data_from_scenario(scenario)
+    
+    # Преобразуем события из сценария в RuntimeEvent объекты
+    events = []
+    
+    # Преобразуем conditions
+    for cond_data in runtime_data["conditions"]:
+        event = ConditionEvaluation(
+            line_number=cond_data.get("line_number", 0),
+            ast_id=cond_data.get("ast_id", 0),
+            value=cond_data.get("value") == "true" if isinstance(cond_data.get("value"), str) else bool(cond_data.get("value")),
+            condition_type=cond_data.get("condition_type", ""),
+            expression_text=cond_data.get("expression_text", ""),
+        )
+        event.order = cond_data.get("order", 0)
+        events.append(event)
+    
+    # Преобразуем function_calls
+    for call_data in runtime_data["function_calls"]:
+        args_dict = call_data.get("args", {})
+        if isinstance(args_dict, str):
+            # Если args сохранены как JSON-строка, нужно распарсить
+            import json
+            try:
+                args_dict = json.loads(args_dict)
+            except Exception:
+                args_dict = {}
+        elif not isinstance(args_dict, dict):
+            args_dict = {}
+        
+        event = FunctionCall(
+            line_number=call_data.get("line_number", 0),
+            function_name=call_data.get("function_name", ""),
+            local_vars=args_dict,
+            call_line=call_data.get("call_line"),
+        )
+        event.order = call_data.get("order", 0)
+        events.append(event)
+    
+    # Преобразуем function_returns
+    for ret_data in runtime_data["function_returns"]:
+        return_value = ret_data.get("return_value")
+        # return_value может быть None, что нормально (фиксируем все возвраты)
+        # Значение уже в правильном формате из JSON
+        
+        event = FunctionReturn(
+            line_number=ret_data.get("line_number", 0),
+            function_name=ret_data.get("function_name", ""),
+            return_value=return_value,
+        )
+        event.order = ret_data.get("order", 0)
+        events.append(event)
+    
+    # Сортируем события по order
+    events.sort(key=lambda e: e.order)
+    
+    # Создаём виртуальный RuntimeTrace для использования существующей логики
+    from src.runtime.models import RuntimeTrace
+    virtual_trace = RuntimeTrace()
+    virtual_trace.events = events
+    
+    # Используем существующую функцию enrich_trace_with_runtime
+    return enrich_trace_with_runtime(trace_acts, virtual_trace, ast_analyzer)
+
+
 def enrich_single_scenario(
     trace_acts: list[TraceAct],
     source_code: str,

@@ -307,12 +307,59 @@ def load_condition_plans(
         return data
 
     # Если это один сценарий, нормализуем формат
-    if "scenario_name" in data or "conditions" in data:
+    # Поддерживаем как старый формат (conditions), так и новый (events)
+    if "scenario_name" in data or "conditions" in data or "events" in data:
         return data
 
     raise ValueError(
-        "Invalid plan format: expected 'scenarios' (list) or 'scenario_name'/'conditions' keys"
+        "Invalid plan format: expected 'scenarios' (list) or 'scenario_name'/'conditions'/'events' keys"
     )
+
+
+def extract_runtime_data_from_scenario(
+    scenario: dict[str, Any],
+) -> dict[str, Any]:
+    """Извлекает runtime данные (вызовы, возвраты, условия) из сценария.
+    
+    Поддерживает как новый формат (events), так и старый (conditions).
+    
+    Args:
+        scenario: Словарь сценария с полем events или conditions
+        
+    Returns:
+        Словарь с runtime данными:
+        - function_calls: список событий вызовов
+        - function_returns: список событий возвратов
+        - conditions: список событий условий
+    """
+    events = scenario.get("events", [])
+    
+    # Если events нет, используем старый формат conditions
+    if not events:
+        conditions_old = scenario.get("conditions", [])
+        # Преобразуем старый формат в новый
+        events = []
+        for cond in conditions_old:
+            events.append({
+                "type": "condition",
+                "ast_id": cond.get("ast_id"),
+                "value": cond.get("condition_value"),
+                "order": cond.get("order"),
+                "line_number": cond.get("line_number"),
+                "expression_text": cond.get("expression_text"),
+                "condition_type": cond.get("condition_type"),
+            })
+    
+    # Разделяем события по типам
+    function_calls = [e for e in events if e.get("type") == "function_call"]
+    function_returns = [e for e in events if e.get("type") == "function_return"]
+    conditions = [e for e in events if e.get("type") == "condition"]
+    
+    return {
+        "function_calls": function_calls,
+        "function_returns": function_returns,
+        "conditions": conditions,
+    }
 
 
 def plan_to_scenario_config(
@@ -321,7 +368,7 @@ def plan_to_scenario_config(
     """Преобразует план условий в TraceScenarioConfig.
 
     Преобразует план условий (словарь) в TraceScenarioConfig для использования
-    при генерации трассы. Использует cfg_node_id для поиска узла в CFG и извлечения ast_id.
+    при генерации трассы. Поддерживает как старый формат (conditions), так и новый (events).
 
     Args:
         plan: Словарь с планом условий (результат load_condition_plans)
@@ -342,8 +389,15 @@ def plan_to_scenario_config(
     # Извлекаем seed (может быть в корне плана или в сценарии)
     seed = plan.get("seed", default_seed)
 
-    # Извлекаем условия
+    # Извлекаем условия - поддерживаем оба формата
+    events = plan.get("events", [])
     conditions = plan.get("conditions", [])
+    
+    # Если есть events, используем их (новый формат)
+    if events:
+        # Извлекаем только события типа "condition"
+        conditions = [e for e in events if e.get("type") == "condition"]
+    # Иначе используем старый формат conditions
 
     # Создаём словарь для группировки условий по ast_id
     # Ключ: ast_id, Значение: список значений условия в порядке появления
@@ -355,7 +409,14 @@ def plan_to_scenario_config(
     for condition in conditions:
         cfg_node_id = condition.get("cfg_node_id")
         ast_id_from_plan = condition.get("ast_id")
-        condition_value_str = condition.get("condition_value")
+        
+        # Поддержка нового формата (events) и старого (conditions)
+        if "value" in condition:
+            # Новый формат: events
+            condition_value_str = condition.get("value")
+        else:
+            # Старый формат: conditions
+            condition_value_str = condition.get("condition_value")
 
         # Проверяем наличие condition_value (обязательное поле)
         if not condition_value_str:
@@ -450,8 +511,8 @@ def load_scenarios_from_file(
 ) -> list[dict[str, Any]]:
     """Загружает список сценариев из файла.
 
-    Поддерживает два формата:
-    1. Файл с одним сценарием: {"scenario_name": "...", "conditions": [...]}
+    Поддерживает форматы:
+    1. Файл с одним сценарием: {"scenario_name": "...", "events": [...]} или {"scenario_name": "...", "conditions": [...]}
     2. Файл с несколькими сценариями: {"seed": ..., "scenarios": [...]}
 
     Args:
@@ -461,7 +522,7 @@ def load_scenarios_from_file(
     Returns:
         Список словарей с планами сценариев. Каждый словарь содержит:
         - scenario_name: имя сценария
-        - conditions: список условий
+        - events: список событий (новый формат) или conditions (старый формат)
         - seed: seed для этого сценария (если указан в корне файла)
     """
     path = Path(scenarios_file)
@@ -482,7 +543,8 @@ def load_scenarios_from_file(
         return scenarios
 
     # Если это один сценарий, возвращаем список с одним элементом
-    if "scenario_name" in data or "conditions" in data:
+    # Поддерживаем как старый формат (conditions), так и новый (events)
+    if "scenario_name" in data or "conditions" in data or "events" in data:
         if "seed" not in data:
             data = {**data, "seed": default_seed}
         return [data]

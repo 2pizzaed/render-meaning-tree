@@ -56,6 +56,7 @@ from src.runtime.executor import (
 # Функции сопоставления с TraceAct
 from src.runtime.matcher import (
     enrich_trace_with_runtime,
+    enrich_trace_from_scenario,
     enrich_single_scenario,
 )
 
@@ -94,6 +95,7 @@ __all__ = [
     'trace_function_calls',
     # Функции сопоставления
     'enrich_trace_with_runtime',
+    'enrich_trace_from_scenario',
     'enrich_single_scenario',
     # Инструментация
     'instrument_code',

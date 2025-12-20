@@ -174,17 +174,26 @@ class TestComplexProblemBuild(unittest.TestCase):
                         # Всё равно сохраняем сценарий, если есть условия
                     
                     # Генерируем сценарий из runtime трассы
-                    if runtime_trace.condition_evaluations:
+                    # Сохраняем сценарий, если есть любые события (не только условия)
+                    if runtime_trace.events:
                         generated_scenario = export_scenario_from_trace(
                             runtime_trace,
-                            scenario_name="default"
+                            scenario_name="default",
+                            ast_analyzer=ast
                         )
                         
                         # Сохраняем сценарий в файл
                         scenario_output_path = genout_path / f"{file.stem}_scenarios.json"
                         with open(scenario_output_path, "w", encoding="utf-8") as f:
                             json.dump(generated_scenario, f, indent=2, ensure_ascii=False)
-                        print(f"  Generated scenario: {scenario_output_path.name} ({len(runtime_trace.condition_evaluations)} conditions)")
+                        
+                        events_count = len(generated_scenario.get("events", []))
+                        conditions_count = len(runtime_trace.condition_evaluations)
+                        calls_count = len(runtime_trace.function_calls)
+                        returns_count = len(runtime_trace.function_returns)
+                        print(f"  Generated scenario: {scenario_output_path.name} "
+                              f"({events_count} events: {conditions_count} conditions, "
+                              f"{calls_count} calls, {returns_count} returns)")
                     
                 except Exception as e:
                     print(f"  Warning: Could not execute code for runtime tracing: {e}")

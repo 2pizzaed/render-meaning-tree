@@ -2,16 +2,26 @@
 Модуль для сопоставления runtime событий с актами трассы TraceAct.
 
 Связывает данные, собранные при реальном выполнении программы (вызовы функций,
-возвраты, вывод print), с актами статической трассы, построенной по CFG.
+возвраты, вывод print, условия), с актами статической трассы, построенной по CFG.
+
+Использует стратегию последовательного связывания:
+- Проходит трассу от начала до конца
+- При требовании значения запрашивает следующее неиспользованное событие из runtime trace
+- Выполняет строгую валидацию соответствия
 """
 
 from typing import Any
 
 from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg.cfg import NodeKind, RuntimeInfo, TraceAct
+from src.runtime.bindable_events import (
+    BindableConditionEvaluation,
+    BindableEvent,
+    BindableFunctionCall,
+    BindableFunctionReturn,
+    create_bindable_events,
+)
 from src.runtime.models import (
-    FunctionCall,
-    FunctionReturn,
     PrintOutput,
     RuntimeTrace,
 )
@@ -24,10 +34,10 @@ def enrich_trace_with_runtime(
 ) -> list[TraceAct]:
     """Обогащает акты трассы информацией из runtime выполнения.
     
-    Сопоставляет события RuntimeTrace с актами TraceAct по:
-    - Номеру строки (из AST через ast_analyzer)
-    - Типу узла (BEGIN для вызовов, END для возвратов)
-    - Имени функции
+    Использует стратегию последовательного связывания:
+    - Проходит трассу от начала до конца
+    - При требовании значения запрашивает следующее неиспользованное событие
+    - Выполняет строгую валидацию соответствия
     
     Args:
         trace_acts: Список актов трассы для обогащения
@@ -36,29 +46,59 @@ def enrich_trace_with_runtime(
         
     Returns:
         Тот же список trace_acts с заполненными полями runtime_info
+        
+    Raises:
+        ValueError: Если событие не соответствует ожидаемому акту
+        RuntimeError: Если требуемое событие отсутствует в runtime trace
     """
     if not runtime_trace or not runtime_trace.events:
         return trace_acts
     
-    # Строим индекс актов по номеру строки и типу
-    acts_by_line = _build_acts_index(trace_acts, ast_analyzer)
+    # Создаём список связываемых событий из runtime trace (уже упорядоченных)
+    bindable_events = create_bindable_events(runtime_trace.events)
     
     # Получаем имена функций, определённых в файле
     user_functions = ast_analyzer.user_defined_function_names
     
-    # Создаём итераторы для событий каждого типа
-    call_events = iter(runtime_trace.function_calls)
-    return_events = iter(runtime_trace.function_returns)
-    print_events = list(runtime_trace.print_outputs)
+    # Последовательно проходим по трассе
+    for act in trace_acts:
+        # Определяем, какое событие требуется для этого акта
+        required_event_type = _get_required_event_type(act, user_functions)
+        
+        if required_event_type is None:
+            # Для этого акта не требуется событие, пропускаем
+            continue
+        
+        # Ищем следующее неиспользованное событие соответствующего типа
+        bindable_event = _find_next_unused_event(
+            bindable_events, required_event_type
+        )
+        
+        if bindable_event is None:
+            # Событие отсутствует - это ошибка построения сценария
+            raise RuntimeError(
+                f"Required {required_event_type.__name__} event not found in runtime trace "
+                f"for act at position {trace_acts.index(act)} "
+                f"(node_kind={act.cfg_node.kind.value if act.cfg_node else None})"
+            )
+        
+        # Валидируем соответствие события акту
+        try:
+            bindable_event.validate_match(act)
+        except ValueError as e:
+            raise ValueError(
+                f"Event mismatch at act position {trace_acts.index(act)}: {e}"
+            ) from e
+        
+        # Привязываем событие к акту
+        _bind_event_to_act(bindable_event, act)
+        
+        # Помечаем событие как использованное
+        bindable_event.mark_used()
     
-    # Сопоставляем вызовы функций с BEGIN актами
-    _match_function_calls(trace_acts, call_events, acts_by_line, user_functions)
-    
-    # Сопоставляем возвраты с END актами
-    _match_function_returns(trace_acts, return_events, acts_by_line, user_functions)
-    
-    # Сопоставляем print с ближайшими актами
-    _match_print_outputs(trace_acts, print_events, acts_by_line, ast_analyzer)
+    # Сопоставляем print с ближайшими актами (отдельная логика, не требует последовательности)
+    acts_by_line = _build_acts_index(trace_acts, ast_analyzer)
+    _match_print_outputs(trace_acts, list(runtime_trace.print_outputs), acts_by_line, ast_analyzer)
     
     return trace_acts
 
@@ -139,89 +179,93 @@ def _get_function_name_from_act(act: TraceAct) -> str | None:
     return None
 
 
-def _match_function_calls(
-    trace_acts: list[TraceAct],
-    call_events: iter,
-    acts_by_line: dict[int, list[tuple[int, TraceAct]]],
-    user_functions: set[str],
-) -> None:
-    """Сопоставляет события вызовов функций с актами трассы.
-    
-    Для каждого BEGIN-акта с функцией из user_functions находит
-    соответствующий FunctionCall и заполняет runtime_info.
+def _get_required_event_type(
+    act: TraceAct, user_functions: set[str]
+) -> type[BindableEvent] | None:
+    """Определяет тип события, требуемого для акта трассы.
     
     Args:
-        trace_acts: Список актов (изменяется in-place)
-        call_events: Итератор событий FunctionCall
-        acts_by_line: Индекс актов по строкам
-        user_functions: Имена пользовательских функций
+        act: Акт трассы
+        user_functions: Множество имён пользовательских функций
+        
+    Returns:
+        Тип требуемого события или None, если событие не требуется
     """
-    # Собираем все call события в список для повторного использования
-    calls_list = list(call_events)
-    call_idx = 0
-    
-    for act in trace_acts:
-        if act.cfg_node.kind != NodeKind.BEGIN:
-            continue
-        
+    if act.cfg_node.kind == NodeKind.BEGIN:
+        # BEGIN-акт функции требует FunctionCall
         func_name = _get_function_name_from_act(act)
-        if not func_name or func_name not in user_functions:
-            continue
-        
-        # Ищем следующий call для этой функции
-        while call_idx < len(calls_list):
-            call = calls_list[call_idx]
-            if call.function_name == func_name:
-                # Нашли соответствие
-                act.runtime_info = RuntimeInfo(
-                    function_args=call.local_vars.copy() if call.local_vars else None,
-                    function_name=func_name,
-                )
-                call_idx += 1
-                break
-            call_idx += 1
-
-
-def _match_function_returns(
-    trace_acts: list[TraceAct],
-    return_events: iter,
-    acts_by_line: dict[int, list[tuple[int, TraceAct]]],
-    user_functions: set[str],
-) -> None:
-    """Сопоставляет события возвратов с актами трассы.
+        if func_name and func_name in user_functions:
+            return BindableFunctionCall
     
-    Для каждого END-акта с функцией из user_functions находит
-    соответствующий FunctionReturn и заполняет runtime_info.
+    elif act.cfg_node.kind == NodeKind.END:
+        # END-акт функции требует FunctionReturn
+        func_name = _get_function_name_from_act(act)
+        if func_name and func_name in user_functions:
+            return BindableFunctionReturn
+    
+    elif act.cfg_node.kind == NodeKind.ATOM:
+        # ATOM-акт с условием требует ConditionEvaluation
+        if act.cfg_node.is_condition():
+            return BindableConditionEvaluation
+    
+    return None
+
+
+def _find_next_unused_event(
+    bindable_events: list[BindableEvent],
+    event_type: type[BindableEvent],
+) -> BindableEvent | None:
+    """Находит следующее неиспользованное событие указанного типа.
     
     Args:
-        trace_acts: Список актов (изменяется in-place)
-        return_events: Итератор событий FunctionReturn
-        acts_by_line: Индекс актов по строкам
-        user_functions: Имена пользовательских функций
+        bindable_events: Список связываемых событий
+        event_type: Тип требуемого события
+        
+    Returns:
+        Первое неиспользованное событие указанного типа или None
     """
-    # Собираем все return события в список
-    returns_list = list(return_events)
-    return_idx = 0
+    for bindable_event in bindable_events:
+        if not bindable_event.used and isinstance(bindable_event, event_type):
+            return bindable_event
+    return None
+
+
+def _bind_event_to_act(bindable_event: BindableEvent, act: TraceAct) -> None:
+    """Привязывает событие к акту трассы, заполняя runtime_info.
     
-    for act in trace_acts:
-        if act.cfg_node.kind != NodeKind.END:
-            continue
+    Args:
+        bindable_event: Связываемое событие
+        act: Акт трассы
+    """
+    if isinstance(bindable_event, BindableFunctionCall):
+        # Привязываем аргументы вызова функции
+        call = bindable_event.function_call
+        act.runtime_info = RuntimeInfo(
+            function_args=call.local_vars.copy() if call.local_vars else None,
+            function_name=call.function_name,
+        )
+    
+    elif isinstance(bindable_event, BindableFunctionReturn):
+        # Привязываем возвращаемое значение (None не присваиваем)
+        ret = bindable_event.function_return
+        if act.runtime_info is None:
+            act.runtime_info = RuntimeInfo(function_name=ret.function_name)
         
-        func_name = _get_function_name_from_act(act)
-        if not func_name or func_name not in user_functions:
-            continue
+        # Фиксируем все возвраты, но не отображаем None
+        if ret.return_value is not None:
+            act.runtime_info.return_value = ret.return_value
+        # Если return_value is None, не присваиваем (требование "None не отображать")
+    
+    elif isinstance(bindable_event, BindableConditionEvaluation):
+        # Привязываем значение условия
+        cond = bindable_event.condition_evaluation
+        from src.cfg.abstractions import OptionalBoolValue
         
-        # Ищем следующий return для этой функции
-        while return_idx < len(returns_list):
-            ret = returns_list[return_idx]
-            if ret.function_name == func_name:
-                # Нашли соответствие
-                if act.runtime_info is None:
-                    act.runtime_info = RuntimeInfo(function_name=func_name)
-                act.runtime_info.return_value = ret.return_value
-                return_idx += 1
-                break
-            return_idx += 1
+        # Преобразуем bool в OptionalBoolValue
+        if cond.value:
+            act.condition_value = OptionalBoolValue.true
+        else:
+            act.condition_value = OptionalBoolValue.false
 
 
 def _match_print_outputs(

@@ -33,6 +33,8 @@ from src.runtime import (
 
 INJECT_RUNTIME_VALUES = False
 
+SAVE_DEBUG_GRAPHS_PHG = False
+
 class TestComplexProblemBuild(unittest.TestCase):
     def test_generate(self):
         current_dir = Path(__file__).parent
@@ -256,17 +258,18 @@ class TestComplexProblemBuild(unittest.TestCase):
                     json.dump(trace_info, f, indent=2, ensure_ascii=False)
                 exported_files.append(trace_path)
 
-            # Визуализируем CFG в PNG (режим с рёбрами)
-            png_path = (genout_path / f"{file.stem}-edge.png").absolute()
-            visualize_cfg_graphviz(cfg, str(png_path))
+            if SAVE_DEBUG_GRAPHS_PHG:
+                # Визуализируем CFG в PNG (режим с рёбрами)
+                png_path = (genout_path / f"{file.stem}-edge.png").absolute()
+                visualize_cfg_graphviz(cfg, str(png_path))
 
-            # Визуализируем CFG в PNG (режим с путями)
-            png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
-            visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
+                # Визуализируем CFG в PNG (режим с путями)
+                png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
+                visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
 
-            # Визуализируем CFG в PNG (режим с непрямыми путями)
-            # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
-            # visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
+                # Визуализируем CFG в PNG (режим с непрямыми путями)
+                # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
+                # visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
 
             answ = build_answer_objects_from_cfg(cfg,
                                                  lines_data,

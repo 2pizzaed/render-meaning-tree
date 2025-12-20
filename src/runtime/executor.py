@@ -70,9 +70,15 @@ def execute_with_trace(
             '__builtins__': __builtins__,
         }
     
-    # Добавляем функцию трекера условий в глобальное пространство
+    # Создаём трассировщик (нужен для передачи в condition_tracker)
+    tracer = RuntimeTracer(target_filename=filename)
+    tracer.trace.source_code = source_code  # Сохраняем оригинальный код
+    
+    # Создаём обёртку для condition_tracker с привязкой к trace
     if condition_tracker_func is not None:
-        globals_dict['__trace_condition__'] = condition_tracker_func
+        def trace_condition_wrapper(ast_id, line_no, cond_type, expr_text, value):
+            return condition_tracker_func(ast_id, line_no, cond_type, expr_text, value, tracer.trace)
+        globals_dict['__trace_condition__'] = trace_condition_wrapper
     
     if locals_dict is None:
         locals_dict = globals_dict
@@ -86,10 +92,6 @@ def execute_with_trace(
         trace.exception_traceback = traceback.format_exc()
         return trace
     
-    # Создаём трассировщик
-    tracer = RuntimeTracer(target_filename=filename)
-    tracer.trace.source_code = source_code  # Сохраняем оригинальный код
-    
     # Выполняем код с трассировкой
     try:
         tracer.start()
@@ -100,14 +102,15 @@ def execute_with_trace(
     finally:
         tracer.stop()
     
-    # Добавляем события условий в трассу
+    # Если события условий не были добавлены через trace (fallback),
+    # добавляем их сейчас (для обратной совместимости)
     if track_conditions:
         condition_events = get_condition_events()
-        for event in condition_events:
-            tracer.trace.add_event(event)
-        # Пересортируем события по порядку (условия добавлены в конец)
-        # Но лучше сортировать по времени/порядку выполнения
-        # Для этого нам нужно интегрировать события по line_number
+        if condition_events:
+            # События не были добавлены через trace, добавляем сейчас
+            for event in condition_events:
+                tracer.trace.add_event(event)
+            clear_condition_events()
     
     return tracer.trace
 

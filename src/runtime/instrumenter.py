@@ -23,11 +23,14 @@ from typing import Any
 from src.runtime.models import ConditionEvaluation
 
 
-# Глобальный список для сбора событий условий
-_condition_events: list[ConditionEvaluation] = []
-
-
-def _trace_condition_impl(ast_id: int, line_no: int, cond_type: str, expr_text: str, value: Any) -> bool:
+def _trace_condition_impl(
+    ast_id: int, 
+    line_no: int, 
+    cond_type: str, 
+    expr_text: str, 
+    value: Any,
+    trace: "RuntimeTrace | None" = None
+) -> bool:
     """Функция-трекер для записи значений условий.
     
     Вызывается из инструментированного кода для каждого условия.
@@ -38,6 +41,7 @@ def _trace_condition_impl(ast_id: int, line_no: int, cond_type: str, expr_text: 
         cond_type: Тип условия ('if', 'while', 'for', 'elif')
         expr_text: Текст выражения условия
         value: Вычисленное значение условия
+        trace: Объект RuntimeTrace для добавления события (опционально)
         
     Returns:
         bool(value) для использования в управляющей конструкции
@@ -50,18 +54,38 @@ def _trace_condition_impl(ast_id: int, line_no: int, cond_type: str, expr_text: 
         condition_type=cond_type,
         expression_text=expr_text,
     )
-    _condition_events.append(event)
+    
+    # Если передан trace, добавляем событие сразу (правильный порядок)
+    if trace is not None:
+        trace.add_event(event)
+    else:
+        # Fallback для обратной совместимости (если trace не передан)
+        # В этом случае события будут добавлены позже
+        global _condition_events
+        if '_condition_events' not in globals():
+            _condition_events = []
+        _condition_events.append(event)
+    
     return bool_value
 
 
+# Глобальный список для сбора событий условий (fallback, если trace не передан)
+_condition_events: list[ConditionEvaluation] = []
+
+
 def get_condition_events() -> list[ConditionEvaluation]:
-    """Возвращает собранные события условий."""
+    """Возвращает собранные события условий (fallback механизм)."""
+    global _condition_events
+    if '_condition_events' not in globals():
+        _condition_events = []
     return _condition_events.copy()
 
 
 def clear_condition_events() -> None:
     """Очищает список событий условий."""
-    _condition_events.clear()
+    global _condition_events
+    if '_condition_events' in globals():
+        _condition_events.clear()
 
 
 class ConditionInstrumenter(ast.NodeTransformer):

@@ -202,6 +202,12 @@ class BindableFunctionReturn(BindableEvent):
             if isinstance(name_node, dict):
                 return name_node.get('name')
         
+        # Для function_call ищем имя в function.name (для END-актов рекурсивных вызовов)
+        if node_type == 'function_call':
+            func_node = ast_node.get('function', {})
+            if isinstance(func_node, dict):
+                return func_node.get('name')
+        
         return None
 
 

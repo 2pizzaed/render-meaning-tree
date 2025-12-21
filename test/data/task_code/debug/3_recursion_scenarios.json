@@ -1,50 +1,255 @@
 {
-  "scenarios": [
-{
   "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 33,
+      "function_name": "recurse_sum",
+      "args": {
+        "x": 5
+      },
+      "call_line": 9
+    },
+    {
+      "order": 2,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 33,
+      "function_name": "recurse_sum",
+      "args": {
+        "x": 4
+      },
+      "call_line": 7
+    },
+    {
+      "order": 5,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "order": 6,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 7,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 24,
+      "function_name": "recurse_sum",
+      "args": {
+        "x": 3
+      },
+      "call_line": 5
+    },
+    {
+      "order": 8,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "order": 9,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 10,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 33,
+      "function_name": "recurse_sum",
+      "args": {
+        "x": 2
+      },
+      "call_line": 7
+    },
+    {
+      "order": 11,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "order": 12,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 13,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 24,
+      "function_name": "recurse_sum",
+      "args": {
+        "x": 1
+      },
+      "call_line": 5
+    },
+    {
+      "order": 14,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "true",
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "order": 15,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": 10,
+      "function_name": "recurse_sum",
+      "return_value": 1
+    },
+    {
+      "order": 16,
+      "line_number": 5,
+      "type": "function_return",
+      "ast_id": 26,
+      "function_name": "recurse_sum",
+      "return_value": 3
+    },
+    {
+      "order": 17,
+      "line_number": 7,
+      "type": "function_return",
+      "ast_id": 36,
+      "function_name": "recurse_sum",
+      "return_value": 0
+    },
+    {
+      "order": 18,
+      "line_number": 5,
+      "type": "function_return",
+      "ast_id": 26,
+      "function_name": "recurse_sum",
+      "return_value": 4
+    },
+    {
+      "order": 19,
+      "line_number": 7,
+      "type": "function_return",
+      "ast_id": 36,
+      "function_name": "recurse_sum",
+      "return_value": -1
+    }
+  ],
   "conditions": [
     {
       "ast_id": 8,
       "condition_value": "false",
-      "position_in_trace": 4,
-      "cfg_node_id": "atom_107",
-      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
-    },
-    {
-      "ast_id": 18,
-      "condition_value": "true",
-      "position_in_trace": 6,
-      "cfg_node_id": "atom_133",
-      "node_description": "Node( id=atom_133, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=18 )"
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "true",
-      "position_in_trace": 9,
-      "cfg_node_id": "atom_107",
-      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
+      "line_number": 2,
+      "order": 2,
+      "expression_text": "x <= 1",
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
-      "position_in_trace": 10,
-      "cfg_node_id": "atom_133",
-      "node_description": "Node( id=atom_133, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=18 )"
+      "line_number": 4,
+      "order": 3,
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
     },
     {
       "ast_id": 8,
+      "condition_value": "false",
+      "line_number": 2,
+      "order": 5,
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 18,
       "condition_value": "true",
-      "position_in_trace": 13,
-      "cfg_node_id": "atom_107",
-      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=8 )"
+      "line_number": 4,
+      "order": 6,
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "false",
+      "line_number": 2,
+      "order": 8,
+      "expression_text": "x <= 1",
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
-      "position_in_trace": 14,
-      "cfg_node_id": "atom_133",
-      "node_description": "Node( id=atom_133, kind=atom, role_in_construct=..first_cond, action=first_cond, ast_id=18 )"
+      "line_number": 4,
+      "order": 9,
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "false",
+      "line_number": 2,
+      "order": 11,
+      "expression_text": "x <= 1",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 18,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 12,
+      "expression_text": "x % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "line_number": 2,
+      "order": 14,
+      "expression_text": "x <= 1",
+      "condition_type": "if"
     }
   ]
 }
-]}

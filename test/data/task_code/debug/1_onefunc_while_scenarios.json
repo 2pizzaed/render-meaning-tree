@@ -1,48 +1,180 @@
 {
-  "scenarios": [
-{
-  "scenario_name": "1+1",
-  "conditions": [
+  "scenario_name": "default",
+  "events": [
     {
-      "ast_id": 59,
-      "condition_value": "false",
-      "cfg_node_id": "atom_147"
+      "order": 1,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
     },
     {
-      "ast_id": 9,
-      "condition_value": "false",
-      "cfg_node_id": "atom_107"
+      "order": 2,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 3,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 4,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 5,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 6,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 8,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 78,
+      "function_name": "gcd",
+      "args": {
+        "a": 6,
+        "b": 12
+      },
+      "call_line": 10
+    },
+    {
+      "order": 9,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "b",
+      "condition_type": "while"
+    },
+    {
+      "order": 10,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "b",
+      "condition_type": "while"
+    },
+    {
+      "order": 11,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "b",
+      "condition_type": "while"
+    },
+    {
+      "order": 12,
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 31,
+      "function_name": "gcd",
+      "return_value": 6
     }
-  ]
-},
-{
-  "scenario_name": "2+2",
+  ],
   "conditions": [
     {
-      "ast_id": 59,
+      "ast_id": 0,
       "condition_value": "true",
-      "position_in_trace": 3,
-      "cfg_node_id": "atom_147",
-      "node_description": "Node( id=atom_147, kind=atom, role_in_construct=.cond, action=cond, ast_id=59 )"
+      "line_number": 10,
+      "order": 1,
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
     },
     {
-      "ast_id": 59,
-      "condition_value": "false",
-      "position_in_trace": 5,
-      "cfg_node_id": "atom_147",
-      "node_description": "Node( id=atom_147, kind=atom, role_in_construct=.cond, action=cond, ast_id=59 )"
-    },
-    {
-      "ast_id": 9,
+      "ast_id": 0,
       "condition_value": "true",
-      "position_in_trace": 9,
-      "cfg_node_id": "atom_107",
-      "node_description": "Node( id=atom_107, kind=atom, role_in_construct=..cond, action=cond, ast_id=9 )"
+      "line_number": 10,
+      "order": 2,
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
     },
     {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 10,
+      "order": 3,
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 10,
+      "order": 4,
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 10,
+      "order": 5,
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
       "condition_value": "false",
-      "cfg_node_id": "atom_107"
+      "line_number": 10,
+      "order": 6,
+      "expression_text": "y % x != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 2,
+      "order": 9,
+      "expression_text": "b",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 2,
+      "order": 10,
+      "expression_text": "b",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 2,
+      "order": 11,
+      "expression_text": "b",
+      "condition_type": "while"
     }
   ]
 }
-]}

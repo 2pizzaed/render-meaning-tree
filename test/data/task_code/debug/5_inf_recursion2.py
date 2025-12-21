@@ -1,8 +1,8 @@
 def recurse_f(x):
     print('in')
-    if x > 1 and x % 3 > 0:
+    if x > 1 and x % 3 == 0:
         recurse_f(x - 1)
-    if x > 1 and x % 3 < 2:
+    if x > 1 and x % 3 == 2:
         recurse_f(x - 2)
     print('out')
 

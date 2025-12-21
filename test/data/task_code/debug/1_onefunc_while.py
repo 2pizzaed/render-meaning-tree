@@ -4,8 +4,8 @@ def gcd(a, b):
     return a
 
 
-x = int(input())
-y = int(input())
+x = 6
+y = 7
 
 while y % x != 0:
     y += 1

@@ -53,6 +53,34 @@ class BindableEvent:
         """
         raise NotImplementedError("Subclasses must implement matches()")
     
+    def matches_node_kind(self, act: "TraceAct") -> bool:
+        """Проверяет, соответствует ли тип события типу узла акта.
+        
+        Проверяет только соответствие типа события (call/return/condition) типу узла (BEGIN/END/ATOM),
+        без проверки деталей AST (имя функции, ast_id).
+        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если тип события соответствует типу узла, False иначе
+        """
+        raise NotImplementedError("Subclasses must implement matches_node_kind()")
+    
+    def matches_ast_details(self, act: "TraceAct") -> bool:
+        """Проверяет соответствие деталей AST (имя функции, ast_id).
+        
+        Проверяет соответствие имени функции или ast_id между событием и актом.
+        Используется для мягкой валидации - если не соответствует, выводится warning.
+        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если детали AST соответствуют, False иначе
+        """
+        raise NotImplementedError("Subclasses must implement matches_ast_details()")
+    
     def validate_match(self, act: "TraceAct") -> None:
         """Валидирует соответствие события акту, выбрасывая исключение при несоответствии.
         
@@ -95,12 +123,29 @@ class BindableFunctionCall(BindableEvent):
         Returns:
             True если акт - BEGIN функции с соответствующим именем
         """
+        return self.matches_node_kind(act) and self.matches_ast_details(act)
+    
+    def matches_node_kind(self, act: "TraceAct") -> bool:
+        """Проверяет, что акт является BEGIN-узлом функции.
+        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если акт - BEGIN-узел
+        """
         from src.cfg.cfg import NodeKind
+        return act.cfg_node.kind == NodeKind.BEGIN
+    
+    def matches_ast_details(self, act: "TraceAct") -> bool:
+        """Проверяет соответствие имени функции.
         
-        # Проверяем, что это BEGIN-узел
-        if act.cfg_node.kind != NodeKind.BEGIN:
-            return False
-        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если имя функции соответствует
+        """
         # Извлекаем имя функции из акта
         func_name = self._get_function_name_from_act(act)
         if not func_name:
@@ -166,12 +211,29 @@ class BindableFunctionReturn(BindableEvent):
         Returns:
             True если акт - END функции с соответствующим именем
         """
+        return self.matches_node_kind(act) and self.matches_ast_details(act)
+    
+    def matches_node_kind(self, act: "TraceAct") -> bool:
+        """Проверяет, что акт является END-узлом функции.
+        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если акт - END-узел
+        """
         from src.cfg.cfg import NodeKind
+        return act.cfg_node.kind == NodeKind.END
+    
+    def matches_ast_details(self, act: "TraceAct") -> bool:
+        """Проверяет соответствие имени функции.
         
-        # Проверяем, что это END-узел
-        if act.cfg_node.kind != NodeKind.END:
-            return False
-        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если имя функции соответствует
+        """
         # Извлекаем имя функции из акта
         func_name = self._get_function_name_from_act(act)
         if not func_name:
@@ -237,6 +299,17 @@ class BindableConditionEvaluation(BindableEvent):
         Returns:
             True если акт - ATOM-узел с условием и соответствующим ast_id
         """
+        return self.matches_node_kind(act) and self.matches_ast_details(act)
+    
+    def matches_node_kind(self, act: "TraceAct") -> bool:
+        """Проверяет, что акт является ATOM-узлом с условием.
+        
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если акт - ATOM-узел с условием
+        """
         from src.cfg.cfg import NodeKind
         
         # Проверяем, что это ATOM-узел
@@ -244,9 +317,17 @@ class BindableConditionEvaluation(BindableEvent):
             return False
         
         # Проверяем, что узел является условием
-        if not act.cfg_node.is_condition():
-            return False
+        return act.cfg_node.is_condition()
+    
+    def matches_ast_details(self, act: "TraceAct") -> bool:
+        """Проверяет соответствие ast_id.
         
+        Args:
+            act: Акт трассы для проверки
+            
+        Returns:
+            True если ast_id соответствует
+        """
         # Проверяем соответствие ast_id
         act_ast_id = self._get_ast_id_from_act(act)
         if act_ast_id is None:

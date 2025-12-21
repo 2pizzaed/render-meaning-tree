@@ -82,13 +82,26 @@ def enrich_trace_with_runtime(
                 f"(node_kind={act.cfg_node.kind.value if act.cfg_node else None})"
             )
         
-        # Валидируем соответствие события акту
-        try:
-            bindable_event.validate_match(act)
-        except ValueError as e:
+        # Строгая валидация: проверяем тип события (BEGIN/END/ATOM)
+        if not bindable_event.matches_node_kind(act):
             raise ValueError(
-                f"Event mismatch at act position {trace_acts.index(act)}: {e}"
-            ) from e
+                f"Event type mismatch at act position {trace_acts.index(act)}: "
+                f"expected {required_event_type.__name__} for node_kind={act.cfg_node.kind.value if act.cfg_node else None}, "
+                f"but got {bindable_event.event.describe()}"
+            )
+        
+        # Мягкая валидация: проверяем соответствие AST деталей (имя функции, ast_id)
+        # Если не соответствует, выводим warning, но продолжаем работу
+        if not bindable_event.matches_ast_details(act):
+            import warnings
+            act_pos = trace_acts.index(act)
+            warnings.warn(
+                f"AST details mismatch at act position {act_pos}: "
+                f"Event {bindable_event.event.describe()} does not match AST details of act "
+                f"(node_kind={act.cfg_node.kind.value if act.cfg_node else None}). "
+                f"Continuing with binding anyway.",
+                stacklevel=2
+            )
         
         # Привязываем событие к акту
         _bind_event_to_act(bindable_event, act)

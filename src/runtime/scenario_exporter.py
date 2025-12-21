@@ -175,7 +175,8 @@ def export_scenario_from_trace(
     
     # Сортируем события по order для правильного порядка в JSON
     # (на случай, если они не были отсортированы ранее)
-    sorted_events = sorted(trace.events, key=lambda e: e.order)
+    # Обрабатываем случай, когда order может быть None
+    sorted_events = sorted(trace.events, key=lambda e: e.order if e.order is not None else 0)
     
     # Собираем все события в порядке выполнения
     for event in sorted_events:

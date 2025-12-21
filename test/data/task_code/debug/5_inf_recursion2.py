@@ -1,9 +1,9 @@
 def recurse_f(x):
     print('in')
-    if rand() > 0.5:
+    if x > 1 and x % 3 > 0:
         recurse_f(x - 1)
-    if rand() < 0.5:
-        recurse_f(x + 2)
+    if x > 1 and x % 3 < 2:
+        recurse_f(x - 2)
     print('out')
 
 value = 5

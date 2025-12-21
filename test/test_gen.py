@@ -292,6 +292,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             print(f"  AST JSON: {ast_json_path}")
             for exported_file in exported_files:
                 print(f"  {exported_file.name}: {exported_file}")
-            print(f"  PNG (edges): {png_path}")
-            print(f"  PNG (paths): {png_pathinfo_path}")
-            # print(f"  PNG (indirect paths): {png_indirect_paths_path}")
+            if SAVE_DEBUG_GRAPHS_PHG:
+                print(f"  PNG (edges): {png_path}")
+                print(f"  PNG (paths): {png_pathinfo_path}")
+                # print(f"  PNG (indirect paths): {png_indirect_paths_path}")

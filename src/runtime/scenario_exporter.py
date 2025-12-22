@@ -74,7 +74,6 @@ def _find_ast_id_for_event(
     # Определяем тип узла и номер строки для поиска
     if event_type == "function_call":
         node_type = "function_call"
-        # Сначала пробуем call_line, если его нет или он None, используем line_number
         search_line = event.call_line if hasattr(event, 'call_line') and event.call_line else event.line_number
     elif event_type == "function_return":
         node_type = "return_statement"
@@ -94,57 +93,10 @@ def _find_ast_id_for_event(
             if node_line == search_line:
                 candidates.append((ast_id, node))
     
-    # Если на строке несколько узлов, используем сопоставление по имени функции
+    # Если на строке несколько узлов, используем первый найденный
+    # В будущем можно улучшить логику сопоставления (например, по имени функции)
     if candidates:
-        if event_type == "function_call" and hasattr(event, 'function_name'):
-            # Ищем узел с соответствующим именем функции
-            for ast_id, node in candidates:
-                func_node = node.get('function', {})
-                if isinstance(func_node, dict):
-                    func_name = func_node.get('name')
-                    if func_name == event.function_name:
-                        return ast_id
-            # Если не нашли по имени, возвращаем первый
-            return candidates[0][0]
-        else:
-            # Для возвратов или если имя функции неизвестно, используем первый найденный
-            return candidates[0][0]
-    
-    # Если не нашли по call_line, для function_call пробуем искать по line_number функции
-    # или по всем строкам, если call_line был None или неправильным
-    if event_type == "function_call":
-        # Если call_line был None или мы его уже проверили, пробуем искать по всем строкам
-        # в диапазоне вокруг line_number функции
-        if not candidates or (hasattr(event, 'call_line') and event.call_line and event.call_line != search_line):
-            # Пробуем найти по line_number функции (где определена функция)
-            # или ищем все function_call узлы и выбираем первый подходящий
-            if hasattr(event, 'call_line') and event.call_line:
-                # Если call_line был установлен, но не найден, пробуем искать по всем строкам
-                # в небольшом диапазоне вокруг call_line
-                for offset in range(-2, 3):  # Проверяем ±2 строки вокруг call_line
-                    test_line = event.call_line + offset
-                    if test_line <= 0:
-                        continue
-                    candidates = []
-                    for ast_id, node in ast_analyzer.nodes_cache.items():
-                        node_type_found = node.get('type', '')
-                        if node_type_found == node_type:
-                            node_line = ast_analyzer.get_code_line_number_by_id(ast_id)
-                            if node_line == test_line:
-                                candidates.append((ast_id, node))
-                    if candidates:
-                        return candidates[0][0]
-            
-            # Если все еще не нашли, пробуем найти любой function_call узел
-            # (для случаев, когда call_line неправильный или None)
-            all_calls = []
-            for ast_id, node in ast_analyzer.nodes_cache.items():
-                node_type_found = node.get('type', '')
-                if node_type_found == node_type:
-                    all_calls.append((ast_id, node))
-            if all_calls:
-                # Возвращаем первый найденный (можно улучшить логику сопоставления)
-                return all_calls[0][0]
+        return candidates[0][0]
     
     return None
 
@@ -173,13 +125,8 @@ def export_scenario_from_trace(
     events = []
     conditions = []  # Для обратной совместимости
     
-    # Сортируем события по order для правильного порядка в JSON
-    # (на случай, если они не были отсортированы ранее)
-    # Обрабатываем случай, когда order может быть None
-    sorted_events = sorted(trace.events, key=lambda e: e.order if e.order is not None else 0)
-    
     # Собираем все события в порядке выполнения
-    for event in sorted_events:
+    for event in trace.events:
         event_data: dict[str, Any] = {
             "order": event.order,
             "line_number": event.line_number,

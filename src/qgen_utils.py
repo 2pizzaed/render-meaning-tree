@@ -508,9 +508,41 @@ def build_questions(
                         f"Failed to enrich trace from scenario '{scenario_plan.get('scenario_name', 'default')}': {e}",
                         stacklevel=2
                     )
+    
     if not loqi_texts or not cfg:
         print("No valid loqi output", file=sys.stderr)
         return None
+    
+    # Если трассы были обогащены runtime-данными, пере-генерируем LOQI из обогащённых трасс
+    # Это необходимо, чтобы runtime-информация (condition_value, RuntimeInfo) попала в LOQI
+    if scenario_plans and len(scenario_plans) == len(trace_acts_list):
+        # Получаем пути между узлами (одинаковые для всех сценариев)
+        paths = determine_all_paths_between_opaque_nodes(cfg)
+        
+        # Пере-генерируем LOQI для каждого обогащённого trace_acts
+        loqi_texts_enriched = []
+        for trace_acts in trace_acts_list:
+            exporter = LoqiExporter()
+            exporter.add_object(
+                situation := SituationState(
+                    interruption_state=InterruptionType.NO_INTERRUPTION,
+                )
+            )
+            exporter.set_var("STATE", situation)
+            
+            # Используем обогащённую трассу
+            exporter.add_trace(trace_acts)
+            
+            # Добавляем пути между узлами
+            if paths:
+                exporter.add_paths(paths)
+            
+            # Экспортируем LOQI
+            loqi_text = exporter.export_cfg(cfg, None)
+            loqi_texts_enriched.append(loqi_text)
+        
+        # Используем обогащённые LOQI вместо исходных
+        loqi_texts = loqi_texts_enriched
 
     tags = 0
     match language:

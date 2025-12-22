@@ -5,7 +5,7 @@
       "order": 1,
       "line_number": 1,
       "type": "function_call",
-      "ast_id": null,
+      "ast_id": 18,
       "function_name": "fib",
       "args": {
         "n": 5
@@ -14,6 +14,15 @@
     },
     {
       "order": 2,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
       "line_number": 1,
       "type": "function_call",
       "ast_id": 18,
@@ -24,7 +33,16 @@
       "call_line": 4
     },
     {
-      "order": 3,
+      "order": 4,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "order": 5,
       "line_number": 1,
       "type": "function_call",
       "ast_id": 18,
@@ -35,7 +53,16 @@
       "call_line": 4
     },
     {
-      "order": 4,
+      "order": 6,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "false",
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "order": 7,
       "line_number": 1,
       "type": "function_call",
       "ast_id": 18,
@@ -46,7 +73,16 @@
       "call_line": 4
     },
     {
-      "order": 5,
+      "order": 8,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "true",
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "order": 9,
       "line_number": 3,
       "type": "function_return",
       "ast_id": 10,
@@ -54,7 +90,7 @@
       "return_value": 1
     },
     {
-      "order": 6,
+      "order": 10,
       "line_number": 1,
       "type": "function_call",
       "ast_id": 18,
@@ -65,7 +101,16 @@
       "call_line": 4
     },
     {
-      "order": 7,
+      "order": 11,
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "true",
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "order": 12,
       "line_number": 3,
       "type": "function_return",
       "ast_id": 10,
@@ -73,7 +118,7 @@
       "return_value": 1
     },
     {
-      "order": 8,
+      "order": 13,
       "line_number": 4,
       "type": "function_return",
       "ast_id": 25,
@@ -81,72 +126,24 @@
       "return_value": 2
     },
     {
-      "order": 9,
-      "line_number": 1,
-      "type": "function_call",
-      "ast_id": 18,
-      "function_name": "fib",
-      "args": {
-        "n": 2
-      },
-      "call_line": 4
-    },
-    {
-      "order": 10,
-      "line_number": 3,
-      "type": "function_return",
-      "ast_id": 10,
-      "function_name": "fib",
-      "return_value": 1
-    },
-    {
-      "order": 11,
-      "line_number": 4,
-      "type": "function_return",
-      "ast_id": 25,
-      "function_name": "fib",
-      "return_value": 3
-    },
-    {
-      "order": 12,
-      "line_number": 1,
-      "type": "function_call",
-      "ast_id": 18,
-      "function_name": "fib",
-      "args": {
-        "n": 3
-      },
-      "call_line": 4
-    },
-    {
-      "order": 13,
-      "line_number": 1,
-      "type": "function_call",
-      "ast_id": 18,
-      "function_name": "fib",
-      "args": {
-        "n": 2
-      },
-      "call_line": 4
-    },
-    {
       "order": 14,
-      "line_number": 3,
-      "type": "function_return",
-      "ast_id": 10,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 18,
       "function_name": "fib",
-      "return_value": 1
+      "args": {
+        "n": 2
+      },
+      "call_line": 4
     },
     {
       "order": 15,
-      "line_number": 1,
-      "type": "function_call",
-      "ast_id": 18,
-      "function_name": "fib",
-      "args": {
-        "n": 1
-      },
-      "call_line": 4
+      "line_number": 2,
+      "type": "condition",
+      "ast_id": 8,
+      "value": "true",
+      "expression_text": "n <= 2",
+      "condition_type": "if"
     },
     {
       "order": 16,
@@ -162,51 +159,66 @@
       "type": "function_return",
       "ast_id": 25,
       "function_name": "fib",
-      "return_value": 2
+      "return_value": 3
     },
     {
       "order": 18,
-      "line_number": 4,
-      "type": "function_return",
-      "ast_id": 25,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 18,
       "function_name": "fib",
-      "return_value": 5
+      "args": {
+        "n": 3
+      },
+      "call_line": 4
     },
     {
-      "order": 20,
+      "order": 19,
       "line_number": 2,
       "type": "condition",
       "ast_id": 8,
       "value": "false",
       "expression_text": "n <= 2",
       "condition_type": "if"
+    },
+    {
+      "order": 20,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 18,
+      "function_name": "fib",
+      "args": {
+        "n": 2
+      },
+      "call_line": 4
     },
     {
       "order": 21,
       "line_number": 2,
       "type": "condition",
       "ast_id": 8,
-      "value": "false",
+      "value": "true",
       "expression_text": "n <= 2",
       "condition_type": "if"
     },
     {
       "order": 22,
-      "line_number": 2,
-      "type": "condition",
-      "ast_id": 8,
-      "value": "false",
-      "expression_text": "n <= 2",
-      "condition_type": "if"
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": 10,
+      "function_name": "fib",
+      "return_value": 1
     },
     {
       "order": 23,
-      "line_number": 2,
-      "type": "condition",
-      "ast_id": 8,
-      "value": "true",
-      "expression_text": "n <= 2",
-      "condition_type": "if"
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 18,
+      "function_name": "fib",
+      "args": {
+        "n": 1
+      },
+      "call_line": 4
     },
     {
       "order": 24,
@@ -219,39 +231,27 @@
     },
     {
       "order": 25,
-      "line_number": 2,
-      "type": "condition",
-      "ast_id": 8,
-      "value": "true",
-      "expression_text": "n <= 2",
-      "condition_type": "if"
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": 10,
+      "function_name": "fib",
+      "return_value": 1
     },
     {
       "order": 26,
-      "line_number": 2,
-      "type": "condition",
-      "ast_id": 8,
-      "value": "false",
-      "expression_text": "n <= 2",
-      "condition_type": "if"
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 25,
+      "function_name": "fib",
+      "return_value": 2
     },
     {
       "order": 27,
-      "line_number": 2,
-      "type": "condition",
-      "ast_id": 8,
-      "value": "true",
-      "expression_text": "n <= 2",
-      "condition_type": "if"
-    },
-    {
-      "order": 28,
-      "line_number": 2,
-      "type": "condition",
-      "ast_id": 8,
-      "value": "true",
-      "expression_text": "n <= 2",
-      "condition_type": "if"
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 25,
+      "function_name": "fib",
+      "return_value": 5
     }
   ],
   "conditions": [
@@ -259,7 +259,7 @@
       "ast_id": 8,
       "condition_value": "false",
       "line_number": 2,
-      "order": 20,
+      "order": 2,
       "expression_text": "n <= 2",
       "condition_type": "if"
     },
@@ -267,7 +267,7 @@
       "ast_id": 8,
       "condition_value": "false",
       "line_number": 2,
-      "order": 21,
+      "order": 4,
       "expression_text": "n <= 2",
       "condition_type": "if"
     },
@@ -275,7 +275,7 @@
       "ast_id": 8,
       "condition_value": "false",
       "line_number": 2,
-      "order": 22,
+      "order": 6,
       "expression_text": "n <= 2",
       "condition_type": "if"
     },
@@ -283,7 +283,39 @@
       "ast_id": 8,
       "condition_value": "true",
       "line_number": 2,
-      "order": 23,
+      "order": 8,
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "line_number": 2,
+      "order": 11,
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "line_number": 2,
+      "order": 15,
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "false",
+      "line_number": 2,
+      "order": 19,
+      "expression_text": "n <= 2",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 8,
+      "condition_value": "true",
+      "line_number": 2,
+      "order": 21,
       "expression_text": "n <= 2",
       "condition_type": "if"
     },
@@ -292,38 +324,6 @@
       "condition_value": "true",
       "line_number": 2,
       "order": 24,
-      "expression_text": "n <= 2",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "true",
-      "line_number": 2,
-      "order": 25,
-      "expression_text": "n <= 2",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "false",
-      "line_number": 2,
-      "order": 26,
-      "expression_text": "n <= 2",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "true",
-      "line_number": 2,
-      "order": 27,
-      "expression_text": "n <= 2",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 8,
-      "condition_value": "true",
-      "line_number": 2,
-      "order": 28,
       "expression_text": "n <= 2",
       "condition_type": "if"
     }

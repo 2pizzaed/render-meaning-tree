@@ -340,15 +340,11 @@ def extract_runtime_data_from_scenario(
         # Преобразуем старый формат в новый
         events = []
         for cond in conditions_old:
-            # В старом формате может быть position_in_trace вместо order
-            order = cond.get("order")
-            if order is None:
-                order = cond.get("position_in_trace")
             events.append({
                 "type": "condition",
                 "ast_id": cond.get("ast_id"),
                 "value": cond.get("condition_value"),
-                "order": order,  # Может быть None, обработается в enrich_trace_from_scenario
+                "order": cond.get("order"),
                 "line_number": cond.get("line_number"),
                 "expression_text": cond.get("expression_text"),
                 "condition_type": cond.get("condition_type"),

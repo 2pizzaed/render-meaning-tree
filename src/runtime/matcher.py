@@ -380,9 +380,7 @@ def enrich_trace_from_scenario(
             condition_type=cond_data.get("condition_type", ""),
             expression_text=cond_data.get("expression_text", ""),
         )
-        # Обрабатываем случай, когда order может быть None (явно указан null в JSON)
-        order = cond_data.get("order")
-        event.order = order if order is not None else 0
+        event.order = cond_data.get("order", 0)
         events.append(event)
     
     # Преобразуем function_calls
@@ -404,9 +402,7 @@ def enrich_trace_from_scenario(
             local_vars=args_dict,
             call_line=call_data.get("call_line"),
         )
-        # Обрабатываем случай, когда order может быть None (явно указан null в JSON)
-        order = call_data.get("order")
-        event.order = order if order is not None else 0
+        event.order = call_data.get("order", 0)
         events.append(event)
     
     # Преобразуем function_returns
@@ -420,13 +416,11 @@ def enrich_trace_from_scenario(
             function_name=ret_data.get("function_name", ""),
             return_value=return_value,
         )
-        # Обрабатываем случай, когда order может быть None (явно указан null в JSON)
-        order = ret_data.get("order")
-        event.order = order if order is not None else 0
+        event.order = ret_data.get("order", 0)
         events.append(event)
     
-    # Сортируем события по order, обрабатывая случай когда order может быть None
-    events.sort(key=lambda e: e.order if e.order is not None else 0)
+    # Сортируем события по order
+    events.sort(key=lambda e: e.order)
     
     # Создаём виртуальный RuntimeTrace для использования существующей логики
     from src.runtime.models import RuntimeTrace

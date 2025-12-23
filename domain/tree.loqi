@@ -19,7 +19,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 
             var P_l0_a : PathInfo = find PathInfo p { $p->from_ == L0->hasCFGNode and $p->to_ == A->hasCFGNode } out true else {
             	conclude : error [
-                    skill = "DEBUG: too far within interruption.";
+                    skill = "[1]";
                 ];
             };
 
@@ -88,7 +88,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             out true else {
         		// условие E не найдено.
         		conclude : error [
-        	        skill="DEBUG: no_condition_evaluation_found_in_path";
+        	        skill="[2]";
         	        RU.explanation="Прежде чем ${A} сможет выполниться, должны выполниться предшествующие действия.";
         	    ];
 
@@ -105,7 +105,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         var M : Node = find Node m { P2=>hasFirstMiddleAction($m) } out true else {
        	    // May be useful ??
             conclude : correct [
-                skill="DEBUG: many_actions_in_require_selection";
+                skill="[3]";
                 RU_explanation="Нет мешающих действий на пути от ${L0} к ${A}";
             ];
         };
@@ -121,10 +121,14 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
 	agg mutex { // << TODO: заменить mutex на AND (раньше мы проверяли отдельные переходы -- для них mutex был ОК, а теперь все ограничения агрегированы в один маршрут и проверяются параллельно, не взаимоисключающе)
         interruptionCatch -> {
             ask (P->hasConstraints.interruption_mode != InterruptionType:any) out true else {
-                conclude : null;
+                conclude : null [
+                    skill = "[4]";
+                ];
             };
             ask (STATE.interruption_state == P->hasConstraints.interruption_mode) out false else {
-                conclude: null;
+                conclude: null [
+                    skill = "[5]";
+                ];
             };
             // TODO: может поменять на or??
             cycle and (forAll Edge ET [P->from_=>hasEdges($ET)] {$ET->hasConstraints.interruption_mode == InterruptionType:any or $ET->hasConstraints.interruption_mode == STATE.interruption_state}) with Edge et {
@@ -144,7 +148,9 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 	    and forAny Constraint c {$e=>hasConstraints($c)}  // (у перехода есть ограничения)
                 	    and L0.condition_value == $e->hasConstraints.condition_value} out true else {
                 		// (Не найден такой переход!!! Скорее всего, проблема в CFG.)
-                	    conclude : null;
+                	    conclude : null [
+                            skill = "[6]";
+                        ];
                 	};
 
                 	conclude : error [
@@ -159,14 +165,18 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
         	// Наложены ли на маршрут ограничения на значение условия?
             ask (forAny Constraint c {P=>hasConstraints($c)} and P->hasConstraints.condition_value != OptionalBoolValue:no_value) out true else {
             	// НЕТ: дальше проверять нет смысла.
-                conclude : null;
+                conclude : null [
+                    skill = "[7]";
+                ];
             };
 			// Совпадает ли значение текущего условия с ожидаемым условием для маршрута P ?
             ask (L0.condition_value == P->hasConstraints.condition_value)
             out false else {
             	// ДА: ошибки нет.
             	// TODO: Добавить скилл condition_value_allows_transition (здесь он применён правильно)
-                conclude : null;
+                conclude : null [
+                    skill = "[8]";
+                ];
             };
             // Найти альтернативный переход ET (Expected Transition), выходящий из L0, и требующий текущее значение условия в L0
             var ET : Edge = find Edge e {$e->hasSource == P->from_ 
@@ -174,7 +184,9 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
                 and forAny Constraint c {$e=>hasConstraints($c)}  // (у перехода есть ограничения)
                 and L0.condition_value == $e->hasConstraints.condition_value} out true else {
             	// (Не найден такой переход!!! Скорее всего, проблема в CFG.)
-                conclude : null;
+                conclude : null [
+                    skill = "[9]";
+                ];
             };
             conclude : error [
                 skill="condition_value_allows_transition";
@@ -187,7 +199,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             ask (A->hasASTNode.ast_node == "function_call" and A->hasCFGNode.kind == NodeKind:END) out true else {
             	// НЕТ: Дальше не проверяем.
                 conclude : null [
-                	skill = "DEBUG: not-a-call.";
+                	skill = "[10]";
                 ];
             };
             // Является ли А завершением именно самого близкого по трассе к L0 вызова этой же функции ( который при этом не имел на завершения?)
@@ -210,7 +222,7 @@ tree CtrlFlow(L0: TraceAct, A: TraceAct, STATE: State) {
             	// ДА: Вернулись в нужный вызов.
             	// TODO: Добавить скилл is_function_call_jumping_correct как корректно применённый.
                 conclude : null [
-                	skill = "DEBUG: RETURN OK";
+                	skill = "[11]";
                 ];
             };
             conclude : error [

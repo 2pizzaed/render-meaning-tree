@@ -31,7 +31,7 @@ from src.runtime import (
     build_line_to_ast_id_for_conditions,
 )
 
-INJECT_RUNTIME_VALUES = False
+INJECT_RUNTIME_VALUES = True
 
 SAVE_DEBUG_GRAPHS_PHG = False
 
@@ -40,8 +40,8 @@ class TestComplexProblemBuild(unittest.TestCase):
         current_dir = Path(__file__).parent
 
         # Путь к папке с входными данными и выходной папке
-        task_data_path = current_dir / "data" / "task_code"
-        genout_path = current_dir / "output" / "code_snippets"
+        task_data_path = current_dir / "data" / "task_code" #  / "debug"
+        genout_path = current_dir / "output" / "code_snippets" #  / "debug"
         genout_path.mkdir(parents=True, exist_ok=True)
 
         # Загружаем конструкции
@@ -56,13 +56,14 @@ class TestComplexProblemBuild(unittest.TestCase):
             idgen.reset()
             ###
             if file.stem not in (
-                file.stem,  # NO FILTERING
+                # file.stem,  # NO FILTERING
                 # '1_onefunc_while',
                 # '3_recursion',
                 # '5_inf_recursion',
                 # '5_inf_recursion2',
-                '8_factorial',
-                # '9_expr_class',
+                # '8_factorial',
+                # '7_fib',
+                '9_expr_class',
                 # '11_fill',
                 # '12_dirscan',
             ):

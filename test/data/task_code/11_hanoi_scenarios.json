@@ -1,125 +1,592 @@
 {
   "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": 53,
+      "function_name": "hanoi",
+      "args": {
+        "n": 3,
+        "src": "A",
+        "dst": "C",
+        "tmp": "B"
+      },
+      "call_line": 7
+    },
+    {
+      "order": 2,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 2,
+        "src": "A",
+        "dst": "B",
+        "tmp": "C"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 3,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 1,
+        "src": "A",
+        "dst": "C",
+        "tmp": "B"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 4,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "A",
+        "dst": "B",
+        "tmp": "C"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 5,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 7,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "B",
+        "dst": "C",
+        "tmp": "A"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 8,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 9,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 11,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 1,
+        "src": "C",
+        "dst": "B",
+        "tmp": "A"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 12,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "C",
+        "dst": "A",
+        "tmp": "B"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 13,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 15,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "A",
+        "dst": "B",
+        "tmp": "C"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 16,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 17,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 18,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 20,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 2,
+        "src": "B",
+        "dst": "C",
+        "tmp": "A"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 21,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 1,
+        "src": "B",
+        "dst": "A",
+        "tmp": "C"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 22,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "B",
+        "dst": "C",
+        "tmp": "A"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 23,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 25,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "C",
+        "dst": "A",
+        "tmp": "B"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 26,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 27,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 29,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 1,
+        "src": "A",
+        "dst": "C",
+        "tmp": "B"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 30,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "A",
+        "dst": "B",
+        "tmp": "C"
+      },
+      "call_line": 4
+    },
+    {
+      "order": 31,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 33,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "args": {
+        "n": 0,
+        "src": "B",
+        "dst": "C",
+        "tmp": "A"
+      },
+      "call_line": 6
+    },
+    {
+      "order": 34,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 35,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 36,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 37,
+      "line_number": 6,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "hanoi",
+      "return_value": null
+    },
+    {
+      "order": 38,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 39,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 40,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 41,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 42,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 43,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 44,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 45,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 46,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 47,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 48,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 49,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 50,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 51,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 52,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "true",
+      "expression_text": "n == 0",
+      "condition_type": "if"
+    }
+  ],
   "conditions": [
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 38,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 38
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 39,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 39
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 40,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 40
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 41,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 41
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 42,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 42
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 43,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 43
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 44,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 44
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 45,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 45
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 46,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 46
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 47,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 47
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 48,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 48
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 49,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 49
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "false",
       "line_number": 3,
+      "order": 50,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 50
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 51,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 51
+      "condition_type": "if"
     },
     {
       "ast_id": 18,
       "condition_value": "true",
       "line_number": 3,
+      "order": 52,
       "expression_text": "n == 0",
-      "condition_type": "if",
-      "order": 52
+      "condition_type": "if"
     }
   ]
 }

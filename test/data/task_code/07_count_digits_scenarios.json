@@ -1,45 +1,187 @@
 {
   "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "count_digits",
+      "args": {
+        "n": 98765
+      },
+      "call_line": 6
+    },
+    {
+      "order": 2,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "count_digits",
+      "args": {
+        "n": 9876
+      },
+      "call_line": 4
+    },
+    {
+      "order": 3,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "count_digits",
+      "args": {
+        "n": 987
+      },
+      "call_line": 4
+    },
+    {
+      "order": 4,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "count_digits",
+      "args": {
+        "n": 98
+      },
+      "call_line": 4
+    },
+    {
+      "order": 5,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "count_digits",
+      "args": {
+        "n": 9
+      },
+      "call_line": 4
+    },
+    {
+      "order": 6,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "count_digits",
+      "return_value": 1
+    },
+    {
+      "order": 7,
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 11,
+      "function_name": "count_digits",
+      "return_value": 2
+    },
+    {
+      "order": 8,
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 11,
+      "function_name": "count_digits",
+      "return_value": 3
+    },
+    {
+      "order": 9,
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 11,
+      "function_name": "count_digits",
+      "return_value": 4
+    },
+    {
+      "order": 10,
+      "line_number": 4,
+      "type": "function_return",
+      "ast_id": 11,
+      "function_name": "count_digits",
+      "return_value": 5
+    },
+    {
+      "order": 12,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 9,
+      "value": "false",
+      "expression_text": "n < 10",
+      "condition_type": "if"
+    },
+    {
+      "order": 13,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 9,
+      "value": "false",
+      "expression_text": "n < 10",
+      "condition_type": "if"
+    },
+    {
+      "order": 14,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 9,
+      "value": "false",
+      "expression_text": "n < 10",
+      "condition_type": "if"
+    },
+    {
+      "order": 15,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 9,
+      "value": "false",
+      "expression_text": "n < 10",
+      "condition_type": "if"
+    },
+    {
+      "order": 16,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 9,
+      "value": "true",
+      "expression_text": "n < 10",
+      "condition_type": "if"
+    }
+  ],
   "conditions": [
     {
       "ast_id": 9,
       "condition_value": "false",
       "line_number": 3,
+      "order": 12,
       "expression_text": "n < 10",
-      "condition_type": "if",
-      "order": 12
+      "condition_type": "if"
     },
     {
       "ast_id": 9,
       "condition_value": "false",
       "line_number": 3,
+      "order": 13,
       "expression_text": "n < 10",
-      "condition_type": "if",
-      "order": 13
+      "condition_type": "if"
     },
     {
       "ast_id": 9,
       "condition_value": "false",
       "line_number": 3,
+      "order": 14,
       "expression_text": "n < 10",
-      "condition_type": "if",
-      "order": 14
+      "condition_type": "if"
     },
     {
       "ast_id": 9,
       "condition_value": "false",
       "line_number": 3,
+      "order": 15,
       "expression_text": "n < 10",
-      "condition_type": "if",
-      "order": 15
+      "condition_type": "if"
     },
     {
       "ast_id": 9,
       "condition_value": "true",
       "line_number": 3,
+      "order": 16,
       "expression_text": "n < 10",
-      "condition_type": "if",
-      "order": 16
+      "condition_type": "if"
     }
   ]
 }

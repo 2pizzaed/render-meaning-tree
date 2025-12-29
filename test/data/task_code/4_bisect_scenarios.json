@@ -1,37 +1,115 @@
 {
   "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 3,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "guess_number",
+      "args": {
+        "low": 0,
+        "high": 30
+      },
+      "call_line": 13
+    },
+    {
+      "order": 2,
+      "line_number": 3,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "guess_number",
+      "args": {
+        "low": 0,
+        "high": 14
+      },
+      "call_line": 12
+    },
+    {
+      "order": 3,
+      "line_number": 7,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "guess_number",
+      "return_value": 7
+    },
+    {
+      "order": 4,
+      "line_number": 12,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "guess_number",
+      "return_value": 7
+    },
+    {
+      "order": 5,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 49,
+      "value": "false",
+      "expression_text": "sign == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 6,
+      "line_number": 8,
+      "type": "condition",
+      "ast_id": 57,
+      "value": "false",
+      "expression_text": "sign > 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 7,
+      "line_number": 10,
+      "type": "condition",
+      "ast_id": 78,
+      "value": "true",
+      "expression_text": "sign < 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 8,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 49,
+      "value": "true",
+      "expression_text": "sign == 0",
+      "condition_type": "if"
+    }
+  ],
   "conditions": [
     {
       "ast_id": 49,
       "condition_value": "false",
       "line_number": 6,
+      "order": 5,
       "expression_text": "sign == 0",
-      "condition_type": "if",
-      "order": 5
+      "condition_type": "if"
     },
     {
       "ast_id": 57,
       "condition_value": "false",
       "line_number": 8,
+      "order": 6,
       "expression_text": "sign > 0",
-      "condition_type": "if",
-      "order": 6
+      "condition_type": "if"
     },
     {
       "ast_id": 78,
       "condition_value": "true",
       "line_number": 10,
+      "order": 7,
       "expression_text": "sign < 0",
-      "condition_type": "if",
-      "order": 7
+      "condition_type": "if"
     },
     {
       "ast_id": 49,
       "condition_value": "true",
       "line_number": 6,
+      "order": 8,
       "expression_text": "sign == 0",
-      "condition_type": "if",
-      "order": 8
+      "condition_type": "if"
     }
   ]
 }

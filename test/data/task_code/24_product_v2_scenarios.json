@@ -1,37 +1,160 @@
 {
   "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "product",
+      "args": {
+        "lst": [
+          1,
+          2,
+          3
+        ]
+      },
+      "call_line": 7
+    },
+    {
+      "order": 2,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "product",
+      "args": {
+        "lst": [
+          2,
+          3
+        ]
+      },
+      "call_line": 4
+    },
+    {
+      "order": 3,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "product",
+      "args": {
+        "lst": [
+          3
+        ]
+      },
+      "call_line": 4
+    },
+    {
+      "order": 4,
+      "line_number": 1,
+      "type": "function_call",
+      "ast_id": null,
+      "function_name": "product",
+      "args": {
+        "lst": []
+      },
+      "call_line": 4
+    },
+    {
+      "order": 5,
+      "line_number": 3,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "product",
+      "return_value": 1
+    },
+    {
+      "order": 6,
+      "line_number": 5,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "product",
+      "return_value": 3
+    },
+    {
+      "order": 7,
+      "line_number": 5,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "product",
+      "return_value": 6
+    },
+    {
+      "order": 8,
+      "line_number": 5,
+      "type": "function_return",
+      "ast_id": null,
+      "function_name": "product",
+      "return_value": 6
+    },
+    {
+      "order": 10,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 11,
+      "value": "false",
+      "expression_text": "len(lst) == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 11,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 11,
+      "value": "false",
+      "expression_text": "len(lst) == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 12,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 11,
+      "value": "false",
+      "expression_text": "len(lst) == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 13,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 11,
+      "value": "true",
+      "expression_text": "len(lst) == 0",
+      "condition_type": "if"
+    }
+  ],
   "conditions": [
     {
       "ast_id": 11,
       "condition_value": "false",
       "line_number": 3,
+      "order": 10,
       "expression_text": "len(lst) == 0",
-      "condition_type": "if",
-      "order": 10
+      "condition_type": "if"
     },
     {
       "ast_id": 11,
       "condition_value": "false",
       "line_number": 3,
+      "order": 11,
       "expression_text": "len(lst) == 0",
-      "condition_type": "if",
-      "order": 11
+      "condition_type": "if"
     },
     {
       "ast_id": 11,
       "condition_value": "false",
       "line_number": 3,
+      "order": 12,
       "expression_text": "len(lst) == 0",
-      "condition_type": "if",
-      "order": 12
+      "condition_type": "if"
     },
     {
       "ast_id": 11,
       "condition_value": "true",
       "line_number": 3,
+      "order": 13,
       "expression_text": "len(lst) == 0",
-      "condition_type": "if",
-      "order": 13
+      "condition_type": "if"
     }
   ]
 }

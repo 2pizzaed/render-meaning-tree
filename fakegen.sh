@@ -1,7 +1,9 @@
 output_dir="test/output/questions"
+#output_dir="test/output/questions/debug"
 mkdir -p "$output_dir"
 
 for f in test/data/task_code/*.py; do
+#for f in test/data/task_code/debug/*.py; do
     base=$(basename "$f" .py)
     echo
     echo "----------------------------------------"

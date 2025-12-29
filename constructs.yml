@@ -442,6 +442,10 @@ func_call_structure:
       # identification: func def lookup (see Python code)
       effects:
         - interruption_stop: return
+    - role: END
+      kind: END
+      effects:
+        - interruption_stop: return
   transitions:
     - from_: BEGIN
       to: func

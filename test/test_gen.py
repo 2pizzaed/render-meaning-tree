@@ -263,14 +263,14 @@ class TestComplexProblemBuild(unittest.TestCase):
                 # Визуализируем CFG в PNG (режим с рёбрами)
                 png_path = (genout_path / f"{file.stem}-edge.png").absolute()
                 dot_path = (genout_path / f"{file.stem}-edge.dot").absolute()
-                cfg_edges_graph = visualize_cfg_graphviz(cfg, rankdir="LR")
+                cfg_edges_graph = visualize_cfg_graphviz(cfg)
                 write_dot(cfg_edges_graph, dot_path)
                 write_dot(cfg_edges_graph, png_path)
 
                 # Визуализируем CFG в PNG (режим с путями)
                 png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
-                dot_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
-                cfg_paths_graph = visualize_cfg_graphviz(cfg, rankdir="LR", paths_instead_of_edges=True)
+                dot_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.dot").absolute()
+                cfg_paths_graph = visualize_cfg_graphviz(cfg, paths_instead_of_edges=True)
                 write_dot(cfg_paths_graph, png_pathinfo_path)
                 write_dot(cfg_paths_graph, dot_pathinfo_path)
 

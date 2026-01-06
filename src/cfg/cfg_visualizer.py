@@ -9,26 +9,26 @@
 
 import sys
 from typing import TYPE_CHECKING
+from warnings import deprecated
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from warnings import deprecated
 
-from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
 from src.cfg.abstractions import OptionalBoolValue
+from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
 
 if TYPE_CHECKING:
     from src.cfg.reachability import PathInfo
 
+ADDITIONAL_DEBUG_INFO = False
 
 def _create_node_label(node: Node) -> str:
     """Создает компактную метку для узла.
-    
     Формат: kind\n[AST:id]\n[role]
     """
     parts = []
 
-    parts.append(node.id)
+    parts.append(f"{node.kind} (id: {node.id.split("_")[1]})")
 
     # # Kind узла
     # if node.kind:
@@ -39,17 +39,18 @@ def _create_node_label(node: Node) -> str:
         node.metadata.wrapped_ast and
         node.metadata.wrapped_ast.ast_node and
         isinstance(node.metadata.wrapped_ast.ast_node, dict)):
-        ast_id = node.metadata.wrapped_ast.ast_node.get('id')
-        if ast_id is not None:
-            parts.append(f"AST:{ast_id}")
 
         if node.is_mandatory():
             # parts.append(f"|> " + node.metadata.abstract_action.kind.__str__())
-            parts.append(f"▶ " + node.metadata.wrapped_ast.ast_node["type"])
+            parts.append("▶ " + node.metadata.wrapped_ast.ast_node["type"])
+
+        ast_id = node.metadata.wrapped_ast.ast_node.get('id')
+        if ast_id is not None:
+            parts.append(f"AST id:{ast_id}")
 
     # Role если отличается от kind
     if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:
-        parts.append(f"role:{node.role_in_construct}")
+        parts.append(f"role: {node.role_in_construct.lstrip(".")}")
 
     return '\n'.join(parts) if parts else node.id
 
@@ -68,22 +69,16 @@ def _create_edge_label(edge: Edge) -> str:
     # Condition value (true/false)
     if hasattr(edge.constraints, 'condition_value') and edge.constraints.condition_value is not None:
         if edge.constraints.condition_value == OptionalBoolValue.true:
-            labels.append("T")
+            labels.append("true")
         elif edge.constraints.condition_value == OptionalBoolValue.false:
-            labels.append("F")
+            labels.append("false")
 
     # Interruption mode
     if hasattr(edge.constraints, 'interruption_mode') and edge.constraints.interruption_mode:
         mode = edge.constraints.interruption_mode
-        if mode == "exception":
-            labels.append("exc")
-        elif mode == "any":
-            # pass
-            labels.append("any")
-        else:
-            labels.append(str(mode)[:3])  # Обрезаем до 3 символов
+        labels.append(str(mode).lower())
 
-    return " ".join(labels)
+    return "\n".join(labels)
 
 
 def _create_path_label(path: 'PathInfo') -> str:
@@ -93,37 +88,36 @@ def _create_path_label(path: 'PathInfo') -> str:
     # Condition value (true/false)
     if hasattr(path.constraints, 'condition_value') and path.constraints.condition_value is not None:
         if path.constraints.condition_value == OptionalBoolValue.true:
-            parts.append("T")
+            parts.append("true")
         elif path.constraints.condition_value == OptionalBoolValue.false:
-            parts.append("F")
+            parts.append("false")
 
-    if getattr(path, "cfg_steps", None):
-        parts.append(f"steps:{path.cfg_steps}")
+    if ADDITIONAL_DEBUG_INFO:
+        if getattr(path, "cfg_steps", None):
+            parts.append(f"steps: {path.cfg_steps}")
 
-    if getattr(path, "opaque_actions", None):
-        parts.append(f"opaque:{path.opaque_actions}")
+        if getattr(path, "opaque_actions", None):
+            parts.append(f"actions: {path.opaque_actions}")
 
-    if getattr(path, "conditions", None):
-        parts.append(f"cond:{path.conditions}")
+        if getattr(path, "conditions", None):
+            parts.append(f"conditions: {path.conditions}")
 
-    if getattr(path, "frame_changes", None):
-        parts.append(f"frames:{path.frame_changes}")
+        if getattr(path, "frame_changes", None):
+            parts.append(f"frames: {path.frame_changes}")
 
     # Interruption mode
     if hasattr(path.constraints, 'interruption_mode') and path.constraints.interruption_mode:
         mode = path.constraints.interruption_mode
-        if mode == "exception":
-            parts.append("exc")
-        elif mode == "any":
+        if mode == "any":
             # pass
             parts.append("any")
         else:
-            parts.append(str(mode)[:3])  # Обрезаем до 3 символов
+            parts.append(str(mode).lower())  # Обрезаем до 3 символов
 
     if not parts:
         return ""
 
-    return "\\n".join(parts)
+    return "\n".join(parts)
 
 
 def _build_networkx_graph(cfg: CFG, paths_instead_of_edges=False, indirect_paths=False, paths: list['PathInfo'] = None,) -> nx.DiGraph:

@@ -45,7 +45,7 @@ def _create_node_label(node: Node) -> str:
 
         if node.is_mandatory():
             # parts.append(f"|> " + node.metadata.abstract_action.kind.__str__())
-            parts.append(f"|> " + node.metadata.wrapped_ast.ast_node["type"])
+            parts.append(f"▶ " + node.metadata.wrapped_ast.ast_node["type"])
 
     # Role если отличается от kind
     if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:

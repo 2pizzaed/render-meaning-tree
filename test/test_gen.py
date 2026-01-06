@@ -263,18 +263,16 @@ class TestComplexProblemBuild(unittest.TestCase):
                 # Визуализируем CFG в PNG (режим с рёбрами)
                 png_path = (genout_path / f"{file.stem}-edge.png").absolute()
                 dot_path = (genout_path / f"{file.stem}-edge.dot").absolute()
-                cfg_edges_graph = visualize_cfg_graphviz(cfg)
-                if cfg_edges_graph:
-                    cfg_edges_graph.write_png(str(png_path))
-                    write_dot(cfg_edges_graph, str(dot_path))
+                cfg_edges_graph = visualize_cfg_graphviz(cfg, rankdir="LR")
+                write_dot(cfg_edges_graph, dot_path)
+                write_dot(cfg_edges_graph, png_path)
 
                 # Визуализируем CFG в PNG (режим с путями)
                 png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
                 dot_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
-                cfg_paths_graph = visualize_cfg_graphviz(cfg, paths_instead_of_edges=True)
-                if cfg_paths_graph:
-                    cfg_paths_graph.write_png(str(png_path))
-                    write_dot(cfg_paths_graph, str(dot_pathinfo_path))
+                cfg_paths_graph = visualize_cfg_graphviz(cfg, rankdir="LR", paths_instead_of_edges=True)
+                write_dot(cfg_paths_graph, png_pathinfo_path)
+                write_dot(cfg_paths_graph, dot_pathinfo_path)
 
                 # Визуализируем CFG в PNG (режим с непрямыми путями)
                 # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()

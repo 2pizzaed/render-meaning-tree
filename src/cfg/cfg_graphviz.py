@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 import networkx as nx
@@ -107,12 +108,13 @@ def visualize_cfg_graphviz(
         # Имена узлов в pydot могут быть в кавычках
         nid = n.get_name().strip('"')
         node_obj = G.nodes[nid].get('node_obj') if nid in G.nodes else None
-
+        n.set_fontname("Helvetica")
+        n.set_fontsize("32")
+        n.set_shape("box")
+        n.set_margin("0.1,0.05")
         n.set_shape("box")
         n.set_style("filled,rounded")
         n.set_fillcolor(_get_node_color(node_obj) if node_obj is not None else "lightgray")
-        n.set_fontname("Arial")
-        n.set_fontsize("10")
 
     # 5) Атрибуты рёбер (метки/цвета)
     for e in p.get_edges():
@@ -123,17 +125,24 @@ def visualize_cfg_graphviz(
             lbl = edge_data.get('label', '')
             if lbl:
                 e.set_label(lbl)
-                e.set_fontsize("9")
                 e.set_color("gray50")
+                e.set_fontname("Helvetica")
+                e.set_fontsize("28")
             # Если есть прерывание - делаем ребро пунктирным
             if edge_data.get('has_interruption', False):
                 e.set_style("dashed")
 
     return p
 
-def write_dot(g: Dot, output_file: str) -> None:
-    with open(output_file, "w") as f:
-        f.write(g.to_string(indent=" ", indent_level=4))
+
+def write_dot(g: Dot | None, output_file: Path) -> None:
+    if not g:
+        return
+    if output_file.suffix.endswith(".png"):
+        return g.write_png(str(output_file.absolute()), encoding="utf-8")
+    else:
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(g.to_string(indent=" ", indent_level=4))
 
 
 if __name__ == "__main__":

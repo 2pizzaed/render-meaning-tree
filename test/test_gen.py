@@ -10,7 +10,7 @@ from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
 from src.cfg.cfg import idgen
-from src.cfg.cfg_graphviz import visualize_cfg_graphviz
+from src.cfg.cfg_graphviz import visualize_cfg_graphviz, write_dot
 from src.cfg.condition_exporter import (
     DEFAULT_SEED,
     export_condition_decisions,
@@ -25,15 +25,15 @@ from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 from src.qgen_utils import build_answer_objects_from_cfg
 from src.runtime import (
-    execute_with_trace,
-    enrich_trace_with_runtime,
-    export_scenario_from_trace,
     build_line_to_ast_id_for_conditions,
+    enrich_trace_with_runtime,
+    execute_with_trace,
+    export_scenario_from_trace,
 )
 
 INJECT_RUNTIME_VALUES = True
 
-SAVE_DEBUG_GRAPHS_PHG = False
+SAVE_DEBUG_GRAPHS_PHG = True
 
 class TestComplexProblemBuild(unittest.TestCase):
     def test_generate(self):
@@ -62,8 +62,8 @@ class TestComplexProblemBuild(unittest.TestCase):
                 # '5_inf_recursion',
                 # '5_inf_recursion2',
                 # '8_factorial',
-                # '7_fib',
-                '9_expr_class',
+                 '7_fib',
+                # '9_expr_class',
                 # '11_fill',
                 # '12_dirscan',
             ):
@@ -167,7 +167,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                 try:
                     # Строим маппинг line -> ast_id для условий
                     line_to_ast_id = build_line_to_ast_id_for_conditions(ast)
-                    
+
                     # Выполняем код с захватом условий
                     runtime_trace = execute_with_trace(
                         code,
@@ -175,11 +175,11 @@ class TestComplexProblemBuild(unittest.TestCase):
                         track_conditions=True,
                         line_to_ast_id=line_to_ast_id,
                     )
-                    
+
                     if runtime_trace.exception:
                         print(f"  Warning: Runtime execution failed: {runtime_trace.exception}")
                         # Всё равно сохраняем сценарий, если есть условия
-                    
+
                     # Генерируем сценарий из runtime трассы
                     # Сохраняем сценарий, если есть любые события (не только условия)
                     if runtime_trace.events:
@@ -188,12 +188,12 @@ class TestComplexProblemBuild(unittest.TestCase):
                             scenario_name="default",
                             ast_analyzer=ast
                         )
-                        
+
                         # Сохраняем сценарий в файл
                         scenario_output_path = genout_path / f"{file.stem}_scenarios.json"
                         with open(scenario_output_path, "w", encoding="utf-8") as f:
                             json.dump(generated_scenario, f, indent=2, ensure_ascii=False)
-                        
+
                         events_count = len(generated_scenario.get("events", []))
                         conditions_count = len(runtime_trace.condition_evaluations)
                         calls_count = len(runtime_trace.function_calls)
@@ -201,7 +201,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                         print(f"  Generated scenario: {scenario_output_path.name} "
                               f"({events_count} events: {conditions_count} conditions, "
                               f"{calls_count} calls, {returns_count} returns)")
-                    
+
                 except Exception as e:
                     print(f"  Warning: Could not execute code for runtime tracing: {e}")
 
@@ -262,11 +262,19 @@ class TestComplexProblemBuild(unittest.TestCase):
             if SAVE_DEBUG_GRAPHS_PHG:
                 # Визуализируем CFG в PNG (режим с рёбрами)
                 png_path = (genout_path / f"{file.stem}-edge.png").absolute()
-                visualize_cfg_graphviz(cfg, str(png_path))
+                dot_path = (genout_path / f"{file.stem}-edge.dot").absolute()
+                cfg_edges_graph = visualize_cfg_graphviz(cfg)
+                if cfg_edges_graph:
+                    cfg_edges_graph.write_png(str(png_path))
+                    write_dot(cfg_edges_graph, str(dot_path))
 
                 # Визуализируем CFG в PNG (режим с путями)
                 png_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
-                visualize_cfg_graphviz(cfg, str(png_pathinfo_path), paths_instead_of_edges=True)
+                dot_pathinfo_path = (genout_path / f"{file.stem}-pathinfo.png").absolute()
+                cfg_paths_graph = visualize_cfg_graphviz(cfg, paths_instead_of_edges=True)
+                if cfg_paths_graph:
+                    cfg_paths_graph.write_png(str(png_path))
+                    write_dot(cfg_paths_graph, str(dot_pathinfo_path))
 
                 # Визуализируем CFG в PNG (режим с непрямыми путями)
                 # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()

@@ -19,9 +19,10 @@ from typing import Literal
 
 import networkx as nx
 from networkx.drawing.nx_pydot import to_pydot
+from pydot import Dot
 
-from src.cfg.cfg import CFG
 from src.cfg.abstractions import InterruptionType
+from src.cfg.cfg import CFG
 from src.cfg.cfg_visualizer import (
     _build_networkx_graph,
     _get_node_color,
@@ -31,13 +32,12 @@ from src.cfg.reachability import PathInfo
 
 def visualize_cfg_graphviz(
     cfg: CFG,
-    output_file: str = "cfg.png",
     engine: Literal["dot", "neato", "fdp", "sfdp", "twopi", "circo"] = "dot",
     rankdir: Literal["TB", "BT", "LR", "RL"] = "TB",
     paths_instead_of_edges: bool = False,
     indirect_paths: bool = False,
-    paths: list[PathInfo] = None,
-) -> str:
+    paths: list[PathInfo] | None = None,
+) -> Dot | None:
     """Визуализирует CFG с помощью Graphviz (pydot), сохраняя PNG.
 
     Args:
@@ -54,7 +54,7 @@ def visualize_cfg_graphviz(
     """
     if not cfg or not cfg.nodes:
         # Пустой граф — ничего не делаем
-        return output_file
+        return None
 
     # 1) Переиспользуем сборку networkx-графа
     G: nx.DiGraph = _build_networkx_graph(cfg, paths_instead_of_edges=paths_instead_of_edges, indirect_paths=indirect_paths, paths=paths)
@@ -69,7 +69,7 @@ def visualize_cfg_graphviz(
         label = edge_data.get('label', '')
         # Сохраняем информацию о прерываниях для стилизации рёбер
         has_interruption = False
-        
+
         # Проверяем edge_obj (для обычных рёбер)
         edge_obj = edge_data.get('edge_obj')
         if edge_obj and edge_obj.constraints and edge_obj.constraints.interruption_mode:
@@ -80,7 +80,7 @@ def visualize_cfg_graphviz(
                 InterruptionType.NO_INTERRUPTION,
             ):
                 has_interruption = True
-        
+
         # Проверяем path_obj (для прямых путей)
         path_obj = edge_data.get('path_obj')
         if path_obj and path_obj.constraints and path_obj.constraints.interruption_mode:
@@ -90,7 +90,7 @@ def visualize_cfg_graphviz(
                 InterruptionType.NO_INTERRUPTION,
             ):
                 has_interruption = True
-        
+
         H.add_edge(src, dst, label=label, has_interruption=has_interruption)
 
     # 3) Конвертируем «чистый» граф в pydot
@@ -129,21 +129,25 @@ def visualize_cfg_graphviz(
             if edge_data.get('has_interruption', False):
                 e.set_style("dashed")
 
-    # 6) Сохранение PNG
-    p.write_png(output_file)
-    return output_file
+    return p
+
+def write_dot(g: Dot, output_file: str) -> None:
+    with open(output_file, "w") as f:
+        f.write(g.to_string(indent=" ", indent_level=4))
 
 
 if __name__ == "__main__":
     # Небольшая демонстрация при наличии билдера/конструктов в проекте
     try:
-        from src.cfg.cfg_builder import CFGBuilder
         from src.cfg.abstractions import load_constructs
+        from src.cfg.cfg_builder import CFGBuilder
 
         constructs = load_constructs()
         builder = CFGBuilder(constructs)
         demo_cfg = builder._create_simple_cfg("demo_graphviz")
-        visualize_cfg_graphviz(demo_cfg, output_file="demo_cfg_graphviz.png", rankdir="LR")
+        g = visualize_cfg_graphviz(demo_cfg, rankdir="LR")
+        if g:
+            g.write_png("demo_cfg_graphviz.png")
         print("Saved demo_cfg_graphviz.png")
     except Exception as exc:
         # Безопасный фолбэк: демонстрация не критична

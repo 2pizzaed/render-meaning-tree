@@ -33,7 +33,7 @@ from src.runtime import (
 
 INJECT_RUNTIME_VALUES = True
 
-SAVE_DEBUG_GRAPHS_PHG = True
+SAVE_DEBUG_GRAPHS_PNG = True
 
 class TestComplexProblemBuild(unittest.TestCase):
     def test_generate(self):
@@ -259,7 +259,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                     json.dump(trace_info, f, indent=2, ensure_ascii=False)
                 exported_files.append(trace_path)
 
-            if SAVE_DEBUG_GRAPHS_PHG:
+            if SAVE_DEBUG_GRAPHS_PNG:
                 # Визуализируем CFG в PNG (режим с рёбрами)
                 png_path = (genout_path / f"{file.stem}-edge.png").absolute()
                 dot_path = (genout_path / f"{file.stem}-edge.dot").absolute()
@@ -299,7 +299,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             print(f"  AST JSON: {ast_json_path}")
             for exported_file in exported_files:
                 print(f"  {exported_file.name}: {exported_file}")
-            if SAVE_DEBUG_GRAPHS_PHG:
+            if SAVE_DEBUG_GRAPHS_PNG:
                 print(f"  PNG (edges): {png_path}")
                 print(f"  PNG (paths): {png_pathinfo_path}")
                 # print(f"  PNG (indirect paths): {png_indirect_paths_path}")

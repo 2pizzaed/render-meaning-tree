@@ -62,7 +62,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                 # '5_inf_recursion',
                 # '5_inf_recursion2',
                 # '8_factorial',
-                 '7_fib',
+                 '7_fib_v2',
                 # '9_expr_class',
                 # '11_fill',
                 # '12_dirscan',

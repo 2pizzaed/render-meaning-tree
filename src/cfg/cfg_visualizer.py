@@ -14,7 +14,9 @@ from warnings import deprecated
 import matplotlib.pyplot as plt
 import networkx as nx
 
+from src.cfg import ASTNodeWrapper
 from src.cfg.abstractions import OptionalBoolValue
+from src.cfg.loqi_exporters import ASTNodeWrapperExporter
 from src.cfg.cfg import BEGIN, CFG, END, Edge, Node
 
 if TYPE_CHECKING:
@@ -22,38 +24,72 @@ if TYPE_CHECKING:
 
 ADDITIONAL_DEBUG_INFO = False
 
+
+def get_code_representation(node: ASTNodeWrapper) -> str | None:
+    code_piece = ASTNodeWrapperExporter.get_code_piece_ext(ASTNodeWrapperExporter(), node)
+    code_piece = code_piece.replace('<code>', '').replace('</code>', '')
+    if not code_piece and node.ast_node.get('type') == 'program_entry_point':
+        return 'program'
+    return code_piece
+
+
 def _create_node_label(node: Node) -> str:
     """Создает компактную метку для узла.
     Формат: kind\n[AST:id]\n[role]
     """
     parts = []
 
-    parts.append(f"{node.kind} (id: {node.id.split("_")[1]})")
+    # title = f"{node.kind} (id: {node.id.split("_")[1]})"
+    title = f"{node.kind}"
 
     # # Kind узла
     # if node.kind:
     #     parts.append(node.kind.value)
 
     # AST ID если доступно
+    action_info = ''
+    ast_info = ''
+
     if (node.metadata and
         node.metadata.wrapped_ast and
         node.metadata.wrapped_ast.ast_node and
         isinstance(node.metadata.wrapped_ast.ast_node, dict)):
 
+        # action_name = node.metadata.wrapped_ast.ast_node["type"]
+        action_name = get_code_representation(node.metadata.wrapped_ast)
         if node.is_mandatory():
-            # parts.append(f"|> " + node.metadata.abstract_action.kind.__str__())
-            parts.append("▶ " + node.metadata.wrapped_ast.ast_node["type"])
+            # ▶► ■
+            action_icon = "► " if node.kind != 'END' else "■ "
+            action_info = action_icon + action_name
+        elif action_name:
+            action_info = f'{action_name}'
 
         ast_id = node.metadata.wrapped_ast.ast_node.get('id')
         if ast_id is not None:
-            parts.append(f"AST id:{ast_id}")
+            ast_info = f"AST id:{ast_id}"
+
+    if ast_info:
+        title = f"{title} ({ast_info})"
+    parts.append(title)
+
+    if action_info:
+        parts.append(action_info)
 
     # Role если отличается от kind
     if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:
         parts.append(f"role: {node.role_in_construct.lstrip(".")}")
+        parts.append(f"of: {node.metadata.abstract_action.construct.name}")
 
     return '\n'.join(parts) if parts else node.id
 
+def format_flow_kind_info(interruption_mode):
+    mode = interruption_mode
+    mode = str(mode).lower()
+    if mode == "no_interruption":
+        mode = "normal_flow"
+    if mode == "generic_interruption":
+        mode = "interruption_flow"
+    return mode
 
 def _create_edge_label(edge: Edge) -> str:
     """Создает компактную метку для ребра из constraints.
@@ -69,14 +105,14 @@ def _create_edge_label(edge: Edge) -> str:
     # Condition value (true/false)
     if hasattr(edge.constraints, 'condition_value') and edge.constraints.condition_value is not None:
         if edge.constraints.condition_value == OptionalBoolValue.true:
-            labels.append("true")
+            labels.append("on: true")
         elif edge.constraints.condition_value == OptionalBoolValue.false:
-            labels.append("false")
+            labels.append("on: false")
 
     # Interruption mode
     if hasattr(edge.constraints, 'interruption_mode') and edge.constraints.interruption_mode:
-        mode = edge.constraints.interruption_mode
-        labels.append(str(mode).lower())
+        mode = format_flow_kind_info(edge.constraints.interruption_mode)
+        labels.append(mode)
 
     return "\n".join(labels)
 
@@ -88,9 +124,9 @@ def _create_path_label(path: 'PathInfo') -> str:
     # Condition value (true/false)
     if hasattr(path.constraints, 'condition_value') and path.constraints.condition_value is not None:
         if path.constraints.condition_value == OptionalBoolValue.true:
-            parts.append("true")
+            parts.append("on: true")
         elif path.constraints.condition_value == OptionalBoolValue.false:
-            parts.append("false")
+            parts.append("on: false")
 
     if ADDITIONAL_DEBUG_INFO:
         if getattr(path, "cfg_steps", None):
@@ -107,12 +143,8 @@ def _create_path_label(path: 'PathInfo') -> str:
 
     # Interruption mode
     if hasattr(path.constraints, 'interruption_mode') and path.constraints.interruption_mode:
-        mode = path.constraints.interruption_mode
-        if mode == "any":
-            # pass
-            parts.append("any")
-        else:
-            parts.append(str(mode).lower())  # Обрезаем до 3 символов
+        mode = format_flow_kind_info(path.constraints.interruption_mode)
+        parts.append(mode)
 
     if not parts:
         return ""

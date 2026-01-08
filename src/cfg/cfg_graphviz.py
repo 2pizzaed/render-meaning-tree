@@ -142,7 +142,7 @@ def write_dot(g: Dot | None, output_file: Path) -> None:
         return g.write_png(str(output_file.absolute()), encoding="utf-8")
     else:
         with open(output_file, "w", encoding="utf-8") as f:
-            f.write(g.to_string(indent=" ", indent_level=4))
+            f.write(g.to_string(indent=" "))
 
 
 if __name__ == "__main__":

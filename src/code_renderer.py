@@ -192,7 +192,7 @@ class CodeHighlightGenerator:
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
                 self._range_for = [token.get("value", "")]
-                possible_buttons.append(("question", "outlined"))
+                possible_buttons.append(("play", "outlined"))
             if node_token_pos == "middle" and self.language != "python":
                 if (
                     token.get("value", "") != ";"
@@ -206,7 +206,10 @@ class CodeHighlightGenerator:
                 self._range_for = []
 
         # для других циклов for
-        if for_component and for_component != "range" and button_position == "start":
+        if for_component and for_component == "container" and button_position == "start":
+            possible_buttons.append(("play", "outlined"))
+
+        if for_component and for_component in ["item", "identifier"] and button_position == "end":
             possible_buttons.append(("question", "outlined"))
 
         # Вложенный вызов функции
@@ -329,12 +332,13 @@ class CodeHighlightGenerator:
                 )
 
                 after_button = any(
-                    token_i > 0 and (but["index"] == token_i) for but in buttons
+                    token_i > 0 and (but["index"] == token_i and but["position"] == "after")
+                    for but in buttons
                 )
                 before_button = any(
                     but["index"] == token_i + 1 and but["position"] == "before" for but in buttons)
 
-                if need_spacing and not before_button:
+                if need_spacing and not before_button and not after_button:
                     # Добавляем пробел
                     result.append(
                         {

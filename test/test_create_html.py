@@ -6,7 +6,7 @@ from src.meaning_tree import convert, to_tokens
 if __name__ == "__main__":
     language, ext = "python", "py"
     example_path = Path(__file__).parent / "data" / "examples" / f"code_example.{ext}"
-    template_path = Path(__file__).parent.parent / "templates" / "base_new.html"
+    template_path = Path(__file__).parent.parent / "templates" / "base.html"
 
     with example_path.open(encoding="utf-8") as f:
         code = f.read()

@@ -1,4 +1,5 @@
 a = 10
+array, another_array = [1, 2, 3]
 
 if b > 10:
     b = 10
@@ -23,3 +24,9 @@ while a < x:
 for i in range(0, 1, 5):
     x += 1
     pass
+
+for i in array:
+    pass
+
+for my_item in another_array:
+    my_item += 1

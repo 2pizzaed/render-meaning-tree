@@ -1,4 +1,6 @@
+from collections.abc import Generator
 from typing import Any, Literal
+
 from src.meaning_tree import node_hierarchy
 
 
@@ -64,6 +66,20 @@ class ASTNodeAnalyzer:
     def get_node_by_id(self, node_id: str | int) -> dict[str, Any] | None:
         """Получить узел по ID"""
         return self.nodes_cache.get(int(node_id))
+
+    def node_nest_hierarchy(self, node_id: str | int) -> Generator[str] | None:
+        """Получить иерархию вложенности узлов в дереве. Возвращает генератор типов узлов от непосредственного родителя к корню."""
+        node = self.get_node_by_id(node_id)
+        if not node:
+            return None
+        yield node.get("type", "")
+        parent_id = node.get("parent")
+        while parent_id:
+            parent_node = self.get_node_by_id(parent_id)
+            if not parent_node:
+                break
+            yield parent_node.get("type", "")
+            parent_id = parent_node.get("parent")
 
     def find_children(self, node_id: str | int, max_depth: int = 1024) -> list[dict[str, Any]]:
         """Найти дочерние узлы для заданного узла по ID до указанной глубины"""
@@ -189,30 +205,28 @@ class ASTNodeAnalyzer:
         if not node:
             return None
         field = node.get("parent_field", "")
-        parent_id = node.get("parent")
-        if not parent_id:
+
+        nested = list(self.node_nest_hierarchy(node_id) or [])
+        found_for_header = -1
+        for i, parent in enumerate(nested):
+            if parent in ["general_for_loop", "range_for_loop", "for_each_loop"]:
+                found_for_header = i
+                break
+            if parent in ["compound_statement"]: # не заголовок цикла точно
+                return None
+        if found_for_header == -1:
+            return None
+        local_nested = nested[:found_for_header] # вложенность до непосредственного типа цикла
+        for_type = nested[found_for_header]
+
+        if node.get("type", "") == "identifier" and field not in ["container", "item", "identifier"]:
             return None
 
-        parent = self.get_node_by_id(parent_id)
-        if not parent:
-            return None
-
-        if (
-            parent.get("type", "").lower()
-            not in {
-                "general_for_loop",
-                "range_for_loop",
-                "for_each_loop",
-            }
-            or node.get("type", "") == "compound_statement"
-        ):
-            return None
-
-        if node.get("type", "") == "identifier" and field not in ["container", "item"]:
-            return None
-
-        if node.get("type", "") == "range":
+        if "range" in local_nested:
             return "range"
+
+        if field == "body":
+            return None
 
         return field
 

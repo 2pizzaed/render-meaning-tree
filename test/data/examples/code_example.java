@@ -24,6 +24,10 @@ for (int i = 0; i < k; i++) {
     
 }
 
+for (String i = ""; i != k; i = parse(k)) {
+    
+}
+
 for (int i = 0; ; i++) {
     
 }

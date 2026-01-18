@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 def _find_ast_id_for_event(
     event: FunctionCall | FunctionReturn,
     event_type: str,
-    ast_analyzer: "ASTNodeAnalyzer | None" = None,
+    ast_analyzer: 'ASTNodeAnalyzer | None' = None,
 ) -> int | None:
     """Находит ast_id для события вызова или возврата функции.
     

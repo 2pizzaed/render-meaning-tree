@@ -135,7 +135,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             idgen.reset()
             ###
             if file.stem not in (
-                # file.stem,  # NO FILTERING
+                file.stem,  # NO FILTERING
                 # '1_onefunc_while',
                 # '3_recursion',
                 # '5_inf_recursion',

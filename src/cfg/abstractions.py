@@ -738,11 +738,17 @@ class SituationState(DictLikeDataclass):
 
 # Конфигурируемое имя файла конструктов
 CONSTRUCTS_FILE_NAME = "constructs.yml"
+CONSTRUCTS_FILE_NAMES = {
+    '': "constructs.yml",
+    'python': "constructs_python.yml",
+}
 
 
-def get_constructs_file_name() -> str:
+def get_constructs_file_name(language="python") -> str:
     """Возвращает имя файла конструктов (конфигурируемое)."""
-    return CONSTRUCTS_FILE_NAME
+    if language not in CONSTRUCTS_FILE_NAMES:
+        return CONSTRUCTS_FILE_NAMES['']
+    return CONSTRUCTS_FILE_NAMES[language]
 
 
 def load_constructs(path: str | None = None, debug=False):

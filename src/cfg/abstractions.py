@@ -736,8 +736,19 @@ class SituationState(DictLikeDataclass):
     interruption_state: InterruptionType
 
 
-def load_constructs(path="./constructs.yml", debug=False):
+# Конфигурируемое имя файла конструктов
+CONSTRUCTS_FILE_NAME = "constructs.yml"
+
+
+def get_constructs_file_name() -> str:
+    """Возвращает имя файла конструктов (конфигурируемое)."""
+    return CONSTRUCTS_FILE_NAME
+
+
+def load_constructs(path: str | None = None, debug=False):
     """ Load constructs.yml using DictLikeDataclass """
+    if path is None:
+        path = get_constructs_file_name()
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} not found. Please upload constructs.yml to /mnt/data.")
 

@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.ast_analyzer import ASTNodeAnalyzer
-from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
+from src.cfg.abstractions import (
+    InterruptionType,
+    SituationState,
+    get_constructs_file_name,
+    load_constructs,
+)
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import CFG, NodeKind, TraceAct
 from src.cfg.cfg_builder import CFGBuilder
@@ -61,7 +66,7 @@ def build_loqis(
     Returns:
         Кортеж (list[loqi_text], cfg, list[trace_acts]) - всегда списки, даже для одного сценария.
     """
-    constructs = load_constructs("constructs.yml")
+    constructs = load_constructs(get_constructs_file_name())
     program_root = ASTNodeWrapper(ast_node=ast_json, _astnodeanalyzer=ast_analyzer)
     b = CFGBuilder(constructs)
     # Генерируем CFG
@@ -150,7 +155,7 @@ def build_loqi_variants(
         # variants[0] - LOQI для сценария "true_branch"
         # variants[1] - LOQI для сценария "false_branch"
     """
-    constructs = load_constructs("constructs.yml")
+    constructs = load_constructs(get_constructs_file_name())
     program_root = ASTNodeWrapper(ast_node=ast_json)
     builder = CFGBuilder(constructs)
     cfg = builder.make_cfg_for_ast(program_root)

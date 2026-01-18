@@ -49,8 +49,8 @@ def _find_construct_for_ast_node(wrapped_ast: ASTNodeWrapper | None) -> Construc
     
     global _constructs_cache
     if _constructs_cache is None:
-        from src.cfg.abstractions import load_constructs
-        _constructs_cache = load_constructs("constructs.yml", debug=False)
+        from src.cfg.abstractions import get_constructs_file_name, load_constructs
+        _constructs_cache = load_constructs(get_constructs_file_name(), debug=False)
     
     ast_node = wrapped_ast.ast_node
     if not isinstance(ast_node, dict):

@@ -8,7 +8,12 @@ from bs4 import BeautifulSoup
 
 from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg import ASTNodeWrapper, CFGBuilder
-from src.cfg.abstractions import InterruptionType, SituationState, load_constructs
+from src.cfg.abstractions import (
+    InterruptionType,
+    SituationState,
+    get_constructs_file_name,
+    load_constructs,
+)
 from src.cfg.cfg import idgen
 from src.cfg.cfg_graphviz import visualize_cfg_graphviz, write_dot
 from src.cfg.condition_exporter import (
@@ -115,7 +120,7 @@ class TestComplexProblemBuild(unittest.TestCase):
         genout_path.mkdir(parents=True, exist_ok=True)
 
         # Загружаем конструкции
-        constructs = load_constructs("constructs.yml")
+        constructs = load_constructs(get_constructs_file_name())
 
         files = task_data_path.iterdir()
         # files = [task_data_path / "2_functions.py"]

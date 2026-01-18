@@ -35,6 +35,76 @@ INJECT_RUNTIME_VALUES = True
 
 SAVE_DEBUG_GRAPHS_PNG = True
 
+# Управление режимами генерации
+AUTO_SAVE_SCENARIOS_TO_SOURCE = True  # Сохранять *_scenarios.json рядом с исходником
+AUTO_REGENERATE_WITH_SCENARIOS = True  # Сразу использовать сгенерированный сценарий
+GENERATE_SCENARIOS_ONLY = False  # Только создать сценарии, без задач
+GENERATE_TASKS_ONLY = False  # Только задачи, без генерации сценариев
+
+
+def _run_runtime_trace(code: str, file_path: Path, ast: ASTNodeAnalyzer):
+    # Строим маппинг line -> ast_id для условий
+    line_to_ast_id = build_line_to_ast_id_for_conditions(ast)
+    return execute_with_trace(
+        code,
+        filename=str(file_path),
+        track_conditions=True,
+        line_to_ast_id=line_to_ast_id,
+    )
+
+
+def load_or_generate_scenarios(
+    file_path: Path,
+    code: str,
+    language: str,
+    ast: ASTNodeAnalyzer,
+    scenarios_file: Path,
+    runtime_trace,
+    allow_generate: bool,
+) -> tuple[list[dict[str, Any]] | None, bool]:
+    scenario_plans = None
+    generated = False
+
+    if scenarios_file.exists():
+        scenario_plans = load_scenarios_from_file(scenarios_file)
+        return scenario_plans, generated
+
+    if not allow_generate:
+        return scenario_plans, generated
+
+    if language != "python":
+        print("  Info: Skip scenario auto-generation for non-Python file.")
+        return scenario_plans, generated
+
+    if not AUTO_SAVE_SCENARIOS_TO_SOURCE:
+        return scenario_plans, generated
+
+    try:
+        trace = runtime_trace or _run_runtime_trace(code, file_path, ast)
+
+        if trace.exception:
+            print(f"  Warning: Runtime execution failed: {trace.exception}")
+
+        if trace.events:
+            scenario = export_scenario_from_trace(
+                trace,
+                scenario_name="default",
+                ast_analyzer=ast,
+            )
+            with open(scenarios_file, "w", encoding="utf-8") as f:
+                json.dump(scenario, f, indent=2, ensure_ascii=False)
+            scenario_plans = [scenario]
+            generated = True
+            print(
+                f"  Generated scenario: {scenarios_file.name} -> {scenarios_file}"
+            )
+        else:
+            print("  Warning: Runtime trace has no events; scenario not saved.")
+    except Exception as e:
+        print(f"  Warning: Could not execute code for runtime tracing: {e}")
+
+    return scenario_plans, generated
+
 class TestComplexProblemBuild(unittest.TestCase):
     def test_generate(self):
         current_dir = Path(__file__).parent
@@ -49,6 +119,15 @@ class TestComplexProblemBuild(unittest.TestCase):
 
         files = task_data_path.iterdir()
         # files = [task_data_path / "2_functions.py"]
+
+        generate_scenarios = True
+        generate_tasks = True
+        if GENERATE_SCENARIOS_ONLY and GENERATE_TASKS_ONLY:
+            print("Warning: Both GENERATE_SCENARIOS_ONLY and GENERATE_TASKS_ONLY are True; running both.")
+        elif GENERATE_SCENARIOS_ONLY:
+            generate_tasks = False
+        elif GENERATE_TASKS_ONLY:
+            generate_scenarios = False
 
         # Перебираем все файлы в task_data
         for file in files:
@@ -141,15 +220,41 @@ class TestComplexProblemBuild(unittest.TestCase):
             # Оптимизируем CFG
             cfg.optimize()
 
-            # Загружаем планы сценариев из файла (если существует)
+            runtime_trace = None
+            if INJECT_RUNTIME_VALUES and language == "python":
+                try:
+                    runtime_trace = _run_runtime_trace(code, file, ast)
+                    if runtime_trace.exception:
+                        print(f"  Warning: Runtime execution failed: {runtime_trace.exception}")
+                except Exception as e:
+                    print(f"  Warning: Could not execute code for runtime tracing: {e}")
+
             scenarios_file = current_dir / "data" / "task_code" / f"{file.stem}_scenarios.json"
-            if scenarios_file.exists():
-                scenario_plans = load_scenarios_from_file(scenarios_file)
+            scenario_plans, generated_scenario = load_or_generate_scenarios(
+                file,
+                code,
+                language,
+                ast,
+                scenarios_file,
+                runtime_trace,
+                generate_scenarios,
+            )
+
+            if generated_scenario and not AUTO_REGENERATE_WITH_SCENARIOS:
+                scenario_plans_for_tasks = None
+                print("  Info: Scenario saved but not used (AUTO_REGENERATE_WITH_SCENARIOS=False).")
+            else:
+                scenario_plans_for_tasks = scenario_plans
+
+            if not generate_tasks:
+                print("  Info: Task generation skipped (GENERATE_SCENARIOS_ONLY=True).")
+                continue
+
+            if scenario_plans_for_tasks:
                 scenarios = [
-                    plan_to_scenario_config(plan, cfg) for plan in scenario_plans
+                    plan_to_scenario_config(plan, cfg) for plan in scenario_plans_for_tasks
                 ]
             else:
-                # Используем сценарий по умолчанию
                 scenarios = [
                     TraceScenarioConfig(name="default", seed=DEFAULT_SEED),
                 ]
@@ -159,51 +264,6 @@ class TestComplexProblemBuild(unittest.TestCase):
             if not trace_results:
                 print(f"Failed to generate traces for {file.name}", file=sys.stderr)
                 continue
-
-            # Выполняем код с runtime трассировкой (только для Python)
-            runtime_trace = None
-            generated_scenario = None
-            if INJECT_RUNTIME_VALUES and language == "python":
-                try:
-                    # Строим маппинг line -> ast_id для условий
-                    line_to_ast_id = build_line_to_ast_id_for_conditions(ast)
-
-                    # Выполняем код с захватом условий
-                    runtime_trace = execute_with_trace(
-                        code,
-                        filename=str(file),
-                        track_conditions=True,
-                        line_to_ast_id=line_to_ast_id,
-                    )
-
-                    if runtime_trace.exception:
-                        print(f"  Warning: Runtime execution failed: {runtime_trace.exception}")
-                        # Всё равно сохраняем сценарий, если есть условия
-
-                    # Генерируем сценарий из runtime трассы
-                    # Сохраняем сценарий, если есть любые события (не только условия)
-                    if runtime_trace.events:
-                        generated_scenario = export_scenario_from_trace(
-                            runtime_trace,
-                            scenario_name="default",
-                            ast_analyzer=ast
-                        )
-
-                        # Сохраняем сценарий в файл
-                        scenario_output_path = genout_path / f"{file.stem}_scenarios.json"
-                        with open(scenario_output_path, "w", encoding="utf-8") as f:
-                            json.dump(generated_scenario, f, indent=2, ensure_ascii=False)
-
-                        events_count = len(generated_scenario.get("events", []))
-                        conditions_count = len(runtime_trace.condition_evaluations)
-                        calls_count = len(runtime_trace.function_calls)
-                        returns_count = len(runtime_trace.function_returns)
-                        print(f"  Generated scenario: {scenario_output_path.name} "
-                              f"({events_count} events: {conditions_count} conditions, "
-                              f"{calls_count} calls, {returns_count} returns)")
-
-                except Exception as e:
-                    print(f"  Warning: Could not execute code for runtime tracing: {e}")
 
             # Добавляем пути между узлами (одинаковые для всех сценариев)
             paths = determine_all_paths_between_opaque_nodes(cfg)

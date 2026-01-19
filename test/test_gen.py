@@ -26,7 +26,7 @@ from src.cfg.condition_exporter import (
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
-from src.code_renderer import CodeHighlightGenerator
+from src.code_renderer_old import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 from src.qgen_utils import build_answer_objects_from_cfg
 from src.runtime import (

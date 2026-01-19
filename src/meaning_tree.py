@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from src.types import JSON, MeaningTree, SourceMap, TokenList
+
 m2_repo = (
     Path.home() / ".m2" / "repository" / "org" / "vstu" / "meaningtree" / "application" / "1.0-SNAPSHOT"
 )
@@ -22,8 +24,8 @@ JAR_RUN = [
 logger = logging.getLogger(__name__)
 
 
-def to_dict(language: str, code: str) -> dict[str, Any] | None:
-    """Convert code from language to dict representation using meaning tree
+def to_dict(language: str, code: str) -> MeaningTree | None:
+    """Convert code from language to Meaning Tree
 
     Args:
         language: The source programming language (e.g., 'java', 'python', 'cpp')
@@ -35,12 +37,12 @@ def to_dict(language: str, code: str) -> dict[str, Any] | None:
     json_output = _run_serialize(code, language)
     if not json_output:
         return None
-    return _parse_json(json_output)
+    return _parse_json(json_output) # type: ignore
 
 
 def to_tokens(
     from_language: str, code: str, to_language: str | None = None,
-) -> dict[str, Any] | None:
+) -> TokenList | None:
     """Tokenize source code into a structured representation
 
     Args:
@@ -55,12 +57,12 @@ def to_tokens(
     json_output = _run_tokenize(code, from_language, to_language)
     if not json_output:
         return None
-    return _parse_json(json_output)
+    return _parse_json(json_output) # type: ignore
 
 
 def convert(
     code: str, from_language: str, to_language: str, source_map: bool = False,
-) -> str | dict[str, Any] | None:
+) -> str | SourceMap | None:
     """Convert code between programming languages or produce a source map
 
     Args:
@@ -79,11 +81,11 @@ def convert(
     if not output:
         return None
     if source_map:
-        return _parse_json(output)
+        return _parse_json(output) # type: ignore
     return output
 
 
-def node_hierarchy() -> dict[str, list[str]]:
+def node_hierarchy() -> JSON:
     """Retrieve the node hierarchy from the meaning tree application
 
     Returns:
@@ -161,7 +163,7 @@ def _run_convert(
     )
 
 
-def _parse_json(json_data: str) -> dict[str, Any] | None:
+def _parse_json(json_data: str) -> JSON | None:
     """Parse JSON data into a dictionary
 
     Args:

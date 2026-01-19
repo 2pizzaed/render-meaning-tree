@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 
 from src.cfg.abstractions import InterruptionType, OptionalBoolValue, Effects
 from src.cfg.cfg import CFG, Edge, Node, NodeKind, TraceAct
-from src.code_renderer import ButtonType
+from src.code_renderer_old import ButtonType
 
 
 @dataclass

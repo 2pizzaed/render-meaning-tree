@@ -25,7 +25,7 @@ from src.cfg.trace_builder import (
     TraceScenarioConfig,
     generate_trace_variants,
 )
-from src.code_renderer import CodeHighlightGenerator
+from src.code_renderer_old import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 
 

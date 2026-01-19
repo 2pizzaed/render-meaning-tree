@@ -2,7 +2,7 @@ import argparse
 import json
 
 from src.cfg_tools import cfg
-from src.code_renderer import CodeHighlightGenerator
+from src.code_renderer_old import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 
 

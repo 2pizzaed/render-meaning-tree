@@ -1,7 +1,6 @@
-from typing import Literal, Dict, Any
+from typing import Literal
 
-
-NodeType = Literal[
+type NodeType = Literal[
     "program_entry_point",
     "if_statement",
     "while_loop",
@@ -36,6 +35,31 @@ NodeType = Literal[
     "condition_branch",
 ]
 
-NodeField = Literal["id", "type"] | str
+type NodeField = Literal["id", "type"] | str
 
-Node = Dict[NodeField, Any]
+type TreeField = Literal["type", "unique_hash", "labels", "root_node"]
+
+type TokenField = Literal["id", "value", "token_type", "byte_pos"] | str
+
+type MapField = Literal[
+        "type", "origin", "source_code", "language",
+        "byte_positions", "declarations",
+        "imports", "user_type_hierarchy"]
+
+type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
+
+type JsonObject = dict[str, JsonValue]
+
+type JsonArray = list[JsonValue]
+
+type JSON = JsonObject
+
+type MeaningTree = dict[TreeField, JsonValue]
+
+type Node = dict[NodeField, JsonValue]
+
+type Token = dict[TokenField, JsonValue]
+
+type SourceMap = dict[MapField, JsonValue]
+
+type TokenList = dict[Literal["type", "tokens"], list[Token] | JsonValue]

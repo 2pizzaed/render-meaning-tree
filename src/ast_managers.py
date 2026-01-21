@@ -1,4 +1,4 @@
-from calendar import c
+import inspect
 from collections.abc import Callable, Generator, Iterable, Iterator
 from dataclasses import dataclass
 from functools import wraps
@@ -29,6 +29,8 @@ class Observation(Protocol):
 
     def __call__(self, cur: "TokenCursor | NodePathElement") -> bool | None: ...
 
+    def use_for(self, injection: Callable[["InjectionPoint"], None]) -> "Injection": ...
+
 
 @runtime_checkable
 class Injection(Protocol):
@@ -44,22 +46,37 @@ class Injection(Protocol):
 @dataclass
 class NodePathElement:
     parent: "NodePathElement | None"
-    ast_id: int
-    ast_type: str
+    id: int
+    type: str
     field_name: str | None
     field_type: Literal["plain", "map", "collection"]
     container_field_id: int | str | None
 
     def instanceof(self, match_type: str) -> bool:
         # instanceof check
-        if self.ast_type == match_type:
+        if self.type == match_type:
             return True
-        parents = ASTNodeAnalyzer.get_node_type_parents(self.ast_type)
+        parents = ASTNodeAnalyzer.get_node_type_parents(self.type)
         return match_type in (parents or [])
 
     def get(self, analyzer: "ASTNodeAnalyzer") -> Node | None:
         return analyzer.get(self)
 
+    def has_parent(self, id_or_type: int | str, strict: bool = False) -> bool:
+        if isinstance(id_or_type, str) and not strict:
+            return self.find_first_parent(
+                lambda x: x.instanceof(id_or_type)) is not None
+        return self.find_first_parent(id_or_type) is not None
+
+    def find_first_parent(self, query: str | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+        curr = self.parent
+        if isinstance(query, str):
+            query = lambda x: x.type == query
+        elif isinstance(query, int):
+            query = lambda x: x.id == query
+        while curr is not None and not query(curr):
+            curr = curr.parent
+        return curr
 
 class ASTNodeAnalyzer:
     def __init__(self, root: MeaningTree | Node):
@@ -124,8 +141,8 @@ class ASTNodeAnalyzer:
 
                     path_element = NodePathElement(
                         parent=prev,
-                        ast_id=node_id,
-                        ast_type=node["type"],
+                        id=node_id,
+                        type=node["type"],
                         field_name=field,
                         field_type=field_type,
                         container_field_id=f_id
@@ -184,6 +201,10 @@ class ASTNodeAnalyzer:
         return iter(self._cache.items())
 
 
+class SkipStreamIterationException(Exception):
+    pass
+
+
 class TokenCursor:
     '''Указатель на токен (индекс равен 0), вокруг него могут быть другие токены (индексы -1, -2... и +1, +2...) в зависимости от lookaround'''
     def __init__(self, owner: "CodeManager", lookaround: int, real_index: int, buf: list[RendererEntity]):
@@ -205,6 +226,22 @@ class TokenCursor:
 
     def translate_index(self, offset: int) -> int:
         return self._real_index + offset
+
+    def token(self, index: int) -> Token | None:
+        tok = self[index]
+        if isinstance(tok, Token):
+            return tok
+        return None
+
+    def ast_node(self, index: int) -> NodePathElement | None:
+        tok = self[index]
+        if isinstance(tok, Token) and tok.ast_node is not None:
+            return tok.ast_node
+        return None
+
+    @property
+    def manager(self) -> "CodeManager":
+        return self._owner
 
     @property
     def max_seek(self) -> int:
@@ -244,10 +281,10 @@ class CodeManager:
         for ast_id, byte_range in map_byteranges.items():
             start_byte, length = byte_range
             start_token_byte, token_length = token_byte_pos
-            if start_byte <= start_token_byte < \
-                start_token_byte + token_length < start_byte + length:
+            if start_byte <= start_token_byte and \
+                start_token_byte + token_length <= start_byte + length:
                 candidates.append((ast_id, (start_byte, length)))
-        candidates.sort(key=lambda x: (x[1][0] + x[1][1], x[1][1])) # по уровню вложенности
+        candidates.sort(key=lambda x: (x[1][1], -x[1][0])) # по уровню вложенности
         if candidates:
             ast_id = candidates[0][0]
             path_element = self._ast.get_path(ast_id)
@@ -299,8 +336,8 @@ class CodeManager:
         for i, token in enumerate(self):
             if i == token_index:
                 return line
-            if "\n" in token.value:
-                line += token.value.count("\n")
+            if newlines := token.has_newline():
+                line += newlines
         return None
 
     def line_number_range(self, ast_node_id: int) -> tuple[int, int] | None:
@@ -316,7 +353,7 @@ class CodeManager:
     def token_index_range(self, ast_node_id: int) -> tuple[int, int] | None:
         min_i, max_i = self.token_count, 0
         for i, token in enumerate(self):
-            if token.ast_node and token.ast_node.ast_id == ast_node_id:
+            if token.ast_node and token.ast_node.has_parent(ast_node_id):
                 min_i = min(min_i, i)
                 max_i = max(max_i, i)
         if min_i <= max_i:
@@ -403,6 +440,17 @@ class CodeManager:
                 tokens.append(token if token is not None else {})
             yield TokenCursor(self, lookaround, i, tokens)
 
+    def apply_injections(self,
+                         injections: list[Injection],
+                         from_: int | None = None,
+                         to: int | None = None,
+                         step: int = 1,
+                         lookaround: int = 1):
+        self._last_stream = InjectionManager(
+            self.stream(from_, to, step, lookaround=lookaround), self, []
+        )
+        return self._last_stream.apply(injections)
+
     def injection_stream(self,
                          conditions: Iterable[Observation],
                          from_: int | None = None,
@@ -429,9 +477,17 @@ class InjectionPoint(TokenCursor):
     def matched_conditions(self) -> list[Observation]:
         return self._matched_conditions
 
+    @property
+    def applied_injections_before(self):
+        return self._injection_owner._applied_count
+
     def _apply(self) -> list[RendererEntity]:
         '''Применение изменений после завершения итерации'''
         return self._buf
+
+    def cancel(self):
+        '''Отменяет инъекцию'''
+        raise SkipStreamIterationException()
 
     def push_before(self, *items: RendererEntity):
         self.insert(0, *items)
@@ -441,6 +497,7 @@ class InjectionPoint(TokenCursor):
 
     def __setitem__(self, index: int, item: RendererEntity):
         self._buf[self._align(index)] = item
+        self._injection_owner._trigger()
 
     def remove_after(self, count: int): # в пределах lookaround
         self.remove(1, count)
@@ -450,7 +507,7 @@ class InjectionPoint(TokenCursor):
 
     def flag(self, name: str, value: int | bool | None = None) -> int | bool | None:
         self._owner._flags.setdefault(name, value)
-        return self._owner._flags["name"]
+        return self._owner._flags[name]
 
     @property
     def distances(self) -> tuple[int, int]:
@@ -461,11 +518,12 @@ class InjectionPoint(TokenCursor):
         )
 
     def insert(self, i: int, *items: RendererEntity):
-        i = self._align(i)
-        self._buf[i:i] = items
-        if i <= self._center:
+        aligned_i = self._align(i)
+        if i <= 0:
             self._real_index += len(items)
             self._center += len(items)
+        self._buf[aligned_i:aligned_i] = items
+        self._injection_owner._trigger()
 
     def remove(self, i: int, count: int, rtl = False):
         i = self._align(i)
@@ -485,6 +543,7 @@ class InjectionPoint(TokenCursor):
 
         # Используем срез для удаления (работает для list и bytearray)
         del self._buf[start:end]
+        self._injection_owner._trigger()
 
 
 class InjectionManager:
@@ -496,10 +555,15 @@ class InjectionManager:
         self._it: Iterator[InjectionPoint] = iter(self)
         self._owner = tokens
         self._conditions = conditions
+        self._applied_count = 0
+        self._skipped_count = 0
         self._result: list[RendererEntity] = []
         self._flags: dict[str, int | bool] = {}
 
-    def __iterator__(self):
+    def _trigger(self):
+        self._triggered = True
+
+    def __iter__(self) -> Iterator[InjectionPoint]:
         for cursor in self._stream:
             matched: list[Observation] = []
             for obs in self._conditions:
@@ -507,10 +571,8 @@ class InjectionManager:
                     matched.append(obs)
             if matched:
                 cursor = InjectionPoint(
-                    self,
-                    cursor.max_seek,
-                    len(self._result),
-                    matched,
+                    self, cursor.max_seek,
+                    len(self._result), matched,
                     cursor._buf
                 )
                 yield cursor
@@ -518,17 +580,17 @@ class InjectionManager:
             else:
                 self._result.extend(cursor._buf)
 
-    def __iter__(self) -> Iterator[InjectionPoint]:
-        self._it = self.__iterator__()
-        return self._it
-
     def apply(self, pool: list[Injection]):
+        self._conditions = observations_from(pool)
         for point in self:
             for injection in pool:
-                injection(point)
-
-    def __next__(self) -> InjectionPoint:
-        return next(self._it)
+                try:
+                    injection(point)
+                    if self._triggered:
+                        self._applied_count += 1
+                        self._triggered = False
+                except SkipStreamIterationException:
+                    self._skipped_count += 1
 
     def result(self) -> list[RendererEntity]:
         return self._result
@@ -540,37 +602,194 @@ def manage_code(tokens: TokenList, map: SourceMap) -> CodeManager:
     return CodeManager(analyzer, map, tokens)
 
 
-def observable(
-    observation: Callable[[TokenCursor | NodePathElement], bool | None],
-    before: list[Observation], name: str = "", only_node: bool = False
-) -> Observation:
-    @wraps(observation)
-    def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
-        for obs in before:
-            if obs(cur) is False:
-                return False
-        if only_node and isinstance(cur, TokenCursor) and isinstance(cur[0], Token):
-            cur = cur[0].ast_node  # type: ignore
-        return observation(cur)
+def observable_token(
+    before: list[Observation] = [],
+    name: str = "",
+) -> Callable[[Callable], Any]:
+    """
+    Фабрика декораторов.
+    Использование: @observable_token(before=[...], name="...")
+    """
 
-    wrapper.accepts_node_only = only_node  # type: ignore
-    if not name:
-        name = observation.__name__
-    wrapper.id = name  # type: ignore
-    return wrapper  # type: ignore [return-value]
+    def decorator(observation: Callable[[TokenCursor], bool | None]) -> Any:
+        nonlocal name
+        if not name:
+            name = observation.__name__
+
+        @wraps(observation)
+        def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
+            for obs in before:
+                # Если условие before не выполнено, прерываем
+                if obs(cur) is False:
+                    return False
+            return observation(cur)  # type: ignore
+
+        # Метаданные
+        wrapper.accepts_node_only = False  # type: ignore
+        wrapper.id = name  # type: ignore
+
+        # Хелпер для инъекции. Мы передаем сам 'wrapper' как условие,
+        # но так как мы вернем staticmethod, используем саму функцию wrapper для регистрации.
+        wrapper.use_for = lambda x: injection_for_all(wrapper)(x)  # type: ignore
+
+        # Возвращаем staticmethod, чтобы метод в классе не требовал self
+        return staticmethod(wrapper)
+
+    return decorator
 
 
-def injection_for(
-    injection: Callable[[InjectionPoint], None], *for_: Observation
-) -> Injection:
+def observable_node(before: list[Observation] = [], name: str = "") -> Callable[[Callable], Any]:
+    """
+    Фабрика декораторов.
+    Использование: @observable_node(name="is_atomic")
+    """
 
-    @wraps(injection)
-    def wrapper(point: InjectionPoint) -> bool:
-        matched = set(for_) & set(point.matched_conditions)
-        if matched:
-           injection(point)
-           return True
-        return False
+    def decorator(observation: Callable[[NodePathElement], bool | None]) -> Any:
+        nonlocal name
+        if not name:
+            name = observation.__name__
 
-    wrapper.conditions = for_  # type: ignore
-    return wrapper  # type: ignore [return-value]
+        @wraps(observation)
+        def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
+            for obs in before:
+                res = obs(cur)
+                if not res:
+                    return res
+
+            # Логика приведения типов
+            if isinstance(cur, TokenCursor):
+                tok = cur[0]
+                if isinstance(tok, Token) and tok.ast_node:
+                    cur = tok.ast_node
+                else:
+                    raise ValueError("Required Token as RendererEntity for observation")
+
+            return observation(cur)
+
+        # Метаданные
+        wrapper.accepts_node_only = True  # type: ignore
+        wrapper.id = name  # type: ignore
+        wrapper.use_for = lambda x: injection_for_all(wrapper)(x)  # type: ignore
+
+        # Возвращаем staticmethod
+        return staticmethod(wrapper)
+
+    return decorator
+
+
+def injection_for_any(*for_: Observation) -> Callable[[Callable], Any]:
+    """
+    Декоратор-фабрика.
+    Использование: @injection_for(condition1, condition2)
+    """
+
+    def decorator(injection: Callable[[InjectionPoint], None]):
+        @wraps(injection)
+        def wrapper(point: InjectionPoint) -> bool:
+            matched = set(for_) & set(point.matched_conditions)
+            if matched:
+                injection(point)
+                return True
+            return False
+
+        wrapper.conditions = for_  # type: ignore
+        return wrapper
+
+    return decorator
+
+
+def injection_for_all(*for_: Observation) -> Callable[[Callable], Any]:
+    """
+    Декоратор-фабрика.
+    Использование: @injection_for(condition1, condition2)
+    """
+
+    def decorator(injection: Callable[[InjectionPoint], None]):
+        @wraps(injection)
+        def wrapper(point: InjectionPoint) -> bool:
+            base = set(for_)
+            matched = set(for_) & set(point.matched_conditions)
+            if len(matched) == len(base):
+                injection(point)
+                return True
+            return False
+
+        wrapper.conditions = [join_observations(for_)]  # type: ignore
+        return wrapper
+
+    return decorator
+
+
+class InjectionPool:
+    def __init_subclass__(cls):
+        for name, attr in cls.__dict__.items():
+            if callable(attr) and not name.startswith("__"):
+                setattr(cls, name, staticmethod(attr))
+
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("Injection pool classes cannot be instantiated")
+
+    @classmethod
+    def declared_observations(cls) -> list[Observation]:
+        """Возвращает все методы класса, соответствующие протоколу Observation"""
+        observations = []
+        # inspect.getmembers автоматически разворачивает дескрипторы (staticmethod),
+        # возвращая сами функции-обертки, у которых есть нужные атрибуты.
+        for name, value in inspect.getmembers(cls):
+            if not name.startswith("__") and isinstance(value, Observation):
+                observations.append(value)
+        return observations
+
+    @classmethod
+    def declared_injections(cls) -> list[Injection]:
+        """Возвращает все методы класса, соответствующие протоколу Injection"""
+        injections = []
+        for name, value in inspect.getmembers(cls):
+            if not name.startswith("__") and isinstance(value, Injection):
+                injections.append(value)
+        return injections
+
+
+def join_observations(obs: Iterable[Observation], name: str = "") -> Observation:
+    def joined_obs(cur: TokenCursor) -> bool | None:
+        res = False
+        for o in obs:
+            res = o(cur)
+            if not res:
+                return res
+        return res
+
+    return observable_token(name=name)(joined_obs)
+
+
+def observations_from(pool: list[Injection]) -> list[Observation]:
+    res = []
+    for inj in pool:
+        res.extend(inj.conditions)
+    return res
+
+
+def stream_require[T](obj: T | None, msg: str | None = None) -> T:
+    if obj is None:
+        raise SkipStreamIterationException(msg or "Stream point requires non null element")
+    return obj
+
+
+@observable_token()
+def is_first_node_token(cur: TokenCursor) -> bool | None:
+    path = cur.ast_node(0)
+    if path:
+        trange = cur.manager.token_index_range(path.id)
+        if trange:
+            return cur.translate_index(0) == trange[0]
+    return None
+
+
+@observable_token()
+def is_last_node_token(cur: TokenCursor) -> bool | None:
+    path = cur.ast_node(0)
+    if path:
+        trange = cur.manager.token_index_range(path.id)
+        if trange:
+            return cur.translate_index(0) == trange[-1]
+    return None

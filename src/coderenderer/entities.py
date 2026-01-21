@@ -33,3 +33,6 @@ class Token(RendererEntity):
 
     def is_separator(self) -> bool:
         return self.type == "separator"
+
+    def has_newline(self) -> int:
+        return self.value.count("\n")

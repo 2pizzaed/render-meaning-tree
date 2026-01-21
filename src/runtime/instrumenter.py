@@ -64,6 +64,62 @@ def clear_condition_events() -> None:
     _condition_events.clear()
 
 
+def _get_container_length(container: Any) -> int | None:
+    """Определяет длину контейнера через преобразование в список.
+    
+    Args:
+        container: Итерируемый объект
+        
+    Returns:
+        Длина контейнера или None, если > 100 элементов или ошибка
+    """
+    try:
+        lst = list(container)
+        if len(lst) > 100:
+            return None  # Бесконечный или слишком большой
+        return len(lst)
+    except (TypeError, MemoryError):
+        return None
+
+
+def _trace_for_iter_impl(ast_id: int, line_no: int, cond_type: str, expr_text: str, iterator: Any) -> Any:
+    """Обёртка итератора для генерации событий условий в циклах for.
+    
+    Args:
+        ast_id: ID узла AST цикла
+        line_no: Номер строки
+        cond_type: Тип цикла ('for_each' или 'range_for')
+        expr_text: Текст выражения
+        iterator: Итерируемый объект
+        
+    Returns:
+        Обёрнутый итератор, который генерирует события
+    """
+    class TracedIterator:
+        def __init__(self, inner_iter, ast_id, line_no, cond_type, expr_text):
+            self.inner_iter = iter(inner_iter)
+            self.ast_id = ast_id
+            self.line_no = line_no
+            self.cond_type = cond_type
+            self.expr_text = expr_text
+            
+        def __iter__(self):
+            return self
+            
+        def __next__(self):
+            try:
+                value = next(self.inner_iter)
+                # Генерируем событие условия True при получении элемента
+                _trace_condition_impl(self.ast_id, self.line_no, self.cond_type, self.expr_text, True)
+                return value
+            except StopIteration:
+                # Генерируем событие условия False при окончании
+                _trace_condition_impl(self.ast_id, self.line_no, self.cond_type, self.expr_text, False)
+                raise
+    
+    return TracedIterator(iterator, ast_id, line_no, cond_type, expr_text)
+
+
 class ConditionInstrumenter(ast.NodeTransformer):
     """AST-трансформер для инструментации условий.
     
@@ -178,8 +234,44 @@ class ConditionInstrumenter(ast.NodeTransformer):
         return node
     
     def visit_For(self, node: ast.For) -> ast.For:
-        """For-циклы не имеют условия для инструментации."""
-        # For в Python итерирует по коллекции, нет явного условия
+        """Инструментирует циклы for для захвата событий условий.
+        
+        Оборачивает итератор в функцию __trace_for_iter__, которая
+        генерирует события условия при получении элемента (True) и окончании (False).
+        """
+        line_no = getattr(node, 'lineno', 0)
+        ast_id = self._get_next_ast_id()
+        
+        # Сохраняем оригинальный итератор для получения текста
+        original_iter = node.iter
+        
+        # Определяем тип цикла (for_each или range_for)
+        # Проверяем, является ли iter вызовом range()
+        is_range = (
+            isinstance(original_iter, ast.Call) and
+            isinstance(original_iter.func, ast.Name) and
+            original_iter.func.id == 'range'
+        )
+        cond_type = 'range_for' if is_range else 'for_each'
+        
+        # Получаем текст выражения из исходного кода
+        expr_text = self._get_expr_text(original_iter)
+        
+        # Оборачиваем итератор в вызов __trace_for_iter__
+        node.iter = ast.Call(
+            func=ast.Name(id='__trace_for_iter__', ctx=ast.Load()),
+            args=[
+                ast.Constant(value=ast_id),
+                ast.Constant(value=line_no),
+                ast.Constant(value=cond_type),
+                ast.Constant(value=expr_text),
+                original_iter,  # Оригинальный итератор
+            ],
+            keywords=[]
+        )
+        ast.copy_location(node.iter, node)
+        
+        # Рекурсивно обрабатываем вложенные узлы
         self.generic_visit(node)
         return node
     

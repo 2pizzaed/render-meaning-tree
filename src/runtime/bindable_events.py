@@ -322,6 +322,9 @@ class BindableConditionEvaluation(BindableEvent):
     def matches_ast_details(self, act: "TraceAct") -> bool:
         """Проверяет соответствие ast_id.
         
+        Для циклов for_each и range_for проверяет также ast_id родительского узла цикла,
+        так как в событии используется ast_id узла цикла, а не узла условия.
+        
         Args:
             act: Акт трассы для проверки
             
@@ -333,7 +336,53 @@ class BindableConditionEvaluation(BindableEvent):
         if act_ast_id is None:
             return False
         
-        return act_ast_id == self.condition_evaluation.ast_id
+        event_ast_id = self.condition_evaluation.ast_id
+        cond_type = self.condition_evaluation.condition_type
+        
+        # Прямое соответствие ast_id
+        if act_ast_id == event_ast_id:
+            return True
+        
+        # Для циклов for_each и range_for проверяем ast_id родительского узла цикла
+        if cond_type in ('for_each', 'range_for'):
+            # Получаем родительский узел цикла из акта
+            parent_loop_ast_id = self._get_parent_loop_ast_id(act, cond_type)
+            if parent_loop_ast_id is not None and parent_loop_ast_id == event_ast_id:
+                return True
+        
+        return False
+    
+    def _get_parent_loop_ast_id(self, act: "TraceAct", cond_type: str) -> int | None:
+        """Получает ast_id родительского узла цикла из акта.
+        
+        Args:
+            act: Акт трассы
+            cond_type: Тип цикла ('for_each' или 'range_for')
+            
+        Returns:
+            ast_id родительского узла цикла или None
+        """
+        if not act.wrapped_ast or not isinstance(act.wrapped_ast.ast_node, dict):
+            return None
+        
+        # Определяем тип узла цикла
+        loop_node_type = 'for_each_loop' if cond_type == 'for_each' else 'range_for_loop'
+        
+        # Поднимаемся по иерархии AST, ищем родительский узел цикла
+        current_ast = act.wrapped_ast
+        max_depth = 10  # Защита от бесконечного цикла
+        depth = 0
+        
+        while current_ast and current_ast.parent and depth < max_depth:
+            parent_ast = current_ast.parent
+            if isinstance(parent_ast.ast_node, dict):
+                parent_type = parent_ast.ast_node.get('type', '')
+                if parent_type == loop_node_type:
+                    return parent_ast.ast_node.get('id')
+            current_ast = parent_ast
+            depth += 1
+        
+        return None
     
     def _get_ast_id_from_act(self, act: "TraceAct") -> int | None:
         """Извлекает AST ID из акта трассы.

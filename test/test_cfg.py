@@ -281,7 +281,7 @@ class TestCfgBuilder(unittest.TestCase):
         print('Optimization stats:')
         print(f'Removed {removed} insignificant nodes')
         print(f'Graph simplified from {len(cfg.edges) + removed} to {len(cfg.edges)} edges')
-        print(f'Reduction: {(removed) / (len(cfg.edges) + removed) * 100:.1f}% fewer edges')
+        print(f'Reduction: {removed / (len(cfg.edges) + removed) * 100:.1f}% fewer edges')
         print()
 
         # Export to LOQI

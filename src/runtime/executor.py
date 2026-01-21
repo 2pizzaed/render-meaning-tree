@@ -57,10 +57,12 @@ def execute_with_trace(
             clear_condition_events,
             get_condition_events,
             _trace_condition_impl,
+            _trace_for_iter_impl,
         )
         clear_condition_events()
         code_to_execute = instrument_code(source_code, line_to_ast_id)
         condition_tracker_func = _trace_condition_impl
+        for_iter_tracker_func = _trace_for_iter_impl
     
     # Подготавливаем пространства имён
     if globals_dict is None:
@@ -70,9 +72,10 @@ def execute_with_trace(
             '__builtins__': __builtins__,
         }
     
-    # Добавляем функцию трекера условий в глобальное пространство
-    if condition_tracker_func is not None:
+    # Добавляем функции трекера условий в глобальное пространство
+    if track_conditions:
         globals_dict['__trace_condition__'] = condition_tracker_func
+        globals_dict['__trace_for_iter__'] = for_iter_tracker_func
     
     if locals_dict is None:
         locals_dict = globals_dict

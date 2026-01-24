@@ -528,55 +528,8 @@ def plan_to_scenario_config(
                 if actual_ast_id:
                     condition_sequences[actual_ast_id].append(condition_value)
                     continue
-            
-            # Если не нашли через конструкт, пробуем найти через связи в CFG
-            # Сначала находим узлы цикла
-            loop_nodes = []
-            for cfg_node in cfg.nodes.values():
-                if cfg_node.get_ast_id() == ast_id_from_plan:
-                    loop_nodes.append(cfg_node)
-            
-            found_condition_node = False
-            if loop_nodes:
-                loop_node_for_search = loop_nodes[0]  # Используем первый найденный узел цикла
-                # Ищем узлы, которые связаны с циклом (входящие или исходящие рёбра)
-                connected_node_ids = set()
-                for edge in cfg.edges:
-                    if edge.src == loop_node_for_search.id or edge.dst == loop_node_for_search.id:
-                        connected_node_ids.add(edge.src)
-                        connected_node_ids.add(edge.dst)
-                
-                # Среди связанных узлов ищем узел условия
-                for node_id in connected_node_ids:
-                    candidate_node = cfg.nodes.get(node_id)
-                    if not candidate_node:
-                        continue
-                    
-                    if (candidate_node.is_condition() and
-                        candidate_node.role_in_construct == 'cond' and
-                        candidate_node.metadata and
-                        candidate_node.metadata.abstract_action):
-                        # Проверяем, что это условие цикла (не if/while)
-                        action = candidate_node.metadata.abstract_action
-                        if action.construct and action.construct.name in ('for_each_structure', 'for_range_structure'):
-                            actual_ast_id = candidate_node.get_ast_id()
-                            if actual_ast_id:
-                                condition_sequences[actual_ast_id].append(condition_value)
-                                found_condition_node = True
-                                break
-            
-            # Если нашли узел условия через fallback, переходим к следующему условию
-            if found_condition_node:
-                continue
-            
-            # Если не нашли узел условия, выводим предупреждение и продолжаем обычную логику
-            warnings.warn(
-                f"Could not find condition node for loop with ast_id={ast_id_from_plan} "
-                f"(type={cond_type}, line={condition.get('line_number', 'unknown')}), trying fallback search",
-                stacklevel=2,
-            )
         
-        # Обычная логика поиска узла (для всех условий, включая fallback для циклов)
+        # Обычная логика поиска узла (для всех условий)
         if cfg_node_id:
             # Способ 1: по cfg_node_id (приоритетный)
             node = cfg.nodes.get(cfg_node_id)

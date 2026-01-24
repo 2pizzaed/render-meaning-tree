@@ -68,29 +68,77 @@ def _find_condition_node_for_loop(
     Returns:
         Узел CFG условия или None
     """
-    # Находим узел цикла (BEGIN или END)
-    loop_node = None
+    # Находим узел цикла (любого типа: BEGIN, END, или ATOM)
+    loop_nodes = []
     for node in cfg.nodes.values():
         if node.get_ast_id() == loop_ast_id:
-            if node.kind in (NodeKind.BEGIN, NodeKind.END):
-                loop_node = node
-                break
+            loop_nodes.append(node)
     
-    if not loop_node:
+    if not loop_nodes:
         return None
     
+    # Предпочитаем BEGIN или END, но если их нет, используем любой найденный
+    loop_node = None
+    for node in loop_nodes:
+        if node.kind in (NodeKind.BEGIN, NodeKind.END):
+            loop_node = node
+            break
+    
+    # Если не нашли BEGIN/END, используем первый найденный узел
+    if not loop_node:
+        loop_node = loop_nodes[0]
+    
     # Получаем конструкт цикла
-    construct = loop_node.metadata.construct if loop_node.metadata else None
+    # В Metadata конструкт удаляется в __post_init__, поэтому используем abstract_action.construct
+    construct = None
+    if (loop_node.metadata and
+        loop_node.metadata.abstract_action):
+        construct = loop_node.metadata.abstract_action.construct
+    
     if not construct:
         return None
     
     # Ищем узел условия с role='cond' в том же конструкте
+    condition_candidates = []
     for node in cfg.nodes.values():
         if (node.role_in_construct == 'cond' and
             node.is_condition() and
             node.metadata and
-            node.metadata.construct == construct):
-            return node
+            node.metadata.abstract_action):
+            # Проверяем, что узел принадлежит тому же конструкту
+            node_construct = node.metadata.abstract_action.construct
+            
+            if node_construct == construct:
+                condition_candidates.append(node)
+    
+    # Если нашли несколько кандидатов, предпочитаем ATOM
+    if condition_candidates:
+        for node in condition_candidates:
+            if node.kind == NodeKind.ATOM:
+                return node
+        # Если нет ATOM, возвращаем первый найденный
+        return condition_candidates[0]
+    
+    # Если не нашли через конструкт, пробуем найти через проверку родительского узла в AST
+    # Для циклов узел условия должен иметь родительский узел цикла в AST
+    if (loop_node.metadata and
+        loop_node.metadata.wrapped_ast and
+        hasattr(loop_node.metadata.wrapped_ast, 'ast_node')):
+        loop_wrapped_ast = loop_node.metadata.wrapped_ast
+        loop_ast_node = loop_wrapped_ast.ast_node
+        # Ищем узлы условий, у которых родительский узел в AST совпадает с узлом цикла
+        for node in cfg.nodes.values():
+            if (node.is_condition() and
+                node.role_in_construct == 'cond' and
+                node.metadata and
+                node.metadata.wrapped_ast and
+                hasattr(node.metadata.wrapped_ast, 'parent')):
+                # Проверяем, является ли родительский узел узлом цикла
+                node_parent = node.metadata.wrapped_ast.parent
+                if (node_parent and
+                    hasattr(node_parent, 'ast_node') and
+                    node_parent.ast_node == loop_ast_node):
+                    return node
     
     return None
 
@@ -501,10 +549,51 @@ def plan_to_scenario_config(
                 if actual_ast_id:
                     condition_sequences[actual_ast_id].append(condition_value)
                     continue
+            
+            # Если не нашли через конструкт, пробуем найти через связи в CFG
+            # Сначала находим узлы цикла
+            loop_nodes = []
+            for cfg_node in cfg.nodes.values():
+                if cfg_node.get_ast_id() == ast_id_from_plan:
+                    loop_nodes.append(cfg_node)
+            
+            found_condition_node = False
+            if loop_nodes:
+                loop_node_for_search = loop_nodes[0]  # Используем первый найденный узел цикла
+                # Ищем узлы, которые связаны с циклом (входящие или исходящие рёбра)
+                connected_node_ids = set()
+                for edge in cfg.edges:
+                    if edge.src == loop_node_for_search.id or edge.dst == loop_node_for_search.id:
+                        connected_node_ids.add(edge.src)
+                        connected_node_ids.add(edge.dst)
+                
+                # Среди связанных узлов ищем узел условия
+                for node_id in connected_node_ids:
+                    candidate_node = cfg.nodes.get(node_id)
+                    if not candidate_node:
+                        continue
+                    
+                    if (candidate_node.is_condition() and
+                        candidate_node.role_in_construct == 'cond' and
+                        candidate_node.metadata and
+                        candidate_node.metadata.abstract_action):
+                        # Проверяем, что это условие цикла (не if/while)
+                        action = candidate_node.metadata.abstract_action
+                        if action.construct and action.construct.name in ('for_each_structure', 'for_range_structure'):
+                            actual_ast_id = candidate_node.get_ast_id()
+                            if actual_ast_id:
+                                condition_sequences[actual_ast_id].append(condition_value)
+                                found_condition_node = True
+                                break
+            
+            # Если нашли узел условия через fallback, переходим к следующему условию
+            if found_condition_node:
+                continue
+            
             # Если не нашли узел условия, выводим предупреждение и продолжаем обычную логику
             warnings.warn(
                 f"Could not find condition node for loop with ast_id={ast_id_from_plan} "
-                f"(type={cond_type}), trying fallback search",
+                f"(type={cond_type}, line={condition.get('line_number', 'unknown')}), trying fallback search",
                 stacklevel=2,
             )
         

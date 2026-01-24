@@ -50,6 +50,51 @@ def _find_cfg_node_by_ast_id(cfg: CFG, ast_id: int) -> Node | None:
     return None
 
 
+def _find_condition_node_for_loop(
+    cfg: CFG,
+    loop_ast_id: int,
+    cond_type: str,
+) -> Node | None:
+    """Находит узел условия для цикла for_each или range_for.
+    
+    Для циклов узел условия имеет role_in_construct='cond' и находится
+    внутри того же конструкта, что и узел цикла.
+    
+    Args:
+        cfg: Граф потока управления
+        loop_ast_id: ast_id узла цикла
+        cond_type: Тип цикла ('for_each' или 'range_for')
+        
+    Returns:
+        Узел CFG условия или None
+    """
+    # Находим узел цикла (BEGIN или END)
+    loop_node = None
+    for node in cfg.nodes.values():
+        if node.get_ast_id() == loop_ast_id:
+            if node.kind in (NodeKind.BEGIN, NodeKind.END):
+                loop_node = node
+                break
+    
+    if not loop_node:
+        return None
+    
+    # Получаем конструкт цикла
+    construct = loop_node.metadata.construct if loop_node.metadata else None
+    if not construct:
+        return None
+    
+    # Ищем узел условия с role='cond' в том же конструкте
+    for node in cfg.nodes.values():
+        if (node.role_in_construct == 'cond' and
+            node.is_condition() and
+            node.metadata and
+            node.metadata.construct == construct):
+            return node
+    
+    return None
+
+
 def export_condition_decisions(
     trace_acts: list[TraceAct], scenario_name: str = "default"
 ) -> dict[str, Any]:
@@ -438,9 +483,32 @@ def plan_to_scenario_config(
             )
             continue
 
-        # Находим узел CFG одним из двух способов
+        # Извлекаем тип условия для специальной обработки циклов
+        cond_type = condition.get("condition_type", "")
+        
+        # Находим узел CFG одним из способов
         node = None
         
+        # Специальная обработка для циклов for_each и range_for
+        if cond_type in ('for_each', 'range_for') and ast_id_from_plan:
+            # Для циклов ast_id из сценария - это ast_id узла цикла,
+            # но в CFG узел условия имеет другой ast_id (identifier)
+            # Используем специальную функцию для поиска узла условия
+            node = _find_condition_node_for_loop(cfg, ast_id_from_plan, cond_type)
+            if node:
+                # Используем ast_id узла условия (не цикла!)
+                actual_ast_id = node.get_ast_id()
+                if actual_ast_id:
+                    condition_sequences[actual_ast_id].append(condition_value)
+                    continue
+            # Если не нашли узел условия, выводим предупреждение и продолжаем обычную логику
+            warnings.warn(
+                f"Could not find condition node for loop with ast_id={ast_id_from_plan} "
+                f"(type={cond_type}), trying fallback search",
+                stacklevel=2,
+            )
+        
+        # Обычная логика поиска узла (для всех условий, включая fallback для циклов)
         if cfg_node_id:
             # Способ 1: по cfg_node_id (приоритетный)
             node = cfg.nodes.get(cfg_node_id)

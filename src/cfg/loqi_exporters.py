@@ -20,6 +20,7 @@ from .abstractions import (
     Effects,
     SituationState,
     TransitionSpec,
+    find_construct_for_ast_node,
 )
 from .cfg import CFG, Edge, Metadata, Node, RuntimeInfo, TraceAct
 from .loqi_exporter import NameRegistry, ObjectExporter
@@ -28,43 +29,6 @@ from .reachability import PathInfo
 # use classmethod as decorator
 registered = ObjectExporter.register_class
 loc = Locales("definitions")
-
-# Кэш для конструктов (ленивая загрузка)
-_constructs_cache: dict[str, ConstructSpec] | None = None
-
-def _find_construct_for_ast_node(wrapped_ast: ASTNodeWrapper | None) -> ConstructSpec | None:
-    """Находит конструкт, соответствующий AST-узлу.
-    
-    Для действий с kind: auto нужно использовать конструкт, соответствующий
-    самому AST-узлу, а не родительский конструкт действия.
-    
-    Args:
-        wrapped_ast: Обёртка AST-узла
-        
-    Returns:
-        ConstructSpec, соответствующий AST-узлу, или None если не найден
-    """
-    if not wrapped_ast:
-        return None
-    
-    global _constructs_cache
-    if _constructs_cache is None:
-        from src.cfg.abstractions import get_constructs_file_name, load_constructs
-        _constructs_cache = load_constructs(get_constructs_file_name(), debug=False)
-    
-    ast_node = wrapped_ast.ast_node
-    if not isinstance(ast_node, dict):
-        return None
-    
-    node_type = ast_node.get("type")
-    if not node_type:
-        return None
-    
-    for construct in _constructs_cache.values():
-        if node_type in construct.supported_ast_nodes():
-            return construct
-    
-    return None
 
 @registered
 class EffectsExporter(ObjectExporter):
@@ -402,7 +366,7 @@ class NodeExporter(ObjectExporter):
                 loc_key = action._locale_trace_name
             else:
                 # Ищем конструкт для AST-узла
-                ast_construct = _find_construct_for_ast_node(obj.metadata.wrapped_ast)
+                ast_construct = find_construct_for_ast_node(obj.metadata.wrapped_ast)
                 if ast_construct and ast_construct._locale_trace_name:
                     loc_key = ast_construct._locale_trace_name
 

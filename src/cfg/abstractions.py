@@ -784,6 +784,71 @@ def load_constructs(path: str | None = None, debug=False):
     return constructs
 
 
+# Глобальный кэш для загруженных конструктов
+_global_constructs_cache: dict[str, ConstructSpec] | None = None
+# Глобальный set для отслеживания уже выведенных предупреждений о типах узлов без конструктов
+_seen_unknown_construct_types: set[str | None] = set()
+
+
+def get_constructs(language="python", debug=False) -> dict[str, ConstructSpec]:
+    """Возвращает загруженные конструкты с ленивой загрузкой.
+    
+    Args:
+        language: Язык программирования для выбора файла конструктов
+        debug: Выводить ли отладочную информацию при загрузке
+        
+    Returns:
+        Словарь загруженных конструктов
+    """
+    global _global_constructs_cache
+    if _global_constructs_cache is None:
+        _global_constructs_cache = load_constructs(get_constructs_file_name(language), debug=debug)
+    return _global_constructs_cache
+
+
+def find_construct_for_ast_node(
+    wrapped_ast: aw.ASTNodeWrapper | None,
+    language="python",
+    warn_unknown: bool = False
+) -> ConstructSpec | None:
+    """Находит конструкт, соответствующий AST-узлу.
+    
+    Для действий с kind: auto нужно использовать конструкт, соответствующий
+    самому AST-узлу, а не родительский конструкт действия.
+    
+    Args:
+        wrapped_ast: Обёртка AST-узла
+        language: Язык программирования для выбора файла конструктов
+        warn_unknown: Выводить ли предупреждение для неизвестных типов узлов
+        
+    Returns:
+        ConstructSpec, соответствующий AST-узлу, или None если не найден
+    """
+    if not wrapped_ast:
+        return None
+    
+    ast_node = wrapped_ast.ast_node
+    if not isinstance(ast_node, dict):
+        return None
+    
+    node_type = ast_node.get("type")
+    if not node_type:
+        return None
+    
+    constructs = get_constructs(language=language, debug=False)
+    
+    for construct in constructs.values():
+        if node_type in construct.supported_ast_nodes():
+            return construct
+    
+    # Выводим предупреждение только один раз для каждого типа узла
+    if warn_unknown and node_type not in _seen_unknown_construct_types:
+        print(f'Note: no construct found for ast_node {node_type=}, treating as atomic.', file=sys.stderr)
+        _seen_unknown_construct_types.add(node_type)
+    
+    return None
+
+
 class AppearanceType(SelfValidatedEnum):
     """Show action buttons or not."""
     MANDATORY = "mandatory"

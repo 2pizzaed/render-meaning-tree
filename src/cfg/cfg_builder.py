@@ -8,6 +8,7 @@ from src.cfg.abstractions import (
     AppearanceType,
     DEFAULT_APPEARANCE_PROFILE, KindChain,
     InterruptionType,
+    find_construct_for_ast_node,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.cfg.cfg import Node, CFG, BEGIN, END, Metadata, NodeKind
@@ -23,8 +24,7 @@ FUNC_DEF_AST_NODE_TYPES = (
     'method_definition',
 )
 
-# Глобальный set для отслеживания уже выведенных предупреждений о типах узлов без конструктов
-_seen_unknown_construct_types: set[str | None] = set()
+# Примечание: _seen_unknown_construct_types теперь находится в abstractions.py
 
 # ---------- CFGBuilder ----------
 class CFGBuilder:
@@ -107,19 +107,19 @@ class CFGBuilder:
         return CFG.create_empty(name)
 
     def find_construct_for_astnode(self, ast_node_wrapper: ASTNodeWrapper) -> Optional[ConstructSpec]:
-        v = ast_node_wrapper.ast_node
-        if isinstance(v, dict):
-            node_type = v.get("type")
-            for construct in self.constructs.values():
-                if node_type in construct.supported_ast_nodes():
-                    return construct
-            ###
-            # Выводим предупреждение только один раз для каждого типа узла
-            if node_type not in _seen_unknown_construct_types:
-                print(f'Note: no construct found for ast_node {node_type=}, treating as atomic.', file=sys.stderr)
-                _seen_unknown_construct_types.add(node_type)
-            ###
-        return None
+        """Находит конструкт для AST-узла, используя глобальный реестр конструктов.
+        
+        Использует глобальную функцию find_construct_for_ast_node из abstractions.py
+        для устранения дублирования кода и обеспечения единого источника истины.
+        
+        Args:
+            ast_node_wrapper: Обёртка AST-узла
+            
+        Returns:
+            ConstructSpec, соответствующий AST-узлу, или None если не найден
+        """
+        # Используем глобальную функцию с предупреждениями для обратной совместимости
+        return find_construct_for_ast_node(ast_node_wrapper, warn_unknown=True)
 
     def _extract_function_name(self, wrapped_ast: ASTNodeWrapper, construct: ConstructSpec) -> Optional[str]:
         """Извлекает имя функции из AST узла, используя action с ролью 'name' из конструкта."""

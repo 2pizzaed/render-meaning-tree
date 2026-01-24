@@ -399,11 +399,11 @@ def visualize_cfg(cfg: CFG, output_file: str = "cfg.png",
 # Пример использования
 if __name__ == "__main__":
     # Демонстрационный пример
-    from src.cfg.abstractions import load_constructs
+    from src.cfg.abstractions import get_constructs
     from src.cfg.cfg_builder import CFGBuilder
 
-    # Загружаем конструкции
-    constructs = load_constructs()
+    # Загружаем конструкции (используем глобальный реестр)
+    constructs = get_constructs()
 
     # Создаём простой CFG для демонстрации
     builder = CFGBuilder(constructs)

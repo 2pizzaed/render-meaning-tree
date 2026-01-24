@@ -105,6 +105,8 @@ def enrich_trace_with_runtime(
         
         # Привязываем событие к акту
         _bind_event_to_act(bindable_event, act)
+        ### TODO: ADD logging on each bind
+
         
         # Помечаем событие как использованное
         bindable_event.mark_used()

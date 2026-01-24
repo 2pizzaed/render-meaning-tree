@@ -693,6 +693,7 @@ class CFGBuilder:
                         abstract_action=target_action,
                         wrapped_ast=next_wrapped_ast,
                         primary=is_primary,
+                        construct=target_construct,
                     )
                     if sub_cfg:
                         # Implode subCFG & polyfill ends metadata.

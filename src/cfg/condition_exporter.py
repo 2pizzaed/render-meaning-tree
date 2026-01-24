@@ -92,8 +92,8 @@ def _find_condition_node_for_loop(
     # В Metadata конструкт удаляется в __post_init__, поэтому используем abstract_action.construct
     construct = None
     if (loop_node.metadata and
-        loop_node.metadata.abstract_action):
-        construct = loop_node.metadata.abstract_action.construct
+        loop_node.metadata.construct):
+        construct = loop_node.metadata.construct
     
     if not construct:
         return None
@@ -115,20 +115,36 @@ def _find_condition_node_for_loop(
                 if cond_ast_id:
                     # Ищем CFG узел с этим ast_id и role='cond'
                     for node in cfg.nodes.values():
-                        if (node.get_ast_id() == cond_ast_id and
+                        node_ast_id = node.get_ast_id()
+                        if (node_ast_id == cond_ast_id and
                             node.role_in_construct == 'cond' and
                             node.is_condition()):
                             return node
+                    # Если не нашли с role='cond', пробуем найти просто по ast_id
+                    # (возможно, role установлен неправильно)
+                    for node in cfg.nodes.values():
+                        node_ast_id = node.get_ast_id()
+                        if node_ast_id == cond_ast_id and node.is_condition():
+                            # Проверяем, что узел связан с циклом
+                            if (node.metadata and
+                                node.metadata.abstract_action and
+                                node.metadata.abstract_action.construct == construct):
+                                return node
         except Exception:
             # Если не удалось найти через identification, продолжаем обычный поиск
             pass
     
     # Ищем узел условия с role='cond' в том же конструкте
     condition_candidates = []
+    # Сначала собираем все узлы с role='cond' для отладки
+    all_cond_nodes = []
     for node in cfg.nodes.values():
-        if (node.role_in_construct == 'cond' and
-            node.is_condition() and
-            node.metadata and
+        if node.role_in_construct == 'cond' and node.is_condition():
+            all_cond_nodes.append(node)
+    
+    # Теперь ищем узлы в том же конструкте
+    for node in all_cond_nodes:
+        if (node.metadata and
             node.metadata.abstract_action):
             # Проверяем, что узел принадлежит тому же конструкту
             node_construct = node.metadata.abstract_action.construct
@@ -166,28 +182,62 @@ def _find_condition_node_for_loop(
         if condition_candidates:
             return condition_candidates[0]
     
-    # Если не нашли через конструкт, пробуем найти через проверку родительского узла в AST
-    # Для циклов узел условия должен иметь родительский узел цикла в AST
-    if (loop_wrapped_ast and
-        hasattr(loop_wrapped_ast, 'ast_node') and
-        isinstance(loop_wrapped_ast.ast_node, dict)):
-        loop_ast_node = loop_wrapped_ast.ast_node
-        loop_ast_id_from_node = loop_ast_node.get('id')
-        # Ищем узлы условий, у которых родительский узел в AST совпадает с узлом цикла
+    # Если не нашли через конструкт, пробуем найти все узлы условий и проверить их связь с циклом
+    # Это более широкий поиск - ищем все узлы условий, которые могут быть связаны с циклом
+    if loop_wrapped_ast and isinstance(loop_wrapped_ast.ast_node, dict):
+        loop_ast_id_from_node = loop_wrapped_ast.ast_node.get('id')
+        # Ищем все узлы условий, которые могут быть связаны с циклом
         for node in cfg.nodes.values():
             if (node.is_condition() and
                 node.role_in_construct == 'cond' and
                 node.metadata and
-                node.metadata.wrapped_ast and
-                hasattr(node.metadata.wrapped_ast, 'parent')):
+                node.metadata.wrapped_ast):
                 # Проверяем, является ли родительский узел узлом цикла
-                node_parent = node.metadata.wrapped_ast.parent
-                if (node_parent and
-                    hasattr(node_parent, 'ast_node') and
-                    isinstance(node_parent.ast_node, dict)):
-                    parent_ast_id = node_parent.ast_node.get('id')
-                    if parent_ast_id == loop_ast_id_from_node:
-                        return node
+                if hasattr(node.metadata.wrapped_ast, 'parent'):
+                    node_parent = node.metadata.wrapped_ast.parent
+                    if (node_parent and
+                        hasattr(node_parent, 'ast_node') and
+                        isinstance(node_parent.ast_node, dict)):
+                        parent_ast_id = node_parent.ast_node.get('id')
+                        if parent_ast_id == loop_ast_id_from_node:
+                            return node
+                # Также проверяем, может быть узел условия находится внутри цикла через иерархию
+                # Поднимаемся по parent до корня и ищем узел цикла
+                current = node.metadata.wrapped_ast
+                max_depth = 10
+                depth = 0
+                while current and current.parent and depth < max_depth:
+                    parent = current.parent
+                    if (hasattr(parent, 'ast_node') and
+                        isinstance(parent.ast_node, dict)):
+                        parent_ast_id = parent.ast_node.get('id')
+                        if parent_ast_id == loop_ast_id_from_node:
+                            return node
+                    current = parent
+                    depth += 1
+    
+    # Последняя попытка: ищем узлы условий, связанные с циклом через CFG edges
+    # Находим все узлы, связанные с узлом цикла через рёбра
+    connected_node_ids = set()
+    for edge in cfg.edges:
+        if edge.src == loop_node.id or edge.dst == loop_node.id:
+            connected_node_ids.add(edge.src)
+            connected_node_ids.add(edge.dst)
+    
+    # Среди связанных узлов ищем узел условия
+    for node_id in connected_node_ids:
+        candidate_node = cfg.nodes.get(node_id)
+        if not candidate_node:
+            continue
+        
+        if (candidate_node.is_condition() and
+            candidate_node.role_in_construct == 'cond' and
+            candidate_node.metadata and
+            candidate_node.metadata.abstract_action):
+            # Проверяем, что это условие цикла (не if/while)
+            action = candidate_node.metadata.abstract_action
+            if action.construct and action.construct.name in ('for_each_structure', 'for_range_structure'):
+                return candidate_node
     
     return None
 
@@ -685,7 +735,7 @@ def plan_to_scenario_config(
         if ast_id is None:
             # Если ast_id недоступен, используем cfg_node_id как ключ (но это не идеально)
             # Попробуем найти ast_id через другие условия, которые уже были обработаны
-            if cfg_node_id in cfg_to_ast:
+            if cfg_node_id and cfg_node_id in cfg_to_ast:
                 ast_id = cfg_to_ast[cfg_node_id]
             else:
                 warnings.warn(
@@ -695,7 +745,8 @@ def plan_to_scenario_config(
                 continue
 
         # Сохраняем соответствие для будущего использования
-        cfg_to_ast[cfg_node_id] = ast_id
+        if cfg_node_id:
+            cfg_to_ast[cfg_node_id] = ast_id
 
         # Добавляем значение в последовательность для этого ast_id
         condition_sequences[ast_id].append(condition_value)

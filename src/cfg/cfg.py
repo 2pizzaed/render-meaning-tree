@@ -85,7 +85,7 @@ class Metadata(DictLikeDataclass):
     has_corresponding_end: Optional['Node'] = None
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
-    construct: ConstructSpec = None  # to take abstract_action from it when abstract_action is not passed, do not use after init completed!
+    construct: ConstructSpec | None = None  # to take abstract_action from it when abstract_action is not passed, do not use after init completed!
 
     def __post_init__(self):
         if self.construct is not None and isinstance(self.construct, ConstructSpec):
@@ -166,6 +166,17 @@ class Node(FactSerializable, WithEffectsMixin):
 
     def get_ast_id(self) -> int | None:
         return self.metadata.wrapped_ast.ast_node.get('id') if self.metadata.wrapped_ast else None
+
+    def get_construct(self) -> ConstructSpec | None:
+        if self.metadata.construct:
+            return self.metadata.construct
+        else:
+            # ast_id = self.get_ast_id()
+            if self.metadata.wrapped_ast is not None:
+                # получить construct по ast.type
+                self.metadata.wrapped_ast.ast_node.get('type')
+
+
 
     def is_mandatory(self) -> bool:
         return self.appearance == AppearanceType.MANDATORY
@@ -256,8 +267,8 @@ class CFG:
         effects: list[Effects] = []
         if metadata.abstract_action and metadata.abstract_action.effects:
             effects += metadata.abstract_action.effects
-            if metadata.abstract_action.construct and metadata.abstract_action.role == END:
-                effects += metadata.abstract_action.construct.effects
+            if metadata.construct and metadata.abstract_action.role == END:
+                effects += metadata.construct.effects
 
         kind = NodeKind(kind)
         node_id = idgen.next(kind.value)

@@ -88,7 +88,7 @@ class Metadata(DictLikeDataclass):
     construct: ConstructSpec | None = None  # to take abstract_action from it when abstract_action is not passed, do not use after init completed!
 
     def __post_init__(self):
-        if self.construct is not None and isinstance(self.construct, ConstructSpec):
+        if not self.abstract_action and self.construct is not None and isinstance(self.construct, ConstructSpec):
             # END is universal & makes sense for effects.
             self.abstract_action = self.construct.find_action_by_role(END)
             self.construct = None  # removed, do not use it anymore.

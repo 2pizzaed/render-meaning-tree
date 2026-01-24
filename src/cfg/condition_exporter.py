@@ -110,7 +110,8 @@ def _find_condition_node_for_loop(
             if cond_wrapped_ast and isinstance(cond_wrapped_ast.ast_node, dict):
                 cond_ast_id = cond_wrapped_ast.ast_node.get('id')
                 if cond_ast_id:
-                    # Ищем CFG узел с этим ast_id и role='cond'
+                    # Ищем CFG узел с этим ast_id
+                    # (и не начало, т.к. вычисление привязывается к окончанию условия: ATOM/END)
                     for node in cfg.nodes.values():
                         node_ast_id = node.get_ast_id()
                         if (node_ast_id == cond_ast_id and

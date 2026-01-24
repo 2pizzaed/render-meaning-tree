@@ -84,6 +84,7 @@ class CodeHighlightGenerator:
 
         self.template_path = template_path
         self.analyzer = None
+        self._range_for = []
 
         # Используем встроенный загрузчик шаблонов Jinja2
         template_dir, template_file = os.path.split(template_path)
@@ -191,8 +192,11 @@ class CodeHighlightGenerator:
         # Кнопки в циклах general for (должна быть кнопка на каждое действие)
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
-                self._range_for = [token.get("value", "")]
-                possible_buttons.append(("play", "outlined"))
+                if self.language == "python" and token.get("value") == "range":
+                    possible_buttons.append(("play", "outlined"))
+                elif self.language != "python":
+                    self._range_for = [token.get("value", "")]
+                    possible_buttons.append(("play", "outlined"))
             if node_token_pos == "middle" and self.language != "python":
                 if (
                     token.get("value", "") != ";"

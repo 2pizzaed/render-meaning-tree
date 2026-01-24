@@ -267,8 +267,8 @@ class CFG:
         effects: list[Effects] = []
         if metadata.abstract_action and metadata.abstract_action.effects:
             effects += metadata.abstract_action.effects
-            if metadata.construct and metadata.abstract_action.role == END:
-                effects += metadata.construct.effects
+            if metadata.abstract_action.construct and metadata.abstract_action.role == END:
+                effects += metadata.abstract_action.construct.effects
 
         kind = NodeKind(kind)
         node_id = idgen.next(kind.value)

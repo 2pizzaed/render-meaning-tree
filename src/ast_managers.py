@@ -1,5 +1,5 @@
 import inspect
-from collections.abc import Callable, Generator, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Literal, Protocol, runtime_checkable
@@ -207,10 +207,10 @@ class SkipStreamIterationException(Exception):
 
 class TokenCursor:
     '''Указатель на токен (индекс равен 0), вокруг него могут быть другие токены (индексы -1, -2... и +1, +2...) в зависимости от lookaround'''
-    def __init__(self, owner: "CodeManager", lookaround: int, real_index: int, buf: list[RendererEntity]):
+    def __init__(self, owner: "CodeManager", lookaround: int, real_index: int, buf: "list[RendererEntity] | list_view"):
         self._center = lookaround
         self._lookaround = lookaround
-        self._buf = buf
+        self._buf: list[RendererEntity] | list_view = buf
         self._owner = owner
         self._real_index = real_index
 
@@ -224,7 +224,12 @@ class TokenCursor:
         return self._buf[self._align(offset)] if isinstance(offset, int) \
             else self._buf[self._align(offset.start):self._align(offset.stop)]
 
-    def translate_index(self, offset: int) -> int:
+    def translate_index(self, offset: int | slice) -> int | slice:
+        if isinstance(offset, slice):
+            return slice(self._real_index + offset.start,
+                         self._real_index + offset.stop,
+                         offset.step
+                         )
         return self._real_index + offset
 
     def token(self, index: int) -> Token | None:
@@ -308,7 +313,7 @@ class CodeManager:
         return self.code.count("\n")
 
     @property
-    def last_processed(self) -> list[RendererEntity] | None:
+    def last_processed(self) -> Sequence[RendererEntity] | None:
         return self._last_stream.result() if self._last_stream else None
 
     def get_token(self, index: int | slice) -> Token | list[Token] | None:
@@ -436,6 +441,8 @@ class CodeManager:
         for i in range(from_, to, step):
             tokens = []
             for j in range(i - lookaround, i + lookaround + 1):
+                if j < 0 or j >= len(self._tokens):
+                    continue
                 token = self.get_token(j)
                 tokens.append(token if token is not None else {})
             yield TokenCursor(self, lookaround, i, tokens)
@@ -446,9 +453,8 @@ class CodeManager:
                          to: int | None = None,
                          step: int = 1,
                          lookaround: int = 1):
-        self._last_stream = InjectionManager(
-            self.stream(from_, to, step, lookaround=lookaround), self, []
-        )
+        self._last_stream = InjectionManager(self, None,
+            from_, to, step, lookaround)
         return self._last_stream.apply(injections)
 
     def injection_stream(self,
@@ -457,10 +463,18 @@ class CodeManager:
                          to: int | None = None,
                          step: int = 1,
                          lookaround: int = 1) -> Generator["InjectionPoint"]:
+        '''
+        Курсор обновляется в соответствии с добавленными/удаленными элементами на каждом шаге,
+        т. е. ссылается на изменяемый буфер
+
+        Условия conditions можно не задавать, только в случае,
+        если вы применяете список объектов Injection
+        (см. apply_injections)
+        '''
         self._last_stream = InjectionManager(
-            self.stream(from_, to, step, lookaround=lookaround),
-            self,
-            conditions)
+            self, conditions,
+            from_, to, step, lookaround
+        )
         yield from self._last_stream
 
 
@@ -468,7 +482,7 @@ class InjectionPoint(TokenCursor):
     def __init__(self, owner: "InjectionManager", lookaround: int,
                  real_index: int,
                  matched_conditions: list[Observation],
-                 buf: list[RendererEntity]):
+                 buf: "list[RendererEntity] | list_view"):
         super().__init__(owner._owner, lookaround, real_index, buf)
         self._injection_owner = owner
         self._matched_conditions = matched_conditions
@@ -480,10 +494,6 @@ class InjectionPoint(TokenCursor):
     @property
     def applied_injections_before(self):
         return self._injection_owner._applied_count
-
-    def _apply(self) -> list[RendererEntity]:
-        '''Применение изменений после завершения итерации'''
-        return self._buf
 
     def cancel(self):
         '''Отменяет инъекцию'''
@@ -546,39 +556,176 @@ class InjectionPoint(TokenCursor):
         self._injection_owner._trigger()
 
 
+class list_view:
+    def __init__(self, src: list, indices: Iterable[int] | range):
+        self._src = src
+        self._indices = list(indices)
+
+    def __iter__(self):
+        for i in self._indices:
+            yield self._src[i]
+
+    def __getitem__(self, i: int | slice):
+        if isinstance(i, slice):
+            return self._src[self.translate_index(i.start) : self.translate_index(i.stop) : i.step]
+        return self._src[self.translate_index(i)]
+
+    def __setitem__(self, i: int | slice, item: Any):
+        if isinstance(i, slice):
+            target_indices = self._indices[i]
+            if hasattr(item, "__iter__") and not isinstance(item, str):
+                items = list(item)
+                if len(items) != len(target_indices):
+                    raise ValueError(
+                        f"attempt to assign sequence of size {len(items)} "
+                        f"to slice of size {len(target_indices)}"
+                    )
+                for idx, val in zip(target_indices, items, strict=False):
+                    self._src[idx] = val
+            else:
+                for idx in target_indices:
+                    self._src[idx] = item
+        else:
+            self._src[self.translate_index(i)] = item
+
+
+    def __delitem__(self, item: int | slice):
+        if isinstance(item, int):
+            return self.pop(item)
+
+        # Получаем индексы для удаления
+        indices_to_remove = self._indices[item]
+
+        # Проверяем валидность всех индексов
+        for idx in indices_to_remove:
+            if idx < 0 or idx >= len(self._src):
+                raise IndexError(f"source index {idx} out of range")
+
+        # Удаляем из исходного списка (с конца, чтобы не сбить индексы)
+        sorted_to_remove = sorted(indices_to_remove, reverse=True)
+        for src_idx in sorted_to_remove:
+            del self._src[src_idx]
+
+        # Обновляем индексы view
+        deleted_set = set(indices_to_remove)
+        new_indices = []
+
+        for idx in self._indices:
+            if idx in deleted_set:
+                continue
+            # Считаем смещение
+            offset = sum(1 for d in sorted_to_remove if d < idx)
+            new_indices.append(idx - offset)
+
+        self._indices = new_indices
+
+    def __len__(self):
+        return len(self._indices)
+
+    @property
+    def source(self):
+        return self._src
+
+    def translate_index(self, i: int | slice) -> int | slice:
+        if isinstance(i, slice):
+            return slice(self.translate_index(i.start), self.translate_index(i.stop), i.step)
+        if i < 0 or i >= len(self._indices):
+            raise IndexError(f"Invalid list_view position, {i}")
+        return self._indices[i]
+
+    def insert(self, pos: int, item: Any):
+        """Вставляет элемент в исходный список и обновляет индексы"""
+        # Находим позицию в исходном списке
+        if pos < 0 or pos > len(self._indices):
+            raise IndexError(f"Position {pos} not found in list_view")
+        insert_idx = self._indices[-1] + 1 \
+            if pos == len(self._indices) else self._indices[pos]
+
+        # Вставляем в исходный список
+        self._src.insert(insert_idx, item)
+
+        # Обновляем все индексы >= insert_idx
+        self._indices = [idx + 1 if idx >= insert_idx else idx for idx in self._indices]
+
+        # Добавляем новый индекс
+        self._indices.insert(pos, insert_idx)
+
+    def remove(self, item: Any):
+        """Удаляет первое вхождение элемента"""
+        for i, idx in enumerate(self._indices):
+            if self._src[idx] == item:
+                self.pop(i)
+                return
+        raise ValueError(f"{item} not in list_view")
+
+    def pop(self, pos: int = -1):
+        """Удаляет элемент по позиции в view"""
+        if not self._indices:
+            raise IndexError("pop from empty list_view")
+
+        # Получаем индекс в исходном списке
+        src_idx = self._indices[pos]
+        item = self._src[src_idx]
+
+        # Удаляем из исходного списка
+        del self._src[src_idx]
+
+        # Обновляем индексы
+        self._indices.pop(pos)
+        self._indices = [idx - 1 if idx > src_idx else idx for idx in self._indices]
+
+        return item
+
+
 class InjectionManager:
     def __init__(self,
-                 stream: Generator[TokenCursor],
                  tokens: CodeManager,
-                 conditions: Iterable[Observation]):
-        self._stream = stream
-        self._it: Iterator[InjectionPoint] = iter(self)
+                 conditions: Iterable[Observation] | None = None,
+                 from_: int | None = None,
+                 to_: int | None = None,
+                 step: int | None = None,
+                 lookaround: int = 1):
+        self._lookaround = lookaround
         self._owner = tokens
         self._conditions = conditions
         self._applied_count = 0
         self._skipped_count = 0
-        self._result: list[RendererEntity] = []
+        self._result: list[RendererEntity] = list(tokens._tokens[from_:to_:step]) # type: ignore
+        self._ptr = -1
         self._flags: dict[str, int | bool] = {}
 
     def _trigger(self):
         self._triggered = True
 
+    def __detect_trigger(self):
+        if self._triggered:
+            self._applied_count += 1
+            self._triggered = False
+
+    def __next__(self):
+        self.__detect_trigger()
+        self._ptr += 1
+        if self._ptr >= len(self._result):
+            raise StopIteration
+        begin_index = max(self._ptr - self._lookaround, 0)
+        end_index = min(self._ptr + self._lookaround + 1, len(self._result))
+        buffer = list_view(self._result, range(begin_index, end_index))
+        cursor = TokenCursor(self._owner,
+                             self._lookaround,
+                             begin_index, buffer)
+        matched: list[Observation] = []
+        for obs in (self._conditions or []):
+            if obs(cursor):
+                matched.append(obs)
+        cursor = InjectionPoint(
+            self, cursor.max_seek,
+            begin_index, matched,
+            buffer
+        )
+        return cursor
+
     def __iter__(self) -> Iterator[InjectionPoint]:
-        for cursor in self._stream:
-            matched: list[Observation] = []
-            for obs in self._conditions:
-                if obs(cursor):
-                    matched.append(obs)
-            if matched:
-                cursor = InjectionPoint(
-                    self, cursor.max_seek,
-                    len(self._result), matched,
-                    cursor._buf
-                )
-                yield cursor
-                self._result.extend(cursor._apply())
-            else:
-                self._result.extend(cursor._buf)
+        return self
 
     def apply(self, pool: list[Injection]):
         self._conditions = observations_from(pool)
@@ -586,13 +733,11 @@ class InjectionManager:
             for injection in pool:
                 try:
                     injection(point)
-                    if self._triggered:
-                        self._applied_count += 1
-                        self._triggered = False
+                    self.__detect_trigger()
                 except SkipStreamIterationException:
                     self._skipped_count += 1
 
-    def result(self) -> list[RendererEntity]:
+    def result(self) -> Sequence[RendererEntity]:
         return self._result
 
 
@@ -603,7 +748,7 @@ def manage_code(tokens: TokenList, map: SourceMap) -> CodeManager:
 
 
 def observable_token(
-    before: list[Observation] = [],
+    before: list[Observation] | None = None,
     name: str = "",
 ) -> Callable[[Callable], Any]:
     """
@@ -618,7 +763,7 @@ def observable_token(
 
         @wraps(observation)
         def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
-            for obs in before:
+            for obs in (before or []):
                 # Если условие before не выполнено, прерываем
                 if obs(cur) is False:
                     return False
@@ -638,7 +783,7 @@ def observable_token(
     return decorator
 
 
-def observable_node(before: list[Observation] = [], name: str = "") -> Callable[[Callable], Any]:
+def observable_node(before: list[Observation] | None = None, name: str = "") -> Callable[[Callable], Any]:
     """
     Фабрика декораторов.
     Использование: @observable_node(name="is_atomic")
@@ -651,7 +796,7 @@ def observable_node(before: list[Observation] = [], name: str = "") -> Callable[
 
         @wraps(observation)
         def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
-            for obs in before:
+            for obs in (before or []):
                 res = obs(cur)
                 if not res:
                     return res
@@ -769,9 +914,14 @@ def observations_from(pool: list[Injection]) -> list[Observation]:
     return res
 
 
-def stream_require[T](obj: T | None, msg: str | None = None) -> T:
+def stream_require[T](obj: T | None,
+                      msg: str | None = None,
+                      skip_item: bool = True) -> T:
     if obj is None:
-        raise SkipStreamIterationException(msg or "Stream point requires non null element")
+        if skip_item:
+            raise SkipStreamIterationException(msg or "Stream point requires non null element")
+        else:
+            raise ValueError(msg or "Stream point requires non null element")
     return obj
 
 

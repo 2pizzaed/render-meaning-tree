@@ -189,6 +189,13 @@ class CodeHighlightGenerator:
         is_header = self.analyzer.is_loop_or_condition_header(node_id)
         for_component = self.analyzer.determine_for_loop_component(node_id)
 
+        # Вложенный вызов функции
+        if is_nested_call or is_function_call:
+            if button_position == "start" and node_token_pos == "start":
+                possible_buttons.append(("step-into", "filled"))
+            if button_position == "end" and node_token_pos == "end":
+                possible_buttons.append(("step-out", "filled"))
+
         # Кнопки в циклах general for (должна быть кнопка на каждое действие)
         if for_component == "range" and button_position == "start":
             if node_token_pos == "start":
@@ -215,13 +222,6 @@ class CodeHighlightGenerator:
 
         if for_component and for_component in ["item", "identifier"] and button_position == "end":
             possible_buttons.append(("question", "outlined"))
-
-        # Вложенный вызов функции
-        if is_nested_call or is_function_call:
-            if button_position == "start" and node_token_pos == "start":
-                possible_buttons.append(("step-into", "filled"))
-            if button_position == "end" and node_token_pos == "end":
-                possible_buttons.append(("step-out", "filled"))
 
         # Простой statement
         if is_simple_statement and button_position == "start":

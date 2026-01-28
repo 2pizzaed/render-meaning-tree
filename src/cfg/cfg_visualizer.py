@@ -73,7 +73,7 @@ def _create_node_label(node: Node) -> str:
     parts.append(title)
 
     if action_info:
-        parts.append(action_info)
+        parts.append(action_info.replace('""', "empty string")) # patch: fix dot crash
 
     # Role если отличается от kind
     if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:

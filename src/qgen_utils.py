@@ -7,6 +7,7 @@ from typing import Any
 from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg.abstractions import (
     InterruptionType,
+    OptionalBoolValue,
     SituationState,
     get_constructs_file_name,
     load_constructs,
@@ -16,16 +17,17 @@ from src.cfg.cfg import CFG, NodeKind, TraceAct
 from src.cfg.cfg_builder import CFGBuilder
 from src.cfg.condition_exporter import (
     DEFAULT_SEED,
-    load_scenarios_from_file,
     plan_to_scenario_config,
 )
 from src.cfg.loqi_exporter import LoqiExporter
-from src.cfg.reachability import determine_all_paths_between_opaque_nodes
+from src.cfg.reachability import PathInfo, determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import (
     TraceScenarioConfig,
     generate_trace_variants,
 )
 from src.code_renderer import CodeHighlightGenerator
+from src.helpers.bitflags import pack_flags
+from src.helpers.classification import CONCEPTS, ERRORNEOUS_SKILLS, SKILLS
 from src.meaning_tree import convert, to_dict, to_tokens
 
 
@@ -36,12 +38,248 @@ class LoqiVariant:
     trace_acts: list[TraceAct]
 
 
-def find_concepts(mt: dict[str, Any]) -> list[str]:
-    return []
+def find_concepts(ast: ASTNodeAnalyzer) -> set[str]:
+    concepts = set()
+    for node in ast.nodes_cache.values():
+        node_type = node.get("type")
+        node_id = node.get("id")
+
+        if node_type == "function_definition":
+            concepts.add("function")
+
+        if node_type == "class_definition":
+            concepts.add("class")
+
+        if node_type == "structure_definition":
+            concepts.add("structure")
+
+        if node_type == "field_declaration":
+            concepts.add("field")
+
+        if node_type in {
+            "method_definition",
+            "object_constructor_definition",
+            "object_destructor_definition",
+        }:
+            concepts.add("method")
+
+        if node_type in {"variable_declaration", "separated_variable_declaration"}:
+            concepts.add("var_declaration")
+
+        if node_type in {
+            "assignment_expression",
+            "assignment_statement",
+            "compound_assignment_statement",
+            "multiple_assignment_statement",
+        }:
+            concepts.add("assignment")
+
+        if node_type == "continue_statement":
+            concepts.add("continue")
+
+        if node_type == "break_statement":
+            concepts.add("break")
+
+        if node_type in {"delete_statement", "delete_expression"}:
+            concepts.add("delete")
+
+        if node_type in {
+            "general_for_loop",
+            "range_for_loop",
+            "for_each_loop",
+            "while_loop",
+            "do_while_loop",
+            "infinite_loop",
+        }:
+            concepts.add(node_type)
+
+        if node_type == "if_statement":
+            concepts.add("if")
+            if node.get("elseBranch"):
+                concepts.add("else")
+            if len(node.get("branches", [])) > 2:
+                concepts.add("elseif")
+
+        if node_type == "switch_statement":
+            concepts.add("switch")
+
+        if node_type == "default_case_block":
+            concepts.add("default_case")
+
+        if node_type == "fallthrough_case_block":
+            concepts.add("fallthrough_case")
+
+        if node_type in {
+            "bitwise_and_operator",
+            "bitwise_or_operator",
+            "xor_operator",
+            "inversion_operator",
+            "left_shift_operator",
+            "right_shift_operator",
+        }:
+            concepts.add("bitwise")
+
+        if node_type in {
+            "add_operator",
+            "sub_operator",
+            "mul_operator",
+            "mod_operator",
+            "floor_div_operator",
+            "pow_operator",
+            "unary_minus_operator",
+            "unary_plus_operator",
+            "unary_postfix_inc_operator",
+            "unary_postfix_dec_operator",
+            "unary_prefix_inc_operator",
+            "unary_prefix_dec_operator",
+        }:
+            concepts.add("arithmetic")
+
+        if node_type in {"format_input", "format_print", "input_command", "print_values"}:
+            concepts.add("io")
+
+        if node_type in {"cast_type_expression", "instance_of_operator"}:
+            concepts.add("type_casts")
+
+        if node_type == "return_statement":
+            concepts.add("return")
+
+        if node_type in {"pointer_member_access", "member_access", "qualified_identifier"}:
+            concepts.add("member_access")
+
+        if node_type == "ternary_operator":
+            concepts.add("ternary_conditions")
+
+        # Теперь, так как проверки независимы, 'pointer_member_access'
+        # попадет и в 'member_access' (выше), и в 'pointers' (здесь).
+        if node_type in {
+            "pointer_member_access",
+            "pointer_pack",
+            "pointer_unpack",
+            "memory_allocation_call",
+            "memory_free_call",
+            "reference_type",
+            "pointer_type",
+        }:
+            concepts.add("pointers")
+
+        if node_type in {
+            "string_type",
+            "interpolated_string_literal",
+            "string_literal",
+            "char_literal",
+        }:
+            concepts.add("strings")
+
+        if node_type in {
+            "array_literal",
+            "list_literal",
+            "unmodifiable_list_literal",
+            "set_literal",
+            "array_type",
+            "list_type",
+            "set_type",
+            "unmodifiable_list_type",
+            "array_new_expression",
+            "array_initializer",
+            "container_based_comprehension",
+        }:
+            concepts.add("arrays")
+
+        if node_type in {"key_value_pair", "dict_literal", "dictionary_type"}:
+            concepts.add("map_collections")
+
+        if node_type in {"placement_new_expression", "object_new_expression"}:
+            concepts.add("object_new")
+
+        if node_type in {
+            "short_circuit_and_operator",
+            "short_circuit_or_operator",
+            "long_circuit_and_operator",
+            "long_circuit_or_operator",
+            "not_eq_operator",
+            "eq_operator",
+            "not_operator",
+        }:
+            concepts.add("logical")
+
+        if node_id and ast.instanceof(node_id, "function_definition"):
+            fname = node.get("declaration", {}).get("name", {}).get("name")
+            if fname in node.ast.user_defined_function_names:
+                concepts.add("program_function_call")
+            else:
+                concepts.add("lib_function_call")
+
+    return concepts
 
 
-def find_skills(mt: dict[str, Any]) -> list[str]:
-    return []
+def find_skills(mt: dict[str, Any], cfg: CFG,
+                trace_acts: list[TraceAct], paths: list[PathInfo]) -> set[str]:
+    skills = { # всегда есть
+        "current_execution_point_understood",
+        "current_code_block_identified",
+        "action_execution_determined",
+        "transition_applicable_regardless_interruption",
+        "action_is_condition_recognized",
+        "action_is_function_call_recognized",
+    }
+
+    for path in paths:
+        if not path.is_direct and path.conditions > 0:
+            skills.add("unevaluated_conditions_between_points_present")
+
+        if path.constraints and path.constraints.interruption_mode \
+            not in [InterruptionType.ANY, InterruptionType.DEFAULT]:
+            skills |= {"interruption_type_matched", "applicable_transition_with_interruption_found"}
+
+        if path.constraints and path.constraints.condition_value not in [
+            OptionalBoolValue.ANY,
+            OptionalBoolValue.DEFAULT,
+        ]:
+            skills |= {
+                "required_condition_value_determined",
+                "applicable_transition_with_condition_found",
+            }
+
+    for node in cfg.nodes.values():
+        if node.metadata and node.metadata.abstract_action and \
+            node.metadata.abstract_action == "func_def_structure":
+            skills.add("function_body_completion_determined")
+
+    has_int_start = False
+    has_int_end = False
+    for edge in cfg.edges:
+        for effect in edge.effects or []:
+            if effect.interruption_start != InterruptionType.NO_INTERRUPTION:
+                has_int_start = True
+            if effect.interruption_stop != InterruptionType.NO_INTERRUPTION:
+                has_int_end = True
+    if has_int_start and has_int_end:
+        skills |= {
+            "interruption_termination_recognized",
+            "interruption_can_be_terminated_determined",
+        }
+
+    for traceact in trace_acts:
+        if traceact.incomplete_interruption \
+            and traceact.incomplete_interruption != InterruptionType.NO_INTERRUPTION:
+                skills.add("transition_matches_interruption_mode")
+        if traceact.action_spec and traceact.action_spec == "func_call_structure":
+            skills.add("nearest_function_call_in_trace_found")
+        if traceact.cfg_node.kind == NodeKind.END:
+            skills |= {
+                "early_exit_from_compound_detected",
+                "applicable_compound_exit_determined",
+                "compound_structure_boundaries_identified",
+            }
+
+    for i in range(len(trace_acts) - 1):
+        window = trace_acts[i : i + 2]
+        if window[0].cfg_node.kind == NodeKind.END and window[1].cfg_node.kind == NodeKind.END:
+            skills.add("multiple_compound_exit_order_understood")
+            break
+
+    return skills
 
 
 def find_tags(mt: dict[str, Any], language: str) -> list[str]:
@@ -53,7 +291,7 @@ def build_loqis(
     lines: list[dict[str, list[Any]]],
     ast_analyzer: ASTNodeAnalyzer,
     scenarios: list[TraceScenarioConfig] | list[dict[str, Any]] | None = None,
-) -> tuple[list[str], CFG | None, list[list[TraceAct]]]:
+) -> tuple[list[str], CFG | None, list[list[TraceAct]], list[PathInfo]]:
     """Строит CFG и генерирует трассы для заданных сценариев.
 
     Args:
@@ -73,7 +311,7 @@ def build_loqis(
     cfg = b.make_cfg_for_ast(program_root)
 
     if cfg is None:
-        return [], None, []
+        return [], None, [], []
 
     # Оптимизируем CFG
     cfg.optimize()
@@ -115,7 +353,7 @@ def build_loqis(
         loqi_texts.append(loqi_text)
         trace_acts_list.append(result.trace_acts)
 
-    return loqi_texts, cfg, trace_acts_list
+    return loqi_texts, cfg, trace_acts_list, paths
 
 @warnings.deprecated("Use alternative methods for generating LOQI variants")
 def build_loqi_variants(
@@ -492,8 +730,8 @@ def build_questions(
         # Сохраняем планы для преобразования после построения CFG
         scenarios = scenario_plans
 
-    loqi_texts, cfg, trace_acts_list = build_loqis(mt, lines_data, ast_analyzer, scenarios)
-    
+    loqi_texts, cfg, trace_acts_list, paths = build_loqis(mt, lines_data, ast_analyzer, scenarios)
+
     # Применяем runtime данные из сценариев к трассам
     if scenario_plans and len(scenario_plans) == len(trace_acts_list):
         from src.runtime.matcher import enrich_trace_from_scenario
@@ -513,17 +751,17 @@ def build_questions(
                         f"Failed to enrich trace from scenario '{scenario_plan.get('scenario_name', 'default')}': {e}",
                         stacklevel=2
                     )
-    
+
     if not loqi_texts or not cfg:
         print("No valid loqi output", file=sys.stderr)
         return None
-    
+
     # Если трассы были обогащены runtime-данными, пере-генерируем LOQI из обогащённых трасс
     # Это необходимо, чтобы runtime-информация (condition_value, RuntimeInfo) попала в LOQI
     if scenario_plans and len(scenario_plans) == len(trace_acts_list):
         # Получаем пути между узлами (одинаковые для всех сценариев)
         paths = determine_all_paths_between_opaque_nodes(cfg)
-        
+
         # Пере-генерируем LOQI для каждого обогащённого trace_acts
         loqi_texts_enriched = []
         for trace_acts in trace_acts_list:
@@ -534,18 +772,18 @@ def build_questions(
                 )
             )
             exporter.set_var("STATE", situation)
-            
+
             # Используем обогащённую трассу
             exporter.add_trace(trace_acts)
-            
+
             # Добавляем пути между узлами
             if paths:
                 exporter.add_paths(paths)
-            
+
             # Экспортируем LOQI
             loqi_text = exporter.export_cfg(cfg, None)
             loqi_texts_enriched.append(loqi_text)
-        
+
         # Используем обогащённые LOQI вместо исходных
         loqi_texts = loqi_texts_enriched
 
@@ -572,54 +810,61 @@ def build_questions(
 
     # Создаём вопрос для каждого сценария
     questions = []
+    found_concepts = find_concepts(ast_analyzer)
+
     for i, (loqi, trace_acts) in enumerate(zip(loqi_texts, trace_acts_list)):
         scenario_name = scenario_names[i] if i < len(scenario_names) else "default"
         qname = f"{base_qname}_{scenario_name}" if scenario_name != "default" else base_qname
         answ = build_answer_objects_from_cfg(
             cfg, lines_data, ast=ast_analyzer, include_end_button=False
         )
-        questions.append({
-            "commonQuestion": {
-                "questionData": {
-                    "questionType": "ORDER",
-                    "questionText": html,
-                    "questionName": qname,
-                    "questionDomainType": "OrderActs",
-                    "options": {
-                        "showTrace": True,
-                        "requireContext": True,
-                        "requireAllAnswers": True,
-                        "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
-                        "multipleSelectionEnabled": True,
-                        "showSupplementaryQuestions": False,
+        found_skills = find_skills(mt, cfg, trace_acts, paths)
+        questions.append(
+            {
+                "commonQuestion": {
+                    "questionData": {
+                        "questionType": "ORDER",
+                        "questionText": html,
+                        "questionName": qname,
+                        "questionDomainType": "OrderActs",
+                        "options": {
+                            "showTrace": True,
+                            "requireContext": True,
+                            "requireAllAnswers": True,
+                            "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
+                            "multipleSelectionEnabled": True,
+                            "showSupplementaryQuestions": False,
+                        },
+                        "answerObjects": answ,
+                        "statementFacts": pack_rdf(loqi),
                     },
-                    "answerObjects": answ,
-                    "statementFacts": pack_rdf(loqi),
+                    "concepts": list(found_concepts),
+                    "tags": find_tags(mt, language),
+                    "negativeLaws": [],
                 },
-                "concepts": find_concepts(mt),
-                "tags": find_tags(mt, language),
-                "negativeLaws": [],
-            },
-            "metadataList": [{
-                "name": qname,
-                "domainShortname": "ctrl_flow_dt25",
-                "templateId": mt.get("unique_hash", 0),
-                "tagBits": tags,
-                "conceptBits": 1024 - 1,  #stub! TODO
-                "lawBits": 0,
-                "violationBits": 1024 - 1,  #stub! TODO
-                "traceConceptBits": 1024 - 1,  #stub! TODO
-                "solutionStructuralComplexity": 0.5,
-                "integralComplexity": 0.5,
-                "solutionSteps": len(trace_acts) - 1,
-                "distinctErrorCount": 3,  # !! TODO
-                "version": 2,
-                "structureHash": mt.get("unique_hash", 0),
-                "origin": "debug",
-                "originLicense": "Public Domain",
-                "treeHashCode": mt.get("unique_hash", 0),
-                "skillBits": 1024 - 1  #stub! TODO
-            }],
-        })
+                "metadataList": [
+                    {
+                        "name": qname,
+                        "domainShortname": "ctrl_flow_dt25",
+                        "templateId": mt.get("unique_hash", 0),
+                        "tagBits": tags,
+                        "conceptBits": pack_flags(CONCEPTS, found_concepts),
+                        "lawBits": 0,
+                        "violationBits": 0,
+                        "traceConceptBits": pack_flags(CONCEPTS, found_concepts),
+                        "solutionStructuralComplexity": len(trace_acts),
+                        "integralComplexity": 0.5,
+                        "solutionSteps": len(trace_acts) - 1,
+                        "distinctErrorCount": len(ERRORNEOUS_SKILLS & found_skills),
+                        "version": 2,
+                        "structureHash": mt.get("unique_hash", 0),
+                        "origin": "exp_2026_02",
+                        "originLicense": "Public Domain",
+                        "treeHashCode": mt.get("unique_hash", 0),
+                        "skillBits": pack_flags(SKILLS, find_skills(mt, cfg, trace_acts, paths)),
+                    }
+                ],
+            }
+        )
 
     return questions

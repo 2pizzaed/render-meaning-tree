@@ -1,0 +1,126 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 71,
+      "value": "true",
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 2,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 57,
+      "value": "false",
+      "expression_text": "nums[i] != val and nums[i + 1] != val",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 71,
+      "value": "true",
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 4,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 57,
+      "value": "false",
+      "expression_text": "nums[i] != val and nums[i + 1] != val",
+      "condition_type": "if"
+    },
+    {
+      "order": 5,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 71,
+      "value": "true",
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 6,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 57,
+      "value": "false",
+      "expression_text": "nums[i] != val and nums[i + 1] != val",
+      "condition_type": "if"
+    },
+    {
+      "order": 7,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 71,
+      "value": "false",
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 71,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 1,
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 57,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 2,
+      "expression_text": "nums[i] != val and nums[i + 1] != val",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 71,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 3,
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 57,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 4,
+      "expression_text": "nums[i] != val and nums[i + 1] != val",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 71,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 5,
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 57,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 6,
+      "expression_text": "nums[i] != val and nums[i + 1] != val",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 71,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 7,
+      "expression_text": "range(len(nums) - 1)",
+      "condition_type": "range_for"
+    }
+  ]
+}

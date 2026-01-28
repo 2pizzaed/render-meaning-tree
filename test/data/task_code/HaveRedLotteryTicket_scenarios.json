@@ -1,0 +1,58 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 32,
+      "value": "false",
+      "expression_text": "a == 2 and b == 2 and (c == 2)",
+      "condition_type": "if"
+    },
+    {
+      "order": 2,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 49,
+      "value": "false",
+      "expression_text": "a == b and b == c",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
+      "line_number": 9,
+      "type": "condition",
+      "ast_id": 74,
+      "value": "true",
+      "expression_text": "a != b and a != c",
+      "condition_type": "if"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 32,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 1,
+      "expression_text": "a == 2 and b == 2 and (c == 2)",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 49,
+      "condition_value": "false",
+      "line_number": 7,
+      "order": 2,
+      "expression_text": "a == b and b == c",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 74,
+      "condition_value": "true",
+      "line_number": 9,
+      "order": 3,
+      "expression_text": "a != b and a != c",
+      "condition_type": "if"
+    }
+  ]
+}

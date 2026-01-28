@@ -1,0 +1,194 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 15,
+      "type": "condition",
+      "ast_id": 184,
+      "value": "true",
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "order": 3,
+      "line_number": 16,
+      "type": "condition",
+      "ast_id": 123,
+      "value": "true",
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 15,
+      "type": "condition",
+      "ast_id": 184,
+      "value": "true",
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "order": 5,
+      "line_number": 16,
+      "type": "condition",
+      "ast_id": 123,
+      "value": "true",
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "order": 6,
+      "line_number": 15,
+      "type": "condition",
+      "ast_id": 184,
+      "value": "true",
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "order": 7,
+      "line_number": 16,
+      "type": "condition",
+      "ast_id": 123,
+      "value": "true",
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "order": 8,
+      "line_number": 15,
+      "type": "condition",
+      "ast_id": 184,
+      "value": "true",
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "order": 9,
+      "line_number": 16,
+      "type": "condition",
+      "ast_id": 123,
+      "value": "true",
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "order": 10,
+      "line_number": 15,
+      "type": "condition",
+      "ast_id": 184,
+      "value": "true",
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "order": 11,
+      "line_number": 16,
+      "type": "condition",
+      "ast_id": 123,
+      "value": "true",
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "order": 12,
+      "line_number": 15,
+      "type": "condition",
+      "ast_id": 184,
+      "value": "false",
+      "expression_text": "items",
+      "condition_type": "for_each"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 184,
+      "condition_value": "true",
+      "line_number": 15,
+      "order": 2,
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "ast_id": 123,
+      "condition_value": "true",
+      "line_number": 16,
+      "order": 3,
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 184,
+      "condition_value": "true",
+      "line_number": 15,
+      "order": 4,
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "ast_id": 123,
+      "condition_value": "true",
+      "line_number": 16,
+      "order": 5,
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 184,
+      "condition_value": "true",
+      "line_number": 15,
+      "order": 6,
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "ast_id": 123,
+      "condition_value": "true",
+      "line_number": 16,
+      "order": 7,
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 184,
+      "condition_value": "true",
+      "line_number": 15,
+      "order": 8,
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "ast_id": 123,
+      "condition_value": "true",
+      "line_number": 16,
+      "order": 9,
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 184,
+      "condition_value": "true",
+      "line_number": 15,
+      "order": 10,
+      "expression_text": "items",
+      "condition_type": "for_each"
+    },
+    {
+      "ast_id": 123,
+      "condition_value": "true",
+      "line_number": 16,
+      "order": 11,
+      "expression_text": "total_weight + weight <= max_weight",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 184,
+      "condition_value": "false",
+      "line_number": 15,
+      "order": 12,
+      "expression_text": "items",
+      "condition_type": "for_each"
+    }
+  ]
+}

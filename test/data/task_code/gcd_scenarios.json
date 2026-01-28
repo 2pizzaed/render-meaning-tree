@@ -1,0 +1,92 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 3,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 4,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 5,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "order": 6,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 2,
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 3,
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 4,
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 5,
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 6,
+      "expression_text": "b != 0",
+      "condition_type": "while"
+    }
+  ]
+}

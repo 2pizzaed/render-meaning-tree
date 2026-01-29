@@ -1,3 +1,4 @@
+import math
 import re
 import sys
 import warnings
@@ -38,7 +39,24 @@ class LoqiVariant:
     trace_acts: list[TraceAct]
 
 
-def find_concepts(ast: ASTNodeAnalyzer) -> set[str]:
+def get_cyclomatic(cfg: CFG) -> int:
+    cond = 1
+    for node in cfg.nodes.values():
+        if node.is_condition():
+            cond += 1
+    return cond
+
+
+def get_complexity(solution_steps: int, cyclomatic: int, concepts: set[str]) -> float:
+    score = 0.39399354 \
+        + 0.16434003 * (len(concepts) + 2) \
+        + 0.01391854 * solution_steps \
+        + 0.05685927 * cyclomatic
+    score = (score - 2) * 5      # scaling for sigmoid
+    return 1 / (1 + math.e ** (-score))  # sigmoid [1, 3] -> [0, 1]
+
+
+def find_concepts(ast: ASTNodeAnalyzer, trace_acts: list[TraceAct]) -> set[str]:
     concepts = set()
     for node in ast.nodes_cache.values():
         node_type = node.get("type")
@@ -205,7 +223,7 @@ def find_concepts(ast: ASTNodeAnalyzer) -> set[str]:
 
         if node_id and ast.instanceof(node_id, "function_definition"):
             fname = node.get("declaration", {}).get("name", {}).get("name")
-            if fname in node.ast.user_defined_function_names:
+            if fname in ast.user_defined_function_names:
                 concepts.add("program_function_call")
             else:
                 concepts.add("lib_function_call")
@@ -810,15 +828,17 @@ def build_questions(
 
     # Создаём вопрос для каждого сценария
     questions = []
-    found_concepts = find_concepts(ast_analyzer)
 
     for i, (loqi, trace_acts) in enumerate(zip(loqi_texts, trace_acts_list)):
+        found_concepts = find_concepts(ast_analyzer, trace_acts)
         scenario_name = scenario_names[i] if i < len(scenario_names) else "default"
         qname = f"{base_qname}_{scenario_name}" if scenario_name != "default" else base_qname
         answ = build_answer_objects_from_cfg(
             cfg, lines_data, ast=ast_analyzer, include_end_button=False
         )
         found_skills = find_skills(mt, cfg, trace_acts, paths)
+        cyclomatic = get_cyclomatic(cfg)
+        solution_steps = len(trace_acts) - 1
         questions.append(
             {
                 "commonQuestion": {
@@ -851,17 +871,23 @@ def build_questions(
                         "conceptBits": pack_flags(CONCEPTS, found_concepts),
                         "lawBits": 0,
                         "violationBits": 0,
-                        "traceConceptBits": pack_flags(CONCEPTS, found_concepts),
+                        "traceConceptBits": pack_flags(CONCEPTS,
+                                                       found_concepts),
                         "solutionStructuralComplexity": len(trace_acts),
-                        "integralComplexity": 0.5,
-                        "solutionSteps": len(trace_acts) - 1,
+                        "integralComplexity": get_complexity(solution_steps,
+                                                             cyclomatic,
+                                                             found_concepts),
+                        "solutionSteps": solution_steps,
                         "distinctErrorCount": len(ERRORNEOUS_SKILLS & found_skills),
                         "version": 2,
                         "structureHash": mt.get("unique_hash", 0),
                         "origin": "exp_2026_02",
                         "originLicense": "Public Domain",
                         "treeHashCode": mt.get("unique_hash", 0),
-                        "skillBits": pack_flags(SKILLS, find_skills(mt, cfg, trace_acts, paths)),
+                        "skillBits": pack_flags(SKILLS,
+                                                find_skills(
+                                                    mt, cfg,
+                                                    trace_acts, paths)),
                     }
                 ],
             }

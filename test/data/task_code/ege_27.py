@@ -1,6 +1,6 @@
 numbers = [10, 15, 7, 22, 9, 13, 8, 19, 11, 6]
 k = 3
-max_sum = [float("-inf")] * k
+max_sum = [float("-inf"), float("-inf"), float("-inf")]
 max_sum[0] = 0
 
 for x in numbers:

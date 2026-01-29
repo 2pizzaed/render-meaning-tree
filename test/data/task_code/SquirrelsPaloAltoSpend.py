@@ -1,5 +1,9 @@
 temp = 70
-isSummer = False
+isSummer = True
 
-upper = 100 if isSummer else 90
+if not isSummer:
+    upper = 100
+else:
+    upper = 90
+
 result = 60 <= temp <= upper

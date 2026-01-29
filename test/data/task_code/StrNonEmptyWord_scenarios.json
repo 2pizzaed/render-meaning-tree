@@ -1,0 +1,228 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "order": 2,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "order": 4,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "order": 5,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "order": 6,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "order": 7,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "order": 8,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "order": 9,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "order": 10,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "order": 11,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "order": 12,
+      "line_number": 7,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "true",
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "order": 13,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "false",
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 1,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 7,
+      "order": 2,
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 3,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 7,
+      "order": 4,
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 5,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 7,
+      "order": 6,
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 7,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 7,
+      "order": 8,
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 9,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 7,
+      "order": 10,
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 11,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 0,
+      "condition_value": "true",
+      "line_number": 7,
+      "order": 12,
+      "expression_text": "str_[i:i + len(word)] == word",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "false",
+      "line_number": 6,
+      "order": 13,
+      "expression_text": "i < len(str_)",
+      "condition_type": "while"
+    }
+  ]
+}

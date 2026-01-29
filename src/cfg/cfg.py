@@ -10,7 +10,7 @@ from src.cfg.abstractions import (
     Constraints,
     ConstructSpec,
     Effects,
-    TransitionSpec, ActionKind, OptionalBoolValue, WithEffectsMixin,
+    TransitionSpec, ActionKind, OptionalBoolValue, WithEffectsMixin, find_construct_for_ast_node,
 )
 from src.cfg.ast_wrapper import ASTNodeWrapper
 from src.common_utils import DictLikeDataclass, SelfValidatedEnum
@@ -85,10 +85,10 @@ class Metadata(DictLikeDataclass):
     has_corresponding_end: Optional['Node'] = None
     # # Additional fields can be added as needed
     # custom: dict[str, Any] = field(default_factory=dict)
-    construct: ConstructSpec = None  # to take abstract_action from it when abstract_action is not passed, do not use after init completed!
+    construct: ConstructSpec | None = None  # to take abstract_action from it when abstract_action is not passed, do not use after init completed!
 
     def __post_init__(self):
-        if self.construct is not None and isinstance(self.construct, ConstructSpec):
+        if not self.abstract_action and self.construct is not None and isinstance(self.construct, ConstructSpec):
             # END is universal & makes sense for effects.
             self.abstract_action = self.construct.find_action_by_role(END)
             self.construct = None  # removed, do not use it anymore.
@@ -167,12 +167,20 @@ class Node(FactSerializable, WithEffectsMixin):
     def get_ast_id(self) -> int | None:
         return self.metadata.wrapped_ast.ast_node.get('id') if self.metadata.wrapped_ast else None
 
+    def get_construct(self) -> ConstructSpec | None:
+        if self.metadata.wrapped_ast is not None:
+            # получить construct по ast.type
+            return find_construct_for_ast_node(
+                self.metadata.wrapped_ast)
+        return None  # не удалось выяснить.
+
+
     def is_mandatory(self) -> bool:
         return self.appearance == AppearanceType.MANDATORY
 
     def is_condition(self) -> bool:
         """ Проверяет, является ли узел условием. 
-        Обратите внимание, что условие может быть прозрачным (т.е. не обязательным): это может наблюдаться в цикле `for(;;) { ... }` или `while(true) { ... }` """
+        Обратите внимание, что условие может быть прозрачным (т.е. необязательным): это может наблюдаться в цикле `for(;;) { ... }` или `while(true) { ... }` """
         return self.metadata.abstract_action and self.metadata.abstract_action.kind.has('condition')
 
     def clear_direct_paths(self) -> None:

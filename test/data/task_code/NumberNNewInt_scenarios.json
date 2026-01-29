@@ -1,0 +1,109 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 35,
+      "value": "true",
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 2,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 35,
+      "value": "true",
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 3,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 35,
+      "value": "true",
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 4,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 35,
+      "value": "true",
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 5,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 35,
+      "value": "true",
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 6,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 35,
+      "value": "false",
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 35,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 1,
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 35,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 2,
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 35,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 3,
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 35,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 4,
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 35,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 5,
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 35,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 6,
+      "expression_text": "range(n)",
+      "condition_type": "range_for"
+    }
+  ]
+}

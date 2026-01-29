@@ -148,10 +148,10 @@ def write_dot(g: Dot | None, output_file: Path) -> None:
 if __name__ == "__main__":
     # Небольшая демонстрация при наличии билдера/конструктов в проекте
     try:
-        from src.cfg.abstractions import load_constructs
+        from src.cfg.abstractions import get_constructs
         from src.cfg.cfg_builder import CFGBuilder
 
-        constructs = load_constructs()
+        constructs = get_constructs()
         builder = CFGBuilder(constructs)
         demo_cfg = builder._create_simple_cfg("demo_graphviz")
         g = visualize_cfg_graphviz(demo_cfg, rankdir="LR")

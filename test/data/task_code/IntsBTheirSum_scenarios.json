@@ -1,0 +1,24 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 30,
+      "value": "true",
+      "expression_text": "10 <= s <= 19",
+      "condition_type": "if"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 30,
+      "condition_value": "true",
+      "line_number": 5,
+      "order": 1,
+      "expression_text": "10 <= s <= 19",
+      "condition_type": "if"
+    }
+  ]
+}

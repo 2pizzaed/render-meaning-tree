@@ -1,0 +1,273 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/render-meaning-tree/scenarios-schema.json",
+  "title": "Scenarios JSON Schema",
+  "description": "Schema for runtime execution scenarios files (*_scenarios.json)",
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Single scenario format",
+      "description": "Format with a single scenario",
+      "type": "object",
+      "properties": {
+        "scenario_name": {
+          "type": "string",
+          "description": "Name of the scenario"
+        },
+        "events": {
+          "type": "array",
+          "description": "List of runtime events in execution order",
+          "items": {
+            "$ref": "#/definitions/event"
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Legacy format for conditions (for backward compatibility)",
+          "items": {
+            "$ref": "#/definitions/condition_legacy"
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Random seed used for scenario generation"
+        }
+      },
+      "required": ["scenario_name", "events"]
+    },
+    {
+      "title": "Multiple scenarios format (Not recommended)",
+      "description": "Format with multiple scenarios. NOT RECOMMENDED for current use: since code is fully defined in the file, different execution variants are not applied. This format is supported for future hypothetical execution of partially undefined code.",
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "description": "Default random seed for all scenarios (can be overridden per scenario)"
+        },
+        "scenarios": {
+          "type": "array",
+          "description": "List of scenarios",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scenario_name": {
+                "type": "string",
+                "description": "Name of the scenario"
+              },
+              "events": {
+                "type": "array",
+                "description": "List of runtime events in execution order",
+                "items": {
+                  "$ref": "#/definitions/event"
+                }
+              },
+              "conditions": {
+                "type": "array",
+                "description": "Legacy format for conditions (for backward compatibility)",
+                "items": {
+                  "$ref": "#/definitions/condition_legacy"
+                }
+              },
+              "seed": {
+                "type": "integer",
+                "description": "Random seed for this specific scenario (overrides global seed)"
+              }
+            },
+            "required": ["scenario_name", "events"]
+          }
+        }
+      },
+      "required": ["scenarios"]
+    }
+  ],
+  "definitions": {
+    "event": {
+      "type": "object",
+      "description": "A runtime event (condition evaluation, function call, or function return)",
+      "properties": {
+        "order": {
+          "type": "integer",
+          "description": "Order of event execution (1-based)",
+          "minimum": 1
+        },
+        "line_number": {
+          "type": "integer",
+          "description": "Line number in source code where event occurred",
+          "minimum": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["condition", "function_call", "function_return"],
+          "description": "Type of the event"
+        }
+      },
+      "required": ["order", "line_number", "type"],
+      "oneOf": [
+        {
+          "title": "Condition event",
+          "properties": {
+            "type": {
+              "const": "condition"
+            },
+            "ast_id": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "description": "AST node ID of the condition"
+                },
+                {
+                  "type": "null",
+                  "description": "AST ID not available"
+                }
+              ]
+            },
+            "value": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "description": "Boolean value of the condition"
+            },
+            "expression_text": {
+              "type": "string",
+              "description": "Text representation of the condition expression"
+            },
+            "condition_type": {
+              "type": "string",
+              "description": "Type of condition (e.g., 'if', 'while', 'for_each', 'range_for')",
+              "enum": ["if", "while", "for_each", "range_for"]
+            }
+          },
+          "required": ["ast_id", "value"]
+        },
+        {
+          "title": "Function call event",
+          "properties": {
+            "type": {
+              "const": "function_call"
+            },
+            "ast_id": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "description": "AST node ID of the function call"
+                },
+                {
+                  "type": "null",
+                  "description": "AST ID not available"
+                }
+              ]
+            },
+            "function_name": {
+              "type": "string",
+              "description": "Name of the called function"
+            },
+            "args": {
+              "type": "object",
+              "description": "Function arguments as key-value pairs",
+              "additionalProperties": true
+            },
+            "call_line": {
+              "type": "integer",
+              "description": "Line number where function was called",
+              "minimum": 1
+            }
+          },
+          "required": ["ast_id", "function_name", "args"]
+        },
+        {
+          "title": "Function return event",
+          "properties": {
+            "type": {
+              "const": "function_return"
+            },
+            "ast_id": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "description": "AST node ID of the return statement"
+                },
+                {
+                  "type": "null",
+                  "description": "AST ID not available"
+                }
+              ]
+            },
+            "function_name": {
+              "type": "string",
+              "description": "Name of the function that returned"
+            },
+            "return_value": {
+              "description": "Return value of the function (can be any JSON value, including null)",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "required": ["ast_id", "function_name", "return_value"]
+        }
+      ]
+    },
+    "condition_legacy": {
+      "type": "object",
+      "description": "Legacy format for condition (for backward compatibility)",
+      "properties": {
+        "ast_id": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "description": "AST node ID of the condition"
+            },
+            {
+              "type": "null",
+              "description": "AST ID not available"
+            }
+          ]
+        },
+        "condition_value": {
+          "type": "string",
+          "enum": ["true", "false"],
+          "description": "Boolean value of the condition"
+        },
+        "line_number": {
+          "type": "integer",
+          "description": "Line number in source code",
+          "minimum": 1
+        },
+        "order": {
+          "type": "integer",
+          "description": "Order of condition evaluation (1-based)",
+          "minimum": 1
+        },
+        "expression_text": {
+          "type": "string",
+          "description": "Text representation of the condition expression"
+        },
+        "condition_type": {
+          "type": "string",
+          "description": "Type of condition (e.g., 'if', 'while', 'for_each', 'range_for')",
+          "enum": ["if", "while", "for_each", "range_for"]
+        }
+      },
+      "required": ["ast_id", "condition_value"]
+    }
+  }
+}

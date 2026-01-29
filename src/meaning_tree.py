@@ -40,6 +40,22 @@ def to_dict(language: str, code: str) -> MeaningTree | None:
     return _parse_json(json_output) # type: ignore
 
 
+def to_dot(language: str, code: str) -> str | None:
+    """Convert code from language to string dot graph representation using meaning tree
+
+    Args:
+        language: The source programming language (e.g., 'java', 'python', 'cpp')
+        code: The code to convert
+
+    Returns:
+        dot language graph code
+    """
+    output = _run_serialize(code, language, "dot")
+    if not output:
+        return None
+    return output
+
+
 def to_tokens(
     from_language: str, code: str, to_language: str | None = None,
 ) -> TokenList | None:
@@ -103,7 +119,7 @@ def node_hierarchy() -> JSON:
 
 def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
     try:
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [*JAR_RUN, *args],
             input=stdin_data,
             capture_output=True,
@@ -112,12 +128,12 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
             check=True,
         )
         if not result.stdout and result.stderr:
-            logger.error("Meaning Tree error output: %s", result.stderr)  # noqa: TRY400
+            logger.error("Meaning Tree error output: %s", result.stderr)
             return None
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.exception("Error calling Java application")
-        logger.error("Error output: %s", e.stderr)  # noqa: TRY400
+        logger.error("Error output: %s", e.stderr)
         return None
 
 

@@ -1,0 +1,41 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 21,
+      "value": "false",
+      "expression_text": "you <= 2 or date <= 2",
+      "condition_type": "if"
+    },
+    {
+      "order": 2,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 37,
+      "value": "true",
+      "expression_text": "you >= 8 or date >= 8",
+      "condition_type": "if"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 21,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 1,
+      "expression_text": "you <= 2 or date <= 2",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 37,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 2,
+      "expression_text": "you >= 8 or date >= 8",
+      "condition_type": "if"
+    }
+  ]
+}

@@ -39,6 +39,7 @@
 """
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
@@ -51,6 +52,38 @@ from src.runtime.models import (
 
 if TYPE_CHECKING:
     from src.ast_analyzer import ASTNodeAnalyzer
+
+
+def tactic(delay: int, active: int, safe_value: bool = False) -> Iterator[bool]:
+    """Генерирует последовательность bool с инверсией.
+    
+    Логика:
+    - active_value = not safe_value
+    - delay раз safe_value
+    - active раз active_value
+    - Бесконечно safe_value
+    
+    Args:
+        delay: Количество итераций со safe_value (всегда 0 для циклов)
+        active: Количество итераций с active_value (= длина контейнера)
+        safe_value: Значение по умолчанию после active итераций
+        
+    Returns:
+        Итератор bool значений
+        
+    Examples:
+        >>> list(tactic(0, 3, False))[:5]
+        [True, True, True, False, False]
+        >>> list(tactic(0, 2, True))[:4]
+        [False, False, True, True]
+    """
+    active_value = not safe_value
+    for _ in range(delay):
+        yield safe_value
+    for _ in range(active):
+        yield active_value
+    while True:
+        yield safe_value
 
 
 def _find_ast_id_for_event(
@@ -197,6 +230,67 @@ def export_scenario_from_trace(
         "events": events,
         "conditions": conditions,  # Для обратной совместимости
     }
+
+
+def _supplement_loop_conditions_with_tactic(
+    events: list[dict[str, Any]],
+    loop_ast_id: int,
+    loop_line: int,
+    container_length: int,
+    cond_type: str,
+    expr_text: str,
+) -> list[dict[str, Any]]:
+    """Дополняет события условий для цикла через tactic, если runtime события отсутствуют.
+    
+    Args:
+        events: Существующие события
+        loop_ast_id: ast_id узла цикла
+        loop_line: Номер строки цикла
+        container_length: Длина контейнера (число итераций)
+        cond_type: Тип цикла ('for_each' или 'range_for')
+        expr_text: Текст выражения
+        
+    Returns:
+        Обновлённый список событий с добавленными tactic-событиями
+    """
+    # Проверяем, есть ли уже runtime события для этого цикла
+    has_runtime_events = any(
+        e.get('ast_id') == loop_ast_id and e.get('type') == 'condition'
+        for e in events
+    )
+    
+    if has_runtime_events:
+        # Runtime события уже есть, не дополняем
+        return events
+    
+    # Генерируем события через tactic
+    # delay = 0, active = container_length, safe_value = False
+    tactic_values = list(tactic(0, container_length, False))
+    
+    # Создаём события для каждой итерации
+    new_events = []
+    for i, value in enumerate(tactic_values[:container_length + 1]):  # +1 для False в конце
+        event_data = {
+            "type": "condition",
+            "ast_id": loop_ast_id,
+            "value": "true" if value else "false",
+            "line_number": loop_line,
+            "order": len(events) + i + 1,  # Порядок после существующих событий
+            "condition_type": cond_type,
+            "expression_text": expr_text,
+        }
+        new_events.append(event_data)
+    
+    # Объединяем существующие события с новыми
+    # Вставляем новые события в правильном порядке (по line_number и order)
+    all_events = events + new_events
+    all_events.sort(key=lambda e: (e.get('line_number', 0), e.get('order', 0)))
+    
+    # Пересчитываем order для всех событий
+    for i, event in enumerate(all_events):
+        event['order'] = i + 1
+    
+    return all_events
 
 
 def _safe_json_value(value: Any) -> Any:
@@ -409,6 +503,18 @@ def build_line_to_ast_id_for_conditions(
                     line = ast_analyzer.get_code_line_number_by_id(cond_id)
                     if line:
                         line_to_ast_id[line] = cond_id
+        
+        # Для for_each_loop используем ast_id самого узла цикла как идентификатор условия
+        elif node_type == 'for_each_loop':
+            line = ast_analyzer.get_code_line_number_by_id(ast_id)
+            if line:
+                line_to_ast_id[line] = ast_id  # ast_id узла цикла
+        
+        # Для range_for_loop аналогично
+        elif node_type == 'range_for_loop':
+            line = ast_analyzer.get_code_line_number_by_id(ast_id)
+            if line:
+                line_to_ast_id[line] = ast_id  # ast_id узла цикла
         
         # Тернарный оператор (conditional_expression)
         elif node_type == 'conditional_expression':

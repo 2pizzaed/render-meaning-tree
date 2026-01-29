@@ -105,6 +105,8 @@ def enrich_trace_with_runtime(
         
         # Привязываем событие к акту
         _bind_event_to_act(bindable_event, act)
+        ### TODO: ADD logging on each bind
+
         
         # Помечаем событие как использованное
         bindable_event.mark_used()
@@ -373,11 +375,18 @@ def enrich_trace_from_scenario(
     
     # Преобразуем conditions
     for cond_data in runtime_data["conditions"]:
+        # Обрабатываем значение условия (может быть строкой "true"/"false" или bool)
+        value = cond_data.get("value")
+        if isinstance(value, str):
+            bool_value = value.lower() == "true"
+        else:
+            bool_value = bool(value) if value is not None else False
+        
         event = ConditionEvaluation(
             line_number=cond_data.get("line_number", 0),
             ast_id=cond_data.get("ast_id", 0),
-            value=cond_data.get("value") == "true" if isinstance(cond_data.get("value"), str) else bool(cond_data.get("value")),
-            condition_type=cond_data.get("condition_type", ""),
+            value=bool_value,
+            condition_type=cond_data.get("condition_type", ""),  # Поддерживает 'for_each', 'range_for', 'if', 'while', etc.
             expression_text=cond_data.get("expression_text", ""),
         )
         event.order = cond_data.get("order", 0)

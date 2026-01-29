@@ -1,0 +1,24 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 1,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 0,
+      "value": "false",
+      "expression_text": "isSummer",
+      "condition_type": "ternary"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 0,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 1,
+      "expression_text": "isSummer",
+      "condition_type": "ternary"
+    }
+  ]
+}

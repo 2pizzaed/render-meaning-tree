@@ -1,0 +1,160 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 113,
+      "value": "true",
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 3,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 31,
+      "value": "true",
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 113,
+      "value": "true",
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 5,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 31,
+      "value": "false",
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "order": 6,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 113,
+      "value": "true",
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 7,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 31,
+      "value": "true",
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "order": 8,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 113,
+      "value": "true",
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 9,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 31,
+      "value": "false",
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "order": 10,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 113,
+      "value": "false",
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 113,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 2,
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 31,
+      "condition_value": "true",
+      "line_number": 5,
+      "order": 3,
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 113,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 4,
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 31,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 5,
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 113,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 6,
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 31,
+      "condition_value": "true",
+      "line_number": 5,
+      "order": 7,
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 113,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 8,
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 31,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 9,
+      "expression_text": "a > b",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 113,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 10,
+      "expression_text": "range(4)",
+      "condition_type": "range_for"
+    }
+  ]
+}

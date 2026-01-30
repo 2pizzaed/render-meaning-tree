@@ -1,0 +1,58 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 24,
+      "value": "true",
+      "expression_text": "vip == 1",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
+      "line_number": 5,
+      "type": "condition",
+      "ast_id": 27,
+      "value": "false",
+      "expression_text": "quantity > 10",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 8,
+      "type": "condition",
+      "ast_id": 39,
+      "value": "false",
+      "expression_text": "quantity > 5",
+      "condition_type": "if"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 24,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 2,
+      "expression_text": "vip == 1",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 27,
+      "condition_value": "false",
+      "line_number": 5,
+      "order": 3,
+      "expression_text": "quantity > 10",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 39,
+      "condition_value": "false",
+      "line_number": 8,
+      "order": 4,
+      "expression_text": "quantity > 5",
+      "condition_type": "if"
+    }
+  ]
+}

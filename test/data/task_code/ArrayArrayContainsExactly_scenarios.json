@@ -41,7 +41,7 @@
       "order": 5,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "false",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -86,7 +86,7 @@
       "order": 10,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "true",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -95,7 +95,7 @@
       "order": 11,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "true",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -104,7 +104,7 @@
       "order": 12,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "true",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -113,7 +113,7 @@
       "order": 13,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "true",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -122,7 +122,7 @@
       "order": 14,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "true",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -131,7 +131,7 @@
       "order": 15,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 0,
+      "ast_id": 77,
       "value": "false",
       "expression_text": "nums[j] != 5 or (j > 0 and nums[j - 1] == 4)",
       "condition_type": "while"
@@ -198,7 +198,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "false",
       "line_number": 6,
       "order": 5,
@@ -238,7 +238,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "true",
       "line_number": 6,
       "order": 10,
@@ -246,7 +246,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "true",
       "line_number": 6,
       "order": 11,
@@ -254,7 +254,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "true",
       "line_number": 6,
       "order": 12,
@@ -262,7 +262,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "true",
       "line_number": 6,
       "order": 13,
@@ -270,7 +270,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "true",
       "line_number": 6,
       "order": 14,
@@ -278,7 +278,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 0,
+      "ast_id": 77,
       "condition_value": "false",
       "line_number": 6,
       "order": 15,

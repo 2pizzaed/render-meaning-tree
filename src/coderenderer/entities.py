@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -13,10 +13,10 @@ class RendererEntity:
 class Button(RendererEntity):
     type: str
     style: str
-    attrs: dict[str, Any] = {}
+    attrs: dict[str, Any] = field(default_factory=dict)
     tooltip: str = ""
     css_style: str = ""
-    css_classes: list[str] = []
+    css_classes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -25,8 +25,8 @@ class Token(RendererEntity):
     value: str
     type: str
     index: int
-    ast_node: NodePathElement | None
-    css_classes: list[str] = [] # custom классы, помимо основных
+    ast_node: "NodePathElement | None"
+    css_classes: list[str] = field(default_factory=list) # custom классы, помимо основных
 
     def is_whitespace(self) -> bool:
         return self.type == "whitespace"

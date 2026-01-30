@@ -71,9 +71,9 @@ class NodePathElement:
     def find_first_parent(self, query: str | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
         curr = self.parent
         if isinstance(query, str):
-            query = lambda x: x.type == query
+            query = lambda x, q=query: x.type == q
         elif isinstance(query, int):
-            query = lambda x: x.id == query
+            query = lambda x, q=query: x.id == q
         while curr is not None and not query(curr):
             curr = curr.parent
         return curr
@@ -267,7 +267,7 @@ class CodeManager:
         self._process_declarations()
 
     def _remap(self, tlist: TokenList) -> list[Token]:
-        tokens: list[Token] = tlist.get("tokens", []) # type: ignore
+        tokens: list[Token] = tlist.get("items", []) # type: ignore
         return [Token(
                 token.get("id"),
                 token.get("value", ""),
@@ -278,12 +278,15 @@ class CodeManager:
             ) for i, token in enumerate(tokens) if not isinstance(token, Token)]
 
     def _locate(self, index: int, token: TokenJson) -> NodePathElement | None:
-        token_byte_pos: tuple[int, int] = token.get("byte_pos", 0) # type: ignore
+        token_byte_pos: tuple[int, int] | None = token.get("byte_pos", None) # type: ignore
+        if not token_byte_pos:
+            return None
         map_byteranges: dict[int, tuple[int, int]] = self._source_map.get(
             "byte_positions", {})  # type: ignore
 
         candidates: list[tuple[int, tuple[int, int]]] = []
         for ast_id, byte_range in map_byteranges.items():
+            ast_id = int(ast_id)
             start_byte, length = byte_range
             start_token_byte, token_length = token_byte_pos
             if start_byte <= start_token_byte and \
@@ -358,11 +361,14 @@ class CodeManager:
     def token_index_range(self, ast_node_id: int) -> tuple[int, int] | None:
         min_i, max_i = self.token_count, 0
         for i, token in enumerate(self):
-            if token.ast_node and token.ast_node.has_parent(ast_node_id):
+            if token.ast_node and (
+                token.ast_node.id == ast_node_id or \
+                    token.ast_node.has_parent(ast_node_id)
+            ):
                 min_i = min(min_i, i)
                 max_i = max(max_i, i)
         if min_i <= max_i:
-            return (min_i, max_i)
+            return (min_i, max_i + 1)
         return None
 
     def _process_class_def(self, node: Node, decl: JsonObject,
@@ -448,7 +454,7 @@ class CodeManager:
             yield TokenCursor(self, lookaround, i, tokens)
 
     def apply_injections(self,
-                         injections: list[Injection],
+                         injections: 'list[Injection] | type[InjectionPool]',
                          from_: int | None = None,
                          to: int | None = None,
                          step: int = 1,
@@ -690,6 +696,7 @@ class InjectionManager:
         self._conditions = conditions
         self._applied_count = 0
         self._skipped_count = 0
+        self._triggered = False
         self._result: list[RendererEntity] = list(tokens._tokens[from_:to_:step]) # type: ignore
         self._ptr = -1
         self._flags: dict[str, int | bool] = {}
@@ -727,7 +734,9 @@ class InjectionManager:
     def __iter__(self) -> Iterator[InjectionPoint]:
         return self
 
-    def apply(self, pool: list[Injection]):
+    def apply(self, pool: "list[Injection] | type[InjectionPool]"):
+        if isinstance(pool, type) and issubclass(pool, InjectionPool):
+            pool = pool.declared_injections()
         self._conditions = observations_from(pool)
         for point in self:
             for injection in pool:

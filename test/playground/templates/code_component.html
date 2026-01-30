@@ -1,0 +1,128 @@
+<!-- START OF CODE COMPONENT -->
+<style>
+    .ctrl-flow-code-block {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        font-size: 14px;
+        line-height: 1.5; /* Компактная высота строки */
+    }
+
+    .ctrl-flow-code-block .line-numbers {
+        background: #fafafa;
+        color: #999;
+        padding: 10px 0; /* Отступы сверху/снизу */
+        text-align: right;
+        user-select: none;
+        border-right: 1px solid #e0e0e0;
+        min-width: 40px;
+        flex-shrink: 0;
+    }
+
+    .ctrl-flow-code-block .line-number {
+        display: block;
+        padding: 0 8px;
+        height: 1.5em; /* Должно совпадать с line-height текста */
+        box-sizing: content-box; /* Важно для выравнивания */
+    }
+
+    .ctrl-flow-code-block .code-content {
+        flex: 1;
+        padding: 10px 0; /* Совпадает с padding line-numbers */
+        overflow-x: auto;
+    }
+
+    .ctrl-flow-code-block .code-line {
+        display: flex;
+        align-items: baseline; /* Выравнивание по базовой линии текста */
+        height: 1.5em; /* Фиксируем высоту строки */
+        padding: 0 10px; /* Отступ слева от номеров строк */
+        margin: 0; /* Убираем лишние отступы */
+    }
+
+    /* Токены */
+    .token {
+        cursor: pointer;
+        white-space: pre; /* Учитывать пробелы внутри токена */
+        border-radius: 2px;
+        display: inline-block;
+    }
+    
+    .token:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+        outline: 1px solid rgba(0,0,0,0.1);
+    }
+    
+    /* Цвета */
+    .token.keyword { color: #0033B3; font-weight: bold; }
+    .token.string { color: #067D17; }
+    .token.number { color: #1750EB; }
+    .token.comment { color: #8C8C8C; font-style: italic; }
+    .token.identifier { color: #000; }
+    
+    /* Кнопки */
+    .injected-button {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        margin: 0 2px;
+        vertical-align: middle;
+        height: 14px; /* Ограничиваем высоту, чтобы не рвать строку */
+        width: 14px;
+    }
+
+    .injected-button i {
+        font-size: 14px; 
+    }
+</style>
+
+<div class="ctrl-flow-code-block">
+    <div class="line-numbers">
+        {% for i in range(1, total_lines + 1) %}
+        <span class="line-number">{{ i }}</span>
+        {% endfor %}
+    </div>
+    
+    <div class="code-content">
+        {% for line in lines %}
+        <div class="code-line">
+            {% for entity in line %}
+                {% if entity.__class__.__name__ == 'Button' %}
+                    <button class="injected-button {{ entity.style }} {{ entity.type }} {{ entity.css_classes|join(' ') }}"
+                            title="{{ entity.tooltip }}"
+                            style="{{ entity.css_style }}"
+                            {% for k, v in entity.attrs.items() %}
+                                data-{{ k }}="{{ v }}"
+                            {% endfor %}
+                            onclick="handleButtonClick(this)">
+                        {% if entity.type == 'play' %}
+                            <i class="ri-play-fill" style="color: #28a745;"></i>
+                        {% elif entity.type == 'stop' %}
+                            <i class="ri-stop-fill" style="color: #dc3545;"></i>
+                        {% else %}
+                            <i class="ri-question-mark"></i>
+                        {% endif %}
+                    </button>
+
+                {% elif entity.__class__.__name__ == 'Token' %}
+                    <span class="token {{ entity.type }} {{ entity.css_classes|join(' ') }}"
+                          data-token-id="{{ entity._id }}"
+                          data-token-index="{{ entity.index }}"
+                          {% if entity.ast_node %}
+                              data-node-id="{{ entity.ast_node.id }}"
+                          {% endif %}
+                          onclick="handleTokenClick(this)">{{ entity.value }}</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<!-- END OF CODE COMPONENT -->

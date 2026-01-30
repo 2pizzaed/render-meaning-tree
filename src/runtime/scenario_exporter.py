@@ -484,8 +484,8 @@ def build_line_to_ast_id_for_conditions(
                             if line:
                                 line_to_ast_id[line] = cond_id
         
-        # Для while_statement условие в condition
-        elif node_type == 'while_statement':
+        # Для while_loop условие в condition
+        elif node_type == 'while_loop':
             condition_node = node.get('condition')
             if condition_node and isinstance(condition_node, dict):
                 cond_id = condition_node.get('id')
@@ -494,8 +494,8 @@ def build_line_to_ast_id_for_conditions(
                     if line:
                         line_to_ast_id[line] = cond_id
         
-        # Для for_statement условие в condition (если есть)
-        elif node_type == 'for_statement':
+        # Для for_loop условие в condition (если есть)
+        elif node_type == 'for_loop':
             condition_node = node.get('condition')
             if condition_node and isinstance(condition_node, dict):
                 cond_id = condition_node.get('id')

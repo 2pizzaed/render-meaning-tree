@@ -481,6 +481,9 @@ def build_line_to_ast_id_for_conditions(
                         cond_id = condition_node.get('id')
                         if cond_id:
                             line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                            if line is None:
+                                # Условие может не иметь своей позиции в source_map — берём строку узла if
+                                line = ast_analyzer.get_code_line_number_by_id(ast_id)
                             if line:
                                 line_to_ast_id[line] = cond_id
         
@@ -491,6 +494,9 @@ def build_line_to_ast_id_for_conditions(
                 cond_id = condition_node.get('id')
                 if cond_id:
                     line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                    if line is None:
+                        # Условие может не иметь своей позиции в source_map — берём строку узла цикла
+                        line = ast_analyzer.get_code_line_number_by_id(ast_id)
                     if line:
                         line_to_ast_id[line] = cond_id
         
@@ -501,6 +507,8 @@ def build_line_to_ast_id_for_conditions(
                 cond_id = condition_node.get('id')
                 if cond_id:
                     line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                    if line is None:
+                        line = ast_analyzer.get_code_line_number_by_id(ast_id)
                     if line:
                         line_to_ast_id[line] = cond_id
         
@@ -523,6 +531,8 @@ def build_line_to_ast_id_for_conditions(
                 cond_id = condition_node.get('id')
                 if cond_id:
                     line = ast_analyzer.get_code_line_number_by_id(cond_id)
+                    if line is None:
+                        line = ast_analyzer.get_code_line_number_by_id(ast_id)
                     if line:
                         line_to_ast_id[line] = cond_id
     

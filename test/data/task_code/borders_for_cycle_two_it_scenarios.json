@@ -1,0 +1,58 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 24,
+      "value": "true",
+      "expression_text": "m > 8",
+      "condition_type": "while"
+    },
+    {
+      "order": 3,
+      "line_number": 6,
+      "type": "condition",
+      "ast_id": 44,
+      "value": "true",
+      "expression_text": "m % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 24,
+      "value": "false",
+      "expression_text": "m > 8",
+      "condition_type": "while"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 24,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 2,
+      "expression_text": "m > 8",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 44,
+      "condition_value": "true",
+      "line_number": 6,
+      "order": 3,
+      "expression_text": "m % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 24,
+      "condition_value": "false",
+      "line_number": 4,
+      "order": 4,
+      "expression_text": "m > 8",
+      "condition_type": "while"
+    }
+  ]
+}

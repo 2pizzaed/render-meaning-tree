@@ -1,0 +1,75 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 18,
+      "value": "false",
+      "expression_text": "x > 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 3,
+      "line_number": 12,
+      "type": "condition",
+      "ast_id": 83,
+      "value": "true",
+      "expression_text": "x < 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 13,
+      "type": "condition",
+      "ast_id": 86,
+      "value": "false",
+      "expression_text": "y > 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 5,
+      "line_number": 16,
+      "type": "condition",
+      "ast_id": 102,
+      "value": "false",
+      "expression_text": "y < 0",
+      "condition_type": "if"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 18,
+      "condition_value": "false",
+      "line_number": 3,
+      "order": 2,
+      "expression_text": "x > 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 83,
+      "condition_value": "true",
+      "line_number": 12,
+      "order": 3,
+      "expression_text": "x < 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 86,
+      "condition_value": "false",
+      "line_number": 13,
+      "order": 4,
+      "expression_text": "y > 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 102,
+      "condition_value": "false",
+      "line_number": 16,
+      "order": 5,
+      "expression_text": "y < 0",
+      "condition_type": "if"
+    }
+  ]
+}

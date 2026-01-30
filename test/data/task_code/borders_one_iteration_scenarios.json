@@ -1,0 +1,58 @@
+{
+  "scenario_name": "default",
+  "events": [
+    {
+      "order": 2,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 17,
+      "value": "true",
+      "expression_text": "x > 5",
+      "condition_type": "while"
+    },
+    {
+      "order": 3,
+      "line_number": 4,
+      "type": "condition",
+      "ast_id": 20,
+      "value": "true",
+      "expression_text": "y < 5",
+      "condition_type": "if"
+    },
+    {
+      "order": 4,
+      "line_number": 3,
+      "type": "condition",
+      "ast_id": 17,
+      "value": "false",
+      "expression_text": "x > 5",
+      "condition_type": "while"
+    }
+  ],
+  "conditions": [
+    {
+      "ast_id": 17,
+      "condition_value": "true",
+      "line_number": 3,
+      "order": 2,
+      "expression_text": "x > 5",
+      "condition_type": "while"
+    },
+    {
+      "ast_id": 20,
+      "condition_value": "true",
+      "line_number": 4,
+      "order": 3,
+      "expression_text": "y < 5",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 17,
+      "condition_value": "false",
+      "line_number": 3,
+      "order": 4,
+      "expression_text": "x > 5",
+      "condition_type": "while"
+    }
+  ]
+}

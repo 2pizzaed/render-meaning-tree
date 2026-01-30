@@ -500,8 +500,8 @@ def build_line_to_ast_id_for_conditions(
                     if line:
                         line_to_ast_id[line] = cond_id
         
-        # Для for_loop условие в condition (если есть)
-        elif node_type == 'for_loop':
+        # Для general_for_loop условие в condition (если есть)
+        elif node_type == 'general_for_loop':
             condition_node = node.get('condition')
             if condition_node and isinstance(condition_node, dict):
                 cond_id = condition_node.get('id')

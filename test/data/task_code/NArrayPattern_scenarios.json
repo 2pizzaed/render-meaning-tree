@@ -114,60 +114,6 @@
       "line_number": 4,
       "type": "condition",
       "ast_id": 53,
-      "value": "true",
-      "expression_text": "range(1, n + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 14,
-      "line_number": 5,
-      "type": "condition",
-      "ast_id": 48,
-      "value": "true",
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 15,
-      "line_number": 5,
-      "type": "condition",
-      "ast_id": 48,
-      "value": "true",
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 16,
-      "line_number": 5,
-      "type": "condition",
-      "ast_id": 48,
-      "value": "true",
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 17,
-      "line_number": 5,
-      "type": "condition",
-      "ast_id": 48,
-      "value": "true",
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 18,
-      "line_number": 5,
-      "type": "condition",
-      "ast_id": 48,
-      "value": "false",
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 19,
-      "line_number": 4,
-      "type": "condition",
-      "ast_id": 53,
       "value": "false",
       "expression_text": "range(1, n + 1)",
       "condition_type": "range_for"
@@ -272,57 +218,9 @@
     },
     {
       "ast_id": 53,
-      "condition_value": "true",
+      "condition_value": "false",
       "line_number": 4,
       "order": 13,
-      "expression_text": "range(1, n + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 48,
-      "condition_value": "true",
-      "line_number": 5,
-      "order": 14,
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 48,
-      "condition_value": "true",
-      "line_number": 5,
-      "order": 15,
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 48,
-      "condition_value": "true",
-      "line_number": 5,
-      "order": 16,
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 48,
-      "condition_value": "true",
-      "line_number": 5,
-      "order": 17,
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 48,
-      "condition_value": "false",
-      "line_number": 5,
-      "order": 18,
-      "expression_text": "range(1, j + 1)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 53,
-      "condition_value": "false",
-      "line_number": 4,
-      "order": 19,
       "expression_text": "range(1, n + 1)",
       "condition_type": "range_for"
     }

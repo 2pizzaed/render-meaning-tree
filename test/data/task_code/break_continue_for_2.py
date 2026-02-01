@@ -1,4 +1,4 @@
-matrix = [[2, 5, 8], [3, 10, 6], [7, 4, 9]]
+matrix = [[2, 5], [3, 10], [7, 4]]
 total = 0
 for row in matrix:
     for val in row:

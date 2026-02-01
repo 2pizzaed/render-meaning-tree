@@ -5,7 +5,7 @@
       "order": 2,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 89,
+      "ast_id": 69,
       "value": "true",
       "expression_text": "i < len(data)",
       "condition_type": "while"
@@ -14,7 +14,7 @@
       "order": 3,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 96,
+      "ast_id": 76,
       "value": "true",
       "expression_text": "data[i] % 7 == 0",
       "condition_type": "if"
@@ -23,7 +23,7 @@
       "order": 4,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 101,
+      "ast_id": 81,
       "value": "false",
       "expression_text": "data[i] > 10",
       "condition_type": "if"
@@ -32,7 +32,7 @@
       "order": 5,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 89,
+      "ast_id": 69,
       "value": "true",
       "expression_text": "i < len(data)",
       "condition_type": "while"
@@ -41,7 +41,7 @@
       "order": 6,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 96,
+      "ast_id": 76,
       "value": "true",
       "expression_text": "data[i] % 7 == 0",
       "condition_type": "if"
@@ -50,7 +50,7 @@
       "order": 7,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 101,
+      "ast_id": 81,
       "value": "true",
       "expression_text": "data[i] > 10",
       "condition_type": "if"
@@ -59,7 +59,7 @@
       "order": 8,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 89,
+      "ast_id": 69,
       "value": "true",
       "expression_text": "i < len(data)",
       "condition_type": "while"
@@ -68,7 +68,7 @@
       "order": 9,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 96,
+      "ast_id": 76,
       "value": "false",
       "expression_text": "data[i] % 7 == 0",
       "condition_type": "if"
@@ -77,7 +77,7 @@
       "order": 10,
       "line_number": 15,
       "type": "condition",
-      "ast_id": 195,
+      "ast_id": 175,
       "value": "true",
       "expression_text": "data[i] % 3 == 0",
       "condition_type": "if"
@@ -86,7 +86,7 @@
       "order": 11,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 89,
+      "ast_id": 69,
       "value": "true",
       "expression_text": "i < len(data)",
       "condition_type": "while"
@@ -95,7 +95,7 @@
       "order": 12,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 96,
+      "ast_id": 76,
       "value": "false",
       "expression_text": "data[i] % 7 == 0",
       "condition_type": "if"
@@ -104,7 +104,7 @@
       "order": 13,
       "line_number": 15,
       "type": "condition",
-      "ast_id": 195,
+      "ast_id": 175,
       "value": "false",
       "expression_text": "data[i] % 3 == 0",
       "condition_type": "if"
@@ -113,7 +113,7 @@
       "order": 14,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 89,
+      "ast_id": 69,
       "value": "true",
       "expression_text": "i < len(data)",
       "condition_type": "while"
@@ -122,106 +122,25 @@
       "order": 15,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 96,
-      "value": "false",
+      "ast_id": 76,
+      "value": "true",
       "expression_text": "data[i] % 7 == 0",
       "condition_type": "if"
     },
     {
       "order": 16,
-      "line_number": 15,
+      "line_number": 8,
       "type": "condition",
-      "ast_id": 195,
+      "ast_id": 81,
       "value": "false",
-      "expression_text": "data[i] % 3 == 0",
+      "expression_text": "data[i] > 10",
       "condition_type": "if"
     },
     {
       "order": 17,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 89,
-      "value": "true",
-      "expression_text": "i < len(data)",
-      "condition_type": "while"
-    },
-    {
-      "order": 18,
-      "line_number": 7,
-      "type": "condition",
-      "ast_id": 96,
-      "value": "true",
-      "expression_text": "data[i] % 7 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 19,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 101,
-      "value": "true",
-      "expression_text": "data[i] > 10",
-      "condition_type": "if"
-    },
-    {
-      "order": 20,
-      "line_number": 6,
-      "type": "condition",
-      "ast_id": 89,
-      "value": "true",
-      "expression_text": "i < len(data)",
-      "condition_type": "while"
-    },
-    {
-      "order": 21,
-      "line_number": 7,
-      "type": "condition",
-      "ast_id": 96,
-      "value": "false",
-      "expression_text": "data[i] % 7 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 22,
-      "line_number": 15,
-      "type": "condition",
-      "ast_id": 195,
-      "value": "true",
-      "expression_text": "data[i] % 3 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 23,
-      "line_number": 6,
-      "type": "condition",
-      "ast_id": 89,
-      "value": "true",
-      "expression_text": "i < len(data)",
-      "condition_type": "while"
-    },
-    {
-      "order": 24,
-      "line_number": 7,
-      "type": "condition",
-      "ast_id": 96,
-      "value": "false",
-      "expression_text": "data[i] % 7 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 25,
-      "line_number": 15,
-      "type": "condition",
-      "ast_id": 195,
-      "value": "true",
-      "expression_text": "data[i] % 3 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 26,
-      "line_number": 6,
-      "type": "condition",
-      "ast_id": 89,
+      "ast_id": 69,
       "value": "false",
       "expression_text": "i < len(data)",
       "condition_type": "while"
@@ -229,7 +148,7 @@
   ],
   "conditions": [
     {
-      "ast_id": 89,
+      "ast_id": 69,
       "condition_value": "true",
       "line_number": 6,
       "order": 2,
@@ -237,7 +156,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 96,
+      "ast_id": 76,
       "condition_value": "true",
       "line_number": 7,
       "order": 3,
@@ -245,7 +164,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 101,
+      "ast_id": 81,
       "condition_value": "false",
       "line_number": 8,
       "order": 4,
@@ -253,7 +172,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 89,
+      "ast_id": 69,
       "condition_value": "true",
       "line_number": 6,
       "order": 5,
@@ -261,7 +180,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 96,
+      "ast_id": 76,
       "condition_value": "true",
       "line_number": 7,
       "order": 6,
@@ -269,7 +188,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 101,
+      "ast_id": 81,
       "condition_value": "true",
       "line_number": 8,
       "order": 7,
@@ -277,7 +196,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 89,
+      "ast_id": 69,
       "condition_value": "true",
       "line_number": 6,
       "order": 8,
@@ -285,7 +204,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 96,
+      "ast_id": 76,
       "condition_value": "false",
       "line_number": 7,
       "order": 9,
@@ -293,7 +212,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 195,
+      "ast_id": 175,
       "condition_value": "true",
       "line_number": 15,
       "order": 10,
@@ -301,7 +220,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 89,
+      "ast_id": 69,
       "condition_value": "true",
       "line_number": 6,
       "order": 11,
@@ -309,7 +228,7 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 96,
+      "ast_id": 76,
       "condition_value": "false",
       "line_number": 7,
       "order": 12,
@@ -317,7 +236,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 195,
+      "ast_id": 175,
       "condition_value": "false",
       "line_number": 15,
       "order": 13,
@@ -325,7 +244,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 89,
+      "ast_id": 69,
       "condition_value": "true",
       "line_number": 6,
       "order": 14,
@@ -333,98 +252,26 @@
       "condition_type": "while"
     },
     {
-      "ast_id": 96,
-      "condition_value": "false",
+      "ast_id": 76,
+      "condition_value": "true",
       "line_number": 7,
       "order": 15,
       "expression_text": "data[i] % 7 == 0",
       "condition_type": "if"
     },
     {
-      "ast_id": 195,
+      "ast_id": 81,
       "condition_value": "false",
-      "line_number": 15,
-      "order": 16,
-      "expression_text": "data[i] % 3 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 89,
-      "condition_value": "true",
-      "line_number": 6,
-      "order": 17,
-      "expression_text": "i < len(data)",
-      "condition_type": "while"
-    },
-    {
-      "ast_id": 96,
-      "condition_value": "true",
-      "line_number": 7,
-      "order": 18,
-      "expression_text": "data[i] % 7 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 101,
-      "condition_value": "true",
       "line_number": 8,
-      "order": 19,
+      "order": 16,
       "expression_text": "data[i] > 10",
       "condition_type": "if"
     },
     {
-      "ast_id": 89,
-      "condition_value": "true",
-      "line_number": 6,
-      "order": 20,
-      "expression_text": "i < len(data)",
-      "condition_type": "while"
-    },
-    {
-      "ast_id": 96,
-      "condition_value": "false",
-      "line_number": 7,
-      "order": 21,
-      "expression_text": "data[i] % 7 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 195,
-      "condition_value": "true",
-      "line_number": 15,
-      "order": 22,
-      "expression_text": "data[i] % 3 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 89,
-      "condition_value": "true",
-      "line_number": 6,
-      "order": 23,
-      "expression_text": "i < len(data)",
-      "condition_type": "while"
-    },
-    {
-      "ast_id": 96,
-      "condition_value": "false",
-      "line_number": 7,
-      "order": 24,
-      "expression_text": "data[i] % 7 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 195,
-      "condition_value": "true",
-      "line_number": 15,
-      "order": 25,
-      "expression_text": "data[i] % 3 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 89,
+      "ast_id": 69,
       "condition_value": "false",
       "line_number": 6,
-      "order": 26,
+      "order": 17,
       "expression_text": "i < len(data)",
       "condition_type": "while"
     }

@@ -5,7 +5,7 @@
       "order": 2,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 225,
+      "ast_id": 210,
       "value": "true",
       "expression_text": "range(len(matrix))",
       "condition_type": "range_for"
@@ -14,7 +14,7 @@
       "order": 3,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
@@ -23,7 +23,7 @@
       "order": 4,
       "line_number": 9,
       "type": "condition",
-      "ast_id": 108,
+      "ast_id": 93,
       "value": "true",
       "expression_text": "i == j",
       "condition_type": "if"
@@ -32,7 +32,7 @@
       "order": 5,
       "line_number": 10,
       "type": "condition",
-      "ast_id": 115,
+      "ast_id": 100,
       "value": "false",
       "expression_text": "matrix[i][j] > 10",
       "condition_type": "if"
@@ -41,7 +41,7 @@
       "order": 6,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
@@ -50,7 +50,7 @@
       "order": 7,
       "line_number": 9,
       "type": "condition",
-      "ast_id": 108,
+      "ast_id": 93,
       "value": "false",
       "expression_text": "i == j",
       "condition_type": "if"
@@ -59,7 +59,7 @@
       "order": 8,
       "line_number": 13,
       "type": "condition",
-      "ast_id": 157,
+      "ast_id": 142,
       "value": "true",
       "expression_text": "matrix[i][j] % 2 == 0",
       "condition_type": "if"
@@ -68,7 +68,7 @@
       "order": 9,
       "line_number": 14,
       "type": "condition",
-      "ast_id": 164,
+      "ast_id": 149,
       "value": "true",
       "expression_text": "matrix[i][j] > 5",
       "condition_type": "if"
@@ -77,7 +77,7 @@
       "order": 10,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
@@ -86,7 +86,7 @@
       "order": 11,
       "line_number": 9,
       "type": "condition",
-      "ast_id": 108,
+      "ast_id": 93,
       "value": "false",
       "expression_text": "i == j",
       "condition_type": "if"
@@ -95,7 +95,7 @@
       "order": 12,
       "line_number": 13,
       "type": "condition",
-      "ast_id": 157,
+      "ast_id": 142,
       "value": "true",
       "expression_text": "matrix[i][j] % 2 == 0",
       "condition_type": "if"
@@ -104,7 +104,7 @@
       "order": 13,
       "line_number": 14,
       "type": "condition",
-      "ast_id": 164,
+      "ast_id": 149,
       "value": "true",
       "expression_text": "matrix[i][j] > 5",
       "condition_type": "if"
@@ -113,52 +113,52 @@
       "order": 14,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
-      "value": "true",
+      "ast_id": 196,
+      "value": "false",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
       "order": 15,
-      "line_number": 9,
-      "type": "condition",
-      "ast_id": 108,
-      "value": "false",
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "order": 16,
-      "line_number": 13,
-      "type": "condition",
-      "ast_id": 157,
-      "value": "false",
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 17,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 211,
-      "value": "false",
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 18,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 225,
+      "ast_id": 210,
       "value": "true",
       "expression_text": "range(len(matrix))",
       "condition_type": "range_for"
     },
     {
+      "order": 16,
+      "line_number": 8,
+      "type": "condition",
+      "ast_id": 196,
+      "value": "true",
+      "expression_text": "range(len(matrix[i]))",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 17,
+      "line_number": 9,
+      "type": "condition",
+      "ast_id": 93,
+      "value": "false",
+      "expression_text": "i == j",
+      "condition_type": "if"
+    },
+    {
+      "order": 18,
+      "line_number": 13,
+      "type": "condition",
+      "ast_id": 142,
+      "value": "false",
+      "expression_text": "matrix[i][j] % 2 == 0",
+      "condition_type": "if"
+    },
+    {
       "order": 19,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
@@ -167,25 +167,25 @@
       "order": 20,
       "line_number": 9,
       "type": "condition",
-      "ast_id": 108,
-      "value": "false",
+      "ast_id": 93,
+      "value": "true",
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
       "order": 21,
-      "line_number": 13,
+      "line_number": 10,
       "type": "condition",
-      "ast_id": 157,
-      "value": "false",
-      "expression_text": "matrix[i][j] % 2 == 0",
+      "ast_id": 100,
+      "value": "true",
+      "expression_text": "matrix[i][j] > 10",
       "condition_type": "if"
     },
     {
       "order": 22,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
@@ -194,232 +194,151 @@
       "order": 23,
       "line_number": 9,
       "type": "condition",
-      "ast_id": 108,
-      "value": "true",
+      "ast_id": 93,
+      "value": "false",
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
       "order": 24,
-      "line_number": 10,
+      "line_number": 13,
       "type": "condition",
-      "ast_id": 115,
-      "value": "true",
-      "expression_text": "matrix[i][j] > 10",
+      "ast_id": 142,
+      "value": "false",
+      "expression_text": "matrix[i][j] % 2 == 0",
       "condition_type": "if"
     },
     {
       "order": 25,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
-      "value": "true",
+      "ast_id": 196,
+      "value": "false",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
       "order": 26,
-      "line_number": 9,
+      "line_number": 7,
       "type": "condition",
-      "ast_id": 108,
-      "value": "false",
-      "expression_text": "i == j",
-      "condition_type": "if"
+      "ast_id": 210,
+      "value": "true",
+      "expression_text": "range(len(matrix))",
+      "condition_type": "range_for"
     },
     {
       "order": 27,
-      "line_number": 13,
-      "type": "condition",
-      "ast_id": 157,
-      "value": "false",
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 28,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "order": 29,
+      "order": 28,
       "line_number": 9,
       "type": "condition",
-      "ast_id": 108,
+      "ast_id": 93,
       "value": "false",
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
-      "order": 30,
+      "order": 29,
       "line_number": 13,
       "type": "condition",
-      "ast_id": 157,
-      "value": "false",
+      "ast_id": 142,
+      "value": "true",
       "expression_text": "matrix[i][j] % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "order": 30,
+      "line_number": 14,
+      "type": "condition",
+      "ast_id": 149,
+      "value": "true",
+      "expression_text": "matrix[i][j] > 5",
       "condition_type": "if"
     },
     {
       "order": 31,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
-      "value": "false",
+      "ast_id": 196,
+      "value": "true",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
       "order": 32,
-      "line_number": 7,
+      "line_number": 9,
       "type": "condition",
-      "ast_id": 225,
-      "value": "true",
-      "expression_text": "range(len(matrix))",
-      "condition_type": "range_for"
+      "ast_id": 93,
+      "value": "false",
+      "expression_text": "i == j",
+      "condition_type": "if"
     },
     {
       "order": 33,
-      "line_number": 8,
+      "line_number": 13,
       "type": "condition",
-      "ast_id": 211,
+      "ast_id": 142,
       "value": "true",
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
+      "expression_text": "matrix[i][j] % 2 == 0",
+      "condition_type": "if"
     },
     {
       "order": 34,
-      "line_number": 9,
+      "line_number": 14,
       "type": "condition",
-      "ast_id": 108,
-      "value": "false",
-      "expression_text": "i == j",
+      "ast_id": 149,
+      "value": "true",
+      "expression_text": "matrix[i][j] > 5",
       "condition_type": "if"
     },
     {
       "order": 35,
-      "line_number": 13,
+      "line_number": 8,
       "type": "condition",
-      "ast_id": 157,
+      "ast_id": 196,
       "value": "true",
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
+      "expression_text": "range(len(matrix[i]))",
+      "condition_type": "range_for"
     },
     {
       "order": 36,
-      "line_number": 14,
+      "line_number": 9,
       "type": "condition",
-      "ast_id": 164,
+      "ast_id": 93,
       "value": "true",
-      "expression_text": "matrix[i][j] > 5",
+      "expression_text": "i == j",
       "condition_type": "if"
     },
     {
       "order": 37,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 211,
-      "value": "true",
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 38,
-      "line_number": 9,
-      "type": "condition",
-      "ast_id": 108,
-      "value": "false",
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "order": 39,
-      "line_number": 13,
-      "type": "condition",
-      "ast_id": 157,
-      "value": "true",
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 40,
-      "line_number": 14,
-      "type": "condition",
-      "ast_id": 164,
-      "value": "true",
-      "expression_text": "matrix[i][j] > 5",
-      "condition_type": "if"
-    },
-    {
-      "order": 41,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 211,
-      "value": "true",
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 42,
-      "line_number": 9,
-      "type": "condition",
-      "ast_id": 108,
-      "value": "true",
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "order": 43,
       "line_number": 10,
       "type": "condition",
-      "ast_id": 115,
+      "ast_id": 100,
       "value": "true",
       "expression_text": "matrix[i][j] > 10",
       "condition_type": "if"
     },
     {
-      "order": 44,
+      "order": 38,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 211,
-      "value": "true",
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 45,
-      "line_number": 9,
-      "type": "condition",
-      "ast_id": 108,
-      "value": "false",
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "order": 46,
-      "line_number": 13,
-      "type": "condition",
-      "ast_id": 157,
-      "value": "false",
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "order": 47,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 211,
+      "ast_id": 196,
       "value": "false",
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "order": 48,
+      "order": 39,
       "line_number": 7,
       "type": "condition",
-      "ast_id": 225,
+      "ast_id": 210,
       "value": "false",
       "expression_text": "range(len(matrix))",
       "condition_type": "range_for"
@@ -427,7 +346,7 @@
   ],
   "conditions": [
     {
-      "ast_id": 225,
+      "ast_id": 210,
       "condition_value": "true",
       "line_number": 7,
       "order": 2,
@@ -435,7 +354,7 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 211,
+      "ast_id": 196,
       "condition_value": "true",
       "line_number": 8,
       "order": 3,
@@ -443,7 +362,7 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
+      "ast_id": 93,
       "condition_value": "true",
       "line_number": 9,
       "order": 4,
@@ -451,7 +370,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 115,
+      "ast_id": 100,
       "condition_value": "false",
       "line_number": 10,
       "order": 5,
@@ -459,7 +378,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
+      "ast_id": 196,
       "condition_value": "true",
       "line_number": 8,
       "order": 6,
@@ -467,7 +386,7 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
+      "ast_id": 93,
       "condition_value": "false",
       "line_number": 9,
       "order": 7,
@@ -475,7 +394,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 157,
+      "ast_id": 142,
       "condition_value": "true",
       "line_number": 13,
       "order": 8,
@@ -483,7 +402,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 164,
+      "ast_id": 149,
       "condition_value": "true",
       "line_number": 14,
       "order": 9,
@@ -491,7 +410,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
+      "ast_id": 196,
       "condition_value": "true",
       "line_number": 8,
       "order": 10,
@@ -499,7 +418,7 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
+      "ast_id": 93,
       "condition_value": "false",
       "line_number": 9,
       "order": 11,
@@ -507,7 +426,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 157,
+      "ast_id": 142,
       "condition_value": "true",
       "line_number": 13,
       "order": 12,
@@ -515,7 +434,7 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 164,
+      "ast_id": 149,
       "condition_value": "true",
       "line_number": 14,
       "order": 13,
@@ -523,47 +442,47 @@
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
-      "condition_value": "true",
+      "ast_id": 196,
+      "condition_value": "false",
       "line_number": 8,
       "order": 14,
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
-      "condition_value": "false",
-      "line_number": 9,
-      "order": 15,
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 157,
-      "condition_value": "false",
-      "line_number": 13,
-      "order": 16,
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 211,
-      "condition_value": "false",
-      "line_number": 8,
-      "order": 17,
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 225,
+      "ast_id": 210,
       "condition_value": "true",
       "line_number": 7,
-      "order": 18,
+      "order": 15,
       "expression_text": "range(len(matrix))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 211,
+      "ast_id": 196,
+      "condition_value": "true",
+      "line_number": 8,
+      "order": 16,
+      "expression_text": "range(len(matrix[i]))",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 93,
+      "condition_value": "false",
+      "line_number": 9,
+      "order": 17,
+      "expression_text": "i == j",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 142,
+      "condition_value": "false",
+      "line_number": 13,
+      "order": 18,
+      "expression_text": "matrix[i][j] % 2 == 0",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 196,
       "condition_value": "true",
       "line_number": 8,
       "order": 19,
@@ -571,23 +490,23 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
-      "condition_value": "false",
+      "ast_id": 93,
+      "condition_value": "true",
       "line_number": 9,
       "order": 20,
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
-      "ast_id": 157,
-      "condition_value": "false",
-      "line_number": 13,
+      "ast_id": 100,
+      "condition_value": "true",
+      "line_number": 10,
       "order": 21,
-      "expression_text": "matrix[i][j] % 2 == 0",
+      "expression_text": "matrix[i][j] > 10",
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
+      "ast_id": 196,
       "condition_value": "true",
       "line_number": 8,
       "order": 22,
@@ -595,210 +514,138 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
-      "condition_value": "true",
+      "ast_id": 93,
+      "condition_value": "false",
       "line_number": 9,
       "order": 23,
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
-      "ast_id": 115,
-      "condition_value": "true",
-      "line_number": 10,
+      "ast_id": 142,
+      "condition_value": "false",
+      "line_number": 13,
       "order": 24,
-      "expression_text": "matrix[i][j] > 10",
+      "expression_text": "matrix[i][j] % 2 == 0",
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
-      "condition_value": "true",
+      "ast_id": 196,
+      "condition_value": "false",
       "line_number": 8,
       "order": 25,
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
-      "condition_value": "false",
-      "line_number": 9,
+      "ast_id": 210,
+      "condition_value": "true",
+      "line_number": 7,
       "order": 26,
-      "expression_text": "i == j",
-      "condition_type": "if"
+      "expression_text": "range(len(matrix))",
+      "condition_type": "range_for"
     },
     {
-      "ast_id": 157,
-      "condition_value": "false",
-      "line_number": 13,
-      "order": 27,
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 211,
+      "ast_id": 196,
       "condition_value": "true",
       "line_number": 8,
-      "order": 28,
+      "order": 27,
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
+      "ast_id": 93,
       "condition_value": "false",
       "line_number": 9,
-      "order": 29,
+      "order": 28,
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
-      "ast_id": 157,
-      "condition_value": "false",
+      "ast_id": 142,
+      "condition_value": "true",
       "line_number": 13,
-      "order": 30,
+      "order": 29,
       "expression_text": "matrix[i][j] % 2 == 0",
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
-      "condition_value": "false",
+      "ast_id": 149,
+      "condition_value": "true",
+      "line_number": 14,
+      "order": 30,
+      "expression_text": "matrix[i][j] > 5",
+      "condition_type": "if"
+    },
+    {
+      "ast_id": 196,
+      "condition_value": "true",
       "line_number": 8,
       "order": 31,
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 225,
-      "condition_value": "true",
-      "line_number": 7,
+      "ast_id": 93,
+      "condition_value": "false",
+      "line_number": 9,
       "order": 32,
-      "expression_text": "range(len(matrix))",
-      "condition_type": "range_for"
+      "expression_text": "i == j",
+      "condition_type": "if"
     },
     {
-      "ast_id": 211,
+      "ast_id": 142,
       "condition_value": "true",
-      "line_number": 8,
+      "line_number": 13,
       "order": 33,
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
+      "expression_text": "matrix[i][j] % 2 == 0",
+      "condition_type": "if"
     },
     {
-      "ast_id": 108,
-      "condition_value": "false",
-      "line_number": 9,
+      "ast_id": 149,
+      "condition_value": "true",
+      "line_number": 14,
       "order": 34,
-      "expression_text": "i == j",
+      "expression_text": "matrix[i][j] > 5",
       "condition_type": "if"
     },
     {
-      "ast_id": 157,
+      "ast_id": 196,
       "condition_value": "true",
-      "line_number": 13,
+      "line_number": 8,
       "order": 35,
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
+      "expression_text": "range(len(matrix[i]))",
+      "condition_type": "range_for"
     },
     {
-      "ast_id": 164,
+      "ast_id": 93,
       "condition_value": "true",
-      "line_number": 14,
+      "line_number": 9,
       "order": 36,
-      "expression_text": "matrix[i][j] > 5",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 211,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 37,
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 108,
-      "condition_value": "false",
-      "line_number": 9,
-      "order": 38,
       "expression_text": "i == j",
       "condition_type": "if"
     },
     {
-      "ast_id": 157,
-      "condition_value": "true",
-      "line_number": 13,
-      "order": 39,
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 164,
-      "condition_value": "true",
-      "line_number": 14,
-      "order": 40,
-      "expression_text": "matrix[i][j] > 5",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 211,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 41,
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 108,
-      "condition_value": "true",
-      "line_number": 9,
-      "order": 42,
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 115,
+      "ast_id": 100,
       "condition_value": "true",
       "line_number": 10,
-      "order": 43,
+      "order": 37,
       "expression_text": "matrix[i][j] > 10",
       "condition_type": "if"
     },
     {
-      "ast_id": 211,
-      "condition_value": "true",
+      "ast_id": 196,
+      "condition_value": "false",
       "line_number": 8,
-      "order": 44,
+      "order": 38,
       "expression_text": "range(len(matrix[i]))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 108,
-      "condition_value": "false",
-      "line_number": 9,
-      "order": 45,
-      "expression_text": "i == j",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 157,
-      "condition_value": "false",
-      "line_number": 13,
-      "order": 46,
-      "expression_text": "matrix[i][j] % 2 == 0",
-      "condition_type": "if"
-    },
-    {
-      "ast_id": 211,
-      "condition_value": "false",
-      "line_number": 8,
-      "order": 47,
-      "expression_text": "range(len(matrix[i]))",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 225,
+      "ast_id": 210,
       "condition_value": "false",
       "line_number": 7,
-      "order": 48,
+      "order": 39,
       "expression_text": "range(len(matrix))",
       "condition_type": "range_for"
     }

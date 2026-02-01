@@ -1,5 +1,5 @@
-start = 1
-end = 16
+start = 0
+end = 4
 
 fin = []
 for i in range(start, end):

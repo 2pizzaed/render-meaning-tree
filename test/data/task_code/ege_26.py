@@ -7,7 +7,8 @@ pairs = [
 pairs.sort()
 count = 0
 total = 0
-for a, b in pairs:
+for pair in pairs:
+    a, b = pair
     if total + a + b <= s:
         total = total + a + b
         count = count + 1

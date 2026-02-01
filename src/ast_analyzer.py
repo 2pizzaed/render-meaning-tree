@@ -238,8 +238,6 @@ class ASTNodeAnalyzer:
         if not node:
             return False
 
-        node_types = self.nodes_hierarchy_reference.get(node.get("type", "").lower(), [])
-
         parent_id = node.get("parent")
         if not parent_id:
             return False

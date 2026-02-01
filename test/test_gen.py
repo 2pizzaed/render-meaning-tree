@@ -141,15 +141,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             ###
             if file.stem not in (
                 file.stem,  # NO FILTERING
-                # '1_onefunc_while',
-                # '3_recursion',
-                # '5_inf_recursion',
-                # '5_inf_recursion2',
-                # '8_factorial',
-                 '7_fib_v2',
-                # '9_expr_class',
-                # '11_fill',
-                # '12_dirscan',
+                # '1_onefunc_while'
             ):
                 continue
             ###

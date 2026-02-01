@@ -42,9 +42,6 @@ CONCEPTS = {
     "ternary_conditions": 0x100,
     "lib_function_call": 0x200,
     "program_function_call": 0x400,
-    "object_new": 0x400000000,
-    "strings": 0x800000000,
-    "map_collections": 0x1000000000,
     # Plain statements with flags
     "var_declaration": 0x800,
     "assignment": 0x1000,
@@ -72,6 +69,11 @@ CONCEPTS = {
     "switch": 0x80000000,
     "fallthrough_case": 0x100000000,
     "default_case": 0x200000000,
+    "object_new": 0x400000000,
+    "strings": 0x800000000,
+    "map_collections": 0x1000000000,
+    "recustion": 0x2000000000,
+    "loop_iteration": 0x4000000000
 }
 
 ERRORNEOUS_SKILLS = {

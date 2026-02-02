@@ -1,4 +1,4 @@
-n = 4
+n = 3
 
 fin = []
 for j in range(1, n + 1):

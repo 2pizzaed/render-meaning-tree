@@ -3,7 +3,8 @@ a, b = 0, len(array)
 item = 8
 while a < b - 1:
     m = (a + b) // 2
-    if item < array[m]:
+    cond = item < array[m]
+    if cond:
         b = m
     else:
         a = m

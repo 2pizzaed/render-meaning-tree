@@ -91,7 +91,7 @@ def binary_op(node: Node) -> List[StatementFact]:
 
 @s.nodes(
     types=[
-        "unary_operator",
+        "not_operator",
         "unary_minus_operator",
         "unary_plus_operator",
         "unary_postfix_dec_operator",

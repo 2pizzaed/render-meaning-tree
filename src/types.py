@@ -22,7 +22,7 @@ type NodeType = Literal[
     "reference_eq_operator",
     "short_circuit_and_operator",
     "short_circuit_or_operator",
-    "unary_operator",
+    "not_operator",
     "unary_minus_operator",
     "unary_plus_operator",
     "unary_postfix_inc_operator",

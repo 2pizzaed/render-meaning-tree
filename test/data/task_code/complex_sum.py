@@ -1,4 +1,4 @@
-numbers = [15, 8, 22, 11, 5, 18, 30, 7, 25, 12]
+numbers = [15, 8, 22, 11, 5]
 found = 0
 sum_val = 0
 for n in numbers:

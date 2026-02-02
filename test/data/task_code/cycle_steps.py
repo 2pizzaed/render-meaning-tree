@@ -1,4 +1,4 @@
-n = 30
+n = 15
 i = 1
 result = 0
 while i < n:

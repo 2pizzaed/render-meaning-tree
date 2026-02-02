@@ -1,4 +1,4 @@
-numbers = [12, 15, 20, 9, 18, 25, 30, 7, 16, 21]
+numbers = [12, 150, 20, 9, 18, 25]
 count_a = 0
 count_b = 0
 count_c = 0

@@ -291,5 +291,5 @@ def test_recursive_implementation():
     next_recursive_path = 'branches/[0]/[next]/[next]/condition'
     res = root.get('branches', {'property_path': next_recursive_path})
     assert res is not None
-    assert res.ast_node["type"] == "unary_operator"
+    assert res.ast_node["type"] == "not_operator"
 

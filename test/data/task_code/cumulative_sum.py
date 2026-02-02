@@ -1,4 +1,4 @@
-values = [8, 15, 3, 22, 9, 17, 5, 20, 12, 7]
+values = [8, 15, 3, 22, 9]
 total = 0
 bonus = 0
 for v in values:

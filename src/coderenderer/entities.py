@@ -16,7 +16,16 @@ class Button(RendererEntity):
     attrs: dict[str, Any] = field(default_factory=dict)
     tooltip: str = ""
     css_style: str = ""
+    color: str | None = "" # html color
     css_classes: list[str] = field(default_factory=list)
+
+
+def make_default_attrs(action_id: int, node_id: int | None, node_type: str | None):
+    return {
+        "action-id": action_id,
+        "node-id": node_id,
+        "node-type": node_type
+    }
 
 
 @dataclass

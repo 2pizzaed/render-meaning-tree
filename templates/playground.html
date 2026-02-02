@@ -115,7 +115,7 @@
         <div class="bottom-panel">
             <div class="tabs">
                 <button class="tab active" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
-                <button class="tab" onclick="openTab(event, 'tab-trace')">Answer Trace</button>
+                {% if answer_objects %}<button class="tab" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
             </div>
             
             <div id="tab-inspector" class="tab-content active">
@@ -127,6 +127,7 @@
                 </div>
             </div>
             
+            {% if answer_objects %}
             <div id="tab-trace" class="tab-content">
                 <div class="trace-container">
                     <div class="trace-controls">
@@ -135,12 +136,17 @@
                     <textarea id="trace-output" readonly></textarea>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- Data Injection -->
     <script>
         const AST_DATA = {{ nodes_json | safe }};
+    </script>
+
+    <script type="application/json" id="answer_objects">
+        {{ answer_objects_json | safe }}
     </script>
 
     <script>
@@ -163,20 +169,6 @@
 
         // --- Trace Logic ---
         let traceData = [];
-
-        function handleButtonClick(btn) {
-            const actionId = btn.getAttribute('data-action_id');
-            const nodeId = btn.getAttribute('data-node_id');
-            const type = btn.classList.contains('play') ? 'play' : 
-                         btn.classList.contains('stop') ? 'stop' : 'unknown';
-
-            // Add to trace
-            traceData.push({ actionId, nodeId, type });
-            updateTraceView();
-            
-            // Switch to trace tab (optional, maybe annoying)
-            // openTab({currentTarget: document.querySelector("button[onclick*='tab-trace']")}, 'tab-trace');
-        }
 
         function updateTraceView() {
             let str = "List.of(\n";
@@ -262,6 +254,47 @@
             });
 
             container.innerHTML = html;
+        }
+
+        function printAnswers() {
+            let str = "List.of(\n";
+            for (let i = 0; i < traceData.length; i++) {
+                // Если данные есть в answer_objects, выводим их
+                // Иначе выводим просто action_id для отладки
+                const [key, value] = traceData[i];
+                str += `\tPair.of(${key}, "${value}")`;
+                if (i < traceData.length - 1) {
+                    str += ",\n";
+                }
+            }
+            str += "\n);";
+            document.getElementById('trace-output').value = str;
+        }
+
+        function handleButtonClick(btn) {
+            const actionId = btn.getAttribute('data-action_id');
+            const astId = btn.getAttribute('data-node-id');
+            const astNodeType = btn.getAttribute('data-node-type');
+            
+            // Получаем JSON из тега script
+            const scriptTag = document.getElementById('answer_objects');
+            let ansData = {};
+            try {
+                if (scriptTag && scriptTag.textContent.trim()) {
+                    ansData = JSON.parse(scriptTag.textContent);
+                }
+            } catch (e) {
+                console.error("Error parsing answer_objects:", e);
+            }
+
+            // Если для этой кнопки есть данные в answer_objects -> записываем в трейс
+            if (ansData[actionId]) {
+                traceData.push([actionId, ansData[actionId]]);
+                printAnswers();
+            } else {
+                console.warn(`No domain info found for action_id: ${actionId}`);
+                alert(`AST Node Id: ${astId}\nAST Type: ${astNodeType}\nAction id (buttons before): ${action_id}`);
+            }
         }
     </script>
 </body>

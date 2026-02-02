@@ -2,30 +2,38 @@
 from src.ast_managers import (
     InjectionPoint,
     InjectionPool,
-    NodePathElement,
+    TokenCursor,
     injection_for_all,
-    is_first_node_token,
-    observable_node,
+    observable_token,
+    stream_require,
 )
-from src.coderenderer.entities import Button
+from src.coderenderer.entities import Button, make_default_attrs
 
 
 class ControlFlowButtons(InjectionPool):
-    @observable_node()
-    def is_simple_statement(cursor: NodePathElement):
-        return cursor.type in [
+    @observable_token()
+    def is_simple_statement(cursor: TokenCursor):
+        node = stream_require(cursor.ast_node(0))
+        parent = node.find_first_parent([
             "expression_statement",
             "assignment_statement",
             "variable_declaration"
-        ]
+        ])
+        return cursor.manager.is_first_node_token(
+            cursor.translate_index(0), parent # type: ignore
+        ) if parent else None
 
-    @injection_for_all(is_first_node_token, is_simple_statement)
+
+    @injection_for_all(is_simple_statement)
     def simple_statement_button(point: InjectionPoint):
         ast_node = point.ast_node(0)
         point.push_before(
-            Button("play", "filled", {
-                "action_id": point.applied_injections_before,
-                "node_id": ast_node,
-                "node_type": ast_node.type if ast_node else None
-            })
+            Button(
+                "play",
+                "filled",
+                make_default_attrs(point.applied_injections_before,
+                    ast_node.id if ast_node else None,
+                    ast_node.type if ast_node else None,
+                ),
+            )
         )

@@ -62,18 +62,20 @@ class NodePathElement:
     def get(self, analyzer: "ASTNodeAnalyzer") -> Node | None:
         return analyzer.get(self)
 
-    def has_parent(self, id_or_type: int | str, strict: bool = False) -> bool:
+    def has_parent(self, id_or_type: int | str | list[str], strict: bool = False) -> bool:
         if isinstance(id_or_type, str) and not strict:
             return self.find_first_parent(
                 lambda x: x.instanceof(id_or_type)) is not None
         return self.find_first_parent(id_or_type) is not None
 
-    def find_first_parent(self, query: str | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+    def find_first_parent(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
         curr = self.parent
         if isinstance(query, str):
             query = lambda x, q=query: x.type == q
         elif isinstance(query, int):
             query = lambda x, q=query: x.id == q
+        elif isinstance(query, Iterable):
+            query = lambda x, q=query: x.type in q
         while curr is not None and not query(curr):
             curr = curr.parent
         return curr
@@ -259,18 +261,22 @@ class CodeManager:
         self._ast = ast
         self._source_map = source_map
         self._tokens: list[Token] = self._remap(tokens) # type: ignore
-        self._code = self._source_map.get("source_code", "").replace("\r", "")  # type: ignore
+        self._code: str = self._source_map.get("source_code", "")  # type: ignore
         self._declarations: DeclarationContainer = {
             "functions": [], "classes": [], "globals": []
         }
         self._last_stream: InjectionManager | None = None
         self._process_declarations()
 
+    @property
+    def language(self) -> str:
+        return self.source_map.get("language", "") # type: ignore
+
     def _remap(self, tlist: TokenList) -> list[Token]:
         tokens: list[Token] = tlist.get("items", []) # type: ignore
         return [Token(
                 token.get("id"),
-                token.get("value", ""),
+                token.get("value", "").replace("\r", ""),
                 token.get("token_type", ""),
                 i,
                 self._locate(i, token),
@@ -290,8 +296,9 @@ class CodeManager:
             start_byte, length = byte_range
             start_token_byte, token_length = token_byte_pos
             if start_byte <= start_token_byte and \
-                start_token_byte + token_length <= start_byte + length:
-                candidates.append((ast_id, (start_byte, length)))
+                start_token_byte + token_length <= start_byte + length \
+                    and self.get_path(ast_id).type != "program_entry_point":
+                    candidates.append((ast_id, (start_byte, length)))
         candidates.sort(key=lambda x: (x[1][1], -x[1][0])) # по уровню вложенности
         if candidates:
             ast_id = candidates[0][0]
@@ -348,7 +355,8 @@ class CodeManager:
                 line += newlines
         return None
 
-    def line_number_range(self, ast_node_id: int) -> tuple[int, int] | None:
+    def line_number_range(self, ast_node: int | NodePathElement) -> tuple[int, int] | None:
+        ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
         token_start, token_end = self.token_index_range(ast_node_id) or (None, None)
         if token_start is None or token_end is None:
             return None
@@ -358,7 +366,8 @@ class CodeManager:
             return None
         return start_line, end_line
 
-    def token_index_range(self, ast_node_id: int) -> tuple[int, int] | None:
+    def token_index_range(self, ast_node: int | NodePathElement) -> tuple[int, int] | None:
+        ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
         min_i, max_i = self.token_count, 0
         for i, token in enumerate(self):
             if token.ast_node and (
@@ -370,6 +379,18 @@ class CodeManager:
         if min_i <= max_i:
             return (min_i, max_i + 1)
         return None
+
+    def is_first_node_token(self, token_index: int, ast_node: int | NodePathElement):
+        ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
+        trange = self.token_index_range(ast_node_id)
+        if trange:
+            return token_index == trange[0]
+
+    def is_last_node_token(self, token_index: int, ast_node: int | NodePathElement):
+        ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
+        trange = self.token_index_range(ast_node_id)
+        if trange:
+            return token_index == trange[-1]
 
     def _process_class_def(self, node: Node, decl: JsonObject,
                            parent: list[DeclarationElement] | None = None):
@@ -578,22 +599,62 @@ class list_view:
 
     def __setitem__(self, i: int | slice, item: Any):
         if isinstance(i, slice):
-            target_indices = self._indices[i]
-            if hasattr(item, "__iter__") and not isinstance(item, str):
-                items = list(item)
-                if len(items) != len(target_indices):
-                    raise ValueError(
-                        f"attempt to assign sequence of size {len(items)} "
-                        f"to slice of size {len(target_indices)}"
-                    )
-                for idx, val in zip(target_indices, items, strict=False):
-                    self._src[idx] = val
-            else:
-                for idx in target_indices:
-                    self._src[idx] = item
-        else:
-            self._src[self.translate_index(i)] = item
+            start, stop, step = i.indices(len(self._indices))
 
+            if step != 1:
+                # Extended slice - размер должен совпадать
+                target_indices = self._indices[i]
+                if hasattr(item, '__iter__') and not isinstance(item, str):
+                    items = list(item)
+                    if len(items) != len(target_indices):
+                        raise ValueError(
+                            f"attempt to assign sequence of size {len(items)} "
+                            f"to extended slice of size {len(target_indices)}"
+                        )
+                    for idx, val in zip(target_indices, items):
+                        self._src[idx] = val
+                else:
+                    for idx in target_indices:
+                        self._src[idx] = item
+            else:
+                # Simple slice - можно вставлять/удалять
+                old_indices = self._indices[start:stop]
+                items = list(item) if hasattr(item, '__iter__') and not isinstance(item, str) else [item]
+
+                # Определяем позицию вставки в исходном списке
+                if start >= len(self._indices):
+                    insert_pos = len(self._src)
+                elif start == 0 and not self._indices:
+                    insert_pos = 0
+                else:
+                    insert_pos = self._indices[start] if start < len(self._indices) else len(self._src)
+
+                # Удаляем старые элементы (с конца)
+                for src_idx in sorted(old_indices, reverse=True):
+                    del self._src[src_idx]
+                    if src_idx < insert_pos:
+                        insert_pos -= 1
+
+                # Вставляем новые элементы
+                for offset, val in enumerate(items):
+                    self._src.insert(insert_pos + offset, val)
+
+                # Пересчитываем индексы
+                deleted_set = set(old_indices)
+                new_indices = []
+
+                for idx_pos, idx in enumerate(self._indices):
+                    if idx_pos < start or idx_pos >= stop:
+                        # Считаем сдвиг
+                        deleted_before = sum(1 for d in old_indices if d < idx)
+                        added_offset = len(items) if idx >= insert_pos else 0
+                        new_indices.append(idx - deleted_before + added_offset)
+
+                # Добавляем новые индексы на место старых
+                new_item_indices = list(range(insert_pos, insert_pos + len(items)))
+                self._indices = new_indices[:start] + new_item_indices + new_indices[start:]
+        else:
+            self._src[self._indices[i]] = item
 
     def __delitem__(self, item: int | slice):
         if isinstance(item, int):
@@ -719,11 +780,15 @@ class InjectionManager:
         buffer = list_view(self._result, range(begin_index, end_index))
         cursor = TokenCursor(self._owner,
                              self._lookaround,
-                             begin_index, buffer)
+                             begin_index + self._lookaround,
+                             buffer)
         matched: list[Observation] = []
         for obs in (self._conditions or []):
-            if obs(cursor):
-                matched.append(obs)
+            try:
+                if obs(cursor):
+                    matched.append(obs)
+            except SkipStreamIterationException:
+                pass
         cursor = InjectionPoint(
             self, cursor.max_seek,
             begin_index, matched,
@@ -750,10 +815,10 @@ class InjectionManager:
         return self._result
 
 
-def manage_code(tokens: TokenList, map: SourceMap) -> CodeManager:
-    analyzer = ASTNodeAnalyzer(map.get("origin", {})) # type: ignore
+def manage_code(tokens: TokenList, source_map: SourceMap) -> CodeManager:
+    analyzer = ASTNodeAnalyzer(source_map.get("origin", {})) # type: ignore
     analyzer._process()
-    return CodeManager(analyzer, map, tokens)
+    return CodeManager(analyzer, source_map, tokens)
 
 
 def observable_token(
@@ -904,7 +969,10 @@ class InjectionPool:
         return injections
 
 
-def join_observations(obs: Iterable[Observation], name: str = "") -> Observation:
+def join_observations(obs: Sequence[Observation], name: str = "") -> Observation:
+    if len(obs) == 1:
+        return obs[0]
+
     def joined_obs(cur: TokenCursor) -> bool | None:
         res = False
         for o in obs:
@@ -934,21 +1002,10 @@ def stream_require[T](obj: T | None,
     return obj
 
 
-@observable_token()
-def is_first_node_token(cur: TokenCursor) -> bool | None:
-    path = cur.ast_node(0)
-    if path:
-        trange = cur.manager.token_index_range(path.id)
-        if trange:
-            return cur.translate_index(0) == trange[0]
-    return None
+def is_language(name: str) -> Observation:
 
+    @observable_token()
+    def is_language_instance(cur: TokenCursor) -> bool | None:
+        return cur.manager.language == name
 
-@observable_token()
-def is_last_node_token(cur: TokenCursor) -> bool | None:
-    path = cur.ast_node(0)
-    if path:
-        trange = cur.manager.token_index_range(path.id)
-        if trange:
-            return cur.translate_index(0) == trange[-1]
-    return None
+    return is_language_instance

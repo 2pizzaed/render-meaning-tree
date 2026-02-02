@@ -576,6 +576,7 @@ inline_atom_structure:
     'identifier',
     'variable_declaration',
     'not_eq_operator',
+    'not_operator',
     'assignment_statement',
     'expression_statement',
     'int_literal',
@@ -591,6 +592,8 @@ inline_atom_structure:
     'short_circuit_and_operator',
     'short_circuit_or_operator',
     'multiple_assignment_statement',
+    'range',
+    'compound_comparison',
     # TODO: add new here
   ]
 

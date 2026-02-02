@@ -598,6 +598,7 @@ inline_atom_structure:
     'multiple_assignment_statement',
     'range',
     'compound_comparison',
+    'parenthesized_expression'
     # TODO: add new here
   ]
 

@@ -593,6 +593,7 @@ inline_atom_structure:
     'short_circuit_or_operator',
     'multiple_assignment_statement',
     'range',
+    'parenthesized_expression',
     'compound_comparison',
     # TODO: add new here
   ]

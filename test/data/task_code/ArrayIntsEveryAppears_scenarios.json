@@ -3,99 +3,99 @@
   "events": [
     {
       "order": 1,
-      "line_number": 3,
+      "line_number": 4,
       "type": "condition",
-      "ast_id": 88,
+      "ast_id": 159,
       "value": "true",
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
       "order": 2,
-      "line_number": 4,
+      "line_number": 5,
       "type": "condition",
-      "ast_id": 40,
+      "ast_id": 49,
       "value": "false",
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
       "order": 3,
-      "line_number": 3,
+      "line_number": 4,
       "type": "condition",
-      "ast_id": 88,
+      "ast_id": 159,
       "value": "true",
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
       "order": 4,
-      "line_number": 4,
+      "line_number": 5,
       "type": "condition",
-      "ast_id": 40,
+      "ast_id": 49,
       "value": "true",
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
       "order": 5,
-      "line_number": 5,
+      "line_number": 9,
       "type": "condition",
-      "ast_id": 71,
+      "ast_id": 118,
       "value": "false",
-      "expression_text": "not (i > 0 and nums[i - 1] == 2 or (i < len(nums) - 1 and nums[i + 1] == 2))",
+      "expression_text": "complex_condition",
       "condition_type": "if"
     },
     {
       "order": 6,
-      "line_number": 3,
+      "line_number": 4,
       "type": "condition",
-      "ast_id": 88,
+      "ast_id": 159,
       "value": "true",
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
       "order": 7,
-      "line_number": 4,
+      "line_number": 5,
       "type": "condition",
-      "ast_id": 40,
+      "ast_id": 49,
       "value": "true",
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
       "order": 8,
-      "line_number": 5,
+      "line_number": 9,
       "type": "condition",
-      "ast_id": 71,
+      "ast_id": 118,
       "value": "false",
-      "expression_text": "not (i > 0 and nums[i - 1] == 2 or (i < len(nums) - 1 and nums[i + 1] == 2))",
+      "expression_text": "complex_condition",
       "condition_type": "if"
     },
     {
       "order": 9,
-      "line_number": 3,
+      "line_number": 4,
       "type": "condition",
-      "ast_id": 88,
+      "ast_id": 159,
       "value": "true",
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
       "order": 10,
-      "line_number": 4,
+      "line_number": 5,
       "type": "condition",
-      "ast_id": 40,
+      "ast_id": 49,
       "value": "false",
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
       "order": 11,
-      "line_number": 3,
+      "line_number": 4,
       "type": "condition",
-      "ast_id": 88,
+      "ast_id": 159,
       "value": "false",
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
@@ -103,89 +103,89 @@
   ],
   "conditions": [
     {
-      "ast_id": 88,
+      "ast_id": 159,
       "condition_value": "true",
-      "line_number": 3,
+      "line_number": 4,
       "order": 1,
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 40,
+      "ast_id": 49,
       "condition_value": "false",
-      "line_number": 4,
+      "line_number": 5,
       "order": 2,
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
-      "ast_id": 88,
+      "ast_id": 159,
       "condition_value": "true",
-      "line_number": 3,
+      "line_number": 4,
       "order": 3,
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 40,
+      "ast_id": 49,
       "condition_value": "true",
-      "line_number": 4,
+      "line_number": 5,
       "order": 4,
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
-      "ast_id": 71,
+      "ast_id": 118,
       "condition_value": "false",
-      "line_number": 5,
+      "line_number": 9,
       "order": 5,
-      "expression_text": "not (i > 0 and nums[i - 1] == 2 or (i < len(nums) - 1 and nums[i + 1] == 2))",
+      "expression_text": "complex_condition",
       "condition_type": "if"
     },
     {
-      "ast_id": 88,
+      "ast_id": 159,
       "condition_value": "true",
-      "line_number": 3,
+      "line_number": 4,
       "order": 6,
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 40,
+      "ast_id": 49,
       "condition_value": "true",
-      "line_number": 4,
+      "line_number": 5,
       "order": 7,
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
-      "ast_id": 71,
+      "ast_id": 118,
       "condition_value": "false",
-      "line_number": 5,
+      "line_number": 9,
       "order": 8,
-      "expression_text": "not (i > 0 and nums[i - 1] == 2 or (i < len(nums) - 1 and nums[i + 1] == 2))",
+      "expression_text": "complex_condition",
       "condition_type": "if"
     },
     {
-      "ast_id": 88,
+      "ast_id": 159,
       "condition_value": "true",
-      "line_number": 3,
+      "line_number": 4,
       "order": 9,
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 40,
+      "ast_id": 49,
       "condition_value": "false",
-      "line_number": 4,
+      "line_number": 5,
       "order": 10,
       "expression_text": "nums[i] == 2",
       "condition_type": "if"
     },
     {
-      "ast_id": 88,
+      "ast_id": 159,
       "condition_value": "false",
-      "line_number": 3,
+      "line_number": 4,
       "order": 11,
       "expression_text": "range(len(nums))",
       "condition_type": "range_for"

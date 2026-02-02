@@ -5,7 +5,7 @@
       "order": 2,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 148,
+      "ast_id": 136,
       "value": "true",
       "expression_text": "numbers",
       "condition_type": "for_each"
@@ -14,7 +14,7 @@
       "order": 3,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
+      "ast_id": 118,
       "value": "true",
       "expression_text": "range(k)",
       "condition_type": "range_for"
@@ -23,7 +23,7 @@
       "order": 4,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
+      "ast_id": 118,
       "value": "true",
       "expression_text": "range(k)",
       "condition_type": "range_for"
@@ -32,34 +32,34 @@
       "order": 5,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 6,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
+      "ast_id": 118,
       "value": "false",
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "order": 7,
+      "order": 6,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 148,
+      "ast_id": 136,
       "value": "true",
       "expression_text": "numbers",
       "condition_type": "for_each"
     },
     {
+      "order": 7,
+      "line_number": 8,
+      "type": "condition",
+      "ast_id": 118,
+      "value": "true",
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
+    },
+    {
       "order": 8,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
+      "ast_id": 118,
       "value": "true",
       "expression_text": "range(k)",
       "condition_type": "range_for"
@@ -68,61 +68,61 @@
       "order": 9,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 10,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 11,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
+      "ast_id": 118,
       "value": "false",
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "order": 12,
+      "order": 10,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 148,
+      "ast_id": 136,
       "value": "true",
       "expression_text": "numbers",
       "condition_type": "for_each"
     },
     {
+      "order": 11,
+      "line_number": 8,
+      "type": "condition",
+      "ast_id": 118,
+      "value": "true",
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
+    },
+    {
+      "order": 12,
+      "line_number": 8,
+      "type": "condition",
+      "ast_id": 118,
+      "value": "true",
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
+    },
+    {
       "order": 13,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
-      "value": "true",
+      "ast_id": 118,
+      "value": "false",
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
       "order": 14,
-      "line_number": 8,
+      "line_number": 6,
       "type": "condition",
-      "ast_id": 130,
+      "ast_id": 136,
       "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
+      "expression_text": "numbers",
+      "condition_type": "for_each"
     },
     {
       "order": 15,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
+      "ast_id": 118,
       "value": "true",
       "expression_text": "range(k)",
       "condition_type": "range_for"
@@ -131,106 +131,25 @@
       "order": 16,
       "line_number": 8,
       "type": "condition",
-      "ast_id": 130,
-      "value": "false",
+      "ast_id": 118,
+      "value": "true",
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
       "order": 17,
-      "line_number": 6,
+      "line_number": 8,
       "type": "condition",
-      "ast_id": 148,
-      "value": "true",
-      "expression_text": "numbers",
-      "condition_type": "for_each"
+      "ast_id": 118,
+      "value": "false",
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
     },
     {
       "order": 18,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 19,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 20,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 21,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "false",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 22,
       "line_number": 6,
       "type": "condition",
-      "ast_id": 148,
-      "value": "true",
-      "expression_text": "numbers",
-      "condition_type": "for_each"
-    },
-    {
-      "order": 23,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 24,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 25,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "true",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 26,
-      "line_number": 8,
-      "type": "condition",
-      "ast_id": 130,
-      "value": "false",
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "order": 27,
-      "line_number": 6,
-      "type": "condition",
-      "ast_id": 148,
+      "ast_id": 136,
       "value": "false",
       "expression_text": "numbers",
       "condition_type": "for_each"
@@ -238,7 +157,7 @@
   ],
   "conditions": [
     {
-      "ast_id": 148,
+      "ast_id": 136,
       "condition_value": "true",
       "line_number": 6,
       "order": 2,
@@ -246,7 +165,7 @@
       "condition_type": "for_each"
     },
     {
-      "ast_id": 130,
+      "ast_id": 118,
       "condition_value": "true",
       "line_number": 8,
       "order": 3,
@@ -254,7 +173,7 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
+      "ast_id": 118,
       "condition_value": "true",
       "line_number": 8,
       "order": 4,
@@ -262,31 +181,31 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
-      "condition_value": "true",
+      "ast_id": 118,
+      "condition_value": "false",
       "line_number": 8,
       "order": 5,
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
-      "condition_value": "false",
-      "line_number": 8,
-      "order": 6,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 148,
+      "ast_id": 136,
       "condition_value": "true",
       "line_number": 6,
-      "order": 7,
+      "order": 6,
       "expression_text": "numbers",
       "condition_type": "for_each"
     },
     {
-      "ast_id": 130,
+      "ast_id": 118,
+      "condition_value": "true",
+      "line_number": 8,
+      "order": 7,
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
+    },
+    {
+      "ast_id": 118,
       "condition_value": "true",
       "line_number": 8,
       "order": 8,
@@ -294,55 +213,55 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
-      "condition_value": "true",
+      "ast_id": 118,
+      "condition_value": "false",
       "line_number": 8,
       "order": 9,
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
+      "ast_id": 136,
       "condition_value": "true",
-      "line_number": 8,
+      "line_number": 6,
       "order": 10,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
+      "expression_text": "numbers",
+      "condition_type": "for_each"
     },
     {
-      "ast_id": 130,
-      "condition_value": "false",
+      "ast_id": 118,
+      "condition_value": "true",
       "line_number": 8,
       "order": 11,
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 148,
+      "ast_id": 118,
       "condition_value": "true",
-      "line_number": 6,
+      "line_number": 8,
       "order": 12,
-      "expression_text": "numbers",
-      "condition_type": "for_each"
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
-      "condition_value": "true",
+      "ast_id": 118,
+      "condition_value": "false",
       "line_number": 8,
       "order": 13,
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
+      "ast_id": 136,
       "condition_value": "true",
-      "line_number": 8,
+      "line_number": 6,
       "order": 14,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
+      "expression_text": "numbers",
+      "condition_type": "for_each"
     },
     {
-      "ast_id": 130,
+      "ast_id": 118,
       "condition_value": "true",
       "line_number": 8,
       "order": 15,
@@ -350,98 +269,26 @@
       "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
-      "condition_value": "false",
+      "ast_id": 118,
+      "condition_value": "true",
       "line_number": 8,
       "order": 16,
       "expression_text": "range(k)",
       "condition_type": "range_for"
     },
     {
-      "ast_id": 148,
-      "condition_value": "true",
-      "line_number": 6,
+      "ast_id": 118,
+      "condition_value": "false",
+      "line_number": 8,
       "order": 17,
-      "expression_text": "numbers",
-      "condition_type": "for_each"
+      "expression_text": "range(k)",
+      "condition_type": "range_for"
     },
     {
-      "ast_id": 130,
-      "condition_value": "true",
-      "line_number": 8,
+      "ast_id": 136,
+      "condition_value": "false",
+      "line_number": 6,
       "order": 18,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 19,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 20,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "false",
-      "line_number": 8,
-      "order": 21,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 148,
-      "condition_value": "true",
-      "line_number": 6,
-      "order": 22,
-      "expression_text": "numbers",
-      "condition_type": "for_each"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 23,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 24,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "true",
-      "line_number": 8,
-      "order": 25,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 130,
-      "condition_value": "false",
-      "line_number": 8,
-      "order": 26,
-      "expression_text": "range(k)",
-      "condition_type": "range_for"
-    },
-    {
-      "ast_id": 148,
-      "condition_value": "false",
-      "line_number": 6,
-      "order": 27,
       "expression_text": "numbers",
       "condition_type": "for_each"
     }

@@ -5,3 +5,4 @@ __pycache__/
 /test/output/
 /test/genout/
 *.png
+*_scenarios.json

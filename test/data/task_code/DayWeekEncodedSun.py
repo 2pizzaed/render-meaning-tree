@@ -11,3 +11,4 @@ else:
         result = "7:00"
     else:
         result = "10:00"
+print(result)

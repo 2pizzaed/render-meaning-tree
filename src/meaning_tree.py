@@ -99,6 +99,34 @@ def convert(
     return output
 
 
+def generate(
+    ast: str,
+    to_language: str,
+    format: str = "json",
+    source_map: bool = False,
+) -> str | dict[str, Any] | None:
+    """Convert code between programming languages or produce a source map
+
+    Args:
+        ast: Meaning Tree representation in specified format
+        format: Meaning Tree representation format
+        to_language: The target programming language
+        source_map: If True, return a JSON-serializable dict describing
+            the source map of code transformations instead of converted code
+
+    Returns:
+        Converted code as a string if source_map is False,
+        dict representation of the source map if source_map is True,
+        or None if conversion failed
+    """
+    output = _run_generate(ast, format, to_language, source_map)
+    if not output:
+        return None
+    if source_map:
+        return _parse_json(output)
+    return output
+
+
 def node_hierarchy() -> dict[str, list[str]]:
     """Retrieve the node hierarchy from the meaning tree application
 
@@ -162,7 +190,7 @@ def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -
     )
 
 
-def _run_convert(
+def _run_generate(
     code: str, source_lang: str, target_lang: str, source_map: bool = False,
 ) -> str | None:
     return _run_meaning_tree(
@@ -174,6 +202,22 @@ def _run_convert(
         *(["--source-map"] if source_map else []),
         "-",
         stdin_data=code,
+    )
+
+def _run_convert(
+    ast: str,
+    format: str,
+    target_lang: str,
+    source_map: bool = False,
+) -> str | None:
+    return _run_meaning_tree(
+        "translate",
+        "--to",
+        target_lang,
+        "--format", format,
+        *(["--source-map"] if source_map else []),
+        "-",
+        stdin_data=ast,
     )
 
 

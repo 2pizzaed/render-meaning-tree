@@ -62,6 +62,7 @@
     .token.number { color: #1750EB; }
     .token.comment { color: #8C8C8C; font-style: italic; }
     .token.identifier { color: #000; }
+    .token.ast-type { color: #9B59B6; }
     
     /* Кнопки */
     .injected-button {
@@ -80,6 +81,12 @@
 
     .injected-button i {
         font-size: 14px; 
+    }
+
+    .injected-button:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+        outline: 1px solid rgba(0,0,0,0.1);
+        border-radius: 3px;
     }
 </style>
 
@@ -103,11 +110,15 @@
                             {% endfor %}
                             onclick="handleButtonClick(this)">
                         {% if entity.type == 'play' %}
-                            <i class="ri-play-fill" style="color: #28a745;"></i>
+                            <i class="ri-play-fill" style="color: {{ entity.color or "#0A1048" }};"></i>
                         {% elif entity.type == 'stop' %}
-                            <i class="ri-stop-fill" style="color: #dc3545;"></i>
+                            <i class="ri-stop-fill" style="color: {{ entity.color or "#0A1048" }};"></i>
+                        {% elif entity.type == 'step-into' %}
+                            <i class="ri-corner-down-right-line" style="color: {{ entity.color or "#0F629A" }};"></i>
+                        {% elif entity.type == 'step-out' %}
+                            <i class="ri-corner-right-down-fill" style="color: {{ entity.color or "#73328D" }};"></i>
                         {% else %}
-                            <i class="ri-question-mark"></i>
+                            <i class="ri-question-mark" style="color: {{ entity.color or "#024936" }};"></i>
                         {% endif %}
                     </button>
 
@@ -115,6 +126,9 @@
                     <span class="token {{ entity.type }} {{ entity.css_classes|join(' ') }}"
                           data-token-id="{{ entity._id }}"
                           data-token-index="{{ entity.index }}"
+                          {% if entity.color %}
+                              style="color: {{ entity.color }};"
+                          {% endif %}
                           {% if entity.ast_node %}
                               data-node-id="{{ entity.ast_node.id }}"
                           {% endif %}

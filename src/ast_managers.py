@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Literal, Protocol, runtime_checkable
 
+from src.coderenderer.colors import colorize_token
 from src.coderenderer.entities import RendererEntity, Token
 from src.meaning_tree import node_hierarchy
 from src.types import JSON, JsonObject, MeaningTree, Node, SourceMap, TokenList
@@ -79,6 +80,18 @@ class NodePathElement:
         while curr is not None and not query(curr):
             curr = curr.parent
         return curr
+
+    def find_first(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+        if isinstance(query, str):
+            query = lambda x, q=query: x.type == q
+        elif isinstance(query, int):
+            query = lambda x, q=query: x.id == q
+        elif isinstance(query, Iterable):
+            query = lambda x, q=query: x.type in q
+        result = query(self)
+        if not result:
+            return self.find_first_parent(query)
+        return self
 
 class ASTNodeAnalyzer:
     def __init__(self, root: MeaningTree | Node):
@@ -215,6 +228,7 @@ class TokenCursor:
         self._buf: list[RendererEntity] | list_view = buf
         self._owner = owner
         self._real_index = real_index
+        self._correction_offset = 0
 
     def _align(self, index: int) -> int:
         return index + self._center
@@ -232,7 +246,7 @@ class TokenCursor:
                          self._real_index + offset.stop,
                          offset.step
                          )
-        return self._real_index + offset
+        return self._real_index + offset + self._correction_offset
 
     def token(self, index: int) -> Token | None:
         tok = self[index]
@@ -274,14 +288,15 @@ class CodeManager:
 
     def _remap(self, tlist: TokenList) -> list[Token]:
         tokens: list[Token] = tlist.get("items", []) # type: ignore
-        return [Token(
+        results = [colorize_token(Token(
                 token.get("id"),
                 token.get("value", "").replace("\r", ""),
                 token.get("token_type", ""),
                 i,
                 self._locate(i, token),
                 []
-            ) for i, token in enumerate(tokens) if not isinstance(token, Token)]
+            )) for i, token in enumerate(tokens) if not isinstance(token, Token)]
+        return results
 
     def _locate(self, index: int, token: TokenJson) -> NodePathElement | None:
         token_byte_pos: tuple[int, int] | None = token.get("byte_pos", None) # type: ignore
@@ -293,11 +308,12 @@ class CodeManager:
         candidates: list[tuple[int, tuple[int, int]]] = []
         for ast_id, byte_range in map_byteranges.items():
             ast_id = int(ast_id)
+            ast_path = self.get_path(ast_id)
             start_byte, length = byte_range
             start_token_byte, token_length = token_byte_pos
             if start_byte <= start_token_byte and \
                 start_token_byte + token_length <= start_byte + length \
-                    and self.get_path(ast_id).type != "program_entry_point":
+                    and ast_path and ast_path.type != "program_entry_point":
                     candidates.append((ast_id, (start_byte, length)))
         candidates.sort(key=lambda x: (x[1][1], -x[1][0])) # по уровню вложенности
         if candidates:
@@ -335,6 +351,9 @@ class CodeManager:
             if 0 <= index < len(self._tokens):
                 return self._tokens[index]
         return None
+
+    def token_indexof(self, token: Token):
+        return self._tokens.index(token)
 
     def code_piece(self, ast_node_id: int) -> str | None:
         byte_range: tuple[int, int] = self._source_map.get(
@@ -380,17 +399,19 @@ class CodeManager:
             return (min_i, max_i + 1)
         return None
 
-    def is_first_node_token(self, token_index: int, ast_node: int | NodePathElement):
+    def is_first_node_token(self, token: Token, ast_node: int | NodePathElement):
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
+        token_index = self._tokens.index(token)
         trange = self.token_index_range(ast_node_id)
         if trange:
             return token_index == trange[0]
 
-    def is_last_node_token(self, token_index: int, ast_node: int | NodePathElement):
+    def is_last_node_token(self, token: Token, ast_node: int | NodePathElement):
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
+        token_index = self._tokens.index(token)
         trange = self.token_index_range(ast_node_id)
         if trange:
-            return token_index == trange[-1]
+            return token_index == (trange[-1] - 1)
 
     def _process_class_def(self, node: Node, decl: JsonObject,
                            parent: list[DeclarationElement] | None = None):
@@ -455,6 +476,10 @@ class CodeManager:
         return iter(self._tokens)
 
     def stream(self, from_: int | None = None, to: int | None = None, step: int = 1, *, lookaround: int = 1) -> Generator[TokenCursor]:
+        '''
+        Итератор токен, который имеет курсор текущего просматриваемого элемента с индексом 0,
+        а также токены слева и справа, если есть, максимальный радиус задает `lookaround`
+        '''
         from_ = from_ if from_ is not None else 0
         to = to if to is not None else self.token_count
 
@@ -479,7 +504,12 @@ class CodeManager:
                          from_: int | None = None,
                          to: int | None = None,
                          step: int = 1,
-                         lookaround: int = 1):
+                         lookaround: int = 2):
+        """
+        К токенам применяется набор трансформаций - инъекций,
+        где каждая инъекция - совокупность предиката(-ов) её применимости и действия
+        Действие имеет курсор, аналогичный `stream`. Кнопка не может быть в центральном элементе курсора.
+        """
         self._last_stream = InjectionManager(self, None,
             from_, to, step, lookaround)
         return self._last_stream.apply(injections)
@@ -489,14 +519,13 @@ class CodeManager:
                          from_: int | None = None,
                          to: int | None = None,
                          step: int = 1,
-                         lookaround: int = 1) -> Generator["InjectionPoint"]:
+                         lookaround: int = 2) -> Generator["InjectionPoint"]:
         '''
-        Курсор обновляется в соответствии с добавленными/удаленными элементами на каждом шаге,
-        т. е. ссылается на изменяемый буфер
+        Создается итератор, который останавливается только при срабатывании предиката наблюдения
 
-        Условия conditions можно не задавать, только в случае,
-        если вы применяете список объектов Injection
-        (см. apply_injections)
+        Курсор аналогичен курсору из `stream`, но обновляется в соответствии
+        с добавленными/удаленными элементами на каждом шаге,
+        т. е. ссылается на изменяемый буфер. Кнопка не может быть в центральном элементе курсора
         '''
         self._last_stream = InjectionManager(
             self, conditions,
@@ -758,7 +787,8 @@ class InjectionManager:
         self._applied_count = 0
         self._skipped_count = 0
         self._triggered = False
-        self._result: list[RendererEntity] = list(tokens._tokens[from_:to_:step]) # type: ignore
+        self._origin = tokens._tokens[from_:to_:step]
+        self._result: list[RendererEntity] = list(self._origin) # type: ignore
         self._ptr = -1
         self._flags: dict[str, int | bool] = {}
 
@@ -770,13 +800,20 @@ class InjectionManager:
             self._applied_count += 1
             self._triggered = False
 
+    def _count_injected_before(self, abs_pos: int) -> int:
+        return sum(
+            1 for i, x in enumerate(self._result) if i < abs_pos and not isinstance(x, Token)
+        )
+
     def __next__(self):
         self.__detect_trigger()
         self._ptr += 1
-        if self._ptr >= len(self._result):
+        if self._ptr >= len(self._origin):
             raise StopIteration
-        begin_index = max(self._ptr - self._lookaround, 0)
-        end_index = min(self._ptr + self._lookaround + 1, len(self._result))
+        ptr = self._result.index(self._origin[self._ptr])
+        begin_index = max(ptr - self._lookaround, 0)
+        end_index = min(ptr + self._lookaround + 1, len(self._result))
+
         buffer = list_view(self._result, range(begin_index, end_index))
         cursor = TokenCursor(self._owner,
                              self._lookaround,

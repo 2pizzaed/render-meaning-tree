@@ -20,12 +20,13 @@ class Button(RendererEntity):
     css_classes: list[str] = field(default_factory=list)
 
 
-def make_default_attrs(action_id: int, node_id: int | None, node_type: str | None):
-    return {
+def make_button_attrs(action_id: int, node: "NodePathElement | None") -> dict[str, Any]:
+    res: dict[str, int | str] = {
         "action-id": action_id,
-        "node-id": node_id,
-        "node-type": node_type
     }
+    if node:
+        res |= {"node-id": node.id, "node-type": node.type}
+    return {"attrs": res}
 
 
 @dataclass
@@ -36,6 +37,7 @@ class Token(RendererEntity):
     index: int
     ast_node: "NodePathElement | None"
     css_classes: list[str] = field(default_factory=list) # custom классы, помимо основных
+    color = ""
 
     def is_whitespace(self) -> bool:
         return self.type == "whitespace"

@@ -70,6 +70,9 @@ class NodePathElement:
         return self.find_first_parent(id_or_type) is not None
 
     def find_first_parent(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+        """
+        Ищет первый совпавший по условию `NodePathElement` ТОЛЬКО среди родителей
+        """
         curr = self.parent
         if isinstance(query, str):
             query = lambda x, q=query: x.type == q
@@ -82,6 +85,9 @@ class NodePathElement:
         return curr
 
     def find_first(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+        '''
+        Ищет первый совпавший по условию `NodePathElement` среди текущего и его родителей
+        '''
         if isinstance(query, str):
             query = lambda x, q=query: x.type == q
         elif isinstance(query, int):
@@ -228,7 +234,6 @@ class TokenCursor:
         self._buf: list[RendererEntity] | list_view = buf
         self._owner = owner
         self._real_index = real_index
-        self._correction_offset = 0
 
     def _align(self, index: int) -> int:
         return index + self._center
@@ -240,19 +245,31 @@ class TokenCursor:
         return self._buf[self._align(offset)] if isinstance(offset, int) \
             else self._buf[self._align(offset.start):self._align(offset.stop)]
 
-    def translate_index(self, offset: int | slice) -> int | slice:
+    def _translate_index(self, offset: int | slice) -> int | slice:
+        '''
+        Крайне не рекомендуется использовать в изменяемых буферах
+        Получает реальный индекс элемента в буфере (а не в общем списке токенов!!)
+        '''
         if isinstance(offset, slice):
             return slice(self._real_index + offset.start,
                          self._real_index + offset.stop,
                          offset.step
                          )
-        return self._real_index + offset + self._correction_offset
+        return self._real_index + offset
 
     def token(self, index: int) -> Token | None:
         tok = self[index]
         if isinstance(tok, Token):
             return tok
         return None
+
+    def token_index(self, index: int) -> int | None:
+        '''
+        Индекс токена в глобальном списке токенов.
+        Поддерживает изменяемые буферы
+        '''
+        tok = self.token(index)
+        return self._owner.token_indexof(tok) if tok else None
 
     def ast_node(self, index: int) -> NodePathElement | None:
         tok = self[index]
@@ -265,8 +282,8 @@ class TokenCursor:
         return self._owner
 
     @property
-    def max_seek(self) -> int:
-        '''Максимальный 'радиус' доступных токенов вокруг текущего'''
+    def lookaround(self) -> int:
+        '''Заданный 'радиус' доступных токенов вокруг текущего'''
         return self._lookaround
 
 
@@ -399,16 +416,16 @@ class CodeManager:
             return (min_i, max_i + 1)
         return None
 
-    def is_first_node_token(self, token: Token, ast_node: int | NodePathElement):
+    def is_first_node_token(self, token: Token | int, ast_node: int | NodePathElement):
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
-        token_index = self._tokens.index(token)
+        token_index = self.token_indexof(token) if isinstance(token, Token) else token
         trange = self.token_index_range(ast_node_id)
         if trange:
             return token_index == trange[0]
 
-    def is_last_node_token(self, token: Token, ast_node: int | NodePathElement):
+    def is_last_node_token(self, token: Token | int, ast_node: int | NodePathElement):
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
-        token_index = self._tokens.index(token)
+        token_index = self.token_indexof(token) if isinstance(token, Token) else token
         trange = self.token_index_range(ast_node_id)
         if trange:
             return token_index == (trange[-1] - 1)
@@ -504,11 +521,15 @@ class CodeManager:
                          from_: int | None = None,
                          to: int | None = None,
                          step: int = 1,
-                         lookaround: int = 2):
+                         lookaround: int = 3):
         """
         К токенам применяется набор трансформаций - инъекций,
         где каждая инъекция - совокупность предиката(-ов) её применимости и действия
-        Действие имеет курсор, аналогичный `stream`. Кнопка не может быть в центральном элементе курсора.
+        Действие имеет курсор, аналогичный `stream`.
+
+        Кнопка не может быть в центральном элементе курсора, но может быть в окружающих.
+        Логика их появления не определена, поэтому нельзя полагаться на наличие этих кнопок
+        в индексах курсора, отличных от нуля (используйте `stream_ensure_token` или `TokenCursor.token`)
         """
         self._last_stream = InjectionManager(self, None,
             from_, to, step, lookaround)
@@ -519,14 +540,18 @@ class CodeManager:
                          from_: int | None = None,
                          to: int | None = None,
                          step: int = 1,
-                         lookaround: int = 2) -> Generator["InjectionPoint"]:
-        '''
+                         lookaround: int = 3) -> Generator["InjectionPoint"]:
+        """
         Создается итератор, который останавливается только при срабатывании предиката наблюдения
 
         Курсор аналогичен курсору из `stream`, но обновляется в соответствии
         с добавленными/удаленными элементами на каждом шаге,
-        т. е. ссылается на изменяемый буфер. Кнопка не может быть в центральном элементе курсора
-        '''
+        т. е. ссылается на изменяемый буфер.
+
+        Кнопка не может быть в центральном элементе курсора, но может быть в окружающих.
+        Логика их появления не определена, поэтому нельзя полагаться на наличие этих кнопок
+        в индексах курсора, отличных от нуля (используйте `TokenCursor.token`)
+        """
         self._last_stream = InjectionManager(
             self, conditions,
             from_, to, step, lookaround
@@ -577,7 +602,7 @@ class InjectionPoint(TokenCursor):
 
     @property
     def distances(self) -> tuple[int, int]:
-        '''Использовать вместо max_seek, так как теперь буфер может изменяться'''
+        '''Использовать вместо `lookaround`, так как теперь буфер может изменяться'''
         return (
             self._align(0),
             len(self._buf) - self._align(1) - 1
@@ -827,7 +852,7 @@ class InjectionManager:
             except SkipStreamIterationException:
                 pass
         cursor = InjectionPoint(
-            self, cursor.max_seek,
+            self, cursor.lookaround,
             begin_index, matched,
             buffer
         )
@@ -1029,13 +1054,23 @@ def observations_from(pool: list[Injection]) -> list[Observation]:
 
 
 def stream_require[T](obj: T | None,
-                      msg: str | None = None,
-                      skip_item: bool = True) -> T:
+                      msg: str | None = None) -> T:
+    '''
+    Пропускает итерацию (наблюдение или инъекция), если значение - None
+    Пропускает только при вызове `apply_injections`, в остальных случаях - исключение
+    '''
     if obj is None:
-        if skip_item:
-            raise SkipStreamIterationException(msg or "Stream point requires non null element")
-        else:
-            raise ValueError(msg or "Stream point requires non null element")
+        raise SkipStreamIterationException(msg or "Stream point requires non null element")
+    return obj
+
+
+def stream_ensure_token(obj: Any) -> Token:
+    """
+    Пропускает итерацию (наблюдение или инъекция), если значение не типа `Token`
+    Пропускает только при вызове `apply_injections`, в остальных случаях - исключение
+    """
+    if isinstance(obj, Token):
+        raise SkipStreamIterationException("Stream point requires token at specified position")
     return obj
 
 

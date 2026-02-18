@@ -1069,7 +1069,7 @@ def stream_ensure_token(obj: Any) -> Token:
     Пропускает итерацию (наблюдение или инъекция), если значение не типа `Token`
     Пропускает только при вызове `apply_injections`, в остальных случаях - исключение
     """
-    if isinstance(obj, Token):
+    if not isinstance(obj, Token):
         raise SkipStreamIterationException("Stream point requires token at specified position")
     return obj
 

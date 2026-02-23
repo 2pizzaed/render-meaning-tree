@@ -9,8 +9,66 @@
 - `Java 21+`
 - [`uv`](https://github.com/astral-sh/uv)
 - `make`
-- `Python 3.8+` (для модуля визуализации CFG)
+- `Python 3.13+` (для модуля визуализации CFG)
 - `NetworkX` и `matplotlib` (автоматически устанавливаются)
+- Системный [Graphviz](https://graphviz.org/download/) (для рендеринга CFG через `pydot`)
+
+### Установка Graphviz
+
+Для визуализации CFG проект использует **pydot** (Python-пакет) + системный **Graphviz**.
+Пакет `pydot` устанавливается автоматически через зависимости проекта и **не требует компиляции C-расширений**.
+
+> **Примечание:** Пакет `pygraphviz` **не нужен** для этого проекта. Если вам всё-таки нужен `pygraphviz` — см. раздел [Установка pygraphviz на Windows](#установка-pygraphviz-на-windows-необязательно).
+
+#### Linux
+```bash
+# Ubuntu / Debian
+sudo apt-get install graphviz graphviz-dev
+
+# Fedora
+sudo dnf install graphviz graphviz-devel
+```
+
+#### macOS
+```bash
+brew install graphviz
+```
+
+#### Windows
+Скачайте установщик с https://graphviz.org/download/ и убедитесь, что путь к `bin/` добавлен в `PATH`.
+
+### Установка pygraphviz на Windows (необязательно)
+
+Пакет `pygraphviz` содержит C-расширение и требует компиляции. Если при установке возникает ошибка:
+```
+fatal error C1083: graphviz/cgraph.h: No such file or directory
+```
+значит компилятор не видит заголовочные файлы Graphviz.
+
+**Правильная команда** (без лишних пробелов внутри кавычек!):
+```powershell
+python -m pip install `
+    --config-settings="--global-option=build_ext" `
+    --config-settings="--global-option=-IC:\Program Files\Graphviz\include" `
+    --config-settings="--global-option=-LC:\Program Files\Graphviz\lib" `
+    pygraphviz
+```
+
+**Частая ошибка** — лишние пробелы перед `--global-option`:
+```powershell
+# НЕПРАВИЛЬНО (пробел перед --global-option):
+--config-settings=" --global-option=build_ext"
+                   ^ пробел — путь не передаётся компилятору
+
+# ПРАВИЛЬНО (без пробела):
+--config-settings="--global-option=build_ext"
+```
+
+Требования для компиляции `pygraphviz`:
+- [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (компонент «C++ Build Tools»)
+- Системный [Graphviz](https://graphviz.org/download/) (версия ≥ 2.46)
+- Путь `-I` указывает на папку `include/` установленного Graphviz (где лежит `graphviz/cgraph.h`)
+- Путь `-L` указывает на папку `lib/` установленного Graphviz
 
 ## Установка
 

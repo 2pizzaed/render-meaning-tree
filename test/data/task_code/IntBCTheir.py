@@ -3,9 +3,9 @@ b = 2
 c = 3
 
 if a == 13:
-    result = 0
+    print(0)
 if b == 13:
-    result = a
+    print(a)
 if c == 13:
-    result = a + b
-result = a + b + c
+    print(a + b)
+print(a + b + c)

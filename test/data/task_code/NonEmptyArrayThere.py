@@ -5,5 +5,5 @@ left = 0
 for i in range(len(nums) - 1):
     left += nums[i]
     if left == total - left:
-        result = True
-result = False
+        print(True)
+

@@ -8,4 +8,4 @@ for i in range(len(nums) - 1):
         while (nums[j] != 5 or (j > 0 and nums[j - 1] == 4)):
             j += 1
         nums[j], nums[i + 1] = nums[i + 1], nums[j]
-result = nums
+print(nums)

@@ -3,7 +3,8 @@ isBirthday = False
 
 allowance = 5 if isBirthday else 0
 if speed <= 60 + allowance:
-    result = 0
-if speed <= 80 + allowance:
-    result = 1
-result = 2
+    print(0)
+elif speed <= 80 + allowance:
+    print(1)
+else:
+    print(2)

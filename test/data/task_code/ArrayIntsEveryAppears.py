@@ -1,6 +1,7 @@
 nums = [4, 2, 2, 3]
 s = nums[0]
 
+result = True
 for i in range(len(nums)):
     if nums[i] == 2:
         complex_condition = not (
@@ -9,4 +10,4 @@ for i in range(len(nums)):
         if complex_condition:
             result = False
             s = nums[i]
-result = True
+print(result)

@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Any
 
 m2_repo = (
-    Path.home() / ".m2" / "repository" / "org" / "vstu" / "meaningtree" / "application" / "1.0-SNAPSHOT"
+    Path.home()
+    / ".m2"
+    / "repository"
+    / "org"
+    / "vstu"
+    / "meaningtree"
+    / "application"
+    / "1.0-SNAPSHOT"
 )
 JAR_PATH = m2_repo / "application-1.0-SNAPSHOT.jar"
 JAVA_EXECUTABLE = "java"
@@ -55,7 +62,9 @@ def to_dot(language: str, code: str) -> str | None:
 
 
 def to_tokens(
-    from_language: str, code: str, to_language: str | None = None,
+    from_language: str,
+    code: str,
+    to_language: str | None = None,
 ) -> dict[str, Any] | None:
     """Tokenize source code into a structured representation
 
@@ -75,7 +84,10 @@ def to_tokens(
 
 
 def convert(
-    code: str, from_language: str, to_language: str, source_map: bool = False,
+    code: str,
+    from_language: str,
+    to_language: str,
+    source_map: bool = False,
 ) -> str | dict[str, Any] | None:
     """Convert code between programming languages or produce a source map
 
@@ -142,7 +154,6 @@ def node_hierarchy() -> dict[str, list[str]]:
     return json
 
 
-
 def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
     try:
         result = subprocess.run(
@@ -150,7 +161,7 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
             input=stdin_data,
             capture_output=True,
             text=True,
-            encoding='utf-8',
+            encoding="utf-8",
             check=True,
         )
         if not result.stdout and result.stderr:
@@ -163,7 +174,9 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
         return None
 
 
-def _run_serialize(code: str, source_lang: str, target_lang: str = "json") -> str | None:
+def _run_serialize(
+    code: str, source_lang: str, target_lang: str = "json"
+) -> str | None:
     return _run_meaning_tree(
         "translate",
         "--from",
@@ -175,7 +188,9 @@ def _run_serialize(code: str, source_lang: str, target_lang: str = "json") -> st
     )
 
 
-def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -> str | None:
+def _run_tokenize(
+    code: str, source_lang: str, target_lang: str | None = None
+) -> str | None:
     if target_lang is None:
         conv_args = ["--tokenize-noconvert"]
     else:
@@ -191,7 +206,10 @@ def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -
 
 
 def _run_generate(
-    code: str, source_lang: str, target_lang: str, source_map: bool = False,
+    code: str,
+    source_lang: str,
+    target_lang: str,
+    source_map: bool = False,
 ) -> str | None:
     return _run_meaning_tree(
         "translate",
@@ -204,6 +222,7 @@ def _run_generate(
         stdin_data=code,
     )
 
+
 def _run_convert(
     ast: str,
     format: str,
@@ -214,7 +233,8 @@ def _run_convert(
         "translate",
         "--to",
         target_lang,
-        "--format", format,
+        "--from",
+        format,
         *(["--source-map"] if source_map else []),
         "-",
         stdin_data=ast,

@@ -2,7 +2,7 @@ from typing import cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from warnings import deprecated
+from deprecated import deprecated
 
 from src.serializers.serializer import Serializer
 from src.types import Node, NodeType
@@ -66,7 +66,9 @@ class ControlFlowGraph(Serializer):
         self.graph.add_node(block_id, block=block)
         return block
 
-    def _add_edge(self, source: BasicBlock, target: BasicBlock, edge_type: str = "forward"):
+    def _add_edge(
+        self, source: BasicBlock, target: BasicBlock, edge_type: str = "forward"
+    ):
         if source is None or target is None:
             return
 
@@ -110,7 +112,9 @@ class ControlFlowGraph(Serializer):
 
         return self.graph
 
-    def _process_node(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+    def _process_node(
+        self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+    ) -> tuple[BasicBlock, BasicBlock]:
         if node is None or entry_block is None or exit_block is None:
             return entry_block, exit_block
 
@@ -123,7 +127,11 @@ class ControlFlowGraph(Serializer):
             instruction = f"{node_type}"
             entry_block.add_instruction(instruction)
 
-        if entry_block is not None and exit_block is not None and entry_block != exit_block:
+        if (
+            entry_block is not None
+            and exit_block is not None
+            and entry_block != exit_block
+        ):
             self._add_edge(entry_block, exit_block)
 
         return entry_block, exit_block
@@ -178,7 +186,10 @@ class ControlFlowGraph(Serializer):
             doms_n = doms[n] - {n}
 
             for d in doms_n:
-                if all(d not in doms[other_dom] or other_dom == d for other_dom in doms_n - {d}):
+                if all(
+                    d not in doms[other_dom] or other_dom == d
+                    for other_dom in doms_n - {d}
+                ):
                     idom = d
                     break
 
@@ -205,7 +216,9 @@ class ControlFlowGraph(Serializer):
             changed = False
             for n in all_blocks - {self.exit_block.id}:
                 new_pdoms = {n}
-                succs = set(reversed_graph.predecessors(n))  # Successors in original graph
+                succs = set(
+                    reversed_graph.predecessors(n)
+                )  # Successors in original graph
                 if succs:
                     succ_pdoms = [pdoms[s] for s in succs]
                     if succ_pdoms:
@@ -225,7 +238,10 @@ class ControlFlowGraph(Serializer):
             pdoms_n = pdoms[n] - {n}
 
             for pd in pdoms_n:
-                if all(pd not in pdoms[other_pdom] or other_pdom == pd for other_pdom in pdoms_n - {pd}):
+                if all(
+                    pd not in pdoms[other_pdom] or other_pdom == pd
+                    for other_pdom in pdoms_n - {pd}
+                ):
                     ipdom = pd
                     break
 
@@ -244,7 +260,6 @@ class ControlFlowGraph(Serializer):
             if node in visited and node not in finished:
                 self.back_edges.add((current_path[-1], node))
                 if node in self.dominators.get(current_path[-1], set()):
-
                     self.loop_headers.add(node)
                 return
 
@@ -276,7 +291,9 @@ class ControlFlowGraph(Serializer):
 
             if not nx.has_path(self.graph, node, self.exit_block.id):
                 if node in self.blocks:
-                    self._add_edge(self.blocks[node], self.exit_block, edge_type="impossible")
+                    self._add_edge(
+                        self.blocks[node], self.exit_block, edge_type="impossible"
+                    )
                     self.impossible_edges.add((node, self.exit_block.id))
 
     def is_reducible(self) -> bool:
@@ -284,8 +301,11 @@ class ControlFlowGraph(Serializer):
             if dst not in self.dominators.get(src, set()):
                 return False
 
-        forward_edges = [(u, v) for u, v, data in self.graph.edges(data=True)
-                        if data.get("type", "forward") == "forward"]
+        forward_edges = [
+            (u, v)
+            for u, v, data in self.graph.edges(data=True)
+            if data.get("type", "forward") == "forward"
+        ]
         forward_graph = nx.DiGraph()
         forward_graph.add_nodes_from(self.graph.nodes())
         forward_graph.add_edges_from(forward_edges)
@@ -310,8 +330,12 @@ class ControlFlowGraph(Serializer):
                 continue
 
             try:
-                for path in nx.all_simple_paths(forward_graph, self.entry_block.id, node):
-                    back_edge_sources = set(src for src, dst in self.back_edges if src in path)
+                for path in nx.all_simple_paths(
+                    forward_graph, self.entry_block.id, node
+                ):
+                    back_edge_sources = set(
+                        src for src, dst in self.back_edges if src in path
+                    )
                     max_connectedness = max(max_connectedness, len(back_edge_sources))
             except nx.NetworkXNoPath:
                 continue
@@ -327,52 +351,123 @@ class ControlFlowGraph(Serializer):
         entry_nodes = [n for n, block in self.blocks.items() if block.is_entry]
         exit_nodes = [n for n, block in self.blocks.items() if block.is_exit]
         loop_header_nodes = [n for n in self.loop_headers]
-        normal_nodes = [n for n in self.graph.nodes() if n not in entry_nodes and
-                        n not in exit_nodes and n not in loop_header_nodes]
+        normal_nodes = [
+            n
+            for n in self.graph.nodes()
+            if n not in entry_nodes
+            and n not in exit_nodes
+            and n not in loop_header_nodes
+        ]
 
-        nx.draw_networkx_nodes(self.graph, pos, nodelist=entry_nodes, node_color="green",
-                            node_size=2000, alpha=0.8)
-        nx.draw_networkx_nodes(self.graph, pos, nodelist=exit_nodes, node_color="red",
-                            node_size=2000, alpha=0.8)
-        nx.draw_networkx_nodes(self.graph, pos, nodelist=loop_header_nodes, node_color="orange",
-                            node_size=2000, alpha=0.8)
-        nx.draw_networkx_nodes(self.graph, pos, nodelist=normal_nodes, node_color="skyblue",
-                            node_size=2000, alpha=0.8)
+        nx.draw_networkx_nodes(
+            self.graph,
+            pos,
+            nodelist=entry_nodes,
+            node_color="green",
+            node_size=2000,
+            alpha=0.8,
+        )
+        nx.draw_networkx_nodes(
+            self.graph,
+            pos,
+            nodelist=exit_nodes,
+            node_color="red",
+            node_size=2000,
+            alpha=0.8,
+        )
+        nx.draw_networkx_nodes(
+            self.graph,
+            pos,
+            nodelist=loop_header_nodes,
+            node_color="orange",
+            node_size=2000,
+            alpha=0.8,
+        )
+        nx.draw_networkx_nodes(
+            self.graph,
+            pos,
+            nodelist=normal_nodes,
+            node_color="skyblue",
+            node_size=2000,
+            alpha=0.8,
+        )
 
         nx.draw_networkx_labels(self.graph, pos, labels=node_labels, font_size=8)
 
-        forward_edges = [(u, v) for u, v, data in self.graph.edges(data=True)
-                        if data.get("type", "forward") == "forward"]
+        forward_edges = [
+            (u, v)
+            for u, v, data in self.graph.edges(data=True)
+            if data.get("type", "forward") == "forward"
+        ]
         back_edges = list(self.back_edges)
         critical_edges = list(self.critical_edges)
         impossible_edges = list(self.impossible_edges)
 
-        nx.draw_networkx_edges(self.graph, pos, edgelist=forward_edges,
-                              arrows=True, arrowsize=15, edge_color="black")
+        nx.draw_networkx_edges(
+            self.graph,
+            pos,
+            edgelist=forward_edges,
+            arrows=True,
+            arrowsize=15,
+            edge_color="black",
+        )
 
-        nx.draw_networkx_edges(self.graph, pos, edgelist=back_edges,
-                              arrows=True, arrowsize=15, edge_color="red",
-                              connectionstyle="arc3,rad=0.3")
+        nx.draw_networkx_edges(
+            self.graph,
+            pos,
+            edgelist=back_edges,
+            arrows=True,
+            arrowsize=15,
+            edge_color="red",
+            connectionstyle="arc3,rad=0.3",
+        )
 
-        nx.draw_networkx_edges(self.graph, pos, edgelist=critical_edges,
-                              arrows=True, arrowsize=15, edge_color="blue")
+        nx.draw_networkx_edges(
+            self.graph,
+            pos,
+            edgelist=critical_edges,
+            arrows=True,
+            arrowsize=15,
+            edge_color="blue",
+        )
 
-        nx.draw_networkx_edges(self.graph, pos, edgelist=impossible_edges,
-                              arrows=True, arrowsize=15, edge_color="gray",
-                              style="dashed")
+        nx.draw_networkx_edges(
+            self.graph,
+            pos,
+            edgelist=impossible_edges,
+            arrows=True,
+            arrowsize=15,
+            edge_color="gray",
+            style="dashed",
+        )
 
-        plt.figtext(0.01, 0.01, "Green: Entry Block\nRed: Exit Block\nOrange: Loop Header\nBlue: Normal Block",
-                   fontsize=10, bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5})
-        plt.figtext(0.3, 0.01, "Black: Forward Edge\nRed: Back Edge\nBlue: Critical Edge\nGray: Impossible Edge",
-                   fontsize=10, bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5})
+        plt.figtext(
+            0.01,
+            0.01,
+            "Green: Entry Block\nRed: Exit Block\nOrange: Loop Header\nBlue: Normal Block",
+            fontsize=10,
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+        )
+        plt.figtext(
+            0.3,
+            0.01,
+            "Black: Forward Edge\nRed: Back Edge\nBlue: Critical Edge\nGray: Impossible Edge",
+            fontsize=10,
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+        )
 
         properties = [
             f"Reducible: {self.is_reducible()}",
             f"Loop Headers: {len(self.loop_headers)}",
             f"Loop Connectedness: {self.get_loop_connectedness()}",
         ]
-        plt.figtext(0.6, 0.01, "\n".join(properties),
-                   fontsize=10, bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5})
+        plt.figtext(
+            0.6,
+            0.01,
+            "\n".join(properties),
+            fontsize=10,
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+        )
 
         plt.title("Control Flow Graph")
         plt.axis("off")
@@ -387,7 +482,9 @@ cfg = ControlFlowGraph()
 
 
 @cfg.node(type="program_entry_point")
-def program_entry_point(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+def program_entry_point(
+    self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+) -> tuple[BasicBlock, BasicBlock]:
     current_block = entry_block
 
     if "body" in node and isinstance(node["body"], list):
@@ -402,7 +499,9 @@ def program_entry_point(self, node: Node, entry_block: BasicBlock, exit_block: B
 
 
 @cfg.node(type="compound_statement")
-def compound_statement(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+def compound_statement(
+    self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+) -> tuple[BasicBlock, BasicBlock]:
     current_block = entry_block
 
     if "statements" in node and isinstance(node["statements"], list):
@@ -414,7 +513,9 @@ def compound_statement(self, node: Node, entry_block: BasicBlock, exit_block: Ba
 
 
 @cfg.node(type="if_statement")
-def if_statement(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+def if_statement(
+    self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+) -> tuple[BasicBlock, BasicBlock]:
     if entry_block.is_entry:
         condition_block = self._create_block()
         self._add_edge(entry_block, condition_block)
@@ -433,7 +534,9 @@ def if_statement(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlo
 
             self._add_edge(condition_block, branch_block)
 
-            _, branch_exit = self._process_node(branch["body"], branch_block, after_if_block)
+            _, branch_exit = self._process_node(
+                branch["body"], branch_block, after_if_block
+            )
 
             if branch_exit != after_if_block:
                 self._add_edge(branch_exit, after_if_block)
@@ -444,7 +547,9 @@ def if_statement(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlo
 
 
 @cfg.node(type="while_loop")
-def while_loop(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+def while_loop(
+    self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+) -> tuple[BasicBlock, BasicBlock]:
     loop_header = self._create_block()
     loop_header.add_instruction("while condition")
 
@@ -468,7 +573,9 @@ def while_loop(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
 
 
 @cfg.node(type="range_for_loop")
-def for_loop(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+def for_loop(
+    self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+) -> tuple[BasicBlock, BasicBlock]:
     init_block = self._create_block()
     init_block.add_instruction(f"for init: {node.get('identifier', '')}")
 
@@ -500,7 +607,9 @@ def for_loop(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) 
 
 
 @cfg.node(type="assignment_statement")
-def assignment_statement(self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock) -> tuple[BasicBlock, BasicBlock]:
+def assignment_statement(
+    self, node: Node, entry_block: BasicBlock, exit_block: BasicBlock
+) -> tuple[BasicBlock, BasicBlock]:
     if "target" in node and "value" in node:
         target = node.get("target", {}).get("name", "var")
         content = f"{target} = expression"

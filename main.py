@@ -6,7 +6,7 @@ from src.code_renderer import CodeHighlightGenerator
 from src.meaning_tree import convert, to_dict, to_tokens
 
 
-def save_as_html(code: str, language: str):
+def save_as_html(output_file: str, code: str, language: str):
     source_map = convert(code, language, language, source_map=True)
     if not source_map or isinstance(source_map, str):
         raise ValueError("Source map generation failure")
@@ -18,11 +18,7 @@ def save_as_html(code: str, language: str):
         source_map,
         tokens,
     )
-    gen.generate_html(
-        lines,
-        source_map,
-        output_file="output.html"
-    )
+    gen.generate_html(lines, source_map, output_file=output_file)
 
 
 def save_cfg(node, output_file="cfg.png"):
@@ -36,7 +32,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--file", "-f", help="Source file to process")
     parser.add_argument("--code", "-c", help="Code string to process")
-    parser.add_argument("--cfg", "-g", action="store_true", help="Generate control flow graph")
+    parser.add_argument(
+        "--cfg", "-g", action="store_true", help="Generate control flow graph"
+    )
     parser.add_argument(
         "--output", "-o", default="result", help="Output filename (without extension)"
     )
@@ -73,7 +71,7 @@ if __name__ == "__main__":
             json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"
-    save_as_html(code, "python")
+    save_as_html(html_output, code, "python")
     print(f"HTML output saved to {html_output}")
 
     if 0 and args.cfg:

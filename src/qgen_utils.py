@@ -1,9 +1,10 @@
 import math
 import re
 import sys
-import warnings
 from dataclasses import dataclass
 from typing import Any
+
+from deprecated import deprecated
 
 from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg.abstractions import (
@@ -48,11 +49,13 @@ def get_cyclomatic(cfg: CFG) -> int:
 
 
 def get_complexity(solution_steps: int, cyclomatic: int, concepts: set[str]) -> float:
-    score = 0.39399354 \
-        + 0.16434003 * (len(concepts) + 2) \
-        + 0.01391854 * solution_steps \
+    score = (
+        0.39399354
+        + 0.16434003 * (len(concepts) + 2)
+        + 0.01391854 * solution_steps
         + 0.05685927 * cyclomatic
-    score = (score - 2) * 5      # scaling for sigmoid
+    )
+    score = (score - 2) * 5  # scaling for sigmoid
     return 1 / (1 + math.e ** (-score))  # sigmoid [1, 3] -> [0, 1]
 
 
@@ -153,7 +156,12 @@ def find_concepts(ast: ASTNodeAnalyzer, trace_acts: list[TraceAct]) -> set[str]:
         }:
             concepts.add("arithmetic")
 
-        if node_type in {"format_input", "format_print", "input_command", "print_values"}:
+        if node_type in {
+            "format_input",
+            "format_print",
+            "input_command",
+            "print_values",
+        }:
             concepts.add("io")
 
         if node_type in {"cast_type_expression", "instance_of_operator"}:
@@ -162,7 +170,11 @@ def find_concepts(ast: ASTNodeAnalyzer, trace_acts: list[TraceAct]) -> set[str]:
         if node_type == "return_statement":
             concepts.add("return")
 
-        if node_type in {"pointer_member_access", "member_access", "qualified_identifier"}:
+        if node_type in {
+            "pointer_member_access",
+            "member_access",
+            "qualified_identifier",
+        }:
             concepts.add("member_access")
 
         if node_type == "ternary_operator":
@@ -231,9 +243,10 @@ def find_concepts(ast: ASTNodeAnalyzer, trace_acts: list[TraceAct]) -> set[str]:
     return concepts
 
 
-def find_skills(mt: dict[str, Any], cfg: CFG,
-                trace_acts: list[TraceAct], paths: list[PathInfo]) -> set[str]:
-    skills = { # всегда есть
+def find_skills(
+    mt: dict[str, Any], cfg: CFG, trace_acts: list[TraceAct], paths: list[PathInfo]
+) -> set[str]:
+    skills = {  # всегда есть
         "current_execution_point_understood",
         "current_code_block_identified",
         "action_execution_determined",
@@ -246,9 +259,14 @@ def find_skills(mt: dict[str, Any], cfg: CFG,
         if not path.is_direct and path.conditions > 0:
             skills.add("unevaluated_conditions_between_points_present")
 
-        if path.constraints and path.constraints.interruption_mode \
-            not in [InterruptionType.ANY, InterruptionType.DEFAULT]:
-            skills |= {"interruption_type_matched", "applicable_transition_with_interruption_found"}
+        if path.constraints and path.constraints.interruption_mode not in [
+            InterruptionType.ANY,
+            InterruptionType.DEFAULT,
+        ]:
+            skills |= {
+                "interruption_type_matched",
+                "applicable_transition_with_interruption_found",
+            }
 
         if path.constraints and path.constraints.condition_value not in [
             OptionalBoolValue.ANY,
@@ -260,8 +278,11 @@ def find_skills(mt: dict[str, Any], cfg: CFG,
             }
 
     for node in cfg.nodes.values():
-        if node.metadata and node.metadata.abstract_action and \
-            node.metadata.abstract_action == "func_def_structure":
+        if (
+            node.metadata
+            and node.metadata.abstract_action
+            and node.metadata.abstract_action == "func_def_structure"
+        ):
             skills.add("function_body_completion_determined")
 
     has_int_start = False
@@ -279,9 +300,11 @@ def find_skills(mt: dict[str, Any], cfg: CFG,
         }
 
     for traceact in trace_acts:
-        if traceact.incomplete_interruption \
-            and traceact.incomplete_interruption != InterruptionType.NO_INTERRUPTION:
-                skills.add("transition_matches_interruption_mode")
+        if (
+            traceact.incomplete_interruption
+            and traceact.incomplete_interruption != InterruptionType.NO_INTERRUPTION
+        ):
+            skills.add("transition_matches_interruption_mode")
         if traceact.action_spec and traceact.action_spec == "func_call_structure":
             skills.add("nearest_function_call_in_trace_found")
         if traceact.cfg_node.kind == NodeKind.END:
@@ -293,7 +316,10 @@ def find_skills(mt: dict[str, Any], cfg: CFG,
 
     for i in range(len(trace_acts) - 1):
         window = trace_acts[i : i + 2]
-        if window[0].cfg_node.kind == NodeKind.END and window[1].cfg_node.kind == NodeKind.END:
+        if (
+            window[0].cfg_node.kind == NodeKind.END
+            and window[1].cfg_node.kind == NodeKind.END
+        ):
             skills.add("multiple_compound_exit_order_understood")
             break
 
@@ -336,9 +362,7 @@ def build_loqis(
 
     # Преобразуем планы в TraceScenarioConfig, если нужно
     if scenarios and len(scenarios) > 0 and isinstance(scenarios[0], dict):
-        scenarios = [
-            plan_to_scenario_config(plan, cfg) for plan in scenarios
-        ]
+        scenarios = [plan_to_scenario_config(plan, cfg) for plan in scenarios]
 
     # Используем переданные сценарии или сценарий по умолчанию
     if scenarios is None:
@@ -373,7 +397,8 @@ def build_loqis(
 
     return loqi_texts, cfg, trace_acts_list, paths
 
-@warnings.deprecated("Use alternative methods for generating LOQI variants")
+
+@deprecated("Use alternative methods for generating LOQI variants")
 def build_loqi_variants(
     ast_json: dict[str, Any],
     trace_configs: list[TraceScenarioConfig] | None,
@@ -525,16 +550,18 @@ def create_question_name(mt: dict[str, Any], code: str) -> str:
 
 
 def pack_rdf(loqi: str):
-    return [{
-        "verb": "hasLoqi",
-        "subject": "question",
-        "subjectType": "owl:NamedIndividual",
-        "object": loqi,
-        "objectType": "xsd:string"
-    }]
+    return [
+        {
+            "verb": "hasLoqi",
+            "subject": "question",
+            "subjectType": "owl:NamedIndividual",
+            "object": loqi,
+            "objectType": "xsd:string",
+        }
+    ]
 
 
-@warnings.deprecated("Use `build_answer_objects_from_cfg` instead for better accuracy")
+@deprecated("Use `build_answer_objects_from_cfg` instead for better accuracy")
 def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[TraceAct]):
     ans = []
     for line in lines:
@@ -546,17 +573,18 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
                     and ta.cfg_node is not None
                     and ta.cfg_node.metadata is not None
                     and ta.cfg_node.metadata.wrapped_ast is not None
-                    and button["node_id"] == ta.cfg_node.metadata.wrapped_ast.ast_node.get("id")
+                    and button["node_id"]
+                    == ta.cfg_node.metadata.wrapped_ast.ast_node.get("id")
                     and button["type"] == ta.button_type,
                     trace_acts,
                 ),
-                None  # Возвращаем None, если элемент не найден
+                None,  # Возвращаем None, если элемент не найден
             )
 
             if trace_act is None:
                 warnings.warn(
                     f"TraceAct not found for button: node_id={button.get('node_id')}, type={button.get('type')}",
-                    stacklevel=2
+                    stacklevel=2,
                 )
                 continue
 
@@ -572,7 +600,7 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
     if len(ans) != len(trace_acts):
         warnings.warn(
             f"len(answer_object) != len(trace_acts): {len(ans)} != {len(trace_acts)}",
-                    stacklevel=2
+            stacklevel=2,
         )
     return ans
 
@@ -581,7 +609,7 @@ def build_answer_objects_from_cfg(
     cfg: CFG,
     lines_data: list[dict[str, list[Any]]],
     ast: ASTNodeAnalyzer | None = None,
-    include_end_button: bool = False
+    include_end_button: bool = False,
 ) -> list[dict[str, Any]]:
     """Строит answerObjects на основе MANDATORY узлов CFG.
 
@@ -598,7 +626,9 @@ def build_answer_objects_from_cfg(
     # Собираем все кнопки из lines_data в словарь для быстрого поиска
     # Ключ: (node_id, position), Значение: список button dict
     # position может быть "before" или "after"
-    buttons_by_node_and_position: dict[tuple[int | None, str | None], list[dict[str, Any]]] = {}
+    buttons_by_node_and_position: dict[
+        tuple[int | None, str | None], list[dict[str, Any]]
+    ] = {}
     buttons_by_node_id: dict[int | None, list[dict[str, Any]]] = {}
     # Множество для отслеживания использованных кнопок (по action_id для уникальности)
     used_button_ids: set[str] = set()
@@ -643,7 +673,11 @@ def build_answer_objects_from_cfg(
         if not node.metadata or not node.metadata.wrapped_ast:
             continue
 
-        ast_node_id = node.metadata.wrapped_ast.ast_node.get("id") if node.metadata.wrapped_ast.ast_node else None
+        ast_node_id = (
+            node.metadata.wrapped_ast.ast_node.get("id")
+            if node.metadata.wrapped_ast.ast_node
+            else None
+        )
         if ast_node_id is None:
             continue
 
@@ -652,10 +686,14 @@ def build_answer_objects_from_cfg(
 
         if node.kind == NodeKind.BEGIN:
             # Для BEGIN узлов ищем кнопки с position="before"
-            matched_buttons = buttons_by_node_and_position.get((ast_node_id, "before"), [])
+            matched_buttons = buttons_by_node_and_position.get(
+                (ast_node_id, "before"), []
+            )
         elif node.kind == NodeKind.END:
             # Для END узлов ищем кнопки с position="after"
-            matched_buttons = buttons_by_node_and_position.get((ast_node_id, "after"), [])
+            matched_buttons = buttons_by_node_and_position.get(
+                (ast_node_id, "after"), []
+            )
         else:
             # Для атомарных узлов (ATOM) ищем все кнопки для этого node_id
             # Для атомарных действий обычно создается одна кнопка (с position="before"),
@@ -667,7 +705,9 @@ def build_answer_objects_from_cfg(
             ast_node = (ast.get_node_by_id(ast_node_id) if ast else {}) or {}
             ast_node_type = ast_node.get("type", "") or "N/A"
             ast_parent = ast_node.get("parent", {})
-            ast_parent = (ast.get_node_by_id(ast_parent) if ast and ast_parent else {}) or {}
+            ast_parent = (
+                ast.get_node_by_id(ast_parent) if ast and ast_parent else {}
+            ) or {}
             ast_parent_type = ast_parent.get("type", "") or "N/A"
             ast_parent_id = ast_parent.get("id", "") or "N/A"
             warnings.warn(
@@ -701,7 +741,9 @@ def build_answer_objects_from_cfg(
             ast_node = (ast.get_node_by_id(node_id) if node_id and ast else {}) or {}
             ast_node_type = ast_node.get("type", "") or "N/A"
             ast_parent = ast_node.get("parent", {})
-            ast_parent = (ast.get_node_by_id(ast_parent) if ast and ast_parent else {}) or {}
+            ast_parent = (
+                ast.get_node_by_id(ast_parent) if ast and ast_parent else {}
+            ) or {}
             ast_parent_type = ast_parent.get("type", "") or "N/A"
             ast_parent_id = ast_parent.get("id", "") or "N/A"
             warnings.warn(
@@ -720,9 +762,9 @@ def build_questions(
     scenario_plans: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]] | None:
     mt = to_dict(language, code_snippet)
-    source_map: dict[str, Any] | None = convert(code_snippet,
-                                                language, language,
-                                                source_map=True)  # type: ignore
+    source_map: dict[str, Any] | None = convert(
+        code_snippet, language, language, source_map=True
+    )  # type: ignore
     if mt is None or source_map is None:
         print("No valid meaning tree output", file=sys.stderr)
         return
@@ -736,10 +778,7 @@ def build_questions(
         source_map,
         tokens,
     )
-    html = htmlgen.generate_html(
-        lines_data,
-        source_map
-    )
+    html = htmlgen.generate_html(lines_data, source_map)
 
     # Загружаем и преобразуем планы сценариев, если заданы
     # Планы будут преобразованы внутри build_loqis после построения CFG
@@ -748,26 +787,29 @@ def build_questions(
         # Сохраняем планы для преобразования после построения CFG
         scenarios = scenario_plans
 
-    loqi_texts, cfg, trace_acts_list, paths = build_loqis(mt, lines_data, ast_analyzer, scenarios)
+    loqi_texts, cfg, trace_acts_list, paths = build_loqis(
+        mt, lines_data, ast_analyzer, scenarios
+    )
 
     # Применяем runtime данные из сценариев к трассам
     if scenario_plans and len(scenario_plans) == len(trace_acts_list):
         from src.runtime.matcher import enrich_trace_from_scenario
-        for i, (trace_acts, scenario_plan) in enumerate(zip(trace_acts_list, scenario_plans)):
+
+        for i, (trace_acts, scenario_plan) in enumerate(
+            zip(trace_acts_list, scenario_plans)
+        ):
             # Проверяем, есть ли в сценарии события (новый формат) или условия (старый формат)
             if scenario_plan.get("events") or scenario_plan.get("conditions"):
                 try:
                     enriched = enrich_trace_from_scenario(
-                        trace_acts,
-                        scenario_plan,
-                        ast_analyzer
+                        trace_acts, scenario_plan, ast_analyzer
                     )
                     trace_acts_list[i] = enriched
                 except Exception as e:
                     # Если не удалось применить данные из сценария, продолжаем без них
                     warnings.warn(
                         f"Failed to enrich trace from scenario '{scenario_plan.get('scenario_name', 'default')}': {e}",
-                        stacklevel=2
+                        stacklevel=2,
                     )
 
     if not loqi_texts or not cfg:
@@ -820,7 +862,9 @@ def build_questions(
     scenario_names = []
     if scenarios and len(scenarios) > 0:
         if isinstance(scenarios[0], dict):
-            scenario_names = [plan.get("scenario_name", "default") for plan in scenarios]
+            scenario_names = [
+                plan.get("scenario_name", "default") for plan in scenarios
+            ]
         else:
             scenario_names = [scenario.name for scenario in scenarios]
     else:
@@ -832,7 +876,11 @@ def build_questions(
     for i, (loqi, trace_acts) in enumerate(zip(loqi_texts, trace_acts_list)):
         found_concepts = find_concepts(ast_analyzer, trace_acts)
         scenario_name = scenario_names[i] if i < len(scenario_names) else "default"
-        qname = f"{base_qname}_{scenario_name}" if scenario_name != "default" else base_qname
+        qname = (
+            f"{base_qname}_{scenario_name}"
+            if scenario_name != "default"
+            else base_qname
+        )
         answ = build_answer_objects_from_cfg(
             cfg, lines_data, ast=ast_analyzer, include_end_button=False
         )
@@ -851,7 +899,10 @@ def build_questions(
                             "showTrace": True,
                             "requireContext": True,
                             "requireAllAnswers": True,
-                            "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
+                            "orderNumberOptions": {
+                                "position": "SUFFIX",
+                                "delimiter": "/",
+                            },
                             "multipleSelectionEnabled": True,
                             "showSupplementaryQuestions": False,
                         },
@@ -871,12 +922,11 @@ def build_questions(
                         "conceptBits": pack_flags(CONCEPTS, found_concepts),
                         "lawBits": 0,
                         "violationBits": 0,
-                        "traceConceptBits": pack_flags(CONCEPTS,
-                                                       found_concepts),
+                        "traceConceptBits": pack_flags(CONCEPTS, found_concepts),
                         "solutionStructuralComplexity": len(trace_acts),
-                        "integralComplexity": get_complexity(solution_steps,
-                                                             cyclomatic,
-                                                             found_concepts),
+                        "integralComplexity": get_complexity(
+                            solution_steps, cyclomatic, found_concepts
+                        ),
                         "solutionSteps": solution_steps,
                         "distinctErrorCount": len(ERRORNEOUS_SKILLS & found_skills),
                         "version": 2,
@@ -884,10 +934,9 @@ def build_questions(
                         "origin": "exp_2026_02",
                         "originLicense": "Public Domain",
                         "treeHashCode": mt.get("unique_hash", 0),
-                        "skillBits": pack_flags(SKILLS,
-                                                find_skills(
-                                                    mt, cfg,
-                                                    trace_acts, paths)),
+                        "skillBits": pack_flags(
+                            SKILLS, find_skills(mt, cfg, trace_acts, paths)
+                        ),
                     }
                 ],
             }

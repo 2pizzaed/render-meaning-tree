@@ -767,11 +767,11 @@ def build_questions(
     )  # type: ignore
     if mt is None or source_map is None:
         print("No valid meaning tree output", file=sys.stderr)
-        return
+        return None
     tokens = to_tokens(language, source_map["source_code"])
     if tokens is None:
         print("No valid token output", file=sys.stderr)
-        return
+        return None
     htmlgen = CodeHighlightGenerator()
     ast_analyzer = ASTNodeAnalyzer(mt, source_map)
     lines_data = htmlgen.prepare_interactive_data(

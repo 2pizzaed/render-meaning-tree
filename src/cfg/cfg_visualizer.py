@@ -41,6 +41,8 @@ def _create_node_label(node: Node) -> str:
 
     # title = f"{node.kind} (id: {node.id.split("_")[1]})"
     title = f"{node.kind}"
+    if node.is_condition():
+        title = 'condition'
 
     # # Kind узла
     # if node.kind:
@@ -76,9 +78,10 @@ def _create_node_label(node: Node) -> str:
         parts.append(action_info.replace('""', "empty string")) # patch: fix dot crash
 
     # Role если отличается от kind
-    if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:
-        parts.append(f"role: {node.role_in_construct.lstrip(".")}")
-        parts.append(f"of: {node.metadata.abstract_action.construct.name}")
+    if False:
+        if node.role_in_construct and node.kind and node.role_in_construct != node.kind.value:
+            parts.append(f"role: {node.role_in_construct.lstrip(".")}")
+            parts.append(f"of: {node.metadata.abstract_action.construct.name}")
 
     return '\n'.join(parts) if parts else node.id
 

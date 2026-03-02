@@ -223,9 +223,7 @@ class CodeHighlightGenerator:
                     and len(self._range_for)
                     and self._range_for[-1] == ";"
                 ):
-                    self._range_for.append(
-                        ""
-                    )  # dummy token as marker of processed semicolon
+                    self._range_for.append("") # dummy token as marker of processed semicolon
                     possible_buttons.append(("question", "outlined"))
                 self._range_for.append(token.get("value", ""))
             elif node_token_pos == "end":

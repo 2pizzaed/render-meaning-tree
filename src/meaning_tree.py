@@ -5,14 +5,7 @@ from pathlib import Path
 from typing import Any
 
 m2_repo = (
-    Path.home()
-    / ".m2"
-    / "repository"
-    / "org"
-    / "vstu"
-    / "meaningtree"
-    / "application"
-    / "1.0-SNAPSHOT"
+    Path.home() / ".m2" / "repository" / "org" / "vstu" / "meaningtree" / "application" / "1.0-SNAPSHOT"
 )
 JAR_PATH = m2_repo / "application-1.0-SNAPSHOT.jar"
 JAVA_EXECUTABLE = "java"

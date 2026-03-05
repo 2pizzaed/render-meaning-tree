@@ -1,9 +1,11 @@
 from collections.abc import Generator
 from typing import Any, Literal
+from warnings import deprecated
 
 from src.meaning_tree import node_hierarchy
 
 
+@deprecated("Use ASTNodeManager from src.ast_managers instead", category=DeprecationWarning, stacklevel=2)
 class ASTNodeAnalyzer:
     """Анализатор узлов AST для определения типов кнопок"""
 

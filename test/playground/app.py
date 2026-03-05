@@ -3,7 +3,8 @@ from pathlib import Path
 
 from flask import Flask, render_template, request
 
-from src.coderenderer.html import prepare_code_for_html
+from src.ast_managers import prepare_code
+from src.coderenderer.html import prepare_html_context
 
 template_dir = (Path(__file__).parent / "../../templates").absolute()
 app = Flask(__name__, template_folder=template_dir)
@@ -24,7 +25,8 @@ def index():
             error = "No language specified"
         else:
             try:
-                context = prepare_code_for_html(code, language)
+                manager = prepare_code(code, language)
+                context = prepare_html_context(manager)
 
             except Exception as e:
                 traceback.print_exc()

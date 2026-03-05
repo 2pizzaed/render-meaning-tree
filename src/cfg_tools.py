@@ -1,14 +1,18 @@
 from typing import cast
+from warnings import deprecated
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from warnings import deprecated
 
 from src.serializers.serializer import Serializer
 from src.types import Node, NodeType
 
 
-@deprecated
+@deprecated(
+    "Use a different approach for managing control flow graphs",
+    category=DeprecationWarning,
+    stacklevel=2,
+)
 class BasicBlock:
     def __init__(self, block_id: str, ast_nodes=None):
         self.id = block_id
@@ -33,7 +37,7 @@ class BasicBlock:
         self.instructions.append(instruction)
 
 
-@deprecated
+@deprecated("Use a different approach for managing control flow graphs", category=DeprecationWarning, stacklevel=2)
 class ControlFlowGraph(Serializer):
     def __init__(self):
         super().__init__()

@@ -7,6 +7,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from src.ast_analyzer import ASTNodeAnalyzer
+from src.ast_managers import manage_code
 from src.cfg import ASTNodeWrapper, CFGBuilder
 from src.cfg.abstractions import (
     InterruptionType,
@@ -26,7 +27,7 @@ from src.cfg.condition_exporter import (
 from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
-from src.code_renderer_old import CodeHighlightGenerator
+from src.coderenderer.html import prepare_html_context, render_static_html
 from src.meaning_tree import convert, to_dict, to_tokens
 from src.qgen_utils import build_answer_objects_from_cfg
 from src.runtime import (
@@ -35,6 +36,7 @@ from src.runtime import (
     execute_with_trace,
     export_scenario_from_trace,
 )
+from src.types import SourceMap
 
 INJECT_RUNTIME_VALUES = True
 
@@ -166,7 +168,7 @@ class TestComplexProblemBuild(unittest.TestCase):
             if not ast_json:
                 self.fail(f"Failed to generate AST for {file.name}")
 
-            source_map: dict[str, Any] | None = convert(
+            source_map: SourceMap | None = convert(
                 code, language, language, source_map=True
             ) # type: ignore
 
@@ -181,27 +183,19 @@ class TestComplexProblemBuild(unittest.TestCase):
             with open(ast_json_path, "w", encoding="utf-8") as f:
                 json.dump(ast_json, f, indent=2, ensure_ascii=False)
 
-            ast = ASTNodeAnalyzer(ast_json, source_map)
-
-            tokens = to_tokens(language, source_map["source_code"])
-
+            ast = ASTNodeAnalyzer(ast_json, source_map) # type: ignore
+            tokens = to_tokens(
+                language, source_map["source_code"]) # type: ignore
             if tokens is None:
                 self.fail(f"Failed to tokenize code for {file.name}")
+            manager = manage_code(tokens, source_map)
 
             tok_json_path = genout_path / f"{file.stem}_tokens.json"
             with open(tok_json_path, "w", encoding="utf-8") as f:
                 json.dump(tokens, f, indent=2, ensure_ascii=False)
 
-            htmlgen = CodeHighlightGenerator()
-            htmlgen.debug = True
-            lines_data = htmlgen.prepare_interactive_data(
-                source_map,
-                tokens,
-            )
-            html = htmlgen.generate_html(
-                lines_data,
-                source_map,
-            )
+            html_context = prepare_html_context(manager)
+            html = render_static_html(html_context, snippet_only=True)
 
             # Создаём ASTNodeWrapper
             program_root = ASTNodeWrapper(ast_node=ast_json, _astnodeanalyzer=ast)

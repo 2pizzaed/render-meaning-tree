@@ -9,6 +9,7 @@ from src.ast_managers import CodeManager, manage_code
 from src.coderenderer.entities import Button, RendererEntity, Token
 from src.coderenderer.injections import ControlFlowButtons
 from src.meaning_tree import convert, to_tokens
+from src.types import JSON, SourceMap, TokenList
 
 
 def should_add_space(current, nxt) -> bool:
@@ -146,50 +147,40 @@ def serialize_ast_nodes(manager: CodeManager):
     return nodes_data
 
 
-def prepare_code_for_html(code: str, language: str, answer_objects: dict[str, str] | None = None) -> dict[str, Any]:
+def prepare_html_context(manager: CodeManager,
+                         answer_objects: dict[str, str] | None = None) -> dict[str, Any]:
     """
     Полный цикл обработки кода: от строки до контекста для шаблона.
 
     Args:
-        code: Исходный код
-        language: Язык программирования
-        cfg: Объект CFG (опционально). Если передан, включается логика трейсинга.
+        manager: CodeManager, который уже обработал код и содержит AST и токены.
+        answer_objects: Дополнительные объекты для отображения (например, результаты анализа)
 
     Returns:
         Словарь context для передачи в Jinja2 шаблон.
     """
-    # 1. Токенизация
-    tokens_list = to_tokens(language, code)
-    if not tokens_list:
-        raise ValueError("Failed to tokenize code (backend returned None)")
 
-    # 2. Source Map
-    source_map = convert(code, language, language, source_map=True)
-    if not source_map or not isinstance(source_map, dict):
-        raise ValueError("Failed to generate source map")
-
-    # 3. Инициализация менеджера
-    manager = manage_code(tokens_list, source_map)
-
-    # 4. Инъекции
+    # Инъекции
     # В будущем здесь можно использовать cfg для фильтрации кнопок в ControlFlowButtons
     # Например: ControlFlowButtons.configure(cfg)
     manager.apply_injections(ControlFlowButtons)
 
-    # 5. Получение потока и форматирование
+    # Получение потока и форматирование
     stream = manager.last_processed or []
     spaced_stream = add_spacing_to_stream(stream)
     lines = group_stream_into_lines(spaced_stream)
 
-    # 6. Сериализация AST
+    # Сериализация AST
     nodes_data = serialize_ast_nodes(manager)
 
     return {
-        "code": code,
-        "language": language,
+        "code": manager.code,
+        "language": manager.language,
         "lines": lines,
         "total_lines": len(lines),
         "nodes_json": json.dumps(nodes_data),
+        "ast_json": json.dumps(manager.ast.root, indent=4),
+        "answer_objects": answer_objects,
         "answer_objects_json": json.dumps(answer_objects, indent=4) if answer_objects else "",
         "debug": False,
     }
@@ -202,6 +193,7 @@ def render_static_html(
     templates_dir: str = "templates",
     output_path: str | Path | None = None,
     snippet_only: bool = False,
+    remove_snippet_styles: bool = True
 ) -> str:
     """
     Генерирует статический HTML на основе контекста данных.
@@ -225,9 +217,14 @@ def render_static_html(
             f"Template '{target_template_name}' not found in directory '{templates_dir}'. "
             f"Details: {e}"
         )
-
+        
     # Рендеринг
-    html_content = template.render(**context)
+    updated_context = {**context,
+                       "static_used": True,
+                       "no_style_embed": remove_snippet_styles,
+                       "snippet_mode": snippet_only
+                       }
+    html_content = template.render(**updated_context)
 
     # Сохранение в файл
     if output_path:

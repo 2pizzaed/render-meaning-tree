@@ -6,7 +6,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from src.coderenderer.colors import colorize_token
 from src.coderenderer.entities import RendererEntity, Token
-from src.meaning_tree import node_hierarchy
+from src.meaning_tree import convert, node_hierarchy, to_tokens
 from src.types import JSON, JsonObject, MeaningTree, Node, SourceMap, TokenList
 from src.types import Token as TokenJson
 
@@ -57,10 +57,10 @@ class NodePathElement:
         # instanceof check
         if self.type == match_type:
             return True
-        parents = ASTNodeAnalyzer.get_node_type_parents(self.type)
+        parents = ASTNodeManager.get_node_type_parents(self.type)
         return match_type in (parents or [])
 
-    def get(self, analyzer: "ASTNodeAnalyzer") -> Node | None:
+    def get(self, analyzer: "ASTNodeManager") -> Node | None:
         return analyzer.get(self)
 
     def has_parent(self, id_or_type: int | str | list[str], strict: bool = False) -> bool:
@@ -99,7 +99,7 @@ class NodePathElement:
             return self.find_first_parent(query)
         return self
 
-class ASTNodeAnalyzer:
+class ASTNodeManager:
     def __init__(self, root: MeaningTree | Node):
         self._root = root
         self._cache: dict[int, tuple[NodePathElement, Node]] = {}
@@ -248,9 +248,21 @@ class TokenCursor:
     def __iter__(self):
         return iter(self._buf)
 
-    def __getitem__(self, offset: int | slice) -> RendererEntity | list[RendererEntity]:
-        return self._buf[self._align(offset)] if isinstance(offset, int) \
-            else self._buf[self._align(offset.start):self._align(offset.stop)]
+    def __getitem__(self, offset: int | slice) -> RendererEntity | list[RendererEntity] | None:
+        if isinstance(offset, slice):
+            s = self._align(offset.start)
+            e = self._align(offset.stop)
+            if offset.start < abs(self._lookaround) and not (0 <= s < len(self._buf)):
+                s = self._align(0)
+            if offset.stop < abs(self._lookaround) and not (0 <= e < len(self._buf)):
+                e = self._align(self._lookaround)
+            return self._buf[s:e]
+
+        if offset < abs(self._lookaround) \
+                and not (0 <= self._align(offset) < len(self._buf)):
+            return None
+        else:
+            return self._buf[self._align(offset)]
 
     def has_next(self) -> bool:
         return self._align(1) < len(self._buf)
@@ -298,7 +310,7 @@ class TokenCursor:
 
 
 class CodeManager:
-    def __init__(self, ast: ASTNodeAnalyzer, source_map: SourceMap, tokens: TokenList):
+    def __init__(self, ast: ASTNodeManager, source_map: SourceMap, tokens: TokenList):
         self._ast = ast
         self._source_map = source_map
         self._tokens: list[Token] = self._remap(tokens) # type: ignore
@@ -492,7 +504,7 @@ class CodeManager:
             ) from None
 
     @property
-    def ast(self) -> ASTNodeAnalyzer:
+    def ast(self) -> ASTNodeManager:
         return self._ast
 
     @property
@@ -579,7 +591,7 @@ class InjectionPoint(TokenCursor):
                  center_override: int | None = None,
                  context_node: NodePathElement | None = None
                  ):
-        super().__init__(owner._owner, lookaround, 
+        super().__init__(owner._owner, lookaround,
                          real_index, buf, center_override)
         self._injection_owner = owner
         self._context_node = context_node
@@ -905,9 +917,22 @@ class InjectionManager:
 
 
 def manage_code(tokens: TokenList, source_map: SourceMap) -> CodeManager:
-    analyzer = ASTNodeAnalyzer(source_map.get("origin", {})) # type: ignore
+    analyzer = ASTNodeManager(source_map.get("origin", {})) # type: ignore
     analyzer._process()
     return CodeManager(analyzer, source_map, tokens)
+
+
+def prepare_code(code: str, language: str) -> CodeManager:
+    # 1. Токенизация
+    tokens_list = to_tokens(language, code)
+    if not tokens_list:
+        raise ValueError("Failed to tokenize code (backend returned None)")
+
+    # 2. Source Map
+    source_map = convert(code, language, language, source_map=True)
+    if not source_map or not isinstance(source_map, dict):
+        raise ValueError("Failed to generate source map")
+    return manage_code(tokens_list, source_map)
 
 
 def observable_token(

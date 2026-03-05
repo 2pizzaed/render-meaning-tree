@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.ast_analyzer import ASTNodeAnalyzer
+from src.ast_managers import manage_code, prepare_code
 from src.cfg.abstractions import (
     InterruptionType,
     OptionalBoolValue,
@@ -26,10 +27,11 @@ from src.cfg.trace_builder import (
     TraceScenarioConfig,
     generate_trace_variants,
 )
-from src.code_renderer_old import CodeHighlightGenerator
+from src.coderenderer.html import prepare_html_context, render_static_html
 from src.helpers.bitflags import pack_flags
 from src.helpers.classification import CONCEPTS, ERRORNEOUS_SKILLS, SKILLS
 from src.meaning_tree import convert, to_dict, to_tokens
+from src.types import SourceMap
 
 
 @dataclass
@@ -720,26 +722,20 @@ def build_questions(
     scenario_plans: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]] | None:
     mt = to_dict(language, code_snippet)
-    source_map: dict[str, Any] | None = convert(code_snippet,
+    source_map: SourceMap | None = convert(code_snippet,
                                                 language, language,
                                                 source_map=True)  # type: ignore
     if mt is None or source_map is None:
         print("No valid meaning tree output", file=sys.stderr)
         return
-    tokens = to_tokens(language, source_map["source_code"])
+    tokens = to_tokens(language, source_map["source_code"]) # type: ignore
     if tokens is None:
         print("No valid token output", file=sys.stderr)
         return
-    htmlgen = CodeHighlightGenerator()
-    ast_analyzer = ASTNodeAnalyzer(mt, source_map)
-    lines_data = htmlgen.prepare_interactive_data(
-        source_map,
-        tokens,
-    )
-    html = htmlgen.generate_html(
-        lines_data,
-        source_map
-    )
+    ast_analyzer = ASTNodeAnalyzer(mt, source_map) # type: ignore
+    manager = manage_code(tokens, source_map)
+    html_context = prepare_html_context(manager)
+    html = render_static_html(html_context, snippet_only=True)
 
     # Загружаем и преобразуем планы сценариев, если заданы
     # Планы будут преобразованы внутри build_loqis после построения CFG
@@ -835,7 +831,7 @@ def build_questions(
         qname = f"{base_qname}_{scenario_name}" if scenario_name != "default" else base_qname
         answ = build_answer_objects_from_cfg(
             cfg, lines_data, ast=ast_analyzer, include_end_button=False
-        )
+        ) # TODO: fix me, use html_context instead lines_data
         found_skills = find_skills(mt, cfg, trace_acts, paths)
         cyclomatic = get_cyclomatic(cfg)
         solution_steps = len(trace_acts) - 1

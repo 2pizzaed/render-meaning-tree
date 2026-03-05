@@ -1,28 +1,16 @@
-import argparse
+﻿import argparse
 import json
 
+from src.ast_managers import prepare_code
 from src.cfg_tools import cfg
-from src.code_renderer_old import CodeHighlightGenerator
-from src.meaning_tree import convert, to_dict, to_tokens
+from src.coderenderer.html import prepare_html_context, render_static_html
+from src.meaning_tree import to_dict
 
 
-def save_as_html(code: str, language: str):
-    source_map = convert(code, language, language, source_map=True)
-    if not source_map or isinstance(source_map, str):
-        raise ValueError("Source map generation failure")
-    tokens = to_tokens(language, source_map["source_code"])
-    if not tokens:
-        raise ValueError("Token obtaining failure")
-    gen = CodeHighlightGenerator()
-    lines = gen.prepare_interactive_data(
-        source_map,
-        tokens,
-    )
-    gen.generate_html(
-        lines,
-        source_map,
-        output_file="output.html"
-    )
+def save_as_html(code: str, language: str, output_file: str = "output.html"):
+    manager = prepare_code(code, language)
+    context = prepare_html_context(manager)
+    render_static_html(context, output_path=output_file, snippet_only=True)
 
 
 def save_cfg(node, output_file="cfg.png"):
@@ -73,7 +61,7 @@ if __name__ == "__main__":
             json.dump(ast, f, indent=2)
 
     html_output = f"{args.output}.html"
-    save_as_html(code, "python")
+    save_as_html(code, "python", output_file=html_output)
     print(f"HTML output saved to {html_output}")
 
     if 0 and args.cfg:

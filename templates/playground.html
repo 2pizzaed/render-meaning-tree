@@ -79,7 +79,7 @@
     </style>
 </head>
 <body>
-
+    {% if not static_used %}
     <div class="sidebar">
         <h3>Playground</h3>
         <form method="POST" action="/">
@@ -98,6 +98,7 @@
             <button type="submit" class="submit-btn">Render</button>
         </form>
     </div>
+    {% endif %}
 
     <div class="main">
         <div class="preview-area">

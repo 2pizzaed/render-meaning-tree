@@ -2,10 +2,11 @@
 Универсальный поиск в JSON/AST данных с поддержкой поиска в глубину и в ширину.
 """
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 
-def search_dfs(data: Any, predicate: Callable[[Any], bool], max_results: Optional[int] = None) -> list[Any]:
+def search_dfs(data: Any, predicate: Callable[[Any], bool], max_results: int | None = None) -> list[Any]:
     """
     Поиск в глубину с предикатом.
     
@@ -21,17 +22,17 @@ def search_dfs(data: Any, predicate: Callable[[Any], bool], max_results: Optiona
         List найденных узлов в порядке от самых глубоких к верхним
     """
     results = []
-    
-    def _search_recursive(node: Any, current_path: list[str] = None) -> None:
+
+    def _search_recursive(node: Any, current_path: list[str] | None = None) -> None:
         if current_path is None:
             current_path = []
-            
+
         # Проверяем предикат для текущего узла
         if predicate(node):
             results.append(node)
             if max_results and len(results) >= max_results:
                 return
-        
+
         # Рекурсивно обходим дочерние узлы
         if isinstance(node, dict):
             for key, value in node.items():
@@ -39,12 +40,12 @@ def search_dfs(data: Any, predicate: Callable[[Any], bool], max_results: Optiona
         elif isinstance(node, list):
             for i, item in enumerate(node):
                 _search_recursive(item, current_path + [str(i)])
-    
+
     _search_recursive(data)
     return results
 
 
-def search_bfs(data: Any, predicate: Callable[[Any], bool], max_results: Optional[int] = None) -> list[Any]:
+def search_bfs(data: Any, predicate: Callable[[Any], bool], max_results: int | None = None) -> list[Any]:
     """
     Поиск в ширину с предикатом.
     
@@ -60,24 +61,24 @@ def search_bfs(data: Any, predicate: Callable[[Any], bool], max_results: Optiona
     """
     results = []
     queue = [data]
-    
+
     while queue and (max_results is None or len(results) < max_results):
         current_node = queue.pop(0)
-        
+
         # Проверяем предикат для текущего узла
         if predicate(current_node):
             results.append(current_node)
-        
+
         # Добавляем дочерние узлы в очередь
         if isinstance(current_node, dict):
             queue.extend(current_node.values())
         elif isinstance(current_node, list):
             queue.extend(current_node)
-    
+
     return results
 
 
-def search_with_paths_dfs(data: Any, predicate: Callable[[Any], bool], max_results: Optional[int] = None) -> list[tuple[list[str], Any]]:
+def search_with_paths_dfs(data: Any, predicate: Callable[[Any], bool], max_results: int | None = None) -> list[tuple[list[str], Any]]:
     """
     Поиск в глубину с возвращением путей к найденным узлам.
     
@@ -90,17 +91,17 @@ def search_with_paths_dfs(data: Any, predicate: Callable[[Any], bool], max_resul
         List кортежей (path, node), где path - список ключей/индексов для доступа к узлу
     """
     results = []
-    
-    def _search_recursive(node: Any, current_path: list[str] = None) -> None:
+
+    def _search_recursive(node: Any, current_path: list[str] | None = None) -> None:
         if current_path is None:
             current_path = []
-            
+
         # Проверяем предикат для текущего узла
         if predicate(node):
             results.append((current_path.copy(), node))
             if max_results and len(results) >= max_results:
                 return
-        
+
         # Рекурсивно обходим дочерние узлы
         if isinstance(node, dict):
             for key, value in node.items():
@@ -108,12 +109,12 @@ def search_with_paths_dfs(data: Any, predicate: Callable[[Any], bool], max_resul
         elif isinstance(node, list):
             for i, item in enumerate(node):
                 _search_recursive(item, current_path + [str(i)])
-    
+
     _search_recursive(data)
     return results
 
 
-def get_node_by_path(data: Any, path: list[str]) -> list | dict[str, Any]:
+def get_node_by_path(data: Any, path: list[str]) -> list | dict[str, Any] | None:
     """
     Получить узел по пути в JSON данных.
     

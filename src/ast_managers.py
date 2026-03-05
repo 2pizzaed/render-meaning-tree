@@ -922,14 +922,15 @@ def manage_code(tokens: TokenList, source_map: SourceMap) -> CodeManager:
     return CodeManager(analyzer, source_map, tokens)
 
 
-def prepare_code(code: str, language: str) -> CodeManager:
+def prepare_code(code: str, language: str, mode: Literal["full", "simple", "expression"] = "simple") -> CodeManager:
+    config: JSON = {"translationUnitMode": mode}
     # 1. Токенизация
-    tokens_list = to_tokens(language, code)
+    tokens_list = to_tokens(language, code, config=config)
     if not tokens_list:
         raise ValueError("Failed to tokenize code (backend returned None)")
 
     # 2. Source Map
-    source_map = convert(code, language, language, source_map=True)
+    source_map = convert(code, language, language, source_map=True, config=config)
     if not source_map or not isinstance(source_map, dict):
         raise ValueError("Failed to generate source map")
     return manage_code(tokens_list, source_map)

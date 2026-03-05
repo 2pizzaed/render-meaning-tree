@@ -20,11 +20,18 @@ JAR_RUN = [
     "-jar",
     JAR_PATH,
 ]
+DEBUG = False
 
 logger = logging.getLogger(__name__)
 
 
-def to_dict(language: str, code: str) -> MeaningTree | None:
+def serialize_config(config: JSON | None = None) -> list[str]:
+    if not config:
+        return []
+    return ["--config", json.dumps(config, ensure_ascii=False)]
+
+
+def to_dict(language: str, code: str, config: JSON | None = None) -> MeaningTree | None:
     """Convert code from language to Meaning Tree
 
     Args:
@@ -34,13 +41,13 @@ def to_dict(language: str, code: str) -> MeaningTree | None:
     Returns:
         Dict representation of the code's meaning tree or None if conversion failed
     """
-    json_output = _run_serialize(code, language)
+    json_output = _run_serialize(code, language, config=config)
     if not json_output:
         return None
     return _parse_json(json_output) # type: ignore
 
 
-def to_dot(language: str, code: str) -> str | None:
+def to_dot(language: str, code: str, config: JSON | None = None) -> str | None:
     """Convert code from language to string dot graph representation using meaning tree
 
     Args:
@@ -50,14 +57,14 @@ def to_dot(language: str, code: str) -> str | None:
     Returns:
         dot language graph code
     """
-    output = _run_serialize(code, language, "dot")
+    output = _run_serialize(code, language, "dot", config=config)
     if not output:
         return None
     return output
 
 
 def to_tokens(
-    from_language: str, code: str, to_language: str | None = None,
+    from_language: str, code: str, to_language: str | None = None, config: JSON | None = None
 ) -> TokenList | None:
     """Tokenize source code into a structured representation
 
@@ -70,14 +77,14 @@ def to_tokens(
     Returns:
         Dict representation of the tokenized code, or None if tokenization failed
     """
-    json_output = _run_tokenize(code, from_language, to_language)
+    json_output = _run_tokenize(code, from_language, to_language, config=config)
     if not json_output:
         return None
     return _parse_json(json_output) # type: ignore
 
 
 def convert(
-    code: str, from_language: str, to_language: str, source_map: bool = False,
+    code: str, from_language: str, to_language: str, source_map: bool = False, config: JSON | None = None
 ) -> str | SourceMap | None:
     """Convert code between programming languages or produce a source map
 
@@ -93,7 +100,7 @@ def convert(
         dict representation of the source map if source_map is True,
         or None if conversion failed
     """
-    output = _run_convert(code, from_language, to_language, source_map)
+    output = _run_convert(code, from_language, to_language, source_map, config=config)
     if not output:
         return None
     if source_map:
@@ -105,7 +112,7 @@ def generate(
     ast: str,
     to_language: str,
     format: str = "json",
-    source_map: bool = False,
+    source_map: bool = False, config: JSON | None = None
 ) -> str | dict[str, Any] | None:
     """Convert code between programming languages or produce a source map
 
@@ -121,7 +128,7 @@ def generate(
         dict representation of the source map if source_map is True,
         or None if conversion failed
     """
-    output = _run_generate(ast, format, to_language, source_map)
+    output = _run_generate(ast, format, to_language, source_map, config=config)
     if not output:
         return None
     if source_map:
@@ -147,8 +154,11 @@ def node_hierarchy() -> JSON:
 
 def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
     try:
+        prepared_args = [*JAR_RUN, *args]
+        if DEBUG:
+            print(f"Running command: {" ".join(map(str, prepared_args))}")
         result = subprocess.run(
-            [*JAR_RUN, *args],
+            prepared_args,
             input=stdin_data,
             capture_output=True,
             text=True,
@@ -165,19 +175,21 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
         return None
 
 
-def _run_serialize(code: str, source_lang: str, target_lang: str = "json") -> str | None:
+def _run_serialize(code: str, source_lang: str, target_lang: str = "json", config: JSON | None = None) -> str | None:
     return _run_meaning_tree(
         "translate",
         "--from",
         source_lang,
         "--serialize",
         target_lang,
+        *serialize_config(config),
         "-",
         stdin_data=code,
     )
 
 
-def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -> str | None:
+def _run_tokenize(code: str, source_lang: str, 
+                  target_lang: str | None = None, config: JSON | None = None) -> str | None:
     if target_lang is None:
         conv_args = ["--tokenize-noconvert"]
     else:
@@ -187,6 +199,7 @@ def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -
         "--from",
         source_lang,
         *conv_args,
+        *serialize_config(config),
         "-",
         stdin_data=code,
     )
@@ -194,6 +207,7 @@ def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -
 
 def _run_convert(
     code: str, source_lang: str, target_lang: str, source_map: bool = False,
+    config: JSON | None = None
 ) -> str | None:
     return _run_meaning_tree(
         "translate",
@@ -202,6 +216,7 @@ def _run_convert(
         "--to",
         target_lang,
         *(["--source-map"] if source_map else []),
+        *serialize_config(config),
         "-",
         stdin_data=code,
     )
@@ -211,13 +226,16 @@ def _run_generate(
     format: str,
     target_lang: str,
     source_map: bool = False,
+    config: JSON | None = None
 ) -> str | None:
     return _run_meaning_tree(
         "generate",
         "--to",
         target_lang,
-        "--format", format,
+        "--format",
+        format,
         *(["--source-map"] if source_map else []),
+        *serialize_config(config),
         "-",
         stdin_data=ast,
     )

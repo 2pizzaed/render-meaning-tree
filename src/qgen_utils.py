@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.ast_analyzer import ASTNodeAnalyzer
-from src.ast_managers import manage_code, prepare_code
+from src.ast_managers import ASTNodeManager, manage_code, prepare_code
 from src.cfg.abstractions import (
     InterruptionType,
     OptionalBoolValue,
@@ -48,6 +48,19 @@ def get_cyclomatic(cfg: CFG) -> int:
             cond += 1
     return cond
 
+
+def get_maximal_nesting_depth(nodes: ASTNodeManager) -> int:
+    max_depth = 1
+    for _, node_pair in nodes:
+        depth = 1
+        nodepath = node_pair[0]
+        nodepath_parent = nodepath.parent
+        while nodepath_parent is not None:
+            if nodepath_parent.type == "compound_statement":
+                depth += 1
+            nodepath_parent = nodepath_parent.parent
+        max_depth = max(max_depth, depth)
+    return max_depth
 
 def get_complexity(solution_steps: int, cyclomatic: int, concepts: set[str]) -> float:
     score = 0.39399354 \

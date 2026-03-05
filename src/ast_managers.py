@@ -229,8 +229,14 @@ class SkipStreamIterationException(Exception):
 class TokenCursor:
     '''Указатель на токен (индекс равен 0), вокруг него могут быть другие токены (индексы -1, -2... и +1, +2...) в зависимости от lookaround'''
 
-    def __init__(self, owner: "CodeManager", lookaround: int, real_index: int, buf: "list[RendererEntity] | list_view"):
-        self._center = lookaround
+    def __init__(self,
+                 owner: "CodeManager",
+                 lookaround: int,
+                 real_index: int,
+                 buf: "list[RendererEntity] | list_view",
+                 center_override: int | None = None
+                 ):
+        self._center = center_override if center_override is not None else lookaround
         self._lookaround = lookaround
         self._buf: list[RendererEntity] | list_view = buf
         self._owner = owner
@@ -513,12 +519,14 @@ class CodeManager:
 
         for i in range(from_, to, step):
             tokens = []
+            center_offset = lookaround + min(i - lookaround, 0)
             for j in range(i - lookaround, i + lookaround + 1):
                 if j < 0 or j >= len(self._tokens):
                     continue
                 token = self.get_token(j)
                 tokens.append(token if token is not None else {})
-            yield TokenCursor(self, lookaround, i, tokens)
+            yield TokenCursor(self, lookaround, i, tokens,
+                              center_offset)
 
     def apply_injections(self,
                          injections: 'list[Injection] | type[InjectionPool]',
@@ -568,9 +576,11 @@ class InjectionPoint(TokenCursor):
                  real_index: int,
                  matched_conditions: list[Observation],
                  buf: "list[RendererEntity] | list_view",
+                 center_override: int | None = None,
                  context_node: NodePathElement | None = None
                  ):
-        super().__init__(owner._owner, lookaround, real_index, buf)
+        super().__init__(owner._owner, lookaround, 
+                         real_index, buf, center_override)
         self._injection_owner = owner
         self._context_node = context_node
         self._matched_conditions = matched_conditions
@@ -847,14 +857,17 @@ class InjectionManager:
         if self._ptr >= len(self._origin):
             raise StopIteration
         ptr = self._result.index(self._origin[self._ptr])
+        lookaround_delta = min(ptr - self._lookaround, 0)
         begin_index = max(ptr - self._lookaround, 0)
+        center_buf_position = self._lookaround + lookaround_delta
+        center_index = begin_index + center_buf_position
         end_index = min(ptr + self._lookaround + 1, len(self._result))
 
         buffer = list_view(self._result, range(begin_index, end_index))
         cursor = TokenCursor(self._owner,
                              self._lookaround,
-                             begin_index + self._lookaround,
-                             buffer)
+                             center_index,
+                             buffer, center_buf_position)
         matched: list[Observation] = []
         for obs in (self._conditions or []):
             try:
@@ -867,8 +880,8 @@ class InjectionManager:
             context_node = getattr(cursor, "context_node")  # noqa: B009
         cursor = InjectionPoint(
             self, cursor.lookaround,
-            begin_index, matched,
-            buffer, context_node
+            center_index, matched,
+            buffer, center_buf_position, context_node
         )
         return cursor
 

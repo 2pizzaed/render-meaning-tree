@@ -45,5 +45,14 @@ class Token(RendererEntity):
     def is_separator(self) -> bool:
         return self.type == "separator"
 
+    def is_brace(self) -> bool:
+        return self.type.endswith("brace")
+
+    def is_opening_brace(self) -> bool:
+        return self.type.endswith("opening_brace")
+
+    def is_closing_brace(self) -> bool:
+        return self.type.endswith("closing_brace")
+
     def has_newline(self) -> int:
         return self.value.count("\n")

@@ -192,7 +192,7 @@ def _run_tokenize(code: str, source_lang: str, target_lang: str | None = None) -
     )
 
 
-def _run_generate(
+def _run_convert(
     code: str, source_lang: str, target_lang: str, source_map: bool = False,
 ) -> str | None:
     return _run_meaning_tree(
@@ -206,14 +206,14 @@ def _run_generate(
         stdin_data=code,
     )
 
-def _run_convert(
+def _run_generate(
     ast: str,
     format: str,
     target_lang: str,
     source_map: bool = False,
 ) -> str | None:
     return _run_meaning_tree(
-        "translate",
+        "generate",
         "--to",
         target_lang,
         "--format", format,

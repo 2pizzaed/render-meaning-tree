@@ -69,7 +69,7 @@ class NodePathElement:
                 lambda x: x.instanceof(id_or_type)) is not None
         return self.find_first_parent(id_or_type) is not None
 
-    def find_first_parent(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+    def find_first_parent(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool | None]) -> "NodePathElement | None":
         """
         Ищет первый совпавший по условию `NodePathElement` ТОЛЬКО среди родителей
         """
@@ -84,7 +84,7 @@ class NodePathElement:
             curr = curr.parent
         return curr
 
-    def find_first(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool]) -> "NodePathElement | None":
+    def find_first(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool | None]) -> "NodePathElement | None":
         '''
         Ищет первый совпавший по условию `NodePathElement` среди текущего и его родителей
         '''
@@ -143,7 +143,7 @@ class ASTNodeAnalyzer:
                      prev: NodePathElement | None = None,
                      field: str | None = None,
                      f_id: str | int | None = None) -> NodePathElement | None:
-            if isinstance(node, dict) and "id" in node:
+            if isinstance(node, dict) and "id" in node and "type" in node:
                 if node["id"] in self._cache and node["type"] != self._cache[node["id"]][1]["type"]:
                     raise ValueError(f"AST ID collision detected for ID {node['id']}, tree is corrupted")
 
@@ -228,6 +228,7 @@ class SkipStreamIterationException(Exception):
 
 class TokenCursor:
     '''Указатель на токен (индекс равен 0), вокруг него могут быть другие токены (индексы -1, -2... и +1, +2...) в зависимости от lookaround'''
+
     def __init__(self, owner: "CodeManager", lookaround: int, real_index: int, buf: "list[RendererEntity] | list_view"):
         self._center = lookaround
         self._lookaround = lookaround
@@ -244,6 +245,9 @@ class TokenCursor:
     def __getitem__(self, offset: int | slice) -> RendererEntity | list[RendererEntity]:
         return self._buf[self._align(offset)] if isinstance(offset, int) \
             else self._buf[self._align(offset.start):self._align(offset.stop)]
+
+    def has_next(self) -> bool:
+        return self._align(1) < len(self._buf)
 
     def _translate_index(self, offset: int | slice) -> int | slice:
         '''
@@ -563,14 +567,21 @@ class InjectionPoint(TokenCursor):
     def __init__(self, owner: "InjectionManager", lookaround: int,
                  real_index: int,
                  matched_conditions: list[Observation],
-                 buf: "list[RendererEntity] | list_view"):
+                 buf: "list[RendererEntity] | list_view",
+                 context_node: NodePathElement | None = None
+                 ):
         super().__init__(owner._owner, lookaround, real_index, buf)
         self._injection_owner = owner
+        self._context_node = context_node
         self._matched_conditions = matched_conditions
 
     @property
     def matched_conditions(self) -> list[Observation]:
         return self._matched_conditions
+
+    @property
+    def context_node(self) -> NodePathElement | None:
+        return self._context_node
 
     @property
     def applied_injections_before(self):
@@ -851,10 +862,13 @@ class InjectionManager:
                     matched.append(obs)
             except SkipStreamIterationException:
                 pass
+        context_node: NodePathElement | None = None
+        if hasattr(cursor, "context_node") and isinstance(getattr(cursor, "context_node"), NodePathElement):  # noqa: B009
+            context_node = getattr(cursor, "context_node")  # noqa: B009
         cursor = InjectionPoint(
             self, cursor.lookaround,
             begin_index, matched,
-            buffer
+            buffer, context_node
         )
         return cursor
 
@@ -1081,3 +1095,10 @@ def is_language(name: str) -> Observation:
         return cur.manager.language == name
 
     return is_language_instance
+
+def is_language_not_in(names: list[str]) -> Observation:
+    @observable_token()
+    def is_notlanguage_instance(cur: TokenCursor) -> bool | None:
+        return cur.manager.language not in names
+
+    return is_notlanguage_instance

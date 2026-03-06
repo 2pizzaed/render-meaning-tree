@@ -240,6 +240,7 @@ class TokenCursor:
         self._lookaround = lookaround
         self._buf: list[RendererEntity] | list_view = buf
         self._owner = owner
+        self._context_node: NodePathElement | None = None
         self._real_index = real_index
 
     def _align(self, index: int) -> int:
@@ -298,6 +299,10 @@ class TokenCursor:
         if isinstance(tok, Token) and tok.ast_node is not None:
             return tok.ast_node
         return None
+
+    def provide_context(self, context_node: NodePathElement | None, rewrite: bool = False):
+        if context_node is not None and (rewrite or self._context_node is None):
+            self._context_node = context_node
 
     @property
     def manager(self) -> "CodeManager":
@@ -887,9 +892,7 @@ class InjectionManager:
                     matched.append(obs)
             except SkipStreamIterationException:
                 pass
-        context_node: NodePathElement | None = None
-        if hasattr(cursor, "context_node") and isinstance(getattr(cursor, "context_node"), NodePathElement):  # noqa: B009
-            context_node = getattr(cursor, "context_node")  # noqa: B009
+        context_node: NodePathElement | None = cursor._context_node
         cursor = InjectionPoint(
             self, cursor.lookaround,
             center_index, matched,

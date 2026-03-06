@@ -32,7 +32,8 @@ class ControlFlowButtons(InjectionPool):
         )
 
         if target and \
-            target.find_first_parent(lambda x: x.instanceof("for_loop")):
+            target.find_first_parent(lambda x: x.instanceof("for_loop")) and \
+            not target.find_first_parent(lambda x: x.instanceof("compound_statement")):
             return None
 
         cursor.provide_context(target)

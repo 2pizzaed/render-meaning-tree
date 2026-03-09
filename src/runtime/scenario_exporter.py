@@ -41,7 +41,7 @@
 import json
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from src.runtime.models import (
     ConditionEvaluation,
@@ -49,9 +49,6 @@ from src.runtime.models import (
     FunctionReturn,
     RuntimeTrace,
 )
-
-if TYPE_CHECKING:
-    from src.ast_analyzer import ASTNodeAnalyzer
 
 
 @runtime_checkable
@@ -118,7 +115,7 @@ def _find_ast_id_for_event(
     """
     if ast_analyzer is None:
         return None
-    
+
     # Определяем тип узла и номер строки для поиска
     if event_type == "function_call":
         node_type = "function_call"
@@ -128,10 +125,10 @@ def _find_ast_id_for_event(
         search_line = event.line_number
     else:
         return None
-    
+
     if search_line is None:
         return None
-    
+
     # Ищем все узлы указанного типа на этой строке
     candidates = []
     for ast_id, node in ast_analyzer.nodes_cache.items():
@@ -140,12 +137,12 @@ def _find_ast_id_for_event(
             node_line = ast_analyzer.get_code_line_number_by_id(ast_id)
             if node_line == search_line:
                 candidates.append((ast_id, node))
-    
+
     # Если на строке несколько узлов, используем первый найденный
     # В будущем можно улучшить логику сопоставления (например, по имени функции)
     if candidates:
         return candidates[0][0]
-    
+
     return None
 
 
@@ -172,29 +169,29 @@ def export_scenario_from_trace(
     """
     events = []
     conditions = []  # Для обратной совместимости
-    
+
     # Собираем все события в порядке выполнения
     for event in trace.events:
         event_data: dict[str, Any] = {
             "order": event.order,
             "line_number": event.line_number,
         }
-        
+
         if isinstance(event, ConditionEvaluation):
             event_data.update({
                 "type": "condition",
                 "ast_id": event.ast_id,
                 "value": "true" if event.value else "false",
             })
-            
+
             # Опциональные поля
             if event.expression_text:
                 event_data["expression_text"] = event.expression_text
             if event.condition_type:
                 event_data["condition_type"] = event.condition_type
-            
+
             events.append(event_data)
-            
+
             # Также добавляем в conditions для обратной совместимости
             conditions.append({
                 "ast_id": event.ast_id,
@@ -204,42 +201,42 @@ def export_scenario_from_trace(
                 **({} if not event.expression_text else {"expression_text": event.expression_text}),
                 **({} if not event.condition_type else {"condition_type": event.condition_type}),
             })
-        
+
         elif isinstance(event, FunctionCall):
             # Получаем ast_id узла function_call
             ast_id = _find_ast_id_for_event(event, "function_call", ast_analyzer)
-            
+
             event_data.update({
                 "type": "function_call",
                 "ast_id": ast_id,
                 "function_name": event.function_name,
                 "args": _safe_json_value(event.local_vars) if event.local_vars else {},
             })
-            
+
             if event.call_line:
                 event_data["call_line"] = event.call_line
-            
+
             events.append(event_data)
-        
+
         elif isinstance(event, FunctionReturn):
             # Получаем ast_id узла return_statement
             ast_id = _find_ast_id_for_event(event, "function_return", ast_analyzer)
-            
+
             event_data.update({
                 "type": "function_return",
                 "ast_id": ast_id,
                 "function_name": event.function_name,
             })
-            
+
             # Сохраняем return_value, включая None (для валидации)
             # При экспорте используем специальное значение для None
             if event.return_value is None:
                 event_data["return_value"] = None  # Явно сохраняем None
             else:
                 event_data["return_value"] = _safe_json_value(event.return_value)
-            
+
             events.append(event_data)
-    
+
     return {
         "scenario_name": scenario_name,
         "events": events,
@@ -273,15 +270,15 @@ def _supplement_loop_conditions_with_tactic(
         e.get('ast_id') == loop_ast_id and e.get('type') == 'condition'
         for e in events
     )
-    
+
     if has_runtime_events:
         # Runtime события уже есть, не дополняем
         return events
-    
+
     # Генерируем события через tactic
     # delay = 0, active = container_length, safe_value = False
     tactic_values = list(tactic(0, container_length, False))
-    
+
     # Создаём события для каждой итерации
     new_events = []
     for i, value in enumerate(tactic_values[:container_length + 1]):  # +1 для False в конце
@@ -295,16 +292,16 @@ def _supplement_loop_conditions_with_tactic(
             "expression_text": expr_text,
         }
         new_events.append(event_data)
-    
+
     # Объединяем существующие события с новыми
     # Вставляем новые события в правильном порядке (по line_number и order)
     all_events = events + new_events
     all_events.sort(key=lambda e: (e.get('line_number', 0), e.get('order', 0)))
-    
+
     # Пересчитываем order для всех событий
     for i, event in enumerate(all_events):
         event['order'] = i + 1
-    
+
     return all_events
 
 
@@ -351,10 +348,10 @@ def export_scenario_to_file(
     """
     output_path = Path(output_path)
     scenario = export_scenario_from_trace(trace, scenario_name, ast_analyzer)
-    
+
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(scenario, f, indent=2, ensure_ascii=False)
-    
+
     return output_path
 
 
@@ -380,12 +377,12 @@ def build_condition_sequences_from_trace(
         ... )
     """
     sequences: dict[int, list[bool]] = {}
-    
+
     for event in trace.condition_evaluations:
         if event.ast_id not in sequences:
             sequences[event.ast_id] = []
         sequences[event.ast_id].append(event.value)
-    
+
     return sequences
 
 
@@ -430,14 +427,14 @@ def create_scenario_from_code(
         Словарь сценария
     """
     from src.runtime.executor import execute_with_trace
-    
+
     trace = execute_with_trace(
         source_code,
         filename=filename,
         track_conditions=True,
         line_to_ast_id=line_to_ast_id,
     )
-    
+
     return export_scenario_from_trace(trace, scenario_name, ast_analyzer)
 
 
@@ -458,7 +455,7 @@ def create_scenario_from_file(
     """
     filepath = Path(filepath)
     source_code = filepath.read_text(encoding='utf-8')
-    
+
     return create_scenario_from_code(
         source_code,
         filename=str(filepath.resolve()),
@@ -482,10 +479,10 @@ def build_line_to_ast_id_for_conditions(
         Словарь {line_number: ast_id}
     """
     line_to_ast_id: dict[int, int] = {}
-    
+
     for ast_id, node in ast_analyzer.nodes_cache.items():
         node_type = node.get('type', '')
-        
+
         # Для if_statement условие находится в branches[].condition
         if node_type == 'if_statement':
             branches = node.get('branches', [])
@@ -501,7 +498,7 @@ def build_line_to_ast_id_for_conditions(
                                 line = ast_analyzer.get_code_line_number_by_id(ast_id)
                             if line:
                                 line_to_ast_id[line] = cond_id
-        
+
         # Для while_loop условие в condition
         elif node_type == 'while_loop':
             condition_node = node.get('condition')
@@ -514,7 +511,7 @@ def build_line_to_ast_id_for_conditions(
                         line = ast_analyzer.get_code_line_number_by_id(ast_id)
                     if line:
                         line_to_ast_id[line] = cond_id
-        
+
         # Для general_for_loop условие в condition (если есть)
         elif node_type == 'general_for_loop':
             condition_node = node.get('condition')
@@ -526,19 +523,13 @@ def build_line_to_ast_id_for_conditions(
                         line = ast_analyzer.get_code_line_number_by_id(ast_id)
                     if line:
                         line_to_ast_id[line] = cond_id
-        
+
         # Для for_each_loop используем ast_id самого узла цикла как идентификатор условия
-        elif node_type == 'for_each_loop':
+        elif node_type == 'for_each_loop' or node_type == 'range_for_loop':
             line = ast_analyzer.get_code_line_number_by_id(ast_id)
             if line:
                 line_to_ast_id[line] = ast_id  # ast_id узла цикла
-        
-        # Для range_for_loop аналогично
-        elif node_type == 'range_for_loop':
-            line = ast_analyzer.get_code_line_number_by_id(ast_id)
-            if line:
-                line_to_ast_id[line] = ast_id  # ast_id узла цикла
-        
+
         # Тернарный оператор (conditional_expression)
         elif node_type == 'conditional_expression':
             condition_node = node.get('condition') or node.get('test')
@@ -550,7 +541,7 @@ def build_line_to_ast_id_for_conditions(
                         line = ast_analyzer.get_code_line_number_by_id(ast_id)
                     if line:
                         line_to_ast_id[line] = cond_id
-    
+
     return line_to_ast_id
 
 
@@ -575,14 +566,14 @@ def create_scenario_with_ast_analyzer(
         Словарь сценария с корректными ast_id для всех событий
     """
     from src.runtime.executor import execute_with_trace
-    
+
     line_to_ast_id = build_line_to_ast_id_for_conditions(ast_analyzer)
-    
+
     trace = execute_with_trace(
         source_code,
         filename=filename,
         track_conditions=True,
         line_to_ast_id=line_to_ast_id,
     )
-    
+
     return export_scenario_from_trace(trace, scenario_name, ast_analyzer)

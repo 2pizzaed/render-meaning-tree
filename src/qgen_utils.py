@@ -27,7 +27,11 @@ from src.cfg.trace_builder import (
     TraceScenarioConfig,
     generate_trace_variants,
 )
-from src.coderenderer.html import prepare_html_context, render_static_html
+from src.coderenderer.html import (
+    extract_buttons_from_context,
+    prepare_html_context,
+    render_static_html,
+)
 from src.helpers.bitflags import pack_flags
 from src.helpers.classification import CONCEPTS, ERRORNEOUS_SKILLS, SKILLS
 from src.meaning_tree import convert, to_dict, to_tokens
@@ -321,7 +325,6 @@ def find_tags(mt: dict[str, Any], language: str) -> list[str]:
 
 def build_loqis(
     ast_json: dict[str, Any],
-    lines: list[dict[str, list[Any]]],
     ast_analyzer: ASTNodeAnalyzer,
     scenarios: list[TraceScenarioConfig] | list[dict[str, Any]] | None = None,
 ) -> tuple[list[str], CFG | None, list[list[TraceAct]], list[PathInfo]]:
@@ -329,7 +332,6 @@ def build_loqis(
 
     Args:
         ast_json: JSON-представление AST программы
-        lines: Данные строк с кнопками
         scenarios: Список конфигураций сценариев (TraceScenarioConfig) или планов (dict).
                    Если None, используется один сценарий по умолчанию.
                    Если список словарей (планов), они будут преобразованы в TraceScenarioConfig.
@@ -594,23 +596,35 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
 
 def build_answer_objects_from_cfg(
     cfg: CFG,
-    lines_data: list[dict[str, list[Any]]],
+    buttons_or_lines: list[dict[str, Any]] | list[dict[str, list[Any]]],
     ast: ASTNodeAnalyzer | None = None,
-    include_end_button: bool = False
+    include_end_button: bool = False,
 ) -> list[dict[str, Any]]:
     """Строит answerObjects на основе MANDATORY узлов CFG.
 
     Args:
         cfg: Граф потока управления
-        lines_data: Данные с кнопками из prepare_interactive_data
+        buttons_or_lines: Либо список кнопок (новый формат),
+            либо legacy-структура lines_data (список строк с полем \"buttons\").
         include_end_button: Если False, конечный узел программы исключается (т.е. нельзя будет дать студенту кнопку "Программа завершилась")
 
     Returns:
         Список answerObjects для каждого MANDATORY узла, связанного с кнопкой
     """
-    ans = []
+    ans: list[dict[str, Any]] = []
 
-    # Собираем все кнопки из lines_data в словарь для быстрого поиска
+    # Приводим источник к плоскому списку кнопок
+    flat_buttons: list[dict[str, Any]] = []
+    if buttons_or_lines and isinstance(buttons_or_lines[0], dict) and "buttons" in buttons_or_lines[0]:
+        # Старый формат: lines_data: list[{\"tokens\": [...], \"buttons\": [...]}]
+        for line in buttons_or_lines:  # type: ignore[assignment]
+            for button in line.get("buttons", []):
+                flat_buttons.append(button)
+    else:
+        # Новый формат: список button-словарей
+        flat_buttons = list(buttons_or_lines)  # type: ignore[list-item]
+
+    # Собираем все кнопки в словарь для быстрого поиска
     # Ключ: (node_id, position), Значение: список button dict
     # position может быть "before" или "after"
     buttons_by_node_and_position: dict[tuple[int | None, str | None], list[dict[str, Any]]] = {}
@@ -619,21 +633,20 @@ def build_answer_objects_from_cfg(
     used_button_ids: set[str] = set()
     # Список всех кнопок для проверки неиспользованных
     all_buttons: list[dict[str, Any]] = []
-    for line in lines_data:
-        for button in line.get("buttons", []):
-            all_buttons.append(button)
-            node_id = button.get("node_id")
-            position = button.get("position")  # "before" или "after"
-            if node_id is not None:
-                key = (node_id, position)
-                if key not in buttons_by_node_and_position:
-                    buttons_by_node_and_position[key] = []
-                buttons_by_node_and_position[key].append(button)
+    for button in flat_buttons:
+        all_buttons.append(button)
+        node_id = button.get("node_id")
+        position = button.get("position")  # \"before\" или \"after\"
+        if node_id is not None:
+            key = (node_id, position)
+            if key not in buttons_by_node_and_position:
+                buttons_by_node_and_position[key] = []
+            buttons_by_node_and_position[key].append(button)
 
-                # Также сохраняем все кнопки для node_id (для атомарных узлов)
-                if node_id not in buttons_by_node_id:
-                    buttons_by_node_id[node_id] = []
-                buttons_by_node_id[node_id].append(button)
+            # Также сохраняем все кнопки для node_id (для атомарных узлов)
+            if node_id not in buttons_by_node_id:
+                buttons_by_node_id[node_id] = []
+            buttons_by_node_id[node_id].append(button)
 
     # Находим все MANDATORY узлы, для которых нужны кнопки в UI
     mandatory_nodes = []
@@ -750,6 +763,9 @@ def build_questions(
     html_context = prepare_html_context(manager)
     html = render_static_html(html_context, snippet_only=True)
 
+    # Извлекаем кнопки для построения answerObjects
+    buttons_info = extract_buttons_from_context(html_context)
+
     # Загружаем и преобразуем планы сценариев, если заданы
     # Планы будут преобразованы внутри build_loqis после построения CFG
     scenarios = None
@@ -757,7 +773,9 @@ def build_questions(
         # Сохраняем планы для преобразования после построения CFG
         scenarios = scenario_plans
 
-    loqi_texts, cfg, trace_acts_list, paths = build_loqis(mt, lines_data, ast_analyzer, scenarios)
+    loqi_texts, cfg, trace_acts_list, paths = build_loqis(
+        mt, ast_analyzer, scenarios
+    )
 
     # Применяем runtime данные из сценариев к трассам
     if scenario_plans and len(scenario_plans) == len(trace_acts_list):
@@ -841,10 +859,14 @@ def build_questions(
     for i, (loqi, trace_acts) in enumerate(zip(loqi_texts, trace_acts_list)):
         found_concepts = find_concepts(ast_analyzer, trace_acts)
         scenario_name = scenario_names[i] if i < len(scenario_names) else "default"
-        qname = f"{base_qname}_{scenario_name}" if scenario_name != "default" else base_qname
+        qname = (
+            f"{base_qname}_{scenario_name}"
+            if scenario_name != "default"
+            else base_qname
+        )
         answ = build_answer_objects_from_cfg(
-            cfg, lines_data, ast=ast_analyzer, include_end_button=False
-        ) # TODO: fix me, use html_context instead lines_data
+            cfg, buttons_info, ast=ast_analyzer, include_end_button=False
+        )
         found_skills = find_skills(mt, cfg, trace_acts, paths)
         cyclomatic = get_cyclomatic(cfg)
         solution_steps = len(trace_acts) - 1

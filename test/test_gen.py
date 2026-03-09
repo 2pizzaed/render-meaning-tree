@@ -335,9 +335,16 @@ class TestComplexProblemBuild(unittest.TestCase):
                 # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
                 # visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
 
-            answ = build_answer_objects_from_cfg(cfg,
-                                                 lines_data,
-                                                 include_end_button=False, ast=ast)
+            # Извлекаем кнопки из нового HTML-контекста
+            from src.coderenderer.html import extract_buttons_from_context
+
+            buttons_info = extract_buttons_from_context(html_context)
+            answ = build_answer_objects_from_cfg(
+                cfg,
+                buttons_info,
+                include_end_button=False,
+                ast=ast,
+            )
             answ_clear = {}
             for a in answ:
                 answ_clear[a["answerId"]] = a["domainInfo"]

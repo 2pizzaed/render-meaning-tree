@@ -330,6 +330,15 @@ class CodeManager:
     def language(self) -> str:
         return self.source_map.get("language", "") # type: ignore
 
+    @property
+    def user_defined_function_names(self) -> set[str]:
+        """
+        Множество имён функций, определённых в исходном файле.
+
+        Используется runtime-слоем для сопоставления вызовов и возвратов функций.
+        """
+        return {name for (name, _node_id) in self._declarations.get("functions", [])}
+
     def _remap(self, tlist: TokenList) -> list[Token]:
         tokens: list[Token] = tlist.get("items", []) # type: ignore
         results = [colorize_token(Token(
@@ -428,6 +437,23 @@ class CodeManager:
         if start_line is None or end_line is None:
             return None
         return start_line, end_line
+
+    def get_code_line_number_by_id(self, ast_id: int | str) -> int | None:
+        """
+        Возвращает номер строки (1-based) по ast_id узла.
+
+        Совместимо по контракту с ASTNodeAnalyzer.get_code_line_number_by_id
+        и используется в runtime-модуле matcher.
+        """
+        try:
+            node_id = int(ast_id)
+        except (TypeError, ValueError):
+            return None
+
+        line_range = self.line_number_range(node_id)
+        if not line_range:
+            return None
+        return line_range[0]
 
     def token_index_range(self, ast_node: int | NodePathElement) -> tuple[int, int] | None:
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node

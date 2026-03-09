@@ -8,11 +8,17 @@
 - Проходит трассу от начала до конца
 - При требовании значения запрашивает следующее неиспользованное событие из runtime trace
 - Выполняет строгую валидацию соответствия
+
+Работает с абстракцией AST-слоя, предоставляющей минимум:
+- множество имён пользовательских функций (`user_defined_function_names`)
+- метод `get_code_line_number_by_id(ast_id) -> int | None`
+
+Это позволяет использовать как старый `ASTNodeAnalyzer` (deprecated),
+так и новый `CodeManager` из `src.ast_managers` без изменения логики matcher.
 """
 
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-from src.ast_analyzer import ASTNodeAnalyzer
 from src.cfg.cfg import NodeKind, RuntimeInfo, TraceAct
 from src.runtime.bindable_events import (
     BindableConditionEvaluation,
@@ -27,10 +33,25 @@ from src.runtime.models import (
 )
 
 
+@runtime_checkable
+class RuntimeAstLike(Protocol):
+    """
+    Минимальный интерфейс AST-объекта, необходимый для matcher.
+
+    Совместим с:
+    - `ASTNodeAnalyzer` (legacy API)
+    - `CodeManager` (новый API)
+    """
+
+    user_defined_function_names: set[str]
+
+    def get_code_line_number_by_id(self, ast_id: int | str) -> int | None: ...
+
+
 def enrich_trace_with_runtime(
     trace_acts: list[TraceAct],
     runtime_trace: RuntimeTrace,
-    ast_analyzer: ASTNodeAnalyzer,
+    ast_info: RuntimeAstLike,
 ) -> list[TraceAct]:
     """Обогащает акты трассы информацией из runtime выполнения.
     
@@ -42,7 +63,7 @@ def enrich_trace_with_runtime(
     Args:
         trace_acts: Список актов трассы для обогащения
         runtime_trace: Трасса runtime выполнения с событиями
-        ast_analyzer: Анализатор AST для получения номеров строк
+        ast_info: Объект AST-уровня (ASTNodeAnalyzer или CodeManager) для получения номеров строк и списка пользовательских функций
         
     Returns:
         Тот же список trace_acts с заполненными полями runtime_info
@@ -58,7 +79,7 @@ def enrich_trace_with_runtime(
     bindable_events = create_bindable_events(runtime_trace.events)
     
     # Получаем имена функций, определённых в файле
-    user_functions = ast_analyzer.user_defined_function_names
+    user_functions = ast_info.user_defined_function_names
     
     # Последовательно проходим по трассе
     for act in trace_acts:
@@ -112,21 +133,21 @@ def enrich_trace_with_runtime(
         bindable_event.mark_used()
     
     # Сопоставляем print с ближайшими актами (отдельная логика, не требует последовательности)
-    acts_by_line = _build_acts_index(trace_acts, ast_analyzer)
-    _match_print_outputs(trace_acts, list(runtime_trace.print_outputs), acts_by_line, ast_analyzer)
+    acts_by_line = _build_acts_index(trace_acts, ast_info)
+    _match_print_outputs(trace_acts, list(runtime_trace.print_outputs), acts_by_line, ast_info)
     
     return trace_acts
 
 
 def _build_acts_index(
     trace_acts: list[TraceAct],
-    ast_analyzer: ASTNodeAnalyzer,
+    ast_info: RuntimeAstLike,
 ) -> dict[int, list[tuple[int, TraceAct]]]:
     """Строит индекс актов по номеру строки.
     
     Args:
         trace_acts: Список актов трассы
-        ast_analyzer: Анализатор AST
+        ast_info: Объект AST-уровня
         
     Returns:
         Словарь {line_number: [(position, trace_act), ...]}
@@ -134,7 +155,7 @@ def _build_acts_index(
     index: dict[int, list[tuple[int, TraceAct]]] = {}
     
     for position, act in enumerate(trace_acts):
-        line = _get_line_number(act, ast_analyzer)
+        line = _get_line_number(act, ast_info)
         if line is not None:
             if line not in index:
                 index[line] = []
@@ -143,12 +164,12 @@ def _build_acts_index(
     return index
 
 
-def _get_line_number(act: TraceAct, ast_analyzer: ASTNodeAnalyzer) -> int | None:
+def _get_line_number(act: TraceAct, ast_info: RuntimeAstLike) -> int | None:
     """Получает номер строки для акта трассы.
     
     Args:
         act: Акт трассы
-        ast_analyzer: Анализатор AST
+        ast_info: Объект AST-уровня
         
     Returns:
         Номер строки (1-based) или None
@@ -160,7 +181,7 @@ def _get_line_number(act: TraceAct, ast_analyzer: ASTNodeAnalyzer) -> int | None
     if ast_id is None:
         return None
     
-    return ast_analyzer.get_code_line_number_by_id(ast_id)
+    return ast_info.get_code_line_number_by_id(ast_id)
 
 
 def _get_function_name_from_act(act: TraceAct) -> str | None:
@@ -287,7 +308,7 @@ def _match_print_outputs(
     trace_acts: list[TraceAct],
     print_events: list[PrintOutput],
     acts_by_line: dict[int, list[tuple[int, TraceAct]]],
-    ast_analyzer: ASTNodeAnalyzer,
+    ast_info: RuntimeAstLike,
 ) -> None:
     """Сопоставляет события print с актами трассы.
     
@@ -298,7 +319,7 @@ def _match_print_outputs(
         trace_acts: Список актов (изменяется in-place)
         print_events: Список событий PrintOutput
         acts_by_line: Индекс актов по строкам
-        ast_analyzer: Анализатор AST
+        ast_info: Объект AST-уровня (зарезервировано для будущих улучшений)
     """
     if not print_events:
         return
@@ -341,7 +362,7 @@ def _match_print_outputs(
 def enrich_trace_from_scenario(
     trace_acts: list[TraceAct],
     scenario: dict[str, Any],
-    ast_analyzer: ASTNodeAnalyzer,
+    ast_info: RuntimeAstLike,
 ) -> list[TraceAct]:
     """Обогащает акты трассы данными из сценария без runtime выполнения.
     
@@ -351,7 +372,7 @@ def enrich_trace_from_scenario(
     Args:
         trace_acts: Список актов трассы для обогащения
         scenario: Словарь сценария с полем events
-        ast_analyzer: Анализатор AST для получения номеров строк
+        ast_info: Объект AST-уровня для получения номеров строк
         
     Returns:
         Тот же список trace_acts с заполненными полями runtime_info и condition_value
@@ -437,14 +458,14 @@ def enrich_trace_from_scenario(
     virtual_trace.events = events
     
     # Используем существующую функцию enrich_trace_with_runtime
-    return enrich_trace_with_runtime(trace_acts, virtual_trace, ast_analyzer)
+    return enrich_trace_with_runtime(trace_acts, virtual_trace, ast_info)
 
 
 def enrich_single_scenario(
     trace_acts: list[TraceAct],
     source_code: str,
     filename: str,
-    ast_analyzer: ASTNodeAnalyzer,
+    ast_info: RuntimeAstLike,
 ) -> list[TraceAct]:
     """Удобная функция для обогащения трассы одного сценария.
     
@@ -454,7 +475,7 @@ def enrich_single_scenario(
         trace_acts: Список актов трассы
         source_code: Исходный код программы
         filename: Имя файла (для трассировщика)
-        ast_analyzer: Анализатор AST
+        ast_info: Объект AST-уровня
         
     Returns:
         Список актов с заполненными runtime_info
@@ -462,4 +483,4 @@ def enrich_single_scenario(
     from src.runtime.executor import execute_with_trace
     
     runtime_trace = execute_with_trace(source_code, filename)
-    return enrich_trace_with_runtime(trace_acts, runtime_trace, ast_analyzer)
+    return enrich_trace_with_runtime(trace_acts, runtime_trace, ast_info)

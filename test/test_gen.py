@@ -189,7 +189,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                 with open(ast_dot_path, "w", encoding="utf-8") as f:
                     f.write(ast_dot)
 
-            ast = ASTNodeAnalyzer(ast_json, source_map) # type: ignore
+            ast = ASTNodeAnalyzer(ast_json, source_map) # type: ignore  # deprecated, оставлено для экспорта сценариев
             tokens = to_tokens(
                 language, source_map["source_code"]) # type: ignore
             if tokens is None:
@@ -272,9 +272,9 @@ class TestComplexProblemBuild(unittest.TestCase):
                 main_trace = result.trace_acts
                 self.assertTrue(len(main_trace))
 
-                # Обогащаем трассу runtime информацией
+                # Обогащаем трассу runtime информацией (используем новый AST API через CodeManager)
                 if runtime_trace is not None:
-                    enrich_trace_with_runtime(main_trace, runtime_trace, ast)
+                    enrich_trace_with_runtime(main_trace, runtime_trace, manager)
 
                 # Создаём отдельный экспортер для каждого сценария
                 exporter = LoqiExporter()
@@ -331,9 +331,9 @@ class TestComplexProblemBuild(unittest.TestCase):
                 write_dot(cfg_paths_graph, png_pathinfo_path)
                 write_dot(cfg_paths_graph, dot_pathinfo_path)
 
-                # Визуализируем CFG в PNG (режим с непрямыми путями)
-                # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
-                # visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
+            # Визуализируем CFG в PNG (режим с непрямыми путями)
+            # png_indirect_paths_path = (genout_path / f"{file.stem}-indirect-paths.png").absolute()
+            # visualize_cfg_graphviz(cfg, str(png_indirect_paths_path), paths_instead_of_edges=True, indirect_paths=True, paths=paths)
 
             # Извлекаем кнопки из нового HTML-контекста
             from src.coderenderer.html import extract_buttons_from_context

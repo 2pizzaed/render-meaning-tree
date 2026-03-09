@@ -3,10 +3,9 @@ import re
 import sys
 import warnings
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-from src.ast_analyzer import ASTNodeAnalyzer
-from src.ast_managers import ASTNodeManager, manage_code, prepare_code
+from src.ast_managers import ASTNodeManager, manage_code
 from src.cfg.abstractions import (
     InterruptionType,
     OptionalBoolValue,
@@ -45,6 +44,24 @@ class LoqiVariant:
     trace_acts: list[TraceAct]
 
 
+@runtime_checkable
+class AstAnalysisLike(Protocol):
+    """
+    Минимальный AST-интерфейс, необходимый для анализа сложности и генерации вопросов.
+
+    Совместим с:
+    - ASTNodeAnalyzer (legacy)
+    - CodeManager (через дополнительные свойства/proxy в ast_managers)
+    """
+
+    nodes_cache: dict[int, dict[str, Any]]
+    user_defined_function_names: set[str]
+
+    def instanceof(self, node_id: int, type_name: str) -> bool: ...
+
+    def get_node_by_id(self, node_id: int | str) -> dict[str, Any] | None: ...
+
+
 def get_cyclomatic(cfg: CFG) -> int:
     cond = 1
     for node in cfg.nodes.values():
@@ -75,7 +92,7 @@ def get_complexity(solution_steps: int, cyclomatic: int, concepts: set[str]) -> 
     return 1 / (1 + math.e ** (-score))  # sigmoid [1, 3] -> [0, 1]
 
 
-def find_concepts(ast: ASTNodeAnalyzer, trace_acts: list[TraceAct]) -> set[str]:
+def find_concepts(ast: AstAnalysisLike, trace_acts: list[TraceAct]) -> set[str]:
     concepts = set()
     for node in ast.nodes_cache.values():
         node_type = node.get("type")
@@ -325,7 +342,7 @@ def find_tags(mt: dict[str, Any], language: str) -> list[str]:
 
 def build_loqis(
     ast_json: dict[str, Any],
-    ast_analyzer: ASTNodeAnalyzer,
+    ast_analyzer: AstAnalysisLike,
     scenarios: list[TraceScenarioConfig] | list[dict[str, Any]] | None = None,
 ) -> tuple[list[str], CFG | None, list[list[TraceAct]], list[PathInfo]]:
     """Строит CFG и генерирует трассы для заданных сценариев.
@@ -597,7 +614,7 @@ def build_answer_objects(lines: list[dict[str, list[Any]]], trace_acts: list[Tra
 def build_answer_objects_from_cfg(
     cfg: CFG,
     buttons_or_lines: list[dict[str, Any]] | list[dict[str, list[Any]]],
-    ast: ASTNodeAnalyzer | None = None,
+    ast: AstAnalysisLike | None = None,
     include_end_button: bool = False,
 ) -> list[dict[str, Any]]:
     """Строит answerObjects на основе MANDATORY узлов CFG.
@@ -758,7 +775,6 @@ def build_questions(
     if tokens is None:
         print("No valid token output", file=sys.stderr)
         return
-    ast_analyzer = ASTNodeAnalyzer(mt, source_map) # type: ignore
     manager = manage_code(tokens, source_map)
     html_context = prepare_html_context(manager)
     html = render_static_html(html_context, snippet_only=True)
@@ -773,28 +789,29 @@ def build_questions(
         # Сохраняем планы для преобразования после построения CFG
         scenarios = scenario_plans
 
-    loqi_texts, cfg, trace_acts_list, paths = build_loqis(
-        mt, ast_analyzer, scenarios
-    )
+    loqi_texts, cfg, trace_acts_list, paths = build_loqis(mt, manager, scenarios)
 
     # Применяем runtime данные из сценариев к трассам
     if scenario_plans and len(scenario_plans) == len(trace_acts_list):
         from src.runtime.matcher import enrich_trace_from_scenario
-        for i, (trace_acts, scenario_plan) in enumerate(zip(trace_acts_list, scenario_plans)):
+
+        for i, (trace_acts, scenario_plan) in enumerate(
+            zip(trace_acts_list, scenario_plans, strict=False)
+        ):
             # Проверяем, есть ли в сценарии события (новый формат) или условия (старый формат)
             if scenario_plan.get("events") or scenario_plan.get("conditions"):
                 try:
                     enriched = enrich_trace_from_scenario(
                         trace_acts,
                         scenario_plan,
-                        ast_analyzer
+                        manager,
                     )
                     trace_acts_list[i] = enriched
                 except Exception as e:
                     # Если не удалось применить данные из сценария, продолжаем без них
                     warnings.warn(
                         f"Failed to enrich trace from scenario '{scenario_plan.get('scenario_name', 'default')}': {e}",
-                        stacklevel=2
+                        stacklevel=2,
                     )
 
     if not loqi_texts or not cfg:
@@ -857,7 +874,7 @@ def build_questions(
     questions = []
 
     for i, (loqi, trace_acts) in enumerate(zip(loqi_texts, trace_acts_list)):
-        found_concepts = find_concepts(ast_analyzer, trace_acts)
+        found_concepts = find_concepts(manager, trace_acts)
         scenario_name = scenario_names[i] if i < len(scenario_names) else "default"
         qname = (
             f"{base_qname}_{scenario_name}"
@@ -865,7 +882,7 @@ def build_questions(
             else base_qname
         )
         answ = build_answer_objects_from_cfg(
-            cfg, buttons_info, ast=ast_analyzer, include_end_button=False
+            cfg, buttons_info, ast=manager, include_end_button=False
         )
         found_skills = find_skills(mt, cfg, trace_acts, paths)
         cyclomatic = get_cyclomatic(cfg)

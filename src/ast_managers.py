@@ -455,6 +455,18 @@ class CodeManager:
             return None
         return line_range[0]
 
+    @property
+    def nodes_cache(self) -> dict[int, Node]:
+        """
+        Совместимый с ASTNodeAnalyzer интерфейс доступа к AST-узлам по ID.
+
+        Используется, в частности, при поиске ast_id для событий в runtime-сценариях.
+        """
+        return {
+            node_id: node
+            for node_id, (_path, node) in self._ast._cache.items()
+        }
+
     def token_index_range(self, ast_node: int | NodePathElement) -> tuple[int, int] | None:
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
         min_i, max_i = self.token_count, 0

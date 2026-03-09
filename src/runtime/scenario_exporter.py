@@ -41,7 +41,7 @@
 import json
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Protocol, runtime_checkable
 
 from src.runtime.models import (
     ConditionEvaluation,
@@ -52,6 +52,21 @@ from src.runtime.models import (
 
 if TYPE_CHECKING:
     from src.ast_analyzer import ASTNodeAnalyzer
+
+
+@runtime_checkable
+class RuntimeAstLike(Protocol):
+    """
+    Минимальный AST-интерфейс для экспорта сценариев.
+
+    Совместим с:
+    - ASTNodeAnalyzer (legacy)
+    - CodeManager (новый API)
+    """
+
+    nodes_cache: dict[int, dict[str, Any]]
+
+    def get_code_line_number_by_id(self, ast_id: int | str) -> int | None: ...
 
 
 def tactic(delay: int, active: int, safe_value: bool = False) -> Iterator[bool]:
@@ -89,7 +104,7 @@ def tactic(delay: int, active: int, safe_value: bool = False) -> Iterator[bool]:
 def _find_ast_id_for_event(
     event: FunctionCall | FunctionReturn,
     event_type: str,
-    ast_analyzer: 'ASTNodeAnalyzer | None' = None,
+    ast_analyzer: "RuntimeAstLike | None" = None,
 ) -> int | None:
     """Находит ast_id для события вызова или возврата функции.
     
@@ -137,7 +152,7 @@ def _find_ast_id_for_event(
 def export_scenario_from_trace(
     trace: RuntimeTrace,
     scenario_name: str = "default",
-    ast_analyzer: "ASTNodeAnalyzer | None" = None,
+    ast_analyzer: "RuntimeAstLike | None" = None,
 ) -> dict[str, Any]:
     """Создаёт сценарий из трассы выполнения.
     
@@ -147,7 +162,7 @@ def export_scenario_from_trace(
     Args:
         trace: Трасса выполнения с событиями
         scenario_name: Имя сценария
-        ast_analyzer: Анализатор AST для получения ast_id (опционально)
+        ast_analyzer: Объект AST-уровня (ASTNodeAnalyzer или CodeManager) для получения ast_id (опционально)
         
     Returns:
         Словарь сценария для сериализации в JSON с полями:
@@ -321,7 +336,7 @@ def export_scenario_to_file(
     trace: RuntimeTrace,
     output_path: str | Path,
     scenario_name: str = "default",
-    ast_analyzer: "ASTNodeAnalyzer | None" = None,
+    ast_analyzer: "RuntimeAstLike | None" = None,
 ) -> Path:
     """Экспортирует сценарий в JSON-файл.
     
@@ -329,7 +344,7 @@ def export_scenario_to_file(
         trace: Трасса выполнения
         output_path: Путь к выходному файлу
         scenario_name: Имя сценария
-        ast_analyzer: Анализатор AST для получения ast_id (опционально)
+        ast_analyzer: Объект AST-уровня для получения ast_id (опционально)
         
     Returns:
         Path к созданному файлу
@@ -398,7 +413,7 @@ def create_scenario_from_code(
     filename: str = "<script>",
     scenario_name: str = "default",
     line_to_ast_id: dict[int, int] | None = None,
-    ast_analyzer: "ASTNodeAnalyzer | None" = None,
+    ast_analyzer: "RuntimeAstLike | None" = None,
 ) -> dict[str, Any]:
     """Выполняет код и создаёт сценарий из результата.
     
@@ -409,7 +424,7 @@ def create_scenario_from_code(
         filename: Имя файла
         scenario_name: Имя сценария
         line_to_ast_id: Маппинг номер строки -> ast_id
-        ast_analyzer: Анализатор AST для получения ast_id (опционально)
+        ast_analyzer: Объект AST-уровня для получения ast_id (опционально)
         
     Returns:
         Словарь сценария
@@ -453,7 +468,7 @@ def create_scenario_from_file(
 
 
 def build_line_to_ast_id_for_conditions(
-    ast_analyzer: "ASTNodeAnalyzer",
+    ast_analyzer: "RuntimeAstLike",
 ) -> dict[int, int]:
     """Строит маппинг номер строки -> ast_id для условных узлов.
     
@@ -461,7 +476,7 @@ def build_line_to_ast_id_for_conditions(
     маппинг для использования при инструментации кода.
     
     Args:
-        ast_analyzer: Анализатор AST из meaning-tree
+        ast_analyzer: Объект AST-уровня из meaning-tree (ASTNodeAnalyzer или CodeManager)
         
     Returns:
         Словарь {line_number: ast_id}
@@ -541,7 +556,7 @@ def build_line_to_ast_id_for_conditions(
 
 def create_scenario_with_ast_analyzer(
     source_code: str,
-    ast_analyzer: "ASTNodeAnalyzer",
+    ast_analyzer: "RuntimeAstLike",
     filename: str = "<script>",
     scenario_name: str = "default",
 ) -> dict[str, Any]:

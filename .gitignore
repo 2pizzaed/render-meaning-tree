@@ -6,3 +6,5 @@ __pycache__/
 /test/genout/
 *.png
 *_scenarios.json
+output.html
+result.html

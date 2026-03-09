@@ -124,25 +124,31 @@ def visualize_cfg_graphviz(
             edge_data = H[src][dst]
             lbl = edge_data.get('label', '')
             if lbl:
+                lbl = f" {lbl} "
                 e.set_label(lbl)
-                e.set_color("gray50")
+                # e.set_color("gray50")
                 e.set_fontname("Helvetica")
-                e.set_fontsize("28")
+                e.set_fontsize("24")
             # Если есть прерывание - делаем ребро пунктирным
             if edge_data.get('has_interruption', False):
+                e.set_color("gray50")
                 e.set_style("dashed")
+                e.set("penwidth", "1.5")
+            else:
+                e.set("penwidth", "2")
 
     return p
 
 
 def write_dot(g: Dot | None, output_file: Path) -> None:
     if not g:
-        return
+        return None
     if output_file.suffix.endswith(".png"):
         return g.write_png(str(output_file.absolute()), encoding="utf-8")
     else:
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(g.to_string(indent=" "))
+    return None
 
 
 if __name__ == "__main__":

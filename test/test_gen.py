@@ -28,7 +28,7 @@ from src.cfg.loqi_exporter import LoqiExporter
 from src.cfg.reachability import determine_all_paths_between_opaque_nodes
 from src.cfg.trace_builder import TraceScenarioConfig, generate_trace_variants
 from src.coderenderer.html import prepare_html_context, render_static_html
-from src.meaning_tree import convert, to_dict, to_tokens
+from src.meaning_tree import convert, to_dict, to_tokens, to_dot
 from src.qgen_utils import build_answer_objects_from_cfg
 from src.runtime import (
     build_line_to_ast_id_for_conditions,
@@ -182,6 +182,12 @@ class TestComplexProblemBuild(unittest.TestCase):
             ast_json = source_map.get("origin", {}).get("root_node")
             with open(ast_json_path, "w", encoding="utf-8") as f:
                 json.dump(ast_json, f, indent=2, ensure_ascii=False)
+
+            if False:
+                ast_dot_path = genout_path / f"{file.stem}_ast.dot"
+                ast_dot = to_dot(language, code)
+                with open(ast_dot_path, "w", encoding="utf-8") as f:
+                    f.write(ast_dot)
 
             ast = ASTNodeAnalyzer(ast_json, source_map) # type: ignore
             tokens = to_tokens(

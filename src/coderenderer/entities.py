@@ -16,16 +16,28 @@ class Button(RendererEntity):
     attrs: dict[str, Any] = field(default_factory=dict)
     tooltip: str = ""
     css_style: str = ""
-    color: str | None = "" # html color
+    color: str | None = ""  # html color
     css_classes: list[str] = field(default_factory=list)
 
 
-def make_button_attrs(action_id: int, node: "NodePathElement | None") -> dict[str, Any]:
+def make_button_attrs(
+    action_id: int,
+    node: "NodePathElement | None",
+    position: str | None = None,
+) -> dict[str, Any]:
+    """
+    Формирует словарь атрибутов для кнопки.
+
+    Хранит технические данные в подсловаре ``attrs`` для использования как в HTML,
+    так и в серверной части (генерация answerObjects и др.).
+    """
     res: dict[str, int | str] = {
         "action-id": action_id,
     }
     if node:
         res |= {"node-id": node.id, "node-type": node.type}
+    if position is not None:
+        res["position"] = position  # "before" или "after" относительно связанного узла
     return {"attrs": res}
 
 

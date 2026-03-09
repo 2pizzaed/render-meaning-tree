@@ -339,7 +339,10 @@ class ControlFlowButtons(InjectionPool):
                 "play",
                 "filled",
                 **make_button_attrs(
-                    point.applied_injections_before, ast_node),
+                    point.applied_injections_before,
+                    ast_node,
+                    position="before",
+                ),
             )
         )
 
@@ -351,7 +354,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "step-into",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="before",
+                ),
             )
         )
 
@@ -363,7 +370,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "step-out",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="after",
+                ),
             )
         )
 
@@ -375,7 +386,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "question",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="after",
+                ),
             )
         )
 
@@ -387,7 +402,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "play",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="after",
+                ),
             )
         )
 
@@ -399,7 +418,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "stop",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="after",
+                ),
             )
         )
 
@@ -411,7 +434,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "question",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="before",
+                ),
             )
         )
 
@@ -424,7 +451,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "play",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="before",
+                ),
             )
         )
 
@@ -441,7 +472,11 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "play",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="before",
+                ),
             )
         )
 
@@ -453,6 +488,10 @@ class ControlFlowButtons(InjectionPool):
             Button(
                 "question",
                 "filled",
-                **make_button_attrs(point.applied_injections_before, target),
+                **make_button_attrs(
+                    point.applied_injections_before,
+                    target,
+                    position="before",
+                ),
             )
         )

@@ -118,6 +118,43 @@ def group_stream_into_lines(stream):
     return lines
 
 
+def extract_buttons_from_context(context: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Извлекает технические метаданные о кнопках из HTML-контекста.
+
+    Возвращает список словарей с полями:
+    - action_id: идентификатор действия (int | None)
+    - node_id: идентификатор AST-узла (int | None)
+    - node_type: тип AST-узла (str | None)
+    - position: \"before\" / \"after\" относительно узла, если задано
+    - type: тип кнопки (\"play\", \"question\", ...)
+    - line_index, column_index: положение кнопки в потокe строк
+    """
+    lines: list[Sequence[RendererEntity]] = context.get("lines") or []  # type: ignore[assignment]
+    buttons: list[dict[str, Any]] = []
+
+    for line_index, line in enumerate(lines):
+        for column_index, entity in enumerate(line):
+            if isinstance(entity, Button):
+                raw_attrs = entity.attrs or {}
+                # В attrs мы храним вложенный словарь с реальными HTML-атрибутами
+                attrs = raw_attrs.get("attrs", raw_attrs)
+
+                buttons.append(
+                    {
+                        "action_id": attrs.get("action-id"),
+                        "node_id": attrs.get("node-id"),
+                        "node_type": attrs.get("node-type"),
+                        "position": attrs.get("position"),
+                        "type": entity.type,
+                        "line_index": line_index,
+                        "column_index": column_index,
+                    }
+                )
+
+    return buttons
+
+
 def serialize_ast_nodes(manager: CodeManager):
     """
     Создает словарь данных об AST для фронтенда.

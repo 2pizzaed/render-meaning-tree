@@ -3,13 +3,34 @@
 """
 
 import json
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
+from src.ast_managers import ASTNodeManager
 from src.cfg.abstractions import InterruptionType, OptionalBoolValue
+from src.coderenderer.injections import is_compound_type
 from src.locale_utils import Locales
 
-from ..ast_analyzer import ASTNodeAnalyzer
 from . import ASTNodeWrapper
+
+
+@runtime_checkable
+class CodeAnalyzerLike(Protocol):
+    """
+    Протокол для анализаторов кода, используемых при экспорте AST.
+
+    Совместим только с CodeManager (требует code_piece и ast property).
+    ASTNodeAnalyzer не поддерживается — используйте CodeManager.
+    """
+
+    def code_piece(self, ast_node_id: int) -> str | None:
+        ...
+
+    def get_code_line_number_by_id(self, ast_id: int | str) -> int | None:
+        ...
+
+    @property
+    def ast(self) -> ASTNodeManager:
+        ...
 
 # Импорты для типов объектов
 from .abstractions import (
@@ -603,7 +624,7 @@ class ASTNodeWrapperExporter(ObjectExporter):
     def get_class_name(self, obj: ASTNodeWrapper) -> str:
         return "ASTNodeWrapper"
 
-    def get_ast_node_analyzer(self, obj: ASTNodeWrapper) -> ASTNodeAnalyzer | None:
+    def get_ast_node_analyzer(self, obj: ASTNodeWrapper) -> CodeAnalyzerLike | None:
         root_node = obj.get_root()
         if root_node:
             analyzer = root_node._astnodeanalyzer
@@ -614,20 +635,17 @@ class ASTNodeWrapperExporter(ObjectExporter):
     def get_code_piece_ext(self, obj: ASTNodeWrapper) -> str | None:
         ast_node = obj.ast_node
         if not isinstance(ast_node, dict):
-            # # try to go up ...?
-            # obj = obj.parent.parent if obj.parent else obj
-            # if not isinstance(ast_node, dict):
-            #     # return 'None: not a dict!!!'
-            #     return None
-            # return 'None: not a dict!!!'
             return None
-        ast_id = ast_node['id']
+        ast_id = int(ast_node['id'])
         analyzer = self.get_ast_node_analyzer(obj)
         if analyzer:
-            code_piece = analyzer.get_code_piece_by_id(ast_id) or ''
-            code_piece = code_piece.strip()
+            code_piece_text = analyzer.code_piece(ast_id) or ''
+            code_piece_text = code_piece_text.strip()
 
-            if '\n' in code_piece or analyzer.is_compound_statement(ast_id):
+            ast_path = analyzer.ast.get_path(ast_id)
+            is_compound = ast_path and is_compound_type(ast_path)
+
+            if '\n' in code_piece_text or is_compound:
                 # Составное действие.
                 return ''
                 # OFF: "программа на строке 1"
@@ -636,7 +654,7 @@ class ASTNodeWrapperExporter(ObjectExporter):
                 return s
             else:
                 # Простые действия и выражения: берем целиком.
-                return f"<code>{code_piece}</code>"
+                return f"<code>{code_piece_text}</code>"
         # return 'None: no analyzer!!!'
         return None
 

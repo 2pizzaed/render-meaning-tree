@@ -203,8 +203,8 @@ class TestComplexProblemBuild(unittest.TestCase):
             html_context = prepare_html_context(manager)
             html = render_static_html(html_context, snippet_only=True)
 
-            # Создаём ASTNodeWrapper
-            program_root = ASTNodeWrapper(ast_node=ast_json, _astnodeanalyzer=ast)
+            # Создаём ASTNodeWrapper с CodeManager вместо устаревшего ASTNodeAnalyzer
+            program_root = ASTNodeWrapper(ast_node=ast_json, _astnodeanalyzer=manager)
 
             b = CFGBuilder(constructs)
 
@@ -343,7 +343,7 @@ class TestComplexProblemBuild(unittest.TestCase):
                 cfg,
                 buttons_info,
                 include_end_button=False,
-                ast=ast,
+                ast=manager,
             )
             answ_clear = {}
             for a in answ:

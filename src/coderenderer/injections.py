@@ -2,16 +2,39 @@
 from src.ast_managers import (
     InjectionPoint,
     InjectionPool,
+    NodePathElement,
     TokenCursor,
     injection_for_all,
     injection_for_any,
     is_language,
     is_language_not_in,
+    observable_node,
     observable_token,
     stream_ensure_token,
     stream_require,
 )
 from src.coderenderer.entities import Button, Token, make_button_attrs
+
+COMPOUND_STATEMENT_TYPES = frozenset({
+    "general_for_loop",
+    "range_for_loop",
+    "while_loop",
+    "do_while_loop",
+    "if_statement",
+    "switch_statement",
+    "program_entry_point",
+})
+
+
+@observable_node()
+def is_compound_type(node: NodePathElement) -> bool:
+    """
+    Проверяет, является ли AST-узел составным statement (цикл, if, switch).
+
+    Используется при экспорте кода для определения, показывать ли код целиком
+    или ссылку на строку.
+    """
+    return node.type.lower() in COMPOUND_STATEMENT_TYPES
 
 
 class ControlFlowButtons(InjectionPool):

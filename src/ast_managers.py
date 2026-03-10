@@ -417,44 +417,6 @@ class CodeManager:
             return None
         return code[byte_range[0]:byte_range[0] + byte_range[1]].decode('utf-8')
 
-    def is_compound_statement(self, node_id: int | None) -> bool:
-        """
-        Совместимый с ASTNodeAnalyzer метод: является ли узел составным statement.
-
-        Используется при решении, считать ли действие "составным" для экспорта кода.
-        """
-        if not node_id:
-            return False
-        node = self._ast.get(node_id)
-        if not isinstance(node, dict):
-            return False
-
-        node_type = str(node.get("type", "")).lower()
-        compound_types = {
-            "general_for_loop",
-            "range_for_loop",
-            "while_loop",
-            "do_while_loop",
-            "if_statement",
-            "switch_statement",
-            "program_entry_point",
-        }
-        return node_type in compound_types
-
-    # Совместимость с ASTNodeAnalyzer
-    def get_code_piece_by_id(self, ast_id: int | str) -> str | None:
-        """
-        Возвращает фрагмент исходного кода по ast_id узла.
-
-        Совместимо по контракту с ASTNodeAnalyzer.get_code_piece_by_id
-        и используется в экспортере ASTNodeWrapper.
-        """
-        try:
-            node_id = int(ast_id)
-        except (TypeError, ValueError):
-            return None
-        return self.code_piece(node_id)
-
     def line_number(self, token: int | Token) -> int | None:
         line = 1
         token_index = token.index if isinstance(token, Token) else token

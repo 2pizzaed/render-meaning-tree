@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import src.cfg.access_property as access_property
 from src.ast_analyzer import ASTNodeAnalyzer
+
+if TYPE_CHECKING:
+    from src.ast_managers import CodeManager
 
 
 @dataclass
@@ -12,7 +15,7 @@ class ASTNodeWrapper:
     children: dict[str, Self] | list[Self] | None = None
     # related: dict[str, Self] | None = None
     # metadata: 'dict | cfg.Metadata' = field(default_factory=dict)  # TODO remove
-    _astnodeanalyzer: ASTNodeAnalyzer = None  # Note: set for root only (when parent is not set).
+    _astnodeanalyzer: "ASTNodeAnalyzer | CodeManager | None" = None  # Note: set for root only (when parent is not set).
 
     def get(self,
             role: str,

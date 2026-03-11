@@ -217,8 +217,7 @@ def prepare_html_context(manager: CodeManager,
         "nodes_json": json.dumps(nodes_data, ensure_ascii=False),
         "ast_json": json.dumps(manager.ast.root, indent=4, ensure_ascii=False),
         "answer_objects": answer_objects,
-        "answer_objects_json": json.dumps(answer_objects, indent=4, ensure_ascii=False) if answer_objects else "",
-        "debug": False,
+        "answer_objects_json": json.dumps(answer_objects, indent=4, ensure_ascii=False) if answer_objects else ""
     }
 
 

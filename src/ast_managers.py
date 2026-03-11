@@ -300,9 +300,11 @@ class TokenCursor:
             return tok.ast_node
         return None
 
-    def provide_context(self, context_node: NodePathElement | None, rewrite: bool = False):
+    def provide_context(self, context_node: NodePathElement | None, rewrite: bool = False) -> NodePathElement | None:
+        # Вовзращает себя, чтобы можно было использовать в выражениях проверки
         if context_node is not None and (rewrite or self._context_node is None):
             self._context_node = context_node
+        return context_node
 
     @property
     def manager(self) -> "CodeManager":
@@ -337,7 +339,7 @@ class CodeManager:
 
         Используется runtime-слоем для сопоставления вызовов и возвратов функций.
         """
-        return {name for (name, _node_id) in self._declarations.get("functions", [])}
+        return {name for (name, _node_id) in self._declarations.get("functions", [])} # type: ignore
 
     def _remap(self, tlist: TokenList) -> list[Token]:
         tokens: list[Token] = tlist.get("items", []) # type: ignore

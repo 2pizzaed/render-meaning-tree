@@ -59,11 +59,19 @@ class ControlFlowButtons(InjectionPool):
             not target.find_first_parent(lambda x: x.instanceof("compound_statement")):
             return None
 
-        cursor.provide_context(target)
-
-        return cursor.manager.is_first_node_token(
-            token, target # type: ignore
-        ) if target and isinstance(token, Token) else None
+        return (
+            target
+            and cursor.manager.is_first_node_token(
+                token,
+                target,  # type: ignore
+            )
+            and cursor.provide_context(target)
+            # здесь и далее provide_context
+            # сохраняет target для инъекции (успешного аннотирования в HTML),
+            # возможно этот способ нужно доработать
+            if target and isinstance(token, Token)
+            else None
+        )
 
 
     @observable_token()
@@ -74,13 +82,14 @@ class ControlFlowButtons(InjectionPool):
         target = node.find_first(
                 lambda p : p.instanceof("function_call")
         )
-        cursor.provide_context(target)
+
         return (
             target
             and cursor.manager.is_first_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -93,13 +102,14 @@ class ControlFlowButtons(InjectionPool):
         target = node.find_first(
             lambda p : p.instanceof("function_call")
         )
-        cursor.provide_context(target)
+
         return (
             target
             and cursor.manager.is_last_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -113,12 +123,13 @@ class ControlFlowButtons(InjectionPool):
             (not p.parent or not p.parent.instanceof("for_loop"))
         )
 
-        cursor.provide_context(target)
         return (
-            target and cursor.manager.is_last_node_token(
+            target and
+            cursor.manager.is_last_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -128,12 +139,15 @@ class ControlFlowButtons(InjectionPool):
         node = stream_require(cursor.ast_node(0))
         token = cursor[0]
         target = node.find_first("compound_statement")
-        cursor.provide_context(target)
+
         return (
-            target and cursor.manager.is_first_node_token(
+            target
+            and cursor.manager.is_first_node_token(
                 token,
                 target,  # type: ignore
-            ) and token.is_opening_brace()
+            )
+            and token.is_opening_brace()
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -143,7 +157,7 @@ class ControlFlowButtons(InjectionPool):
         node = stream_require(cursor.ast_node(0))
         token = cursor[0]
         target = node.find_first("compound_statement")
-        cursor.provide_context(target)
+
         return (
             target
             and cursor.manager.is_last_node_token(
@@ -151,6 +165,7 @@ class ControlFlowButtons(InjectionPool):
                 target,  # type: ignore
             )
             and token.is_closing_brace()
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -164,12 +179,14 @@ class ControlFlowButtons(InjectionPool):
             lambda x: x.field_name == "container" and \
                 x.parent and x.parent.instanceof("for_each_loop")
         )
-        cursor.provide_context(target)
+
         return (
-            target and cursor.manager.is_last_node_token(
+            target
+            and cursor.manager.is_last_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -188,13 +205,14 @@ class ControlFlowButtons(InjectionPool):
                 or (x.parent.instanceof("range_for_loop") and cursor.manager.language == "python")
             )
         )
-        cursor.provide_context(target)
+
         return (
             target
             and cursor.manager.is_last_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -208,13 +226,14 @@ class ControlFlowButtons(InjectionPool):
             lambda x: x.field_name == "update" and x.parent \
                 and x.parent.instanceof("for_loop")
         )
-        cursor.provide_context(target)
+
         return (
             target
             and cursor.manager.is_first_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -229,13 +248,13 @@ class ControlFlowButtons(InjectionPool):
                 and x.parent.instanceof("general_for_loop")
         )
 
-        cursor.provide_context(target)
         return (
             target
             and cursor.manager.is_first_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -249,13 +268,13 @@ class ControlFlowButtons(InjectionPool):
             lambda x: x.field_name == "condition" and x.parent and x.parent.instanceof("for_loop")
         )
 
-        cursor.provide_context(target)
         return (
             target
             and cursor.manager.is_first_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -281,8 +300,7 @@ class ControlFlowButtons(InjectionPool):
             if t_token == prev_token and pos >= 2:
                 return False
 
-        cursor.provide_context(target)
-        return isinstance(token, Token)
+        return isinstance(token, Token) and cursor.provide_context(target)
 
 
     @observable_token(before=[is_language_not_in(["python"])])
@@ -306,8 +324,7 @@ class ControlFlowButtons(InjectionPool):
             if t_token == prev_token and pos < 2:
                 return False
 
-        cursor.provide_context(target)
-        return isinstance(token, Token) and pos == 2
+        return isinstance(token, Token) and pos == 2 and cursor.provide_context(target)
 
 
     @observable_token(before=[is_language_not_in(["python"])])
@@ -327,8 +344,7 @@ class ControlFlowButtons(InjectionPool):
         if prev_token.index == t_range[0]:  # type: ignore
             return None
 
-        cursor.provide_context(target)
-        return isinstance(token, Token)
+        return isinstance(token, Token) and cursor.provide_context(target)
 
 
     @observable_token(before=[is_language("python")])
@@ -340,13 +356,14 @@ class ControlFlowButtons(InjectionPool):
             lambda x: x.field_name == "range" and x.parent \
                 and x.parent.instanceof("range_for_loop")
         )
-        cursor.provide_context(target)
+
         return (
             target
             and cursor.manager.is_first_node_token(
                 token,
                 target,  # type: ignore
             )
+            and cursor.provide_context(target)
             if isinstance(token, Token)
             else None
         )
@@ -356,7 +373,7 @@ class ControlFlowButtons(InjectionPool):
         if len(point.matched_conditions) > 1:
             point.cancel()
             return
-        ast_node = point.ast_node(0)
+        ast_node = point.context_node or point.ast_node(0)
         point.push_before(
             Button(
                 "play",
@@ -453,7 +470,7 @@ class ControlFlowButtons(InjectionPool):
     def for_each_item_var_button(point: InjectionPoint):
         ast_node = point.ast_node(0)
         target = point.context_node or ast_node
-        point.push_before(
+        point.push_after(
             Button(
                 "question",
                 "filled",

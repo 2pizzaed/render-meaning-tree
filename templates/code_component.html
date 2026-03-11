@@ -40,10 +40,28 @@
         display: flex;
         align-items: baseline; /* Выравнивание по базовой линии текста */
         height: 1.5em; /* Фиксируем высоту строки */
-        padding: 0 10px; /* Отступ слева от номеров строк */
+        padding: 0 8px; /* Отступ слева от номеров строк */
         margin: 0; /* Убираем лишние отступы */
     }
 
+    /* выделение отступов - требует поддержки :has (современные браузеры, как минимум с конца 2023 года) */
+
+    .ctrl-flow-code-block .code-line > .token.whitespace {
+        position: relative;
+    }
+
+    .ctrl-flow-code-block .code-line > .token.whitespace:first-child {
+        --indent-step: 30px;
+        --ruler-offset: 10px;
+        background-image: linear-gradient(
+            to right,
+            #c7c7c7 0 1px,
+            transparent 1px 100%
+        );
+        background-size: var(--indent-step) 100%;
+        background-position: var(--ruler-offset) 0;
+        background-repeat: repeat-x;
+    }
     /* Токены */
     .token {
         cursor: pointer;
@@ -125,7 +143,7 @@
                     </button>
 
                 {% elif entity.__class__.__name__ == 'Token' %}
-                    <span class="token {{ entity.type }} {{ entity.css_classes|join(' ') }}"
+                    <span class="token {{ entity.repr_type }} {{ entity.css_classes|join(' ') }}"
                           data-token-id="{{ entity._id }}"
                           data-token-index="{{ entity.index }}"
                           {% if entity.color %}

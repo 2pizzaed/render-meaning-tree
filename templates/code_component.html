@@ -151,7 +151,10 @@
                           {% if entity.ast_node %}
                               data-node-id="{{ entity.ast_node.id }}"
                           {% endif %}
-                          onclick="handleTokenClick(this)">{{ entity.value }}</span>
+                          {% if not snippet_mode %}
+                          onclick="handleTokenClick(this)"
+                          {% endif %}
+                    >{{ entity.value }}</span>
                 {% endif %}
             {% endfor %}
         </div>

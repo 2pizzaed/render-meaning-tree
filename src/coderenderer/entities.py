@@ -46,13 +46,14 @@ class Token(RendererEntity):
     _id: int
     value: str
     type: str
+    class_name: str
     index: int
     ast_node: "NodePathElement | None"
     css_classes: list[str] = field(default_factory=list) # custom классы, помимо основных
     color = ""
 
     def is_whitespace(self) -> bool:
-        return self.type == "whitespace"
+        return self.class_name == "whitespace"
 
     def is_separator(self) -> bool:
         return self.type == "separator"
@@ -68,3 +69,7 @@ class Token(RendererEntity):
 
     def has_newline(self) -> int:
         return self.value.count("\n")
+
+    @property
+    def repr_type(self) -> str:
+        return self.type if self.type != "unknown" else self.class_name.lower()

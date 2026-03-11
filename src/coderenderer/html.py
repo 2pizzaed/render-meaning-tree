@@ -5,11 +5,9 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
-from src.ast_managers import CodeManager, manage_code
+from src.ast_managers import CodeManager
 from src.coderenderer.entities import Button, RendererEntity, Token
 from src.coderenderer.injections import ControlFlowButtons
-from src.meaning_tree import convert, to_tokens
-from src.types import JSON, SourceMap, TokenList
 
 
 def should_add_space(current, nxt) -> bool:
@@ -67,7 +65,7 @@ def add_spacing_to_stream(stream: Sequence[RendererEntity]) -> list:
             next_entity = stream[i + 1]
             if should_add_space(current_entity, next_entity):
                 # Вставляем "фальшивый" токен-пробел
-                spacer = Token(_id=-1, value=" ", type="whitespace", index=-1, ast_node=None)
+                spacer = Token(_id=-1, value=" ", type="whitespace", class_name="whitespace", index=-1, ast_node=None)
                 new_stream.append(spacer)
 
     return new_stream
@@ -99,6 +97,7 @@ def group_stream_into_lines(stream):
                             _id=entity._id,
                             value=part,
                             type=entity.type,
+                            class_name=entity.class_name,
                             index=entity.index,
                             ast_node=entity.ast_node,
                             css_classes=entity.css_classes,
@@ -254,7 +253,7 @@ def render_static_html(
             f"Template '{target_template_name}' not found in directory '{templates_dir}'. "
             f"Details: {e}"
         )
-        
+
     # Рендеринг
     updated_context = {**context,
                        "static_used": True,

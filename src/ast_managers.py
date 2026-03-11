@@ -347,6 +347,7 @@ class CodeManager:
                 token.get("id"),
                 token.get("value", "").replace("\r", ""),
                 token.get("token_type", ""),
+                token.get("type", ""),
                 i,
                 self._locate(i, token),
                 []

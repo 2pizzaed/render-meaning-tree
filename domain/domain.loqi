@@ -48,28 +48,6 @@ enum CallStackAction {
 	EN.localizedName = "call stack action" ;
 ]
 
-enum OptionalBoolValue {
-	`true` [
-		RU.localizedName = "истина" ;
-		EN.localizedName = "true" ;
-	],
-	`false` [
-		RU.localizedName = "ложь" ;
-		EN.localizedName = "false" ;
-	],
-	any [
-		RU.localizedName = "любое" ;
-		EN.localizedName = "any value" ;
-	],
-	no_value [
-		RU.localizedName = "нет значения" ;
-		EN.localizedName = "no value" ;
-	],
-} [
-	RU.localizedName = "логическое значение" ;
-	EN.localizedName = "condition value" ;
-]
-
 
 // -------- Правила предметной области --------
 
@@ -82,7 +60,7 @@ class AbstractSpec {
 
 // Видимо придется создавать его всегда при переходах
 class Constraint {
-	obj prop condition_value: OptionalBoolValue ;
+	obj prop condition_value: OptionalBool ;
 	obj prop interruption_mode: InterruptionType ;
 } [
 	RU.localizedName = "ограничение" ;
@@ -215,8 +193,6 @@ class TraceAct {
 
 class TraceState {
 	obj prop interruption_mode: InterruptionType ;
-
-	rel hasLastConditionAction(ActionSpec);
 } [
 	RU.localizedName = "состояние трассировки" ;
 	EN.localizedName = "trace state" ;

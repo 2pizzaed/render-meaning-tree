@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,21 @@ import yaml
 from src.json_property_path import ResolvedJSONPath, resolve_json_property_path
 from src.json_search import JSONPath, get_node_by_path
 from src.types import JSON
+
+
+class InterruptionType(StrEnum):
+    BREAK = "break"
+    CONTINUE = "continue"
+    RETURN = "return"
+    EXCEPTION = "exception"
+    ANY = "any"
+    NONE = "none"
+
+
+class CallStackAction(StrEnum):
+    NONE = "none"
+    ADD_FRAME = "add_frame"
+    DROP_FRAME = "drop_frame"
 
 
 @dataclass(slots=True)
@@ -127,23 +143,31 @@ class Behaviour:
 
 @dataclass(slots=True)
 class EffectDeclaration:
-    interruption_start: str | None = None
-    interruption_stop: str | None = None
-    call_stack: str | None = None
+    interruption_start: InterruptionType | None = None
+    interruption_stop: InterruptionType | None = None
+    call_stack: CallStackAction | None = None
+
+    def __post_init__(self) -> None:
+        self.interruption_start = _coerce_interruption_type(self.interruption_start)
+        self.interruption_stop = _coerce_interruption_type(self.interruption_stop)
+        self.call_stack = _coerce_call_stack_action(self.call_stack)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EffectDeclaration:
         return cls(
-            interruption_start=data.get("interruption_start"),
-            interruption_stop=data.get("interruption_stop"),
-            call_stack=data.get("call_stack"),
+            interruption_start=_coerce_interruption_type(data.get("interruption_start")),
+            interruption_stop=_coerce_interruption_type(data.get("interruption_stop")),
+            call_stack=_coerce_call_stack_action(data.get("call_stack")),
         )
 
 
 @dataclass(slots=True)
 class ConstraintsDeclaration:
     condition_value: bool | None = None
-    interruption_mode: str | None = None
+    interruption_mode: InterruptionType | None = None
+
+    def __post_init__(self) -> None:
+        self.interruption_mode = _coerce_interruption_type(self.interruption_mode)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> ConstraintsDeclaration | None:
@@ -151,7 +175,7 @@ class ConstraintsDeclaration:
             return None
         return cls(
             condition_value=data.get("condition_value"),
-            interruption_mode=data.get("interruption_mode"),
+            interruption_mode=_coerce_interruption_type(data.get("interruption_mode")),
         )
 
 
@@ -207,6 +231,9 @@ class ConstructDeclaration:
     effects: list[EffectDeclaration] = field(default_factory=list)
     actions: list[ActionDeclaration] = field(default_factory=list)
     transitions: list[TransitionDeclaration] = field(default_factory=list)
+
+    def applicable_to_language(self, language: str) -> bool:
+        return not self.applicable_languages or language in self.applicable_languages
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> ConstructDeclaration:
@@ -329,3 +356,15 @@ def _resolve_next_list_index(container_path: JSONPath, previous_path: JSONPath) 
         if isinstance(last_step, int):
             return last_step + 1
     return None
+
+
+def _coerce_interruption_type(value: InterruptionType | str | None) -> InterruptionType | None:
+    if value is None or isinstance(value, InterruptionType):
+        return value
+    return InterruptionType(value)
+
+
+def _coerce_call_stack_action(value: CallStackAction | str | None) -> CallStackAction | None:
+    if value is None or isinstance(value, CallStackAction):
+        return value
+    return CallStackAction(value)

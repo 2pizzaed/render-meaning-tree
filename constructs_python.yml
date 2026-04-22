@@ -10,8 +10,9 @@
 global_statements_structure:
   kind: compound.sequence.program
   ast_node: program_entry_point
-  _locale_trace_name: "statement"
-  _locale_pronoun: "it"
+  metadata:
+    locale_trace_name: "statement"
+    locale_pronoun: "it"
   actions:
     - role: first
       kind: auto
@@ -27,12 +28,14 @@ global_statements_structure:
       generalization: item
     - role: BEGIN
       kind: program
-      _locale_trace_name: "program"
-      _locale_pronoun: "she"
+      metadata:
+        locale_trace_name: "program"
+        locale_pronoun: "she"
     - role: END
       kind: program
-      _locale_trace_name: "program"
-      _locale_pronoun: "she"
+      metadata:
+        locale_trace_name: "program"
+        locale_pronoun: "she"
   transitions:
     - from_: BEGIN
       to: first
@@ -46,8 +49,9 @@ global_statements_structure:
 # --------------------------------
 simple_ifelse_structure:
   kind: compound.alternative_0              # тип действия (ветвление)
-  _locale_trace_name: "alternative"
-  _locale_pronoun: "she"
+  metadata:
+    locale_trace_name: "alternative"
+    locale_pronoun: "she"
   actions:
     - role: cond             # условие ветвления
       kind: inline.condition        # true / false
@@ -77,8 +81,9 @@ simple_ifelse_structure:
 if_structure:
   kind: compound.alternative              # тип действия (ветвление)
   ast_node: if_statement
-  _locale_trace_name: "alternative"
-  _locale_pronoun: "she"
+  metadata:
+    locale_trace_name: "alternative"
+    locale_pronoun: "she"
   actions:
     - role: first_cond             # первое условие ветвления
       kind: inline.condition        # true / false
@@ -87,8 +92,9 @@ if_structure:
         # property: condition
         property_path: 'branches / [0] / condition'
         role_in_list: first_in_list
-      _locale_trace_name: "condition"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
       generalization: cond
       # metadata:
       #   assumed_value: true
@@ -99,8 +105,9 @@ if_structure:
         # property: condition
         property_path: '^ / [next] / condition'
         role_in_list: next_in_list
-      _locale_trace_name: "condition"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
       generalization: cond
     - role: if_branch           # ветка при true
       kind: compound
@@ -136,15 +143,17 @@ if_structure:
 while_structure:
   kind: compound.loop
   ast_node: while_loop
-  _locale_trace_name: "loop"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
     - role: cond
       kind: inline.condition
-      _locale_trace_name: "condition"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
       identification:
         property: condition
     - role: body
@@ -173,15 +182,17 @@ while_structure:
 while_else_structure:
   kind: compound.loop
   ast_node: while_else_loop
-  _locale_trace_name: "loop"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
     - role: cond
       kind: inline.condition
-      _locale_trace_name: "condition"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
     - role: body
       kind: compound
       effects:
@@ -210,8 +221,9 @@ while_else_structure:
 do_while_structure:
   kind: compound.loop
   ast_node: do_while_loop  # TODO !!??
-  _locale_trace_name: "loop"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -221,8 +233,9 @@ do_while_structure:
         - interruption_stop: continue
     - role: cond
       kind: inline.condition
-      _locale_trace_name: "condition"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
   transitions:
     - from_: BEGIN
       to: body
@@ -243,8 +256,9 @@ do_while_structure:
 for_structure:
   kind: compound.loop
   ast_node: _OFF__general_for_loop
-  _locale_trace_name: "loop"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -252,8 +266,9 @@ for_structure:
       kind: inline
     - role: cond
       kind: inline.condition
-      _locale_trace_name: "condition"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
       behaviour:
         assumed_value: true
     - role: body
@@ -286,8 +301,9 @@ for_structure:
 for_each_structure:
   kind: compound.loop
   ast_node: for_each_loop
-  _locale_trace_name: "loop"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
@@ -295,12 +311,14 @@ for_each_structure:
       kind: inline
       identification:
         property: 'container'
-      _locale_trace_name: "container"
-      _locale_pronoun: "he"
+      metadata:
+        locale_trace_name: "container"
+        locale_pronoun: "he"
     - role: cond
       kind: inline.condition
-      _locale_trace_name: "condition_for_each"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition_for_each"
+        locale_pronoun: "it"
       identification:
         property_path: 'item / declarators / [0] / identifier'
     - role: body
@@ -331,21 +349,24 @@ for_each_structure:
 for_range_structure:
   kind: compound.loop
   ast_node: range_for_loop
-  _locale_trace_name: "loop"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
   effects:
     - interruption_stop: break
   actions:
     - role: init
       kind: inline
-      _locale_trace_name: "init"
-      _locale_pronoun: "she"
+      metadata:
+        locale_trace_name: "init"
+        locale_pronoun: "she"
       identification:
         property: 'range'
     - role: cond
       kind: inline.condition
-      _locale_trace_name: "condition_range_for"
-      _locale_pronoun: "it"
+      metadata:
+        locale_trace_name: "condition_range_for"
+        locale_pronoun: "it"
       identification:
         property: 'identifier'
     - role: body
@@ -382,8 +403,9 @@ for_range_structure:
 block_structure:
   kind: compound.sequence.block
   ast_node: compound_statement
-  _locale_trace_name: "block"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "block"
+    locale_pronoun: "he"
   actions:
     - role: first
       kind: auto
@@ -434,8 +456,9 @@ func_call_structure:
   kind: inline.call
   ast_node: ['function_call']
   # ast_node: ['function_call', 'method_call']  # cannot support methods so far
-  _locale_trace_name: "function_call"
-  _locale_pronoun: "he"
+  metadata:
+    locale_trace_name: "function_call"
+    locale_pronoun: "he"
   actions:
     - role: name
       kind: identifier
@@ -469,8 +492,9 @@ func_call_structure:
 return_action:
   kind: inline  # this kind matters
   ast_node: return_statement
-  _locale_trace_name: 'return'
-  _locale_pronoun: 'it'
+  metadata:
+    locale_trace_name: 'return'
+    locale_pronoun: 'it'
   effects:
     - interruption_start: return
 

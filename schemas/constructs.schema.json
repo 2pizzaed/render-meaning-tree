@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schemas/constructs.schema.json",
+  "title": "CtrlFlow Domain Rules",
+  "description": "Schema for constructs.yml",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+  },
+  "additionalProperties": {
+    "$ref": "#/$defs/construct"
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "astNode": {
+      "description": "Single AST node kind or a list of AST node kinds.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/stringList"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "locale_trace_name": {
+          "type": "string"
+        },
+        "locale_pronoun": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "identification": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string",
+          "enum": [
+            "parent",
+            "previous"
+          ]
+        },
+        "property": {
+          "type": "string",
+          "minLength": 1
+        },
+        "property_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role_in_list": {
+          "type": "string",
+          "enum": [
+            "first_in_list",
+            "next_in_list"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "assumed_value": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "interruption_start": {
+          "type": "string",
+          "enum": [
+            "break",
+            "continue",
+            "return",
+            "exception"
+          ]
+        },
+        "interruption_stop": {
+          "type": "string",
+          "enum": [
+            "break",
+            "continue",
+            "return",
+            "exception"
+          ]
+        },
+        "call_stack": {
+          "type": "string",
+          "enum": [
+            "add_frame",
+            "drop_frame"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "interruption_start"
+          ]
+        },
+        {
+          "required": [
+            "interruption_stop"
+          ]
+        },
+        {
+          "required": [
+            "call_stack"
+          ]
+        }
+      ]
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "condition_value": {
+          "type": "boolean"
+        },
+        "interruption_mode": {
+          "type": "string",
+          "enum": [
+            "any",
+            "no_interruption",
+            "break",
+            "continue",
+            "return",
+            "exception"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "roleTarget": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$|^BEGIN$|^END$"
+    },
+    "toWhenAbsent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/roleTarget"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/roleTarget"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/roleTarget"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+        },
+        "identification": {
+          "$ref": "#/$defs/identification"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "generalization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "behaviour": {
+          "$ref": "#/$defs/behaviour"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "role",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "transition": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/roleTarget"
+        },
+        "to": {
+          "$ref": "#/$defs/roleTarget"
+        },
+        "to_when_absent": {
+          "$ref": "#/$defs/toWhenAbsent"
+        },
+        "constraints": {
+          "$ref": "#/$defs/constraints"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "construct": {
+      "type": "object",
+      "properties": {
+        "disabled": {
+          "type": "boolean"
+        },
+        "applicable_languages": {
+          "$ref": "#/$defs/stringList"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+        },
+        "ast_node": {
+          "$ref": "#/$defs/astNode"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "minItems": 1
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "kind",
+        "ast_node"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

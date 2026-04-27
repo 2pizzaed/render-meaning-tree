@@ -143,7 +143,7 @@ while_structure:
 while_else_structure:
   applicable_languages: ["python"]
   kind: compound.loop
-  ast_node: while_else_loop
+  ast_node: while_else_loop #TODO: такого цикла пока нет
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
@@ -542,7 +542,6 @@ inline_atom_structure:
     'add_operator',
     'eq_operator',
     'reference_eq_operator',
-    'continue_statement',
     'lt_operator',
     'gt_operator',
     'le_operator',

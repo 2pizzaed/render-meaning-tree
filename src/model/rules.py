@@ -3,13 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
 from src.json_property_path import ResolvedJSONPath, resolve_json_property_path
 from src.json_search import JSONPath, get_node_by_path
-from src.types import JSON
+from src.model.ast_node_query import AstNodeQuery, AstNodeQuerySource
+from src.types import JSON, Node
 
 
 class InterruptionType(StrEnum):
@@ -190,6 +191,10 @@ class ActionDeclaration:
     effects: EffectDeclaration | None = None
     parent: ConstructDeclaration | None = field(default=None, init=False, repr=False, compare=False)
 
+    @property
+    def kind_classes(self) -> set[str]:
+        return set(self.kind.split("."))
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ActionDeclaration:
         return cls(
@@ -226,19 +231,33 @@ class TransitionDeclaration:
 class ConstructDeclaration:
     name: str
     kind: str
-    ast_node: str | list[str]
+    ast_node: AstNodeQuerySource
     applicable_languages: list[str] = field(default_factory=list)
     metadata: Metadata | None = None
     effects: EffectDeclaration | None = None
     actions: list[ActionDeclaration] = field(default_factory=list)
     transitions: list[TransitionDeclaration] = field(default_factory=list)
 
+    @property
+    def kind_classes(self) -> set[str]:
+        return set(self.kind.split("."))
+
     def __post_init__(self) -> None:
+        self.ast_node = AstNodeQuery.from_raw(self.ast_node)
         for action in self.actions:
+            if action.parent is not None:
+                raise ValueError(f"Action {action.role!r} in construct {self.name!r} has multiple parents: {action.parent.name!r} and {self.name!r}")
             action.parent = self
 
     def applicable_to_language(self, language: str) -> bool:
         return not self.applicable_languages or language in self.applicable_languages
+
+    def matches_ast_node(self, node: Node) -> bool:
+        return self.ast_node_query.matches(node)
+
+    @property
+    def ast_node_query(self) -> AstNodeQuery:
+        return cast(AstNodeQuery, self.ast_node)
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> ConstructDeclaration:
@@ -266,7 +285,23 @@ def load_construct_declarations_from_dict(data: dict[str, Any]) -> list[Construc
         if rule_data.get("disabled", False):
             continue
         declarations.append(ConstructDeclaration.from_dict(name, rule_data))
+    _ensure_unique_ast_node_queries(declarations)
     return declarations
+
+
+def locate_construct_declaration_by_ast_node(
+    ast_data: str | Node, declarations: list[ConstructDeclaration], safe_mode: bool = True
+) -> ConstructDeclaration | None:
+    node: Node = {"type": ast_data} if isinstance(ast_data, str) else ast_data
+    result: ConstructDeclaration | None = None
+    for declaration in declarations:
+        if declaration.matches_ast_node(node):
+            if result is not None:
+                raise ValueError(f"Multiple construct declarations match AST node type {ast_data!r}: {result.name!r} and {declaration.name!r}")
+            result = declaration
+        if result is not None and not safe_mode:
+            break
+    return result
 
 
 def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDeclaration | None:
@@ -282,6 +317,18 @@ def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDe
                 raise ValueError(f"Conflicting effect value for {key!r}: {merged[key]!r} != {value!r}")
             merged[key] = value
     return EffectDeclaration.from_dict(merged)
+
+
+def _ensure_unique_ast_node_queries(declarations: list[ConstructDeclaration]) -> None:
+    seen: dict[tuple[Any, ...], str] = {}
+    for declaration in declarations:
+        for key in declaration.ast_node_query.duplicate_keys():
+            previous = seen.get(key)
+            if previous is not None:
+                raise ValueError(
+                    f"Duplicate ast_node predicate {key!r} in constructs {previous!r} and {declaration.name!r}"
+                )
+            seen[key] = declaration.name
 
 
 def _resolve_property_path_identification(

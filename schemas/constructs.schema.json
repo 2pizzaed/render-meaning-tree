@@ -19,7 +19,21 @@
       "minItems": 1
     },
     "astNode": {
-      "description": "Single AST node kind or a list of AST node kinds.",
+      "description": "Single AST node kind, a list of AST node kinds, or an AST node query object.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/stringList"
+        },
+        {
+          "$ref": "#/$defs/astNodePredicate"
+        }
+      ]
+    },
+    "astNodeType": {
       "oneOf": [
         {
           "type": "string",
@@ -29,6 +43,266 @@
           "$ref": "#/$defs/stringList"
         }
       ]
+    },
+    "jsonValue": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    },
+    "astNodePredicate": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/astNodeQueryCondition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeQueryCondition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/astNodeAtomicTypeOnly"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicExists"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicEquals"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicLength"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicContains"
+        },
+        {
+          "$ref": "#/$defs/astNodeAnd"
+        },
+        {
+          "$ref": "#/$defs/astNodeOr"
+        },
+        {
+          "$ref": "#/$defs/astNodeNot"
+        }
+      ]
+    },
+    "astNodeAnd": {
+      "type": "object",
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/astNodeQueryCondition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "and"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeOr": {
+      "type": "object",
+      "properties": {
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/astNodeQueryCondition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "or"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeNot": {
+      "type": "object",
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/astNodeQueryCondition"
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicTypeOnly": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicExists": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "exists": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "type",
+        "exists"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicEquals": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "equals": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "required": [
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "equals"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicLength": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "length": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "equals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "anyOf": [
+            {
+              "required": [
+                "equals"
+              ]
+            },
+            {
+              "required": [
+                "min"
+              ]
+            },
+            {
+              "required": [
+                "max"
+              ]
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "length"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicContains": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "contains": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "required": [
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "contains"
+      ],
+      "additionalProperties": false
     },
     "metadata": {
       "type": "object",

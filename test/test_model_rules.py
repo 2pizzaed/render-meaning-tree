@@ -6,6 +6,8 @@ from src.model.rules import (
     Identification,
     InterruptionType,
     TransitionDeclaration,
+    load_construct_declarations_from_dict,
+    locate_construct_declaration_by_ast_node,
 )
 from src.types import JSON
 
@@ -112,3 +114,162 @@ def test_action_declaration_knows_parent_construct_declaration():
     )
 
     assert action.parent is construct
+
+
+def test_construct_declaration_ast_node_query_matches_node_conditions():
+    construct = ConstructDeclaration(
+        name="program_with_body",
+        kind="compound.sequence.program",
+        ast_node={
+            "query": [
+                {"type": "program_entry_point", "exists": "body / [0]"},
+                {
+                    "type": "program_entry_point",
+                    "equals": {"path": "body / [0] / type", "value": "int_literal"},
+                },
+                {"type": "program_entry_point", "length": {"path": "body", "equals": 1}},
+                {"type": "program_entry_point", "contains": {"path": "tags", "value": "entry"}},
+            ],
+        },
+    )
+
+    assert construct.matches_ast_node(
+        {
+            "type": "program_entry_point",
+            "body": [{"type": "int_literal"}],
+            "tags": ["entry"],
+        }
+    )
+    assert not construct.matches_ast_node(
+        {
+            "type": "program_entry_point",
+            "body": [{"type": "identifier"}],
+            "tags": ["entry"],
+        }
+    )
+
+
+def test_locate_construct_declaration_supports_ast_node_query():
+    declarations = load_construct_declarations_from_dict(
+        {
+            "program": {
+                "kind": "compound.sequence.program",
+                "ast_node": {
+                    "query": [{"type": "program_entry_point", "exists": "body / [0]"}],
+                },
+            },
+            "empty_program": {
+                "kind": "compound.sequence.program",
+                "ast_node": {
+                    "query": [{"type": "program_entry_point", "length": {"path": "body", "equals": 0}}],
+                },
+            },
+        }
+    )
+
+    matched = locate_construct_declaration_by_ast_node(
+        {"type": "program_entry_point", "body": [{"type": "identifier"}]},
+        declarations,
+    )
+
+    assert matched is not None
+    assert matched.name == "program"
+    assert locate_construct_declaration_by_ast_node("program_entry_point", declarations) is None
+
+
+def test_construct_declaration_ast_node_query_supports_logical_operators():
+    construct = ConstructDeclaration(
+        name="branching_control",
+        kind="compound.branch",
+        ast_node={
+            "query": [
+                {
+                    "or": [
+                        {"type": "if_statement", "exists": "branches / [0]"},
+                        {"type": "while_loop", "exists": "condition"},
+                    ]
+                },
+                {
+                    "not": {
+                        "type": "while_loop",
+                        "length": {"path": "body / statements", "equals": 0},
+                    }
+                },
+            ]
+        },
+    )
+
+    assert construct.matches_ast_node(
+        {
+            "type": "if_statement",
+            "branches": [{"condition": {"type": "identifier"}}],
+        }
+    )
+    assert not construct.matches_ast_node(
+        {
+            "type": "while_loop",
+            "condition": {"type": "identifier"},
+            "body": {"statements": []},
+        }
+    )
+
+
+def test_construct_declaration_ast_node_query_rejects_multiple_checks_in_one_item():
+    try:
+        ConstructDeclaration(
+            name="ambiguous_predicate",
+            kind="inline",
+            ast_node={
+                "query": [
+                    {
+                        "type": "identifier",
+                        "exists": "name",
+                        "contains": {"path": "tags", "value": "entry"},
+                    }
+                ]
+            },
+        )
+    except ValueError as error:
+        assert "at most one check operator" in str(error)
+    else:
+        raise AssertionError("Multiple ast_node checks in one query item should fail")
+
+
+def test_construct_declarations_reject_duplicate_ast_node_predicates():
+    data = {
+        "first": {
+            "kind": "inline",
+            "ast_node": ["identifier", "int_literal"],
+        },
+        "second": {
+            "kind": "inline",
+            "ast_node": "identifier",
+        },
+    }
+
+    try:
+        load_construct_declarations_from_dict(data)
+    except ValueError as error:
+        assert "Duplicate ast_node predicate" in str(error)
+    else:
+        raise AssertionError("Duplicate ast_node predicate should fail")
+
+
+def test_construct_declarations_reject_duplicate_shorthand_and_single_query_predicate():
+    data = {
+        "first": {
+            "kind": "inline",
+            "ast_node": "identifier",
+        },
+        "second": {
+            "kind": "inline",
+            "ast_node": {"query": [{"type": "identifier"}]},
+        },
+    }
+
+    try:
+        load_construct_declarations_from_dict(data)
+    except ValueError as error:
+        assert "Duplicate ast_node predicate" in str(error)
+    else:
+        raise AssertionError("Duplicate ast_node predicate should fail")

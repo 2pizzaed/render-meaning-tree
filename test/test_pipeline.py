@@ -8,6 +8,8 @@ from src.generator.pipeline import (
     PipelineRegistry,
     pipeline_stage,
 )
+from src.model.rules import ActionDeclaration, ConstructDeclaration
+from src.model.situation import Action, Construct, TraceAct
 
 
 class ListRegistry(PipelineRegistry):
@@ -94,3 +96,65 @@ def test_domain_pipeline_can_disable_fork_with_flag():
     assert not pipeline.can_fork()
     with pytest.raises(RuntimeError, match="Fork is forbidden"):
         pipeline.fork()
+
+
+def test_domain_pipeline_implements_situation_context_registry_methods():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+            ActionDeclaration(role="body", kind="inline"),
+        ],
+    )
+
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    action = Action(
+        ast_id=11,
+        ast_jump_id=None,
+        values=[],
+        rule=rule.actions[2],
+        parent=construct,
+        owner=pipeline,
+    )
+    trace_act = TraceAct(action=action, used_transition=None, situation=pipeline)
+    pipeline.add(construct)
+    pipeline.add(action)
+    pipeline.add(trace_act)
+
+    assert pipeline.code is manager
+    assert pipeline.get_construct_for(10) is construct
+    assert pipeline.get_construct_for(404) is None
+    assert pipeline.get_actions_for(11) == [action]
+    assert pipeline.get_related_actions(construct) == [
+        construct.begin_action(),
+        construct.end_action(),
+        action,
+    ]
+    assert pipeline.trace_acts == [trace_act]
+
+
+def test_domain_pipeline_fork_copies_situation_context_registry_state():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    child = pipeline.fork()
+
+    assert child.get_construct_for(10) is construct
+    assert child.get_actions_for(10) == pipeline.get_actions_for(10)
+    assert child.trace_acts == []

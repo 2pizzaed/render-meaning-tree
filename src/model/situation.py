@@ -4,14 +4,29 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from src.ast_managers import CodeManager
-from src.model.rules import ActionDeclaration, ConstructDeclaration, TransitionDeclaration
+from src.model.rules import (
+    ActionDeclaration,
+    ConstructDeclaration,
+    InterruptionType,
+    TransitionDeclaration,
+)
+from src.types import Node
 
 
 class SituationContext(Protocol):
+    @property
     def code(self) -> CodeManager:
         ...
 
-    def get_construct_for(self, ast_id: int) -> Construct:
+    @property
+    def rules(self) -> list[ConstructDeclaration]:
+        ...
+
+    @property
+    def trace_acts(self) -> list[TraceAct]:
+        ...
+
+    def get_construct_for(self, ast_id: int) -> Construct | None:
         ...
 
     def get_actions_for(self, ast_id: int) -> list[Action]:
@@ -21,7 +36,7 @@ class SituationContext(Protocol):
         ...
 
     def add(self, object: Any):
-        pass
+        ...
 
 
 class OrderedChain[T](Protocol):
@@ -36,7 +51,7 @@ class OrderedChain[T](Protocol):
 
 @dataclass(slots=True)
 class Action:
-    ast_id: int
+    ast_id: int | None
     ast_jump_id: int | None
     values: list[bool]
     rule: ActionDeclaration
@@ -45,25 +60,41 @@ class Action:
 
     @property
     def chain(self) -> list[Action]:
-        pass
+        return self.owner.get_related_actions(self.parent)
+
+    @property
+    def ast_node(self) -> Node | None:
+        return self.owner.code.get_node_by_id(self.ast_id) \
+            if self.ast_id is not None else None
+
+    def is_empty(self) -> bool:
+        return self.ast_id == -1
 
     def possible_transitions(self) -> list[TransitionDeclaration]:
-        pass
+        roles = {self.rule.role}
+        if self.rule.generalization is not None:
+            roles.add(self.rule.generalization)
+        return [
+            transition
+            for transition in self.parent.rule.transitions
+            if transition.from_role in roles
+        ]
 
     @property
     def chain_order(self) -> int:
-        pass
+        return _chain_order(self.chain, self)
 
     def is_atomic(self) -> bool:
-        pass
+        return self.expands_to() is None
 
     def expands_to(self) -> Construct | None:
-        pass
+        return self.owner.get_construct_for(self.ast_id) \
+            if self.ast_id is not None else None
 
 
 @dataclass(slots=True)
 class Construct:
-    parent: Construct
+    parent: Construct | None
     ast_id: int
     rule: ConstructDeclaration
     owner: SituationContext
@@ -73,17 +104,44 @@ class Construct:
         self.end_action()
 
     @property
-    def actions(self):
-        pass
+    def ast_node(self) -> Node:
+        result = self.owner.code.get_node_by_id(self.ast_id)
+        if not result:
+            raise ValueError(f"AST node with id {self.ast_id} not found")
+        return result
+
+    @property
+    def actions(self) -> list[Action]:
+        return self.owner.get_related_actions(self)
 
     def action_by_role(self, role: str) -> list[Action]:
-        pass
+        return [action for action in self.actions if action.rule.role == role]
 
     def begin_action(self) -> Action:
-        pass
+        return self._ensure_boundary_action("BEGIN")
 
     def end_action(self) -> Action:
-        pass
+        return self._ensure_boundary_action("END")
+
+    def _ensure_boundary_action(self, role: str) -> Action:
+        existing = self.action_by_role(role)
+        if existing:
+            return existing[0]
+
+        rule = next(filter(lambda action: action.role == role, self.rule.actions), None)
+        if not rule:
+            raise ValueError(f"Rule for {role} not found in construct {self.rule.name}")
+
+        action = Action(
+            ast_id=self.ast_id,
+            ast_jump_id=None,
+            values=[],
+            rule=rule,
+            parent=self,
+            owner=self.owner,
+        )
+        self.owner.add(action)
+        return action
 
 
 @dataclass(slots=True)
@@ -94,8 +152,19 @@ class TraceAct:
 
     @property
     def chain(self) -> list[TraceAct]:
-        pass
+        return self.situation.trace_acts
 
     @property
     def chain_order(self) -> int:
-        pass
+        return _chain_order(self.chain, self)
+
+
+@dataclass(slots=True)
+class TraceState:
+    interruption_mode: InterruptionType
+
+
+def _chain_order[T](chain: list[T], item: T) -> int:
+    return chain.index(item) if item in chain else len(chain)
+
+

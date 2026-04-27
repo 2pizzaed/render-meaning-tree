@@ -83,8 +83,7 @@ class ActionSpec : AbstractSpec {
 	obj prop is_opaque: bool ;
 
 	rel belongsTo(ConstructSpec) : {* -> 1} ;
-	rel hasEffects(Effect) ;
-	rel hasBehaviour(Behaviour) : {* -> 1} ;
+	// rel hasEffects(Effect) : {* -> 1} ; заменено -> привязывается к переходу from из этого действия
 } [
 	RU.localizedName = "спецификация действия" ;
 	EN.localizedName = "action specification" ;
@@ -122,14 +121,14 @@ class ASTEntity {
     obj prop ast_type: string;
 	obj prop jump_ast_id: int; // для действий, соответствующих переходам управления, - id узла, на который происходит прыжок (для циклов - начало тела, для if - начало блока else/следующего if/конца конструкции)
 
-    rel hasValue(SemanticValue) : {* -> ?} ;
+    rel hasValue(SemanticValue) ;
 } [
 	RU.localizedName = "сущность, связанная с AST" ;
 	EN.localizedName = "AST-related entity" ;
 ]
 
 class SemanticValue {
-    obj prop boolValue: bool;
+    obj prop bool_value: bool;
 	obj prop used: bool = false;
 
 	rel directlyBeforeOf(SemanticValue) : linear ;

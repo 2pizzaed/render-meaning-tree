@@ -6,8 +6,8 @@ from importlib.resources import as_file, files
 from typing import Any, Protocol, Self, TypeVar
 
 from src.ast_managers import CodeManager
-from src.model.rules import load_construct_declarations
-from src.model.situation import Action, Construct
+from src.model.rules import ConstructDeclaration, load_construct_declarations
+from src.model.situation import Action, Construct, TraceAct
 
 
 class PipelineRegistry(Protocol):
@@ -83,17 +83,22 @@ class SituationDomainDataRegistry:
         self.owner = owner
         self.constructs: dict[int, Construct] = {}
         self.actions: dict[int, list[Action]] = {}
+        self.anonymous_actions: list[Action] = []
+        self.trace_acts: list[TraceAct] = []
         self.utilities = set()
 
     def collect(self) -> list[Any]:
         return [*self.constructs.values(),
                 *[action for actions in self.actions.values() for action in actions],
+                *self.anonymous_actions,
+                *self.trace_acts,
                 *self.utilities]
 
     def copy(self, owner: DomainDataGeneratorPipeline) -> SituationDomainDataRegistry:
         new_registry = SituationDomainDataRegistry(owner)
         new_registry.constructs = self.constructs.copy()
         new_registry.actions = {k: v.copy() for k, v in self.actions.items()}
+        new_registry.trace_acts = self.trace_acts.copy()
         new_registry.utilities = self.utilities.copy()
         return new_registry
 
@@ -102,12 +107,60 @@ class DomainDataGeneratorPipeline(Pipeline):
     def __init__(self, manager: CodeManager, *, fork_enabled: bool = True):
         super().__init__()
         self.manager = manager
+        self._rules: list[ConstructDeclaration] = []
         self.registry = SituationDomainDataRegistry(self)
         self.fork_enabled = fork_enabled
 
     @property
+    def code(self) -> CodeManager:
+        return self.manager
+
+    @property
+    def rules(self) -> list[ConstructDeclaration]:
+        return self._rules
+
+    @property
+    def trace_acts(self) -> list[TraceAct]:
+        return self.registry.trace_acts
+
+    @property
     def current_result(self) -> SituationDomainDataRegistry:
         return self.registry
+
+    def get_construct_for(self, ast_id: int) -> Construct | None:
+        return self.registry.constructs.get(ast_id)
+
+    def get_actions_for(self, ast_id: int) -> list[Action]:
+        return self.registry.actions.get(ast_id, []).copy()
+
+    def get_related_actions(self, construct: Construct) -> list[Action]:
+        return [
+            action
+            for action in (
+                *[action for actions in self.registry.actions.values() for action in actions],
+                *self.registry.anonymous_actions,
+            )
+            if action.parent is construct
+        ]
+
+    def add(self, object: Any) -> None:
+        if isinstance(object, Construct):
+            self.registry.constructs[object.ast_id] = object
+            return
+
+        if isinstance(object, Action):
+            actions = self.registry.actions.setdefault(object.ast_id, []) \
+                if object.ast_id is not None else self.registry.anonymous_actions
+            if not any(action is object for action in actions):
+                actions.append(object)
+            return
+
+        if isinstance(object, TraceAct):
+            if not any(trace_act is object for trace_act in self.registry.trace_acts):
+                self.registry.trace_acts.append(object)
+            return
+
+        self.registry.utilities.add(object)
 
     def can_fork(self) -> bool:
         return self.fork_enabled
@@ -121,9 +174,9 @@ class DomainDataGeneratorPipeline(Pipeline):
     def _load_rules(self):
         resource = files("src").joinpath("resources", "constructs.yml")
         with as_file(resource) as resource_path:
-            self.rules = load_construct_declarations(resource_path)
-        self.rules = [
-            construct for construct in self.rules
+            self._rules = load_construct_declarations(resource_path)
+        self._rules = [
+            construct for construct in self._rules
             if construct.applicable_to_language(self.manager.language)
         ]
 

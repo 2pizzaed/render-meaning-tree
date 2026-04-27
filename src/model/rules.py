@@ -187,7 +187,8 @@ class ActionDeclaration:
     metadata: Metadata | None = None
     generalization: str | None = None
     behaviour: Behaviour | None = None
-    effects: list[EffectDeclaration] = field(default_factory=list)
+    effects: EffectDeclaration | None = None
+    parent: ConstructDeclaration | None = field(default=None, init=False, repr=False, compare=False)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ActionDeclaration:
@@ -198,7 +199,7 @@ class ActionDeclaration:
             metadata=Metadata.from_dict(data.get("metadata")),
             generalization=data.get("generalization"),
             behaviour=Behaviour.from_dict(data.get("behaviour")),
-            effects=_load_effects(data.get("effects")),
+            effects=_load_effect(data.get("effects")),
         )
 
 
@@ -208,7 +209,7 @@ class TransitionDeclaration:
     to_role: str
     to_when_absent: str | list[str] | None = None
     constraints: ConstraintsDeclaration | None = None
-    effects: list[EffectDeclaration] = field(default_factory=list)
+    effects: EffectDeclaration | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TransitionDeclaration:
@@ -217,7 +218,7 @@ class TransitionDeclaration:
             to_role=data["to"],
             to_when_absent=data.get("to_when_absent"),
             constraints=ConstraintsDeclaration.from_dict(data.get("constraints")),
-            effects=_load_effects(data.get("effects")),
+            effects=_load_effect(data.get("effects")),
         )
 
 
@@ -228,9 +229,13 @@ class ConstructDeclaration:
     ast_node: str | list[str]
     applicable_languages: list[str] = field(default_factory=list)
     metadata: Metadata | None = None
-    effects: list[EffectDeclaration] = field(default_factory=list)
+    effects: EffectDeclaration | None = None
     actions: list[ActionDeclaration] = field(default_factory=list)
     transitions: list[TransitionDeclaration] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        for action in self.actions:
+            action.parent = self
 
     def applicable_to_language(self, language: str) -> bool:
         return not self.applicable_languages or language in self.applicable_languages
@@ -243,7 +248,7 @@ class ConstructDeclaration:
             ast_node=data["ast_node"],
             applicable_languages=list(data.get("applicable_languages", [])),
             metadata=Metadata.from_dict(data.get("metadata")),
-            effects=_load_effects(data.get("effects")),
+            effects=_load_effect(data.get("effects")),
             actions=[ActionDeclaration.from_dict(item) for item in data.get("actions", [])],
             transitions=[TransitionDeclaration.from_dict(item) for item in data.get("transitions", [])],
         )
@@ -264,10 +269,19 @@ def load_construct_declarations_from_dict(data: dict[str, Any]) -> list[Construc
     return declarations
 
 
-def _load_effects(data: list[dict[str, Any]] | None) -> list[EffectDeclaration]:
+def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDeclaration | None:
     if not data:
-        return []
-    return [EffectDeclaration.from_dict(item) for item in data]
+        return None
+    if isinstance(data, dict):
+        return EffectDeclaration.from_dict(data)
+
+    merged: dict[str, Any] = {}
+    for item in data:
+        for key, value in item.items():
+            if key in merged and merged[key] != value:
+                raise ValueError(f"Conflicting effect value for {key!r}: {merged[key]!r} != {value!r}")
+            merged[key] = value
+    return EffectDeclaration.from_dict(merged)
 
 
 def _resolve_property_path_identification(

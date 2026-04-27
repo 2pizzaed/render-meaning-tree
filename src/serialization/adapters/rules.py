@@ -83,10 +83,8 @@ class ActionDeclarationAdapter:
         )
 
         relationships = []
-        if obj.behaviour is not None:
-            relationships.append(ctx.relationship("hasBehaviour", ctx.serialize(obj.behaviour)))
-        if obj.effects:
-            relationships.extend(ctx.relationship_links("hasEffects", ctx.serialize_many(obj.effects)))
+        if obj.parent is not None:
+            relationships.append(ctx.relationship("belongsTo", obj.parent))
 
         return LoqiObjectSpec(
             properties=(
@@ -124,8 +122,8 @@ class TransitionDeclarationAdapter:
 
         if obj.constraints is not None:
             relationships.append(ctx.relationship("hasConstraints", ctx.serialize(obj.constraints)))
-        if obj.effects:
-            relationships.extend(ctx.relationship_links("hasEffects", ctx.serialize_many(obj.effects)))
+        if obj.effects is not None:
+            relationships.append(ctx.relationship("hasEffects", obj.effects))
 
         return LoqiObjectSpec(relationship_links=tuple(relationships))
 

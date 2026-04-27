@@ -1,5 +1,12 @@
 from src.json_property_path import ResolvedJSONPath
-from src.model.rules import Identification
+from src.model.rules import (
+    ActionDeclaration,
+    CallStackAction,
+    ConstructDeclaration,
+    Identification,
+    InterruptionType,
+    TransitionDeclaration,
+)
 from src.types import JSON
 
 
@@ -76,3 +83,32 @@ def test_identification_resolve_json_supports_role_in_list_next_from_previous():
     )
 
     assert resolved == ResolvedJSONPath(path=("branches", 1), value=data["branches"][1]) # type: ignore
+
+
+def test_transition_declaration_loads_single_effect_from_legacy_list():
+    transition = TransitionDeclaration.from_dict(
+        {
+            "from": "body",
+            "to": "END",
+            "effects": [
+                {"interruption_stop": "return"},
+                {"call_stack": "drop_frame"},
+            ],
+        }
+    )
+
+    assert transition.effects is not None
+    assert transition.effects.interruption_stop is InterruptionType.RETURN
+    assert transition.effects.call_stack is CallStackAction.DROP_FRAME
+
+
+def test_action_declaration_knows_parent_construct_declaration():
+    action = ActionDeclaration(role="body", kind="inline")
+    construct = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[action],
+    )
+
+    assert action.parent is construct

@@ -25,7 +25,7 @@ Mini-language `property_path`:
 from dataclasses import dataclass
 from typing import Any
 
-from src.json_search import JSONPath, PathItem, get_node_by_path
+from src.json_search import JSONPath, get_node_by_path, search_with_paths_dfs
 
 
 @dataclass(frozen=True)
@@ -109,6 +109,20 @@ def get_json_by_property_path(
     if resolved is None:
         return default
     return resolved.value
+
+
+def find_json_path_to_object(data: Any, target: Any) -> JSONPath | None:
+    """
+    Возвращает путь к конкретному объекту внутри JSON-дерева.
+
+    Поиск выполняется по идентичности объекта (`is`), а не по равенству (`==`),
+    чтобы одинаковые по значению узлы не становились неоднозначными.
+    """
+    matches = search_with_paths_dfs(data, lambda node: node is target, max_results=1)
+    if not matches:
+        return None
+    path, _ = matches[0]
+    return path
 
 
 def _resolve_components(data: Any, start_path: JSONPath, components: tuple[str, ...]) -> JSONPath | None:

@@ -1,5 +1,6 @@
 from src.json_property_path import (
     ResolvedJSONPath,
+    find_json_path_to_object,
     get_json_by_property_path,
     parse_property_path,
     resolve_json_property_path,
@@ -58,3 +59,22 @@ def test_get_json_by_property_path_returns_default_on_navigation_error():
     data = {"items": [{"value": 1}]}
 
     assert get_json_by_property_path(data, "items/[9]/value", default="missing") == "missing"
+
+
+def test_find_json_path_to_object_returns_path_to_same_object():
+    target = {"name": "second"}
+    data = {
+        "items": [
+            {"name": "first"},
+            target,
+        ]
+    }
+
+    assert find_json_path_to_object(data, target) == ("items", 1)
+
+
+def test_find_json_path_to_object_uses_identity_not_equality():
+    target = {"name": "same"}
+    data = {"items": [{"name": "same"}]}
+
+    assert find_json_path_to_object(data, target) is None

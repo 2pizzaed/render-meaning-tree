@@ -2,7 +2,7 @@ import inspect
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, cast, runtime_checkable
 
 from src.coderenderer.colors import colorize_token
 from src.coderenderer.entities import RendererEntity, Token
@@ -74,13 +74,31 @@ class NodePathElement:
         Ищет первый совпавший по условию `NodePathElement` ТОЛЬКО среди родителей
         """
         curr = self.parent
+        predicate: Callable[[NodePathElement], bool | None]
         if isinstance(query, str):
-            query = lambda x, q=query: x.type == q
+            query_type = query
+
+            def type_predicate(x: NodePathElement) -> bool:
+                return x.type == query_type
+
+            predicate = type_predicate
         elif isinstance(query, int):
-            query = lambda x, q=query: x.id == q
+            query_id = query
+
+            def id_predicate(x: NodePathElement) -> bool:
+                return x.id == query_id
+
+            predicate = id_predicate
         elif isinstance(query, Iterable):
-            query = lambda x, q=query: x.type in q
-        while curr is not None and not query(curr):
+            query_types = query
+
+            def iterable_predicate(x: NodePathElement) -> bool:
+                return x.type in query_types
+
+            predicate = iterable_predicate
+        else:
+            predicate = query
+        while curr is not None and not predicate(curr):
             curr = curr.parent
         return curr
 
@@ -88,15 +106,33 @@ class NodePathElement:
         '''
         Ищет первый совпавший по условию `NodePathElement` среди текущего и его родителей
         '''
+        predicate: Callable[[NodePathElement], bool | None]
         if isinstance(query, str):
-            query = lambda x, q=query: x.type == q
+            query_type = query
+
+            def type_predicate(x: NodePathElement) -> bool:
+                return x.type == query_type
+
+            predicate = type_predicate
         elif isinstance(query, int):
-            query = lambda x, q=query: x.id == q
+            query_id = query
+
+            def id_predicate(x: NodePathElement) -> bool:
+                return x.id == query_id
+
+            predicate = id_predicate
         elif isinstance(query, Iterable):
-            query = lambda x, q=query: x.type in q
-        result = query(self)
+            query_types = query
+
+            def iterable_predicate(x: NodePathElement) -> bool:
+                return x.type in query_types
+
+            predicate = iterable_predicate
+        else:
+            predicate = query
+        result = predicate(self)
         if not result:
-            return self.find_first_parent(query)
+            return self.find_first_parent(predicate)
         return self
 
 class ASTNodeManager:
@@ -734,7 +770,9 @@ class list_view:
 
     def __getitem__(self, i: int | slice):
         if isinstance(i, slice):
-            return self._src[self.translate_index(i.start) : self.translate_index(i.stop) : i.step]
+            start = None if i.start is None else cast(int, self.translate_index(i.start))
+            stop = None if i.stop is None else cast(int, self.translate_index(i.stop))
+            return self._src[start:stop:i.step]
         return self._src[self.translate_index(i)]
 
     def __setitem__(self, i: int | slice, item: Any):
@@ -780,7 +818,6 @@ class list_view:
                     self._src.insert(insert_pos + offset, val)
 
                 # Пересчитываем индексы
-                deleted_set = set(old_indices)
                 new_indices = []
 
                 for idx_pos, idx in enumerate(self._indices):

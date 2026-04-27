@@ -1,6 +1,4 @@
 # pyright: reportGeneralTypeIssues=false
-from matplotlib.artist import get
-
 from src.ast_managers import (
     InjectionPoint,
     InjectionPool,

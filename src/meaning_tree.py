@@ -188,7 +188,7 @@ def _run_serialize(code: str, source_lang: str, target_lang: str = "json", confi
     )
 
 
-def _run_tokenize(code: str, source_lang: str, 
+def _run_tokenize(code: str, source_lang: str,
                   target_lang: str | None = None, config: JSON | None = None) -> str | None:
     if target_lang is None:
         conv_args = ["--tokenize-noconvert"]

@@ -35,10 +35,6 @@ class ConstructDeclarationAdapter:
 
     def describe(self, obj: ConstructDeclaration, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
         current_object = ctx.require_current_object()
-        _ensure_domain_supported(
-            not obj.effects,
-            "ConstructDeclaration.effects has no mapping in domain/domain.loqi",
-        )
 
         action_refs: list[LoqiObjectRef] = []
         action_refs_by_role: dict[str, LoqiObjectRef] = {}
@@ -53,7 +49,7 @@ class ConstructDeclarationAdapter:
                 backlink=("belongsTo", current_object),
                 state_updates={"action_refs_by_role": action_refs_by_role},
             )
-            for transition in obj.transitions
+            for transition in obj.compiled_transitions()
         ]
 
         return LoqiObjectSpec(
@@ -86,12 +82,15 @@ class ActionDeclarationAdapter:
         if obj.parent is not None:
             relationships.append(ctx.relationship("belongsTo", obj.parent))
 
+        properties = [
+            ctx.property("role", obj.role),
+            ctx.property("kind", obj.kind),
+        ]
+        if obj.generalization is not None:
+            properties.append(ctx.property("generalization", obj.generalization))
+
         return LoqiObjectSpec(
-            properties=(
-                ctx.property("role", obj.role),
-                ctx.property("kind", obj.kind),
-                ctx.property("generalization", obj.generalization),
-            ),
+            properties=tuple(properties),
             relationship_links=tuple(relationships),
             metadata=_metadata_entries(ctx, obj.metadata),
         )
@@ -142,13 +141,14 @@ class EffectDeclarationAdapter:
         return "Effect"
 
     def describe(self, obj: EffectDeclaration, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        return LoqiObjectSpec(
-            properties=(
-                ctx.property("interruption_start", obj.interruption_start),
-                ctx.property("interruption_stop", obj.interruption_stop),
-                ctx.property("call_stack", obj.call_stack),
-            )
-        )
+        properties = []
+        if obj.interruption_start is not None:
+            properties.append(ctx.property("interruption_start", obj.interruption_start))
+        if obj.interruption_stop is not None:
+            properties.append(ctx.property("interruption_stop", obj.interruption_stop))
+        if obj.call_stack is not None:
+            properties.append(ctx.property("call_stack", obj.call_stack))
+        return LoqiObjectSpec(properties=tuple(properties))
 
 
 class ConstraintsDeclarationAdapter:

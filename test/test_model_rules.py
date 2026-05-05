@@ -3,6 +3,7 @@ from src.model.rules import (
     ActionDeclaration,
     CallStackAction,
     ConstructDeclaration,
+    EffectDeclaration,
     Identification,
     InterruptionType,
     TransitionDeclaration,
@@ -114,6 +115,132 @@ def test_action_declaration_knows_parent_construct_declaration():
     )
 
     assert action.parent is construct
+
+
+def test_construct_declaration_compiled_transitions_expand_generalization():
+    construct = ConstructDeclaration(
+        name="sequence",
+        kind="compound",
+        ast_node="sequence_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="first", kind="inline", generalization="item"),
+            ActionDeclaration(role="next", kind="inline", generalization="item"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+
+    compiled = construct.compiled_transitions()
+
+    assert [(transition.from_role, transition.to_role) for transition in compiled] == [
+        ("BEGIN", "first"),
+        ("first", "next"),
+        ("next", "next"),
+    ]
+    assert all(transition.from_role != "item" for transition in compiled)
+
+
+def test_construct_declaration_compiled_transition_search_supports_generalization():
+    construct = ConstructDeclaration(
+        name="sequence",
+        kind="compound",
+        ast_node="sequence_node",
+        actions=[
+            ActionDeclaration(role="first", kind="inline", generalization="item"),
+            ActionDeclaration(role="next", kind="inline", generalization="item"),
+        ],
+        transitions=[TransitionDeclaration(from_role="item", to_role="next")],
+    )
+
+    concrete = construct.compiled_transitions_from_role("first")
+    generalized = construct.compiled_transitions_from_role("item")
+
+    assert [transition.from_role for transition in concrete] == ["first"]
+    assert [transition.from_role for transition in generalized] == ["first", "next"]
+
+
+def test_construct_declaration_compiled_transitions_merge_effects_without_overwriting_transition_effect():
+    construct_effect = EffectDeclaration(
+        interruption_start=InterruptionType.BREAK,
+        interruption_stop=InterruptionType.CONTINUE,
+    )
+    action_effect = EffectDeclaration(
+        interruption_start=InterruptionType.RETURN,
+        call_stack=CallStackAction.ADD_FRAME,
+    )
+    transition_effect = EffectDeclaration(interruption_start=InterruptionType.NONE)
+    construct = ConstructDeclaration(
+        name="loop",
+        kind="compound",
+        ast_node="loop_node",
+        effects=construct_effect,
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN", effects=action_effect),
+            ActionDeclaration(role="body", kind="inline"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="body", effects=transition_effect),
+        ],
+    )
+
+    compiled = construct.compiled_transitions()[0]
+
+    assert compiled.effects is not None
+    assert compiled.effects.interruption_start is InterruptionType.NONE
+    assert compiled.effects.interruption_stop is InterruptionType.CONTINUE
+    assert compiled.effects.call_stack is CallStackAction.ADD_FRAME
+
+
+def test_construct_declaration_compiled_transitions_merge_action_effect_into_all_outgoing_transitions():
+    action_effect = EffectDeclaration(interruption_stop=InterruptionType.RETURN)
+    construct = ConstructDeclaration(
+        name="call",
+        kind="compound",
+        ast_node="call_node",
+        actions=[
+            ActionDeclaration(role="func", kind="compound", effects=action_effect),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="func", to_role="END"),
+            TransitionDeclaration(from_role="func", to_role="END", constraints=None),
+        ],
+    )
+
+    compiled = construct.compiled_transitions()
+
+    assert len(compiled) == 2
+    assert all(transition.effects is not None for transition in compiled)
+    assert all(transition.effects.interruption_stop is InterruptionType.RETURN for transition in compiled if transition.effects)
+
+
+def test_construct_declaration_compiled_transitions_do_not_mutate_original_declarations():
+    action_effect = EffectDeclaration(call_stack=CallStackAction.ADD_FRAME)
+    construct = ConstructDeclaration(
+        name="sequence",
+        kind="compound",
+        ast_node="sequence_node",
+        actions=[
+            ActionDeclaration(role="first", kind="inline", generalization="item", effects=action_effect),
+            ActionDeclaration(role="next", kind="inline", generalization="item"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent=["END"]),
+        ],
+    )
+
+    compiled = construct.compiled_transitions()
+    compiled[0].to_when_absent.append("first")  # type: ignore[union-attr]
+    compiled[0].effects.call_stack = CallStackAction.DROP_FRAME  # type: ignore[union-attr]
+
+    assert construct.transitions[0].from_role == "item"
+    assert construct.transitions[0].effects is None
+    assert construct.transitions[0].to_when_absent == ["END"]
+    assert action_effect.call_stack is CallStackAction.ADD_FRAME
 
 
 def test_construct_declaration_ast_node_query_matches_node_conditions():

@@ -52,7 +52,6 @@ class OrderedChain[T](Protocol):
 @dataclass(slots=True)
 class Action:
     ast_id: int | None
-    ast_jump_id: int | None
     values: list[bool]
     rule: ActionDeclaration
     parent: Construct
@@ -71,14 +70,7 @@ class Action:
         return self.ast_id == -1
 
     def possible_transitions(self) -> list[TransitionDeclaration]:
-        roles = {self.rule.role}
-        if self.rule.generalization is not None:
-            roles.add(self.rule.generalization)
-        return [
-            transition
-            for transition in self.parent.rule.transitions
-            if transition.from_role in roles
-        ]
+        return self.parent.rule.compiled_transitions_for_action(self.rule)
 
     @property
     def chain_order(self) -> int:
@@ -134,7 +126,6 @@ class Construct:
 
         action = Action(
             ast_id=self.ast_id,
-            ast_jump_id=None,
             values=[],
             rule=rule,
             parent=self,
@@ -166,5 +157,3 @@ class TraceState:
 
 def _chain_order[T](chain: list[T], item: T) -> int:
     return chain.index(item) if item in chain else len(chain)
-
-

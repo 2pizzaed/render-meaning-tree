@@ -34,6 +34,11 @@ class Metadata:
     locale_pronoun: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
+    def flag(self, name, value: bool | None = None) -> bool | None:
+        if value:
+            self.extra[name] = value
+        return cast(bool, self.extra.get(name))
+
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> Metadata | None:
         if data is None:
@@ -259,6 +264,59 @@ class ConstructDeclaration:
     def ast_node_query(self) -> AstNodeQuery:
         return cast(AstNodeQuery, self.ast_node)
 
+    def compiled_transitions(self) -> list[TransitionDeclaration]:
+        result: list[TransitionDeclaration] = []
+        actions_by_generalization = self._actions_by_generalization()
+        effects_by_role = {
+            action.role: action.effects
+            for action in self.actions
+            if action.effects is not None
+        }
+
+        for transition in self.transitions:
+            expanded_from_roles = actions_by_generalization.get(transition.from_role)
+            from_roles = expanded_from_roles if expanded_from_roles is not None else [transition.from_role]
+            for from_role in from_roles:
+                compiled = _copy_transition(transition, from_role=from_role)
+                if from_role == "BEGIN":
+                    compiled.effects = _merge_effects(compiled.effects, self.effects)
+                compiled.effects = _merge_effects(compiled.effects, effects_by_role.get(from_role))
+                result.append(compiled)
+        return result
+
+    def compiled_transitions_from_role(self, role: str) -> list[TransitionDeclaration]:
+        action = self.action_declaration_by_role(role)
+        roles = {role}
+        if action is None:
+            roles.update(
+                action.role
+                for action in self.actions
+                if action.generalization == role
+            )
+        return [
+            transition
+            for transition in self.compiled_transitions()
+            if transition.from_role in roles
+        ]
+
+    def compiled_transitions_for_action(self, action: ActionDeclaration) -> list[TransitionDeclaration]:
+        return [
+            transition
+            for transition in self.compiled_transitions()
+            if transition.from_role == action.role
+        ]
+
+    def action_declaration_by_role(self, role: str) -> ActionDeclaration | None:
+        return next((action for action in self.actions if action.role == role), None)
+
+    def _actions_by_generalization(self) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        for action in self.actions:
+            if action.generalization is None:
+                continue
+            result.setdefault(action.generalization, []).append(action.role)
+        return result
+
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> ConstructDeclaration:
         return cls(
@@ -317,6 +375,39 @@ def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDe
                 raise ValueError(f"Conflicting effect value for {key!r}: {merged[key]!r} != {value!r}")
             merged[key] = value
     return EffectDeclaration.from_dict(merged)
+
+
+def _copy_transition(transition: TransitionDeclaration, *, from_role: str) -> TransitionDeclaration:
+    to_when_absent = transition.to_when_absent.copy() if isinstance(transition.to_when_absent, list) else transition.to_when_absent
+    return TransitionDeclaration(
+        from_role=from_role,
+        to_role=transition.to_role,
+        to_when_absent=to_when_absent,
+        constraints=transition.constraints,
+        effects=_copy_effect(transition.effects),
+    )
+
+
+def _copy_effect(effect: EffectDeclaration | None) -> EffectDeclaration | None:
+    if effect is None:
+        return None
+    return EffectDeclaration(
+        interruption_start=effect.interruption_start,
+        interruption_stop=effect.interruption_stop,
+        call_stack=effect.call_stack,
+    )
+
+
+def _merge_effects(base: EffectDeclaration | None, added: EffectDeclaration | None) -> EffectDeclaration | None:
+    if added is None:
+        return base
+    if base is None:
+        return _copy_effect(added)
+    return EffectDeclaration(
+        interruption_start=base.interruption_start if base.interruption_start is not None else added.interruption_start,
+        interruption_stop=base.interruption_stop if base.interruption_stop is not None else added.interruption_stop,
+        call_stack=base.call_stack if base.call_stack is not None else added.call_stack,
+    )
 
 
 def _ensure_unique_ast_node_queries(declarations: list[ConstructDeclaration]) -> None:

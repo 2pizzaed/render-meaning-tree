@@ -369,13 +369,13 @@ class CodeManager:
         return self.source_map.get("language", "") # type: ignore
 
     @property
-    def user_defined_function_names(self) -> set[str]:
+    def user_defined_function_names(self) -> dict[str, int]:
         """
         Множество имён функций, определённых в исходном файле.
 
         Используется runtime-слоем для сопоставления вызовов и возвратов функций.
         """
-        return {name for (name, _node_id) in self._declarations.get("functions", [])} # type: ignore
+        return dict(self._declarations.get("functions", [])) # type: ignore
 
     def _remap(self, tlist: TokenList) -> list[Token]:
         tokens: list[Token] = tlist.get("items", []) # type: ignore

@@ -8,7 +8,7 @@ from src.generator.pipeline import (
     PipelineRegistry,
     pipeline_stage,
 )
-from src.model.rules import ActionDeclaration, ConstructDeclaration
+from src.model.rules import ActionDeclaration, ConstructDeclaration, Identification, TransitionDeclaration
 from src.model.situation import Action, Construct, TraceAct
 
 
@@ -115,7 +115,6 @@ def test_domain_pipeline_implements_situation_context_registry_methods():
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
     action = Action(
         ast_id=11,
-        ast_jump_id=None,
         values=[],
         rule=rule.actions[2],
         parent=construct,
@@ -136,6 +135,152 @@ def test_domain_pipeline_implements_situation_context_registry_methods():
         action,
     ]
     assert pipeline.trace_acts == [trace_act]
+
+
+def test_action_possible_transitions_uses_compiled_concrete_transitions():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="sequence",
+        kind="compound",
+        ast_node="sequence_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="first", kind="inline", generalization="item"),
+            ActionDeclaration(role="next", kind="inline", generalization="item"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    first_action = Action(
+        ast_id=11,
+        values=[],
+        rule=rule.actions[1],
+        parent=construct,
+        owner=pipeline,
+    )
+
+    transitions = first_action.possible_transitions()
+
+    assert [(transition.from_role, transition.to_role) for transition in transitions] == [("first", "next")]
+
+
+def test_domain_pipeline_fill_actions_adds_repeated_values_for_loop_control_condition():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "while_loop",
+            "condition": {"id": 11, "type": "identifier"},
+            "body": {"id": 12, "type": "compound_statement"},
+        },
+        11: {"id": 11, "type": "identifier"},
+        12: {"id": 12, "type": "compound_statement"},
+    }.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="while_loop",
+        kind="compound.loop",
+        ast_node="while_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="cond",
+                kind="inline.condition",
+                identification=Identification(property="condition"),
+            ),
+            ActionDeclaration(
+                role="body",
+                kind="compound",
+                identification=Identification(property="body"),
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="cond"),
+            TransitionDeclaration.from_dict(
+                {
+                    "from": "cond",
+                    "to": "body",
+                    "constraints": {"condition_value": True},
+                }
+            ),
+            TransitionDeclaration(from_role="body", to_role="cond"),
+            TransitionDeclaration.from_dict(
+                {
+                    "from": "cond",
+                    "to": "END",
+                    "constraints": {"condition_value": False},
+                }
+            ),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    cond_actions = pipeline.get_actions_for(11)
+    body_actions = pipeline.get_actions_for(12)
+    assert len(cond_actions) == 1
+    assert cond_actions[0].values == [True, False]
+    assert len(body_actions) == 1
+    assert body_actions[0].values == []
+
+
+def test_domain_pipeline_fill_actions_creates_multiple_actions_for_self_loop_role():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "compound_statement",
+            "statements": [
+                {"id": 11, "type": "expression_statement"},
+                {"id": 12, "type": "expression_statement"},
+                {"id": 13, "type": "expression_statement"},
+            ],
+        },
+        11: {"id": 11, "type": "expression_statement"},
+        12: {"id": 12, "type": "expression_statement"},
+        13: {"id": 13, "type": "expression_statement"},
+    }.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="block",
+        kind="compound.sequence.block",
+        ast_node="block_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="first",
+                kind="auto",
+                identification=Identification(property_path="statements / [0]"),
+                generalization="item",
+            ),
+            ActionDeclaration(
+                role="next",
+                kind="auto",
+                identification=Identification(origin="previous", property_path="[next]"),
+                generalization="item",
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    assert [action.rule.role for action in pipeline.get_actions_for(11)] == ["first"]
+    assert [action.rule.role for action in pipeline.get_actions_for(12)] == ["next"]
+    assert [action.rule.role for action in pipeline.get_actions_for(13)] == ["next"]
 
 
 def test_domain_pipeline_fork_copies_situation_context_registry_state():

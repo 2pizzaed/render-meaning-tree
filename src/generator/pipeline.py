@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from importlib.resources import as_file, files
-from typing import Any, Protocol, Self, TypeVar
+from typing import Any, Protocol, Self, TypeVar, cast
 
 from src.ast_managers import CodeManager
-from src.model.rules import ConstructDeclaration, load_construct_declarations
+from src.generator.automaton import ConstructTransitionAutomaton
+from src.json_search import JSONPath
+from src.model.rules import (
+    ActionDeclaration,
+    ConstructDeclaration,
+    load_construct_declarations,
+    locate_construct_declaration_by_ast_node,
+)
 from src.model.situation import Action, Construct, TraceAct
+from src.types import Node
 
 
 class PipelineRegistry(Protocol):
@@ -180,14 +189,112 @@ class DomainDataGeneratorPipeline(Pipeline):
             if construct.applicable_to_language(self.manager.language)
         ]
 
+    def _build_construct(self, ast_id: int, node: Node) -> Construct | None:
+        if ast_id in self.registry.constructs:
+            return self.registry.constructs[ast_id]
+        node_type: str = cast(str, node.get("type"))
+        construct_decl = locate_construct_declaration_by_ast_node(
+                 node_type, self.rules)
+        if not construct_decl:
+            if self.manager.ast.instanceof(ast_id, "statement"):
+                warnings.warn(
+                    f"No construct declaration found for AST node type {node_type!r} (id: {ast_id})",
+                    stacklevel=2)
+            return
+        if construct_decl.kind_classes.isdisjoint({"noop", "inline"}):
+            # конструкты для этих AST структур либо атомарные actions, либо не нужны рассуждателю
+            return
+        par_node = self.code.ast.get_parent_of(ast_id)
+        par_node_id = cast(int, par_node.get("id")) if par_node else None
+        self.registry.constructs[ast_id] = Construct(
+            self._build_construct(
+                par_node_id, par_node
+            ) if par_node_id and par_node else None,
+            ast_id,
+            construct_decl,
+            self
+        )
+
     @pipeline_stage(2)
     def _generate_constructs(self):
-        pass
+        for ast_id, node in self.manager.nodes_cache.items():
+            self._build_construct(ast_id, node)
+
+    def _lookup_node_without_identification(self, construct: Construct, action_decl: ActionDeclaration) -> Node | None:
+        if (node := self.code.ast.get_path(construct.ast_id)) \
+            and node.instanceof("function_call"):
+            node_content = node.get(self.code.ast)
+            assert node_content
+            name = cast(str, cast(dict[str, str], node_content.get("function", {})).get("repr_name"))
+            funcs = self.code.user_defined_function_names
+            found = funcs.get(name)
+            if found:
+                return self.code.get_node_by_id(found)
+        raise ValueError(f"{action_decl.role} in {construct.rule.name} can't be identified")
+
+    def _action_values_for(self, action_decl: ActionDeclaration, automaton: ConstructTransitionAutomaton) -> list[bool]:
+        if automaton.controls_loop(action_decl):
+            return [True, False] # TODO: пока не готова генерация значений времени выполнения
+        if action_decl.behaviour is not None and action_decl.behaviour.assumed_value is not None:
+            return [action_decl.behaviour.assumed_value]
+        return []
+
+    def _add_action_for_node(
+        self,
+        construct: Construct,
+        action_decl: ActionDeclaration,
+        child: Node,
+        automaton: ConstructTransitionAutomaton,
+    ) -> None:
+        self.add(
+            Action(
+                ast_id=cast(int | None, child.get("id")),
+                values=self._action_values_for(action_decl, automaton),
+                rule=action_decl,
+                parent=construct,
+                owner=self,
+            )
+        )
+
+    def _resolve_action_node(
+        self,
+        construct: Construct,
+        action_decl: ActionDeclaration,
+        previous_path: JSONPath | None,
+    ) -> tuple[Node | None, JSONPath | None]:
+        if not action_decl.identification:
+            return self._lookup_node_without_identification(construct, action_decl), None
+
+        resolved_path = action_decl.identification.resolve_json(
+            construct.ast_node,
+            previous_path=previous_path,
+        )
+        child = cast(Node, resolved_path.value) if resolved_path else None
+        path = resolved_path.path if resolved_path else None
+        return child, path
 
     @pipeline_stage(3)
     def _fill_actions(self):
-        pass
+        for construct in self.registry.constructs.values():
+            construct_decl = construct.rule
+            prev_action_path: JSONPath | None = None
+            automaton = ConstructTransitionAutomaton(construct_decl)
+            for action_decl in construct_decl.actions:
+                if action_decl.role == "BEGIN" or action_decl.role == "END":
+                    continue
+
+                while True:
+                    child, path = self._resolve_action_node(construct, action_decl, prev_action_path)
+                    if child is None:
+                        break
+
+                    self._add_action_for_node(construct, action_decl, child, automaton)
+                    prev_action_path = path
+
+                    if not automaton.repeats_action(action_decl):
+                        break
 
     @pipeline_stage(4)
     def _generate_bool_values(self):
+        # TODO: Заглушка, пока не будет нормального анализатора значений
         pass

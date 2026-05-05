@@ -31,7 +31,7 @@ fragment findLastTracedAction(last: TraceAct) {
     ask (P->hasTransition->hasEffect.call_stack != CallStackAction:none) out true else {
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and
-            $a->ast_id == P->hasAction.jump_ast_id
+            $a->ast_id == P->hasAction.ast_id
         } out true else {conclude : error [exception = true];};
         conclude : true with (last = +obj : TraceAct (
             {

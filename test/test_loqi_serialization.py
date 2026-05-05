@@ -129,12 +129,17 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             from_(action_BEGIN);
             to_(action_END);
             hasConstraints(constraint_true_none);
+            hasEffects(effect_add_frame);
             belongsTo(construct_if_statement);
         }
 
         obj constraint_true_none : Constraint {
             condition_value = OptionalBool:`true`;
             interruption_mode = InterruptionType:none;
+        }
+
+        obj effect_add_frame : Effect {
+            call_stack = CallStackAction:add_frame;
         }
         """
     ).strip()
@@ -183,6 +188,33 @@ def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relation
     assert rendered.count("obj effect_break : Effect {") == 1
     assert "hasEffects(effect_break);" in rendered
     assert rendered.count("hasEffects(effect_break);") == 1
+
+
+def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_generalization() -> None:
+    construct = ConstructDeclaration(
+        name="sequence",
+        kind="compound",
+        ast_node="Sequence",
+        effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="marker"),
+            ActionDeclaration(role="first", kind="step", generalization="item"),
+            ActionDeclaration(role="next", kind="step", generalization="item"),
+            ActionDeclaration(role="END", kind="marker"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+
+    rendered = serialize_loqi(construct)
+
+    assert "hasTransitions(transition_BEGIN_to_first);" in rendered
+    assert "hasTransitions(transition_first_to_next);" in rendered
+    assert "hasTransitions(transition_next_to_next);" in rendered
+    assert "from_(action_item)" not in rendered
+    assert "hasEffects(effect_break);" in rendered
 
 
 def test_serialize_loqi_allows_minimal_custom_registry_override() -> None:
@@ -324,7 +356,6 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     construct = Construct(parent=None, ast_id=10, rule=construct_rule, owner=ctx)
     action = Action(
         ast_id=11,
-        ast_jump_id=99,
         values=[True, False],
         rule=construct_rule.actions[1],
         parent=construct,
@@ -343,7 +374,7 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "hasActions(concrete_action_11_body);" in rendered
     assert "belongsTo(concrete_construct_10_demo);" in rendered
     assert "derivedFrom(action_body);" in rendered
-    assert "jump_ast_id = 99;" in rendered
+    assert "jump_ast_id" not in rendered
     assert "obj semantic_value_action_11_body_0 : SemanticValue {" in rendered
     assert "bool_value = true;" in rendered
     assert "directlyBeforeOf(semantic_value_action_11_body_1);" in rendered
@@ -367,7 +398,6 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     construct = Construct(parent=None, ast_id=20, rule=construct_rule, owner=ctx)
     action = Action(
         ast_id=21,
-        ast_jump_id=None,
         values=[True],
         rule=construct_rule.actions[1],
         parent=construct,

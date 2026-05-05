@@ -92,7 +92,7 @@ class ActionSpec : AbstractSpec {
 class TransitionSpec : AbstractSpec {
 	rel from_(ActionSpec) ; // может быть несколько from из-за generalization
 	rel to_(ActionSpec): {* -> 1};
-	rel to_when_absent(ActionSpec): {* -> ?};
+	rel to_when_absent(ActionSpec);
 
 	rel belongsTo(ConstructSpec) : {* -> 1} ;
 	rel hasConstraints(Constraint): {* -> 1} ;
@@ -119,7 +119,6 @@ class ConstructSpec : AbstractSpec {
 class ASTEntity {
     obj prop ast_id: int ;
     obj prop ast_type: string;
-	obj prop jump_ast_id: int; // для действий, соответствующих переходам управления, - id узла, на который происходит прыжок (для циклов - начало тела, для if - начало блока else/следующего if/конца конструкции)
 
     rel hasValue(SemanticValue) ;
 } [

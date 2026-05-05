@@ -157,7 +157,7 @@ class LoqiAdapterContext:
         value_map: dict[Any, str] | None = None,
     ) -> LoqiScalar | None:
         if value is None:
-            return None
+            raise ValueError("Loqi scalar value cannot be None")
         if isinstance(value, LoqiEnumLiteral):
             return value
         if isinstance(value, Enum):
@@ -183,6 +183,7 @@ class LoqiAdapterContext:
         value_map: dict[Any, str] | None = None,
         metadata: tuple[LoqiMetadataEntry, ...] = (),
     ) -> LoqiProperty:
+        assert value is not None, "Loqi scalar value cannot be None"
         return LoqiProperty(
             name=name,
             value=self.to_scalar(value, enum_name=enum_name, value_map=value_map),

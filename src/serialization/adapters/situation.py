@@ -11,6 +11,7 @@ from src.serialization.loqi import (
     LoqiObjectRef,
     LoqiObjectSpec,
     RelationshipLink,
+    _normalize_object_name,
 )
 
 
@@ -56,7 +57,6 @@ class ConstructAdapter:
             properties=(
                 ctx.property("ast_id", obj.ast_id),
                 ctx.property("ast_type", _ast_type(obj)),
-                ctx.property("jump_ast_id", None),
             ),
             relationship_links=tuple(relationships),
         )
@@ -84,7 +84,6 @@ class ActionAdapter:
             properties=(
                 ctx.property("ast_id", obj.ast_id or -1),
                 ctx.property("ast_type", _ast_type(obj)),
-                ctx.property("jump_ast_id", obj.ast_jump_id or -1),
             ),
             relationship_links=tuple(relationships),
         )
@@ -107,7 +106,12 @@ class TraceActAdapter:
             relationships.append(
                 ctx.relationship(
                     "hasTransition",
-                    _serialize_transition_spec(obj.used_transition, obj.action.parent.rule, ctx),
+                    _serialize_transition_spec(
+                        obj.used_transition,
+                        obj.action.parent.rule,
+                        ctx,
+                        action_rule=obj.action.rule,
+                    ),
                 )
             )
 
@@ -193,16 +197,51 @@ def _serialize_transition_spec(
     transition: TransitionDeclaration,
     construct_rule: ConstructDeclaration,
     ctx: LoqiAdapterContext,
+    *,
+    action_rule: ActionDeclaration | None = None,
 ) -> LoqiObjectRef:
     action_refs_by_role = {
         action.role: _serialize_action_spec(action, ctx)
         for action in construct_rule.actions
     }
     _serialize_construct_spec(construct_rule, ctx)
+    transition = _matching_compiled_transition(transition, construct_rule, action_rule) or transition
+    existing_ref = _existing_transition_ref(transition, ctx)
+    if existing_ref is not None:
+        return existing_ref
     return ctx.serialize(
         transition,
         state_updates={"action_refs_by_role": action_refs_by_role},
     )
+
+
+def _matching_compiled_transition(
+    transition: TransitionDeclaration,
+    construct_rule: ConstructDeclaration,
+    action_rule: ActionDeclaration | None,
+) -> TransitionDeclaration | None:
+    expected_from_role = action_rule.role if action_rule is not None else transition.from_role
+    for compiled in construct_rule.compiled_transitions():
+        if compiled.from_role != expected_from_role:
+            continue
+        if compiled.to_role != transition.to_role:
+            continue
+        if compiled.to_when_absent != transition.to_when_absent:
+            continue
+        if compiled.constraints != transition.constraints:
+            continue
+        return compiled
+    return None
+
+
+def _existing_transition_ref(
+    transition: TransitionDeclaration,
+    ctx: LoqiAdapterContext,
+) -> LoqiObjectRef | None:
+    object_id = _normalize_object_name(f"transition_{transition.from_role}_to_{transition.to_role}")
+    if object_id in ctx.serializer._objects_by_id:
+        return LoqiObjectRef(object_id)
+    return None
 
 
 def _expanded_from_refs(obj: Construct, ctx: LoqiAdapterContext) -> list[LoqiObjectRef]:

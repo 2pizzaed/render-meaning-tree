@@ -242,9 +242,9 @@ class ConstructTransitionAutomaton:
 
     def validate(self) -> None:
         begin_transitions = self.transitions_from("BEGIN")
-        if len(begin_transitions) != 1:
+        if len(begin_transitions) > 1:
             raise ConstructAutomatonValidationError(
-                f"Construct {self.construct.name!r} must have exactly one transition from BEGIN"
+                f"Construct {self.construct.name!r} must have exactly one (or zero) transition from BEGIN"
             )
 
         unknown_roles = sorted(self._referenced_roles() - self.actions_by_role.keys())

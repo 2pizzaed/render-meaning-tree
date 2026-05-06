@@ -392,7 +392,7 @@ func_def_structure:
     - role: name
       kind: identifier
       identification:
-        property_path: 'declaration / name / name'
+        property_path: 'declaration / name'
     - role: func_body
       kind: compound
       identification:

@@ -1,8 +1,12 @@
 import logging
+import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Literal
+
+from src.env import TPG_CLI_DEBUG_ENV_VAR, env_flag
 
 type TpgProject = Literal["its_DomainModel", "its_Reasoner"]
 type DomainBuildMethod = Literal["LOQI", "RDF"]
@@ -12,8 +16,6 @@ VERSION: dict[TpgProject, str] = {
     "its_DomainModel": "3.0.0-alpha.7",
     "its_Reasoner": "3.0.0-alpha.3"
 }
-
-DEBUG = False
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +177,46 @@ def solve_reasoning(
         return output.read_text(encoding="utf-8")
 
 
+def solve_reasoning_result(
+    model_dir: str | Path,
+    domain_loqi: str | Path,
+    *,
+    tag: str | None = None,
+    tree: str | None = None,
+    verbose: bool = False,
+) -> bool | None:
+    """Run reasoning and return parsed Result value from the raw trace."""
+    raw_result = solve_reasoning(
+        model_dir,
+        domain_loqi,
+        tag=tag,
+        tree=tree,
+        verbose=verbose,
+        result_format="raw",
+    )
+    if raw_result is None:
+        return None
+    return extract_reasoning_result(raw_result)
+
+
+def extract_reasoning_result(raw_trace: str) -> bool | None:
+    """Extract ``Result: ...`` from a reasoner trace.
+
+    true/correct -> True, false/error -> False, null or missing result -> None.
+    Matching is case-insensitive.
+    """
+    match = re.search(r"(?im)^\s*Result:\s*(true|false|null|correct|error)\s*$", raw_trace)
+    if match is None:
+        return None
+
+    value = match.group(1).lower()
+    if value in {"true", "correct"}:
+        return True
+    if value in {"false", "error"}:
+        return False
+    return None
+
+
 def _run_domain_cli_bool(*args: str) -> bool:
     return _run_domain_cli(*args) is not None
 
@@ -197,25 +239,45 @@ def _run_reasoner_cli(*args: str) -> str | None:
 def _run_tpg_cli(project: TpgProject, *args: str) -> str | None:
     try:
         prepared_args = [*make_path(project), *args]
-        if DEBUG:
+        debug = _debug_enabled()
+        if debug:
             print(f"Running command: {' '.join(map(str, prepared_args))}")
         result = subprocess.run(
             prepared_args,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             check=True,
         )
-        if result.stderr:
+        if debug:
+            _print_cli_streams(result.stdout, result.stderr)
+        elif result.stderr:
             logger.warning("%s CLI error output: %s", project, result.stderr)
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.error("Error calling %s CLI", project)
-        logger.error("Error output: %s", e.stderr)
+        if _debug_enabled():
+            _print_cli_streams(e.stdout, e.stderr)
+        elif e.stderr:
+            logger.error("Error output: %s", e.stderr)
+        if not _debug_enabled() and e.stdout:
+            logger.debug("Output before failure: %s", e.stdout)
         return None
     except OSError as e:
         logger.error("Could not start %s CLI: %s", project, e)
         return None
+
+
+def _debug_enabled() -> bool:
+    return env_flag(TPG_CLI_DEBUG_ENV_VAR)
+
+
+def _print_cli_streams(stdout: str | None, stderr: str | None) -> None:
+    if stdout:
+        print(stdout, end="")
+    if stderr:
+        print(stderr, end="", file=sys.stderr)
 
 
 def _tag_args(tag: str | None) -> list[str]:

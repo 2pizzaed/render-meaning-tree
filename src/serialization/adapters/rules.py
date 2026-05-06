@@ -73,11 +73,6 @@ class ActionDeclarationAdapter:
         return "ActionSpec"
 
     def describe(self, obj: ActionDeclaration, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        _ensure_domain_supported(
-            obj.identification is None,
-            "ActionDeclaration.identification has no mapping in domain/domain.loqi",
-        )
-
         relationships = []
         if obj.parent is not None:
             relationships.append(ctx.relationship("belongsTo", obj.parent))

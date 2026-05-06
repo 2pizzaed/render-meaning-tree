@@ -128,7 +128,7 @@ class ASTEntity {
 
 class SemanticValue {
     obj prop bool_value: bool;
-	obj prop used: bool = false;
+	obj prop used: bool;
 
 	rel directlyBeforeOf(SemanticValue) : linear ;
 	rel directlyAfterOf(SemanticValue) : opposite to directlyBeforeOf ;

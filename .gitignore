@@ -2,6 +2,7 @@ __pycache__/
 .vscode/
 .pytest_cache/
 .idea/
+.env
 /domain/test_output/
 /test/output/
 /test/genout/

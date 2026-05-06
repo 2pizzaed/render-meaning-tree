@@ -1,9 +1,11 @@
 import json
 import logging
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
+from src.env import MEANING_TREE_CLI_DEBUG_ENV_VAR, env_flag
 from src.types import JSON, MeaningTree, SourceMap, TokenList
 
 m2_repo = (
@@ -20,8 +22,6 @@ JAR_RUN = [
     "-jar",
     JAR_PATH,
 ]
-DEBUG = False
-
 logger = logging.getLogger(__name__)
 
 
@@ -155,24 +155,44 @@ def node_hierarchy() -> JSON:
 def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
     try:
         prepared_args = [*JAR_RUN, *args]
-        if DEBUG:
-            print(f"Running command: {" ".join(map(str, prepared_args))}")
+        debug = _debug_enabled()
+        if debug:
+            print(f"Running command: {' '.join(map(str, prepared_args))}")
         result = subprocess.run(
             prepared_args,
             input=stdin_data,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding='utf-8',
             check=True,
         )
-        if not result.stdout and result.stderr:
+        if debug:
+            _print_cli_streams(result.stdout, result.stderr)
+        elif not result.stdout and result.stderr:
             logger.error("Meaning Tree error output: %s", result.stderr)
             return None
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.exception("Error calling Java application")
-        logger.error("Error output: %s", e.stderr)
+        if _debug_enabled():
+            _print_cli_streams(e.stdout, e.stderr)
+        elif e.stderr:
+            logger.error("Error output: %s", e.stderr)
+        if not _debug_enabled() and e.stdout:
+            logger.debug("Output before failure: %s", e.stdout)
         return None
+
+
+def _debug_enabled() -> bool:
+    return env_flag(MEANING_TREE_CLI_DEBUG_ENV_VAR)
+
+
+def _print_cli_streams(stdout: str | None, stderr: str | None) -> None:
+    if stdout:
+        print(stdout, end="")
+    if stderr:
+        print(stderr, end="", file=sys.stderr)
 
 
 def _run_serialize(code: str, source_lang: str, target_lang: str = "json", config: JSON | None = None) -> str | None:

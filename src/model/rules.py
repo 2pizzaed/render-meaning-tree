@@ -319,6 +319,9 @@ class ConstructDeclaration:
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> ConstructDeclaration:
+        actions = _ensure_boundary_actions(
+            [ActionDeclaration.from_dict(item) for item in data.get("actions", [])]
+        )
         return cls(
             name=name,
             kind=data["kind"],
@@ -326,7 +329,7 @@ class ConstructDeclaration:
             applicable_languages=list(data.get("applicable_languages", [])),
             metadata=Metadata.from_dict(data.get("metadata")),
             effects=_load_effect(data.get("effects")),
-            actions=[ActionDeclaration.from_dict(item) for item in data.get("actions", [])],
+            actions=actions,
             transitions=[TransitionDeclaration.from_dict(item) for item in data.get("transitions", [])],
         )
 
@@ -375,6 +378,17 @@ def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDe
                 raise ValueError(f"Conflicting effect value for {key!r}: {merged[key]!r} != {value!r}")
             merged[key] = value
     return EffectDeclaration.from_dict(merged)
+
+
+def _ensure_boundary_actions(actions: list[ActionDeclaration]) -> list[ActionDeclaration]:
+    existing_roles = {action.role for action in actions}
+    result: list[ActionDeclaration] = []
+    if "BEGIN" not in existing_roles:
+        result.append(ActionDeclaration(role="BEGIN", kind="BEGIN"))
+    result.extend(actions)
+    if "END" not in existing_roles:
+        result.append(ActionDeclaration(role="END", kind="END"))
+    return result
 
 
 def _copy_transition(transition: TransitionDeclaration, *, from_role: str) -> TransitionDeclaration:

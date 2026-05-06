@@ -8,7 +8,12 @@ from src.generator.pipeline import (
     PipelineRegistry,
     pipeline_stage,
 )
-from src.model.rules import ActionDeclaration, ConstructDeclaration, Identification, TransitionDeclaration
+from src.model.rules import (
+    ActionDeclaration,
+    ConstructDeclaration,
+    Identification,
+    TransitionDeclaration,
+)
 from src.model.situation import Action, Construct, TraceAct
 
 

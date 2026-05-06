@@ -117,6 +117,47 @@ def test_action_declaration_knows_parent_construct_declaration():
     assert action.parent is construct
 
 
+def test_construct_declaration_from_dict_adds_missing_boundary_actions():
+    construct = ConstructDeclaration.from_dict(
+        "demo",
+        {
+            "kind": "compound",
+            "ast_node": "demo_node",
+            "actions": [
+                {"role": "body", "kind": "inline"},
+            ],
+        },
+    )
+
+    assert [(action.role, action.kind) for action in construct.actions] == [
+        ("BEGIN", "BEGIN"),
+        ("body", "inline"),
+        ("END", "END"),
+    ]
+    assert all(action.parent is construct for action in construct.actions)
+
+
+def test_construct_declaration_from_dict_keeps_explicit_boundary_actions():
+    construct = ConstructDeclaration.from_dict(
+        "demo",
+        {
+            "kind": "compound",
+            "ast_node": "demo_node",
+            "actions": [
+                {"role": "BEGIN", "kind": "custom.begin"},
+                {"role": "body", "kind": "inline"},
+                {"role": "END", "kind": "custom.end"},
+            ],
+        },
+    )
+
+    assert [(action.role, action.kind) for action in construct.actions] == [
+        ("BEGIN", "custom.begin"),
+        ("body", "inline"),
+        ("END", "custom.end"),
+    ]
+
+
 def test_construct_declaration_compiled_transitions_expand_generalization():
     construct = ConstructDeclaration(
         name="sequence",

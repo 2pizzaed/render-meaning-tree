@@ -2,14 +2,14 @@ fragment findLastTracedAction(last: TraceAct) {
     ask (P->hasAction->derivedFrom.role == "END") out false else {
         var possibleLast: TraceAct = find TraceAct t {
             $t=>isCloserToThan(P, 
-                findExtreme TraceAct first [not $first=>afterOf($c)] among TraceAct c {true}
+                findExtreme first [not $first=>afterOf($c)] among TraceAct c {true}
             ) and $t->hasAction->derivedFrom.role != "END" and 
-            not findAny TraceAct t2 {
+            forAny TraceAct t2 {
                 $t2->hasAction.ast_id == $t->hasAction.ast_id and 
-                $t2->hasAction.derivedFrom.role == "END" and 
-                $t2=>isAfterOf($t)
+                $t2->hasAction->derivedFrom.role == "END" and 
+                $t2=>afterOf($t)
             }
-        } out true else {conclude : error [exception = true];};
+        } out true else {conclude : error [exception = true;];};
         ask (possibleLast->hasAction->belongsTo->derivedFrom.name == "global_statements_structure") out false else {
             conclude : true with (last = +obj : TraceAct (
                 {
@@ -27,12 +27,12 @@ fragment findLastTracedAction(last: TraceAct) {
             ));
         };
         conclude: true with (last = possibleLast);
-    }
-    ask (P->hasTransition->hasEffect.call_stack != CallStackAction:none) out true else {
+    };
+    ask (P->hasTransition->hasEffects.call_stack != CallStackAction:none) out true else {
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and
-            $a->ast_id == P->hasAction.ast_id
-        } out true else {conclude : error [exception = true];};
+            $a.ast_id == P->hasAction.ast_id
+        } out true else {conclude : error [exception = true;];};
         conclude : true with (last = +obj : TraceAct (
             {
                 hasAction(callAction);
@@ -41,29 +41,30 @@ fragment findLastTracedAction(last: TraceAct) {
             }
         ));
     };
+    conclude : null;
 }
 
 fragment classifyAction(N: ConcreteAction) {
-    ask (N.is_opaque) {
+    ask (N->derivedFrom.is_opaque) {
         true -> {
             var C: ConcreteConstruct = find ConcreteConstruct c {$c.ast_id == N.ast_id} {
-                var A: ConcreteAction = find ConcreteAction c 
-                    {$c->derivedFrom.role == "BEGIN" and $c.belongsTo == C} out true 
-                    else { conclude : error [exception = true];};
                 true -> {
-                    conclude : true with (L = +obj : TraceAct (
+                    var A: ConcreteAction = find ConcreteAction c {
+                        $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
+                    } out true else { conclude : error [exception = true;];};
+                    conclude : true with ({L = +obj : TraceAct (
                         {
                             hasAction(A);
-                            (A=>hasValue) ? hasValue(A->hasValue);
+                            (A=>hasValue()) ? hasValue(A->hasValue);
                             directlyBeforeOf(L);
                         }
-                    ); P = L);
+                    ); P = L});
                 }
                 false -> {
                     conclude : true with ({L = +obj : TraceAct (
                         {
                             hasAction(N);
-                            (N=>hasValue) ? hasValue(N->hasValue);
+                            (N=>hasValue()) ? hasValue(N->hasValue);
                             hasTransition(T);
                             directlyBeforeOf(L);
                         }
@@ -75,49 +76,56 @@ fragment classifyAction(N: ConcreteAction) {
             conclude: null;
             // продолжаем искать ответ
         }
-    }
+    };
 }
 
 tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
     var L: TraceAct = P;
     while (L->hasAction->derivedFrom.is_opaque or L == P) {
-        agg and {
-            _ -> {fragment:findLastTracedAction(L)};
-            true -> out;
+        body -> {
+            agg and {
+                `fragment`:findLastTracedAction(L);
+            } out true;
+
+            ask (L->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" 
+                and L->hasAction->derivedFrom.role != "END") out false else {
+                conclude: true with (P = L) [
+                    // все вычислено
+                ];
+            };
+
+            var T: TransitionSpec = find TransitionSpec t {
+                $t->from_ == L->hasAction->derivedFrom and
+                $t->belongsTo == L->hasAction->belongsTo and
+                (S.interruption_mode == $t->hasConstraints.interruption_mode 
+                    or $t->hasConstraints.interruption_mode == InterruptionType:any) and
+                (L=>hasValue() and (find SemanticValue v {$v=>afterOf(L->hasValue) and not $v.used and $v=>isCloserToThan(
+                    L->hasValue, 
+                    findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {$c=>afterOf(L->hasValue)})
+                }).bool_value == $t->hasConstraints.condition_value)
+            } out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
+
+            var N: ConcreteAction = find ConcreteAction a {
+                $a != L and
+                $a->derivedFrom == T->to_ and
+                $a->belongsTo->derivedFrom == T->belongsTo and
+                $a->belongsTo.ast_id == L->hasAction.ast_id
+            } out true else {conclude : error [exception = true; exceptionName = "NoNextAction";];};
+
+            ask (forAny TraceAct t {$t->hasAction == N}) out true else {
+                var N1: ConcreteAction = find ConcreteAction n {$n=>afterOf(N) and not (forAny TraceAct t {$t->hasAction == $n}) and $n=>isCloserToThan(
+                    N,
+                    findExtreme lastN [not $lastN=>beforeOf($c)] among ConcreteAction c {$c=>afterOf(N)}
+                )};
+                `fragment`:classifyAction(N1);
+            };
+            `fragment`:classifyAction(N);
         }
-
-        ask (L->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" 
-            and L->hasAction->derivedFrom.role != "END") out false else {
-            conclude: true [
-                // все вычислено
-            ] with (P = L);
-        };
-
-        var T: TransitionSpec = find TransitionSpec t {
-            $t->from_ == L->hasAction->derivedFrom and
-            $t->belongsTo == L->hasAction->belongsTo and
-            (S.interruption_mode == $t->hasConstraints.interruption_mode 
-                or $t->hasConstraints.interruption_mode == InterruptionMode:any) and
-            (L=>hasValue() and (find SemanticValue v {$v=>isAfterOf(L->hasValue) and not $v->used and $v=>isCloserToThan(
-                L->hasValue, 
-                findExtreme SemanticValue lastV [not $lastV=>beforeOf($c)] among SemanticValue c {$c=>isAfterOf($L->hasValue)})
-            }).boolValue == $t->hasConstraints.condition_value)
-        } out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition"];};
-
-        var N: ConcreteAction = find ConcreteAction a {
-            $a != L and
-            $a->derivedFrom == T->to_ and
-            $a->belongsTo->derivedFrom == T->belongsTo and
-            $a->belongsTo.ast_id == L->hasAction->derivedFrom.ast_id
-        } out true else {conclude : error [exception = true; exceptionName = "NoNextAction"];};
-
-        ask (forAny TraceAct t {$t->hasAction == N}) out true else {
-            var N: ConcreteAction = find ConcreteAction n {$n=>isAfterOf(N) and not (forAny TraceAct t {$t->hasAction == $n}) and $v=>isCloserToThan(
-                N,
-                findExtreme ConcreteAction lastN [not $lastN=>beforeOf($c)] among ConcreteAction c {$c=>isAfterOf(N)}
-            )};
-            fragment:classifyAction(N);
-        };
-        fragment:classifyAction(N);
-    }
+        true, false -> {
+            conclude : true;
+        }
+        null -> {
+            conclude : false [exception=true;];
+        }
+    };
 }

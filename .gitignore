@@ -3,7 +3,7 @@ __pycache__/
 .pytest*/
 .idea/
 .env
-/domain/test_output/
+/domain/test.xml
 /test/output/
 /test/genout/
 *.png

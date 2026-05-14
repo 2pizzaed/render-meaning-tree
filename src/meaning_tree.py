@@ -161,8 +161,7 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
         result = subprocess.run(
             prepared_args,
             input=stdin_data,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             encoding='utf-8',
             check=True,

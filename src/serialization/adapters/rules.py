@@ -9,6 +9,7 @@ from src.model.rules import (
     ConstructDeclaration,
     EffectDeclaration,
     Identification,
+    InterruptionType,
     Metadata,
     TransitionDeclaration,
 )
@@ -23,7 +24,7 @@ from src.serialization.loqi import (
 OPTIONAL_BOOL_VALUES = {
     True: "`true`",
     False: "`false`",
-    None: "no_value",
+    None: "`null`",
 }
 
 class ConstructDeclarationAdapter:
@@ -93,7 +94,9 @@ class ActionDeclarationAdapter:
 
 class TransitionDeclarationAdapter:
     def object_name(self, obj: TransitionDeclaration) -> str:
-        return f"transition_{obj.from_role}_to_{obj.to_role}"
+        if obj.parent is None:
+            return f"transition_{obj.from_role}_to_{obj.to_role}"
+        return f"transition_{obj.parent.name}_{obj.from_role}_to_{obj.to_role}"
 
     def type_name(self, obj: TransitionDeclaration) -> str:
         return "TransitionSpec"
@@ -107,8 +110,8 @@ class TransitionDeclarationAdapter:
 
         if obj.to_when_absent is not None:
             absent_roles = obj.to_when_absent if isinstance(obj.to_when_absent, list) else [obj.to_when_absent]
-            relationships.append(
-                ctx.relationship(
+            relationships.extend(
+                ctx.relationship_links(
                     "to_when_absent",
                     [_resolve_action_ref(action_refs_by_role, role) for role in absent_roles],
                 )
@@ -156,12 +159,17 @@ class ConstraintsDeclarationAdapter:
         return "Constraint"
 
     def describe(self, obj: ConstraintsDeclaration, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        return LoqiObjectSpec(
-            properties=(
-                ctx.property("condition_value", obj.condition_value, enum_name="OptionalBool", value_map=OPTIONAL_BOOL_VALUES),
-                ctx.property("interruption_mode", obj.interruption_mode),
+        properties = []
+        properties.append(
+            ctx.property(
+                "condition_value",
+                obj.condition_value,
+                enum_name="OptionalBool",
+                value_map=OPTIONAL_BOOL_VALUES,
             )
         )
+        properties.append(ctx.property("interruption_mode", obj.interruption_mode or InterruptionType.ANY))
+        return LoqiObjectSpec(properties=tuple(properties))
 
 
 class UnsupportedDomainAdapter:

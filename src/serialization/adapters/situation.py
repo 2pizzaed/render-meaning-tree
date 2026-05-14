@@ -8,6 +8,7 @@ from src.model.situation import Action, Construct, TraceAct, TraceState
 from src.serialization.loqi import (
     LoqiAdapter,
     LoqiAdapterContext,
+    LoqiDomainMismatchError,
     LoqiObjectRef,
     LoqiObjectSpec,
     RelationshipLink,
@@ -51,7 +52,11 @@ class ConstructAdapter:
 
         expanded_from_refs = _expanded_from_refs(obj, ctx)
         if expanded_from_refs:
-            relationships.append(ctx.relationship("expandedFrom", expanded_from_refs))
+            if len(expanded_from_refs) > 1:
+                raise LoqiDomainMismatchError(
+                    f"Concrete construct {obj.ast_id!r} expands from multiple action specs"
+                )
+            relationships.append(ctx.relationship("expandedFrom", expanded_from_refs[0]))
 
         return LoqiObjectSpec(
             properties=(
@@ -238,7 +243,12 @@ def _existing_transition_ref(
     transition: TransitionDeclaration,
     ctx: LoqiAdapterContext,
 ) -> LoqiObjectRef | None:
-    object_id = _normalize_object_name(f"transition_{transition.from_role}_to_{transition.to_role}")
+    if transition.parent is None:
+        object_id = _normalize_object_name(f"transition_{transition.from_role}_to_{transition.to_role}")
+    else:
+        object_id = _normalize_object_name(
+            f"transition_{transition.parent.name}_{transition.from_role}_to_{transition.to_role}"
+        )
     if object_id in ctx.serializer._objects_by_id:
         return LoqiObjectRef(object_id)
     return None

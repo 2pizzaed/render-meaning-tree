@@ -18,6 +18,8 @@ class AmbiguousTransitionError(ConstructAutomatonValidationError):
 
 @dataclass(frozen=True, slots=True)
 class LoopInfo:
+    """Сильно связанная область автомата с известными входами и выходами."""
+
     index: int
     roles: frozenset[str]
     entry_roles: frozenset[str]
@@ -29,6 +31,8 @@ class LoopInfo:
 
 @dataclass(frozen=True, slots=True)
 class ConstructAutomatonStep:
+    """Один структурный шаг автомата: action и переходы вокруг него."""
+
     action: ActionDeclaration
     incoming_transition: TransitionDeclaration | None
     outgoing_transitions: tuple[TransitionDeclaration, ...]
@@ -43,6 +47,8 @@ class ConstructAutomatonStep:
 
 @dataclass(frozen=True, slots=True)
 class LoopControl:
+    """Action-условие, которое выбирает продолжить runtime-цикл или выйти."""
+
     loop: LoopInfo
     action: ActionDeclaration
     inside_transitions: tuple[TransitionDeclaration, ...]
@@ -65,6 +71,8 @@ class LoopControl:
 
 @dataclass(frozen=True, slots=True)
 class SelfLoopControl:
+    """Повторяемая роль для статических списков AST: sequence next, elif next_cond."""
+
     loop: LoopInfo
     action: ActionDeclaration
     transition: TransitionDeclaration
@@ -76,6 +84,13 @@ class SelfLoopControl:
 
 
 class ConstructTransitionAutomaton:
+    """Конечный автомат одного ConstructDeclaration.
+
+    Автомат работает на уровне правил домена: роли action-ов являются вершинами,
+    TransitionDeclaration - ребрами. Он не разворачивает runtime trace, а помогает
+    понять допустимый порядок действий, повторяемые AST-элементы и условия циклов.
+    """
+
     def __init__(self, construct: ConstructDeclaration) -> None:
         self.construct = construct
         self.actions_by_role = {action.role: action for action in construct.actions}
@@ -114,6 +129,8 @@ class ConstructTransitionAutomaton:
         return self._transitions_by_from.get(role, ())
 
     def loop_controls(self) -> tuple[LoopControl, ...]:
+        """Найти условия, у которых есть переход внутрь цикла и переход наружу."""
+
         controls: list[LoopControl] = []
         for loop in self.loops:
             for role in sorted(loop.entry_roles):
@@ -145,6 +162,8 @@ class ConstructTransitionAutomaton:
         return action.role in self.repeated_value_roles
 
     def self_loop_controls(self) -> tuple[SelfLoopControl, ...]:
+        """Найти роли, которые повторяются по структуре AST, но не задают runtime-цикл."""
+
         controls: list[SelfLoopControl] = []
         for loop in self.loops:
             if len(loop.roles) != 1:
@@ -364,6 +383,8 @@ def _group_edges_by_from(transitions: Iterable[TransitionDeclaration]) -> dict[s
 
 
 def _find_loops(edges_by_from: dict[str, set[str]]) -> tuple[LoopInfo, ...]:
+    """Выделить циклические области графа переходов."""
+
     components = _strongly_connected_components(edges_by_from)
     loops: list[LoopInfo] = []
     for component in components:

@@ -265,7 +265,7 @@ def test_construct_automaton_rejects_multiple_begin_transitions():
         ],
     )
 
-    with pytest.raises(ConstructAutomatonValidationError, match="exactly one transition from BEGIN"):
+    with pytest.raises(ConstructAutomatonValidationError, match=r"exactly one \(or zero\) transition from BEGIN"):
         ConstructTransitionAutomaton(construct)
 
 

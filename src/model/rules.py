@@ -220,6 +220,7 @@ class TransitionDeclaration:
     to_when_absent: str | list[str] | None = None
     constraints: ConstraintsDeclaration | None = None
     effects: EffectDeclaration | None = None
+    parent: ConstructDeclaration | None = field(default=None, init=False, repr=False, compare=False)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TransitionDeclaration:
@@ -253,6 +254,10 @@ class ConstructDeclaration:
             if action.parent is not None:
                 raise ValueError(f"Action {action.role!r} in construct {self.name!r} has multiple parents: {action.parent.name!r} and {self.name!r}")
             action.parent = self
+        for transition in self.transitions:
+            if transition.parent is not None:
+                raise ValueError(f"Transition {transition.from_role!r}->{transition.to_role!r} in construct {self.name!r} has multiple parents: {transition.parent.name!r} and {self.name!r}")
+            transition.parent = self
 
     def applicable_to_language(self, language: str) -> bool:
         return not self.applicable_languages or language in self.applicable_languages
@@ -393,13 +398,15 @@ def _ensure_boundary_actions(actions: list[ActionDeclaration]) -> list[ActionDec
 
 def _copy_transition(transition: TransitionDeclaration, *, from_role: str) -> TransitionDeclaration:
     to_when_absent = transition.to_when_absent.copy() if isinstance(transition.to_when_absent, list) else transition.to_when_absent
-    return TransitionDeclaration(
+    result = TransitionDeclaration(
         from_role=from_role,
         to_role=transition.to_role,
         to_when_absent=to_when_absent,
         constraints=transition.constraints,
         effects=_copy_effect(transition.effects),
     )
+    result.parent = transition.parent
+    return result
 
 
 def _copy_effect(effect: EffectDeclaration | None) -> EffectDeclaration | None:

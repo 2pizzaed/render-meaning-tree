@@ -24,6 +24,7 @@ from src.serialization.loqi import (
     LoqiAdapter,
     LoqiAdapterContext,
     LoqiAdapterNotFoundError,
+    LoqiDomainMismatchError,
     LoqiObjectSpec,
     LoqiSerializationError,
     LoqiSerializer,
@@ -109,7 +110,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             kind = "branch";
             hasActions(action_BEGIN);
             hasActions(action_END);
-            hasTransitions(transition_BEGIN_to_END);
+            hasTransitions(transition_if_statement_BEGIN_to_END);
         }
 
         obj action_BEGIN : ActionSpec {
@@ -125,7 +126,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             belongsTo(construct_if_statement);
         }
 
-        obj transition_BEGIN_to_END : TransitionSpec {
+        obj transition_if_statement_BEGIN_to_END : TransitionSpec {
             from_(action_BEGIN);
             to_(action_END);
             hasConstraints(constraint_true_none);
@@ -164,8 +165,9 @@ def test_serialize_loqi_to_when_absent_supports_single_and_many_roles() -> None:
     rendered = serialize_loqi(construct)
 
     assert "to_when_absent(action_END);" in rendered
-    assert rendered.count("to_when_absent(") == 2
-    assert "to_when_absent(action_BEGIN, action_END);" in rendered
+    assert rendered.count("to_when_absent(") == 3
+    assert "to_when_absent(action_BEGIN);" in rendered
+    assert "to_when_absent(action_BEGIN, action_END);" not in rendered
 
 
 def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relationship() -> None:
@@ -210,9 +212,9 @@ def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_gene
 
     rendered = serialize_loqi(construct)
 
-    assert "hasTransitions(transition_BEGIN_to_first);" in rendered
-    assert "hasTransitions(transition_first_to_next);" in rendered
-    assert "hasTransitions(transition_next_to_next);" in rendered
+    assert "hasTransitions(transition_sequence_BEGIN_to_first);" in rendered
+    assert "hasTransitions(transition_sequence_first_to_next);" in rendered
+    assert "hasTransitions(transition_sequence_next_to_next);" in rendered
     assert "from_(action_item)" not in rendered
     assert "hasEffects(effect_break);" in rendered
 
@@ -316,6 +318,17 @@ def test_loqi_serializer_keeps_created_objects_in_objects_list() -> None:
     assert [obj.object_id for obj in serializer.objects] == ["construct_branch", "action_BEGIN"]
 
 
+def test_loqi_serializer_serializes_many_roots_once() -> None:
+    serializer = LoqiSerializer()
+    first = ConstructDeclaration(name="first", kind="compound", ast_node="First")
+    second = ConstructDeclaration(name="second", kind="compound", ast_node="Second")
+
+    rendered = serializer.serialize_many([first, second])
+
+    assert rendered.count("obj construct_first : ConstructSpec {") == 1
+    assert rendered.count("obj construct_second : ConstructSpec {") == 1
+
+
 def test_rules_declarations_coerce_domain_enums() -> None:
     effect = EffectDeclaration.from_dict({"interruption_start": "break", "call_stack": "add_frame"})
     constraint = ConstraintsDeclaration.from_dict({"condition_value": True, "interruption_mode": "none"})
@@ -325,6 +338,13 @@ def test_rules_declarations_coerce_domain_enums() -> None:
     assert constraint is not None
     assert constraint.condition_value is True
     assert constraint.interruption_mode is InterruptionType.NONE
+
+
+def test_serialize_loqi_omits_missing_constraint_fields() -> None:
+    rendered = serialize_loqi(ConstraintsDeclaration(condition_value=None))
+
+    assert "condition_value = OptionalBool:`null`;" in rendered
+    assert "interruption_mode = InterruptionType:any;" in rendered
 
 
 def test_serialize_loqi_renders_rule_enum_objects_as_loqi_enums() -> None:
@@ -414,9 +434,82 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
 
     assert "obj trace_act_0_20_BEGIN : TraceAct {" in rendered
     assert "hasAction(concrete_action_20_BEGIN);" in rendered
-    assert "hasTransition(transition_BEGIN_to_body);" in rendered
+    assert "hasTransition(transition_demo_trace_BEGIN_to_body);" in rendered
     assert "directlyBeforeOf(trace_act_1_21_body);" in rendered
     assert "hasValue(semantic_value_action_21_body_0);" in rendered
+
+
+def test_serialize_loqi_situation_expanded_from_is_single_link() -> None:
+    ctx = SituationContextStub()
+    parent_rule = ConstructDeclaration(
+        name="parent",
+        kind="compound",
+        ast_node="parent_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="child", kind="compound"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    child_rule = ConstructDeclaration(
+        name="child",
+        kind="compound",
+        ast_node="child_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    parent = Construct(parent=None, ast_id=30, rule=parent_rule, owner=ctx)
+    child = Construct(parent=parent, ast_id=31, rule=child_rule, owner=ctx)
+    parent_action = Action(
+        ast_id=31,
+        values=[],
+        rule=parent_rule.actions[1],
+        parent=parent,
+        owner=ctx,
+    )
+    ctx.add(parent)
+    ctx.add(child)
+    ctx.add(parent_action)
+
+    rendered = serialize_loqi(child, adapters_by_type=_all_model_adapters())
+
+    assert "expandedFrom(action_child);" in rendered
+    assert "expandedFrom(action_child," not in rendered
+
+
+def test_serialize_loqi_situation_errors_when_expanded_from_has_multiple_sources() -> None:
+    ctx = SituationContextStub()
+    parent_rule = ConstructDeclaration(
+        name="parent",
+        kind="compound",
+        ast_node="parent_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="left", kind="compound"),
+            ActionDeclaration(role="right", kind="compound"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    child_rule = ConstructDeclaration(
+        name="child",
+        kind="compound",
+        ast_node="child_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    parent = Construct(parent=None, ast_id=40, rule=parent_rule, owner=ctx)
+    child = Construct(parent=parent, ast_id=41, rule=child_rule, owner=ctx)
+    ctx.add(parent)
+    ctx.add(child)
+    ctx.add(Action(ast_id=41, values=[], rule=parent_rule.actions[1], parent=parent, owner=ctx))
+    ctx.add(Action(ast_id=41, values=[], rule=parent_rule.actions[2], parent=parent, owner=ctx))
+
+    with pytest.raises(LoqiDomainMismatchError, match="expands from multiple action specs"):
+        serialize_loqi(child, adapters_by_type=_all_model_adapters())
 
 
 def test_serialize_loqi_situation_trace_state() -> None:

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Iterable
 from importlib.resources import as_file, files
 from typing import Any, Protocol, Self, TypeVar, cast
 
@@ -12,6 +13,7 @@ from src.json_search import JSONPath
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
+    TransitionDeclaration,
     load_construct_declarations,
     locate_construct_declaration_by_ast_node,
 )
@@ -90,33 +92,70 @@ class Pipeline(ABC):
 class SituationDomainDataRegistry:
     def __init__(self, owner: DomainDataGeneratorPipeline):
         self.owner = owner
+        self.rules: list[ConstructDeclaration] = []
         self.constructs: dict[int, Construct] = {}
         self.actions: dict[int, list[Action]] = {}
         self.anonymous_actions: list[Action] = []
+        self.action_orders: dict[int, int] = {}
+        self._next_action_order = 0
         self.trace_acts: list[TraceAct] = []
         self.utilities = set()
 
     def collect(self) -> list[Any]:
-        return [*self.constructs.values(),
-                *[action for actions in self.actions.values() for action in actions],
-                *self.anonymous_actions,
-                *self.trace_acts,
-                *self.utilities]
+        actions = [action for actions in self.actions.values() for action in actions]
+        return [
+            *self._used_rules(actions),
+            *self.constructs.values(),
+            *actions,
+            *self.anonymous_actions,
+            *self.trace_acts,
+            *self.utilities,
+        ]
 
     def copy(self, owner: DomainDataGeneratorPipeline) -> SituationDomainDataRegistry:
         new_registry = SituationDomainDataRegistry(owner)
+        new_registry.rules = self.rules.copy()
         new_registry.constructs = self.constructs.copy()
         new_registry.actions = {k: v.copy() for k, v in self.actions.items()}
+        new_registry.anonymous_actions = self.anonymous_actions.copy()
+        new_registry.action_orders = self.action_orders.copy()
+        new_registry._next_action_order = self._next_action_order
         new_registry.trace_acts = self.trace_acts.copy()
         new_registry.utilities = self.utilities.copy()
         return new_registry
+
+    def remember_action_order(self, action: Action) -> None:
+        """Запомнить порядок появления action при структурном обходе автомата."""
+
+        if id(action) in self.action_orders:
+            return
+        self.action_orders[id(action)] = self._next_action_order
+        self._next_action_order += 1
+
+    def action_order(self, action: Action) -> int:
+        return self.action_orders.get(id(action), self._next_action_order)
+
+    def _used_rules(self, actions: list[Action]) -> list[ConstructDeclaration]:
+        """Вернуть только rules, реально использованные объектами situation."""
+
+        used_rule_ids = {id(construct.rule) for construct in self.constructs.values()}
+        used_rule_ids.update(
+            id(action.rule.parent)
+            for action in (*actions, *self.anonymous_actions)
+            if action.rule.parent is not None
+        )
+        used_rule_ids.update(
+            id(trace_act.used_transition.parent)
+            for trace_act in self.trace_acts
+            if trace_act.used_transition is not None and trace_act.used_transition.parent is not None
+        )
+        return [rule for rule in self.rules if id(rule) in used_rule_ids]
 
 
 class DomainDataGeneratorPipeline(Pipeline):
     def __init__(self, manager: CodeManager, *, fork_enabled: bool = True):
         super().__init__()
         self.manager = manager
-        self._rules: list[ConstructDeclaration] = []
         self.registry = SituationDomainDataRegistry(self)
         self.fork_enabled = fork_enabled
 
@@ -126,7 +165,7 @@ class DomainDataGeneratorPipeline(Pipeline):
 
     @property
     def rules(self) -> list[ConstructDeclaration]:
-        return self._rules
+        return self.registry.rules
 
     @property
     def trace_acts(self) -> list[TraceAct]:
@@ -143,7 +182,7 @@ class DomainDataGeneratorPipeline(Pipeline):
         return self.registry.actions.get(ast_id, []).copy()
 
     def get_related_actions(self, construct: Construct) -> list[Action]:
-        return [
+        result = [
             action
             for action in (
                 *[action for actions in self.registry.actions.values() for action in actions],
@@ -151,6 +190,22 @@ class DomainDataGeneratorPipeline(Pipeline):
             )
             if action.parent is construct
         ]
+        return sorted(result, key=self._action_order_key)
+
+    def _action_order_key(self, action: Action) -> tuple[int, int]:
+        # BEGIN/END создаются при Construct.__post_init__, но в цепочке должны
+        # обрамлять действия, найденные позже через автомат.
+        if action.rule.role == "BEGIN":
+            return (0, self.registry.action_order(action))
+        if action.rule.role == "END":
+            return (2, self.registry.action_order(action))
+        return (1, self.registry.action_order(action))
+
+    @property
+    def root_rule(self) -> ConstructDeclaration:
+        if not self.rules:
+            raise RuntimeError("Construct declarations are not loaded")
+        return self.rules[0]
 
     def add(self, object: Any) -> None:
         if isinstance(object, Construct):
@@ -162,6 +217,7 @@ class DomainDataGeneratorPipeline(Pipeline):
                 if object.ast_id is not None else self.registry.anonymous_actions
             if not any(action is object for action in actions):
                 actions.append(object)
+            self.registry.remember_action_order(object)
             return
 
         if isinstance(object, TraceAct):
@@ -183,9 +239,9 @@ class DomainDataGeneratorPipeline(Pipeline):
     def _load_rules(self):
         resource = files("src").joinpath("resources", "constructs.yml")
         with as_file(resource) as resource_path:
-            self._rules = load_construct_declarations(resource_path)
-        self._rules = [
-            construct for construct in self._rules
+            self.registry.rules = load_construct_declarations(resource_path)
+        self.registry.rules = [
+            construct for construct in self.registry.rules
             if construct.applicable_to_language(self.manager.language)
         ]
 
@@ -201,19 +257,33 @@ class DomainDataGeneratorPipeline(Pipeline):
                     f"No construct declaration found for AST node type {node_type!r} (id: {ast_id})",
                     stacklevel=2)
             return
-        if construct_decl.kind_classes.isdisjoint({"noop", "inline"}):
+        if not construct_decl.kind_classes.isdisjoint({"noop", "inline"}):
             # конструкты для этих AST структур либо атомарные actions, либо не нужны рассуждателю
             return
-        par_node = self.code.ast.get_parent_of(ast_id)
-        par_node_id = cast(int, par_node.get("id")) if par_node else None
+        parent = self._build_parent_construct(ast_id)
+        if parent is None and construct_decl is not self.root_rule:
+            raise ValueError(
+                f"Non-root construct {construct_decl.name!r} for AST node {ast_id} has no parent construct"
+            )
         self.registry.constructs[ast_id] = Construct(
-            self._build_construct(
-                par_node_id, par_node
-            ) if par_node_id and par_node else None,
+            parent,
             ast_id,
             construct_decl,
             self
         )
+        return self.registry.constructs[ast_id]
+
+    def _build_parent_construct(self, ast_id: int) -> Construct | None:
+        par_node = self.code.ast.get_parent_of(ast_id)
+        while par_node:
+            par_node_id = cast(int | None, par_node.get("id"))
+            if par_node_id is None:
+                return None
+            parent = self._build_construct(par_node_id, par_node)
+            if parent is not None:
+                return parent
+            par_node = self.code.ast.get_parent_of(par_node_id)
+        return None
 
     @pipeline_stage(2)
     def _generate_constructs(self):
@@ -233,8 +303,23 @@ class DomainDataGeneratorPipeline(Pipeline):
         raise ValueError(f"{action_decl.role} in {construct.rule.name} can't be identified")
 
     def _action_values_for(self, action_decl: ActionDeclaration, automaton: ConstructTransitionAutomaton) -> list[bool]:
-        if automaton.controls_loop(action_decl):
-            return [True, False] # TODO: пока не готова генерация значений времени выполнения
+        """Подобрать возможные значения action-условия на уровне situation.
+
+        Здесь пока задаются только допустимые/дефолтные значения условия.
+        Для проверки конкретного числа итераций нужно положить в Action.values
+        эталонную последовательность вроде [True, True, False]: ученический
+        TraceAct будет проверяться рассуждателем на потребление этих значений.
+        assumed_value используется как дефолт правила, например для неявного
+        или отсутствующего компонента цикла.
+        """
+
+        if automaton.controls_loop(action_decl) and not automaton.repeats_action(action_decl):
+            return _unique_bool_values(
+                value
+                for control in automaton.loop_controls()
+                if control.action is action_decl
+                for value in control.condition_values
+            )
         if action_decl.behaviour is not None and action_decl.behaviour.assumed_value is not None:
             return [action_decl.behaviour.assumed_value]
         return []
@@ -245,16 +330,21 @@ class DomainDataGeneratorPipeline(Pipeline):
         action_decl: ActionDeclaration,
         child: Node,
         automaton: ConstructTransitionAutomaton,
-    ) -> None:
-        self.add(
-            Action(
-                ast_id=cast(int | None, child.get("id")),
-                values=self._action_values_for(action_decl, automaton),
-                rule=action_decl,
-                parent=construct,
-                owner=self,
-            )
+    ) -> Action:
+        ast_id = cast(int | None, child.get("id"))
+        for existing in self.get_related_actions(construct):
+            if existing.ast_id == ast_id and existing.rule is action_decl:
+                return existing
+
+        action = Action(
+            ast_id=ast_id,
+            values=self._action_values_for(action_decl, automaton),
+            rule=action_decl,
+            parent=construct,
+            owner=self,
         )
+        self.add(action)
+        return action
 
     def _resolve_action_node(
         self,
@@ -276,25 +366,63 @@ class DomainDataGeneratorPipeline(Pipeline):
     @pipeline_stage(3)
     def _fill_actions(self):
         for construct in self.registry.constructs.values():
-            construct_decl = construct.rule
-            prev_action_path: JSONPath | None = None
-            automaton = ConstructTransitionAutomaton(construct_decl)
-            for action_decl in construct_decl.actions:
-                if action_decl.role == "BEGIN" or action_decl.role == "END":
-                    continue
+            self._fill_construct_actions(construct)
 
-                while True:
-                    child, path = self._resolve_action_node(construct, action_decl, prev_action_path)
-                    if child is None:
-                        break
+    def _fill_construct_actions(self, construct: Construct) -> None:
+        automaton = ConstructTransitionAutomaton(construct.rule)
+        # Структурно обходим граф переходов, передавая JSON path предыдущего
+        # action occurrence для identification вида "next".
+        queue: deque[tuple[str, JSONPath | None, tuple[str, ...]]] = deque()
+        for transition in automaton.transitions_from("BEGIN"):
+            queue.append((transition.to_role, None, ()))
 
-                    self._add_action_for_node(construct, action_decl, child, automaton)
-                    prev_action_path = path
+        # Одна роль может найтись в нескольких AST path (sequence next / elif),
+        # но один и тот же (role, path) нельзя разворачивать бесконечно.
+        visited: set[tuple[str, JSONPath | int | None]] = set()
+        while queue:
+            role, previous_path, fallback_roles = queue.popleft()
+            if role in {"BEGIN", "END"}:
+                continue
 
-                    if not automaton.repeats_action(action_decl):
-                        break
+            action_decl = automaton.action_by_role(role)
+            child, path = self._resolve_action_node(construct, action_decl, previous_path)
+            if child is None:
+                # Если основной target отсутствует, идем по to_when_absent от
+                # того же предыдущего occurrence.
+                queue.extend((fallback_role, previous_path, ()) for fallback_role in fallback_roles)
+                continue
+
+            action_key = (role, path if path is not None else cast(int | None, child.get("id")))
+            if action_key in visited:
+                continue
+            visited.add(action_key)
+
+            self._add_action_for_node(construct, action_decl, child, automaton)
+            for transition in automaton.transitions_from(role):
+                absent_roles = _transition_absent_roles(transition)
+                queue.append((transition.to_role, path, absent_roles))
 
     @pipeline_stage(4)
     def _generate_bool_values(self):
         # TODO: Заглушка, пока не будет нормального анализатора значений
         pass
+
+
+def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:
+    """Нормализовать to_when_absent в кортеж ролей."""
+
+    if transition.to_when_absent is None:
+        return ()
+    if isinstance(transition.to_when_absent, list):
+        return tuple(transition.to_when_absent)
+    return (transition.to_when_absent,)
+
+
+def _unique_bool_values(values: Iterable[bool]) -> list[bool]:
+    """Сохранить порядок исходов условия и убрать дубли."""
+
+    result: list[bool] = []
+    for value in values:
+        if value not in result:
+            result.append(value)
+    return result

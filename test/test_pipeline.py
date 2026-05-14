@@ -103,6 +103,91 @@ def test_domain_pipeline_can_disable_fork_with_flag():
         pipeline.fork()
 
 
+def test_domain_pipeline_build_construct_skips_inline_and_noop_rules():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(name="root", kind="compound", ast_node="root_node"),
+        ConstructDeclaration(name="atom", kind="inline", ast_node="atom_node"),
+        ConstructDeclaration(name="ignored", kind="noop", ast_node="ignored_node"),
+    ]
+
+    assert pipeline._build_construct(2, {"id": 2, "type": "atom_node"}) is None
+    assert pipeline._build_construct(3, {"id": 3, "type": "ignored_node"}) is None
+    assert pipeline.registry.constructs == {}
+
+
+def test_domain_pipeline_first_construct_declaration_is_root_rule_without_parent():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "root_node"}
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        _construct_rule("root", "compound", "root_node"),
+        _construct_rule("child", "compound", "child_node"),
+    ]
+
+    construct = pipeline._build_construct(1, {"id": 1, "type": "root_node"})
+
+    assert construct is not None
+    assert construct.parent is None
+    assert construct.rule is pipeline.root_rule
+
+
+def test_domain_pipeline_non_root_construct_requires_construct_parent():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        _construct_rule("root", "compound", "root_node"),
+        _construct_rule("child", "compound", "child_node"),
+    ]
+
+    with pytest.raises(ValueError, match="Non-root construct 'child'.*has no parent construct"):
+        pipeline._build_construct(2, {"id": 2, "type": "child_node"})
+
+
+def test_domain_pipeline_uses_nearest_constructable_ancestor_as_parent():
+    nodes = {
+        1: {"id": 1, "type": "root_node"},
+        2: {"id": 2, "type": "atom_node"},
+        3: {"id": 3, "type": "child_node"},
+    }
+    parents = {3: nodes[2], 2: nodes[1], 1: None}
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.side_effect = lambda ast_id: parents[ast_id]
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes[ast_id]
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        _construct_rule("root", "compound", "root_node"),
+        _construct_rule("atom", "inline", "atom_node"),
+        _construct_rule("child", "compound", "child_node"),
+    ]
+
+    child = pipeline._build_construct(3, nodes[3])
+
+    assert child is not None
+    assert child.parent is pipeline.get_construct_for(1)
+    assert child.parent is not None
+    assert child.parent.rule is pipeline.root_rule
+
+
+def _construct_rule(name: str, kind: str, ast_node: str) -> ConstructDeclaration:
+    return ConstructDeclaration(
+        name=name,
+        kind=kind,
+        ast_node=ast_node,
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+
+
 def test_domain_pipeline_implements_situation_context_registry_methods():
     manager = Mock(language="python")
     pipeline = DomainDataGeneratorPipeline(manager)
@@ -136,10 +221,53 @@ def test_domain_pipeline_implements_situation_context_registry_methods():
     assert pipeline.get_actions_for(11) == [action]
     assert pipeline.get_related_actions(construct) == [
         construct.begin_action(),
-        construct.end_action(),
         action,
+        construct.end_action(),
     ]
     assert pipeline.trace_acts == [trace_act]
+
+
+def test_situation_registry_collects_used_rules_before_situation_objects():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    used_rule = _construct_rule("used", "compound", "used_node")
+    unused_rule = _construct_rule("unused", "compound", "unused_node")
+    pipeline.registry.rules = [unused_rule, used_rule]
+
+    construct = Construct(parent=None, ast_id=10, rule=used_rule, owner=pipeline)
+    pipeline.add(construct)
+
+    collected = pipeline.registry.collect()
+
+    assert collected[0] is used_rule
+    assert unused_rule not in collected
+    assert collected.index(used_rule) < collected.index(construct)
+
+
+def test_situation_registry_collects_rules_used_by_actions():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    parent_rule = _construct_rule("parent", "compound", "parent_node")
+    action_rule_owner = _construct_rule("action_owner", "compound", "action_owner_node")
+    action_rule = action_rule_owner.actions[0]
+    pipeline.registry.rules = [parent_rule, action_rule_owner]
+
+    construct = Construct(parent=None, ast_id=10, rule=parent_rule, owner=pipeline)
+    action = Action(
+        ast_id=11,
+        values=[],
+        rule=action_rule,
+        parent=construct,
+        owner=pipeline,
+    )
+    pipeline.add(construct)
+    pipeline.add(action)
+
+    collected = pipeline.registry.collect()
+
+    assert collected[:2] == [parent_rule, action_rule_owner]
+    assert collected.index(action_rule_owner) < collected.index(construct)
+    assert collected.index(action_rule_owner) < collected.index(action)
 
 
 def test_action_possible_transitions_uses_compiled_concrete_transitions():

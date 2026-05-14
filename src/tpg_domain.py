@@ -244,8 +244,7 @@ def _run_tpg_cli(project: TpgProject, *args: str) -> str | None:
             print(f"Running command: {' '.join(map(str, prepared_args))}")
         result = subprocess.run(
             prepared_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             encoding="utf-8",
             check=True,

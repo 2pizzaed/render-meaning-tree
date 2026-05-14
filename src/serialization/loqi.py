@@ -157,7 +157,12 @@ class LoqiAdapterContext:
         value_map: dict[Any, str] | None = None,
     ) -> LoqiScalar | None:
         if value is None:
-            raise ValueError("Loqi scalar value cannot be None")
+            if enum_name is None:
+                raise ValueError("Loqi scalar value cannot be None")
+            literal = value_map.get(value, value) if value_map is not None else value
+            if not isinstance(literal, str):
+                raise LoqiSerializationError(f"Unsupported enum value {value!r} for {enum_name}")
+            return self.enum(enum_name, literal)
         if isinstance(value, LoqiEnumLiteral):
             return value
         if isinstance(value, Enum):
@@ -183,7 +188,6 @@ class LoqiAdapterContext:
         value_map: dict[Any, str] | None = None,
         metadata: tuple[LoqiMetadataEntry, ...] = (),
     ) -> LoqiProperty:
-        assert value is not None, "Loqi scalar value cannot be None"
         return LoqiProperty(
             name=name,
             value=self.to_scalar(value, enum_name=enum_name, value_map=value_map),
@@ -305,7 +309,7 @@ class LoqiSerializer:
         self.adapters_by_type = dict(adapters_by_type or build_default_loqi_adapters())
         self.locales = locales
         self.objects: list[LoqiObject] = []
-        self._objects_by_python_id: dict[int, LoqiObject] = {}
+        self._objects_by_python_id: dict[int, tuple[Any, LoqiObject]] = {}
         self._objects_by_id: dict[str, LoqiObject] = {}
         self._object_name_counters: dict[str, int] = {}
         self._roots: list[LoqiObjectRef] = []
@@ -313,6 +317,11 @@ class LoqiSerializer:
 
     def serialize(self, root: Any) -> str:
         self._serialize_root(root)
+        return self._renderer.render(self.render_result())
+
+    def serialize_many(self, roots: Any) -> str:
+        for root in roots:
+            self._serialize_root(root)
         return self._renderer.render(self.render_result())
 
     def render_result(self) -> LoqiRenderResult:
@@ -327,12 +336,12 @@ class LoqiSerializer:
     def _serialize_object(self, obj: Any, ctx: LoqiAdapterContext) -> LoqiObjectRef:
         existing = self._objects_by_python_id.get(id(obj))
         if existing is not None:
-            return LoqiObjectRef(existing.object_id)
+            return LoqiObjectRef(existing[1].object_id)
 
         adapter = get_loqi_adapter(obj, self.adapters_by_type)
         object_id = self._allocate_object_id(self._adapter_object_name(adapter, obj))
         loqi_object = LoqiObject(object_id=object_id, type_name=adapter.type_name(obj))
-        self._objects_by_python_id[id(obj)] = loqi_object
+        self._objects_by_python_id[id(obj)] = (obj, loqi_object)
         self._objects_by_id[object_id] = loqi_object
         self.objects.append(loqi_object)
 

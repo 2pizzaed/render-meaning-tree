@@ -28,6 +28,7 @@ from src.serialization.loqi import (
     LoqiObjectSpec,
     LoqiSerializationError,
     LoqiSerializer,
+    LoqiVariableAssignment,
     serialize_loqi,
 )
 
@@ -327,6 +328,70 @@ def test_loqi_serializer_serializes_many_roots_once() -> None:
 
     assert rendered.count("obj construct_first : ConstructSpec {") == 1
     assert rendered.count("obj construct_second : ConstructSpec {") == 1
+
+
+def test_serialize_loqi_renders_root_variable_name() -> None:
+    construct = ConstructDeclaration(name="branch", kind="if", ast_node="IfStatement")
+
+    rendered = serialize_loqi(construct, var_name="BranchRule")
+
+    assert rendered.startswith("var BranchRule = obj construct_branch : ConstructSpec {")
+
+
+def test_loqi_serializer_serializes_many_with_variable_names() -> None:
+    serializer = LoqiSerializer()
+    first = ConstructDeclaration(name="first", kind="compound", ast_node="First")
+    second = ConstructDeclaration(name="second", kind="compound", ast_node="Second")
+
+    rendered = serializer.serialize_many([first, second], variables={"FirstRule": first, "SecondRule": second})
+
+    assert "var FirstRule = obj construct_first : ConstructSpec {" in rendered
+    assert "var SecondRule = obj construct_second : ConstructSpec {" in rendered
+    assert serializer.render_result().variables == (
+        LoqiVariableAssignment(variable_name="FirstRule", object_id="construct_first"),
+        LoqiVariableAssignment(variable_name="SecondRule", object_id="construct_second"),
+    )
+    assert not hasattr(serializer.objects[0], "variable_name")
+
+
+def test_loqi_serializer_can_assign_variable_to_nested_object() -> None:
+    action = ActionDeclaration(role="BEGIN", kind="marker")
+    construct = ConstructDeclaration(
+        name="branch",
+        kind="if",
+        ast_node="IfStatement",
+        actions=[action],
+    )
+
+    rendered = LoqiSerializer().serialize_many([construct], variables={"BeginAction": action})
+
+    assert "obj construct_branch : ConstructSpec {" in rendered
+    assert "var BeginAction = obj action_BEGIN : ActionSpec {" in rendered
+
+
+def test_loqi_serializer_rejects_invalid_variable_name() -> None:
+    construct = ConstructDeclaration(name="branch", kind="if", ast_node="IfStatement")
+
+    with pytest.raises(LoqiSerializationError, match="Invalid Loqi variable name"):
+        serialize_loqi(construct, var_name="1Branch")
+
+
+def test_loqi_serializer_rejects_variable_name_reuse() -> None:
+    serializer = LoqiSerializer()
+    first = ConstructDeclaration(name="first", kind="compound", ast_node="First")
+    second = ConstructDeclaration(name="second", kind="compound", ast_node="Second")
+
+    serializer.serialize(first, var_name="Rule")
+
+    with pytest.raises(LoqiSerializationError, match="already assigned"):
+        serializer.serialize(second, var_name="Rule")
+
+
+def test_loqi_serializer_rejects_multiple_variables_for_same_object() -> None:
+    construct = ConstructDeclaration(name="branch", kind="if", ast_node="IfStatement")
+
+    with pytest.raises(LoqiSerializationError, match="already has variable"):
+        LoqiSerializer().serialize_many([], variables={"FirstRule": construct, "SecondRule": construct})
 
 
 def test_rules_declarations_coerce_domain_enums() -> None:

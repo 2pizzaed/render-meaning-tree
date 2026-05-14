@@ -8,6 +8,7 @@ from src.generator.pipeline import (
     PipelineRegistry,
     pipeline_stage,
 )
+from src.generator.utilities import pipeline_results_to_loqi
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
@@ -268,6 +269,20 @@ def test_situation_registry_collects_rules_used_by_actions():
     assert collected[:2] == [parent_rule, action_rule_owner]
     assert collected.index(action_rule_owner) < collected.index(construct)
     assert collected.index(action_rule_owner) < collected.index(action)
+
+
+def test_pipeline_results_to_loqi_passes_variable_map_to_serializer():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    rendered = pipeline_results_to_loqi(pipeline, variables={"DemoRule": rule})
+
+    assert "var DemoRule = obj construct_demo : ConstructSpec {" in rendered
 
 
 def test_action_possible_transitions_uses_compiled_concrete_transitions():

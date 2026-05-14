@@ -72,9 +72,16 @@ class LoqiObject:
 
 
 @dataclass(frozen=True, slots=True)
+class LoqiVariableAssignment:
+    variable_name: str
+    object_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class LoqiRenderResult:
     roots: tuple[LoqiObjectRef, ...]
     objects: tuple[LoqiObject, ...]
+    variables: tuple[LoqiVariableAssignment, ...] = ()
 
 
 T = TypeVar("T")
@@ -256,10 +263,20 @@ class LoqiRenderer:
     INDENT = "    "
 
     def render(self, result: LoqiRenderResult) -> str:
-        return "\n\n".join(self._render_object(loqi_object) for loqi_object in result.objects)
+        variables_by_object_id = {
+            assignment.object_id: assignment.variable_name
+            for assignment in result.variables
+        }
+        return "\n\n".join(
+            self._render_object(loqi_object, variables_by_object_id.get(loqi_object.object_id))
+            for loqi_object in result.objects
+        )
 
-    def _render_object(self, loqi_object: LoqiObject) -> str:
-        lines = [f"obj {loqi_object.object_id} : {loqi_object.type_name} {{"]
+    def _render_object(self, loqi_object: LoqiObject, variable_name: str | None) -> str:
+        declaration = f"obj {loqi_object.object_id} : {loqi_object.type_name} {{"
+        if variable_name is not None:
+            declaration = f"var {variable_name} = {declaration}"
+        lines = [declaration]
         for loqi_property in loqi_object.properties:
             if loqi_property.value is None:
                 continue
@@ -312,26 +329,58 @@ class LoqiSerializer:
         self._objects_by_python_id: dict[int, tuple[Any, LoqiObject]] = {}
         self._objects_by_id: dict[str, LoqiObject] = {}
         self._object_name_counters: dict[str, int] = {}
+        self._variables_by_name: dict[str, str] = {}
+        self._variables_by_object_id: dict[str, str] = {}
         self._roots: list[LoqiObjectRef] = []
         self._renderer = LoqiRenderer()
 
-    def serialize(self, root: Any) -> str:
-        self._serialize_root(root)
+    def serialize(self, root: Any, *, var_name: str | None = None) -> str:
+        self._serialize_root(root, var_name=var_name)
         return self._renderer.render(self.render_result())
 
-    def serialize_many(self, roots: Any) -> str:
+    def serialize_many(self, roots: Any, *, variables: dict[str, Any] | None = None) -> str:
         for root in roots:
             self._serialize_root(root)
+        for variable_name, variable_object in (variables or {}).items():
+            self._assign_variable_to_object(variable_object, variable_name)
         return self._renderer.render(self.render_result())
 
     def render_result(self) -> LoqiRenderResult:
-        return LoqiRenderResult(roots=tuple(self._roots), objects=tuple(self.objects))
+        variables = tuple(
+            LoqiVariableAssignment(variable_name=variable_name, object_id=object_id)
+            for variable_name, object_id in self._variables_by_name.items()
+        )
+        return LoqiRenderResult(roots=tuple(self._roots), objects=tuple(self.objects), variables=variables)
 
-    def _serialize_root(self, root: Any) -> LoqiObjectRef:
+    def _serialize_root(self, root: Any, *, var_name: str | None = None) -> LoqiObjectRef:
         ref = self._serialize_object(root, LoqiAdapterContext(serializer=self))
+        if var_name is not None:
+            self._assign_variable(ref, var_name)
         if ref not in self._roots:
             self._roots.append(ref)
         return ref
+
+    def _assign_variable(self, ref: LoqiObjectRef, var_name: str) -> None:
+        if not _is_variable_name(var_name):
+            raise LoqiSerializationError(f"Invalid Loqi variable name {var_name!r}")
+        loqi_object = self._object_by_ref(ref)
+        existing_object_variable = self._variables_by_object_id.get(loqi_object.object_id)
+        if existing_object_variable is not None:
+            raise LoqiSerializationError(
+                f"Loqi object {loqi_object.object_id!r} already has variable "
+                f"{existing_object_variable!r}"
+            )
+        if var_name in self._variables_by_name:
+            raise LoqiSerializationError(f"Loqi variable {var_name!r} is already assigned")
+        self._variables_by_name[var_name] = loqi_object.object_id
+        self._variables_by_object_id[loqi_object.object_id] = var_name
+
+    def _assign_variable_to_object(self, obj: Any, var_name: str) -> None:
+        existing = self._objects_by_python_id.get(id(obj))
+        if existing is not None:
+            self._assign_variable(LoqiObjectRef(existing[1].object_id), var_name)
+            return
+        self._serialize_root(obj, var_name=var_name)
 
     def _serialize_object(self, obj: Any, ctx: LoqiAdapterContext) -> LoqiObjectRef:
         existing = self._objects_by_python_id.get(id(obj))
@@ -413,13 +462,18 @@ def _normalize_object_name(raw_name: str) -> str:
     return normalized
 
 
+def _is_variable_name(name: str) -> bool:
+    return re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", name) is not None
+
+
 def serialize_loqi(
     root: Any,
     *,
     adapters_by_type: dict[type[Any], LoqiAdapter[Any]] | None = None,
     locales: Locales | None = None,
+    var_name: str | None = None,
 ) -> str:
-    return LoqiSerializer(adapters_by_type=adapters_by_type, locales=locales).serialize(root)
+    return LoqiSerializer(adapters_by_type=adapters_by_type, locales=locales).serialize(root, var_name=var_name)
 
 
 def build_default_loqi_adapters() -> dict[type[Any], LoqiAdapter[Any]]:
@@ -443,6 +497,7 @@ __all__ = [
     "LoqiRenderer",
     "LoqiSerializationError",
     "LoqiSerializer",
+    "LoqiVariableAssignment",
     "RelationshipLink",
     "build_default_loqi_adapters",
     "get_loqi_adapter",

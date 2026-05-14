@@ -5,7 +5,11 @@ from pathlib import Path
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import code_snippet_to_pipeline
 from src.tpg_domain import validate_domain_loqi
-from test.helpers import code_snippet_to_loqi_file, resolve_test_output_dir, validate_code_snippet_domain_loqi
+from test.helpers import (
+    code_snippet_to_loqi_file,
+    resolve_test_output_dir,
+    validate_code_snippet_domain_loqi,
+)
 
 
 def _single_construct(pipeline: DomainDataGeneratorPipeline, rule_name: str):

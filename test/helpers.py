@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from src.generator.utilities import code_file_to_loqi, code_snippet_to_loqi
+from src.generator.utilities import code_file_to_pipeline, code_snippet_to_pipeline, pipeline_results_to_loqi
 from src.tpg_domain import validate_domain_loqi
 
 TEST_OUTPUT_DIR_ENV_VAR = "DOMAIN_BUILD_OUTPUT_DIR"
@@ -40,7 +40,8 @@ def code_snippet_to_loqi_file(
     mode: str = "simple",
     filename: str = "generated-domain.loqi",
 ) -> Path:
-    loqi = code_snippet_to_loqi(code, language=language, mode=mode)
+    pipeline = code_snippet_to_pipeline(code, language=language, mode=mode)
+    loqi = pipeline_results_to_loqi(pipeline)
     return write_text_file(directory, loqi, filename)
 
 
@@ -74,6 +75,7 @@ def validate_code_file_domain_loqi(
     tag: str | None = None,
     filename: str = "generated-domain.loqi",
 ) -> bool:
-    loqi = code_file_to_loqi(code_file, language=language, mode=mode)
+    pipeline = code_file_to_pipeline(code_file, language=language, mode=mode)
+    loqi = pipeline_results_to_loqi(pipeline)
     loqi_file = write_text_file(directory, loqi, filename)
     return validate_domain_loqi(loqi_file, model_dir, tag=tag)

@@ -95,8 +95,8 @@ class TransitionSpec : AbstractSpec {
 	rel to_when_absent(ActionSpec);
 
 	rel belongsTo(ConstructSpec) : {* -> 1} ;
-	rel hasConstraints(Constraint): {* -> 1} ;
-	rel hasEffects(Effect): {* -> 1} ;
+	rel hasConstraints(Constraint);
+	rel hasEffects(Effect) ;
 } [
 	RU.localizedName = "спецификация перехода" ;
 	EN.localizedName = "transition specification" ;

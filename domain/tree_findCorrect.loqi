@@ -28,7 +28,10 @@ fragment findLastTracedAction(last: TraceAct) {
         };
         conclude: true with (last = possibleLast);
     };
-    ask (P->hasTransition->hasEffects.call_stack != CallStackAction:none) out true else {
+    ask (
+        P->hasTransition=>hasEffects() and 
+        P->hasTransition->hasEffects.call_stack != CallStackAction:none
+    ) out true else {
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and
             $a.ast_id == P->hasAction.ast_id
@@ -83,9 +86,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
     var L: TraceAct = P;
     while (L->hasAction->derivedFrom.is_opaque or L == P) {
         body -> {
-            agg and {
-                `fragment`:findLastTracedAction(L);
-            } out true;
+            `fragment`:findLastTracedAction(L) out true;
 
             ask (L->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" 
                 and L->hasAction->derivedFrom.role != "END") out false else {

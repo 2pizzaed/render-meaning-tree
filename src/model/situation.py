@@ -79,6 +79,10 @@ class Action:
     def is_atomic(self) -> bool:
         return self.expands_to() is None
 
+    @property
+    def is_opaque(self) -> bool:
+        return self.rule.is_opaque
+
     def expands_to(self) -> Construct | None:
         return self.owner.get_construct_for(self.ast_id) \
             if self.ast_id is not None else None

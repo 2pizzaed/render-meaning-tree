@@ -324,7 +324,8 @@ def test_loqi_serializer_serializes_many_roots_once() -> None:
     first = ConstructDeclaration(name="first", kind="compound", ast_node="First")
     second = ConstructDeclaration(name="second", kind="compound", ast_node="Second")
 
-    rendered = serializer.serialize_many([first, second])
+    serializer.serialize_many([first, second])
+    rendered = serializer.render()
 
     assert rendered.count("obj construct_first : ConstructSpec {") == 1
     assert rendered.count("obj construct_second : ConstructSpec {") == 1
@@ -343,7 +344,8 @@ def test_loqi_serializer_serializes_many_with_variable_names() -> None:
     first = ConstructDeclaration(name="first", kind="compound", ast_node="First")
     second = ConstructDeclaration(name="second", kind="compound", ast_node="Second")
 
-    rendered = serializer.serialize_many([first, second], variables={"FirstRule": first, "SecondRule": second})
+    serializer.serialize_many([first, second], variables={"FirstRule": first, "SecondRule": second})
+    rendered = serializer.render()
 
     assert "var FirstRule = obj construct_first : ConstructSpec {" in rendered
     assert "var SecondRule = obj construct_second : ConstructSpec {" in rendered
@@ -363,7 +365,9 @@ def test_loqi_serializer_can_assign_variable_to_nested_object() -> None:
         actions=[action],
     )
 
-    rendered = LoqiSerializer().serialize_many([construct], variables={"BeginAction": action})
+    serializer = LoqiSerializer()
+    serializer.serialize_many([construct], variables={"BeginAction": action})
+    rendered = serializer.render()
 
     assert "obj construct_branch : ConstructSpec {" in rendered
     assert "var BeginAction = obj action_BEGIN : ActionSpec {" in rendered
@@ -392,6 +396,28 @@ def test_loqi_serializer_rejects_multiple_variables_for_same_object() -> None:
 
     with pytest.raises(LoqiSerializationError, match="already has variable"):
         LoqiSerializer().serialize_many([], variables={"FirstRule": construct, "SecondRule": construct})
+
+
+def test_loqi_serializer_can_lookup_serialized_object_names_and_objects() -> None:
+    serializer = LoqiSerializer()
+    action = ActionDeclaration(role="BEGIN", kind="marker")
+    construct = ConstructDeclaration(
+        name="branch",
+        kind="if",
+        ast_node="IfStatement",
+        actions=[action],
+    )
+
+    ref = serializer.serialize(construct)
+
+    assert ref.object_id == "construct_branch"
+    assert serializer.object_name(construct) == "construct_branch"
+    assert serializer.object_name(action) == "action_BEGIN"
+    assert serializer.object_by_name("construct_branch") is construct
+    assert serializer.object_by_name("action_BEGIN") is action
+    assert serializer.loqi_object_by_name("construct_branch") is serializer.objects[0]
+    assert serializer.object_name(object()) is None
+    assert serializer.object_by_name("missing") is None
 
 
 def test_rules_declarations_coerce_domain_enums() -> None:

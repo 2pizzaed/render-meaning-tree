@@ -6,7 +6,7 @@ from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import code_snippet_to_pipeline
 from src.tpg_domain import validate_domain_loqi
 from test.helpers import (
-    code_snippet_to_loqi_file,
+    code_snippet_to_loqi_files,
     resolve_test_output_dir,
     validate_code_snippet_domain_loqi,
 )
@@ -136,6 +136,6 @@ def main():
     return False
 """
 
-    loqi_file = code_snippet_to_loqi_file(output_dir, code, filename="simple-branch.loqi")
+    loqi_files = code_snippet_to_loqi_files(output_dir, code, filename="simple-branch.loqi")
 
-    assert validate_domain_loqi(loqi_file, "domain")
+    assert all(validate_domain_loqi(loqi_file, "domain") for _serializer, loqi_file in loqi_files)

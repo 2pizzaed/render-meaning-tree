@@ -334,16 +334,34 @@ class LoqiSerializer:
         self._roots: list[LoqiObjectRef] = []
         self._renderer = LoqiRenderer()
 
-    def serialize(self, root: Any, *, var_name: str | None = None) -> str:
-        self._serialize_root(root, var_name=var_name)
-        return self._renderer.render(self.render_result())
+    def serialize(self, root: Any, *, var_name: str | None = None) -> LoqiObjectRef:
+        return self._serialize_root(root, var_name=var_name)
 
-    def serialize_many(self, roots: Any, *, variables: dict[str, Any] | None = None) -> str:
+    def serialize_many(self, roots: Any, *, variables: dict[str, Any] | None = None) -> tuple[LoqiObjectRef, ...]:
+        refs: list[LoqiObjectRef] = []
         for root in roots:
-            self._serialize_root(root)
+            refs.append(self._serialize_root(root))
         for variable_name, variable_object in (variables or {}).items():
             self._assign_variable_to_object(variable_object, variable_name)
+        return tuple(refs)
+
+    def render(self) -> str:
         return self._renderer.render(self.render_result())
+
+    def object_name(self, obj: Any) -> str | None:
+        existing = self._objects_by_python_id.get(id(obj))
+        if existing is None:
+            return None
+        return existing[1].object_id
+
+    def object_by_name(self, object_name: str) -> Any | None:
+        for python_object, loqi_object in self._objects_by_python_id.values():
+            if loqi_object.object_id == object_name:
+                return python_object
+        return None
+
+    def loqi_object_by_name(self, object_name: str) -> LoqiObject | None:
+        return self._objects_by_id.get(object_name)
 
     def render_result(self) -> LoqiRenderResult:
         variables = tuple(
@@ -473,7 +491,9 @@ def serialize_loqi(
     locales: Locales | None = None,
     var_name: str | None = None,
 ) -> str:
-    return LoqiSerializer(adapters_by_type=adapters_by_type, locales=locales).serialize(root, var_name=var_name)
+    serializer = LoqiSerializer(adapters_by_type=adapters_by_type, locales=locales)
+    serializer.serialize(root, var_name=var_name)
+    return serializer.render()
 
 
 def build_default_loqi_adapters() -> dict[type[Any], LoqiAdapter[Any]]:

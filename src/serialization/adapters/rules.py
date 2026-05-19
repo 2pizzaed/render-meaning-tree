@@ -81,6 +81,7 @@ class ActionDeclarationAdapter:
         properties = [
             ctx.property("role", obj.role),
             ctx.property("kind", obj.kind),
+            ctx.property("is_opaque", obj.is_opaque)
         ]
         if obj.generalization is not None:
             properties.append(ctx.property("generalization", obj.generalization))

@@ -1,23 +1,101 @@
+import json
 import logging
-import re
 import subprocess
 import sys
-import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, TextIO
 
 from src.env import TPG_CLI_DEBUG_ENV_VAR, env_flag
 
 type TpgProject = Literal["its_DomainModel", "its_Reasoner"]
 type DomainBuildMethod = Literal["LOQI", "RDF"]
-type ReasoningResultFormat = Literal["raw", "loqi"]
 
 VERSION: dict[TpgProject, str] = {
     "its_DomainModel": "3.0.0-alpha.7",
-    "its_Reasoner": "3.0.0-alpha.3"
+    "its_Reasoner": "3.0.0-alpha.3",
 }
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ReasoningException:
+    id: str | None
+    result: bool | None
+    exception_name: str | None = None
+
+
+type ReasoningTrace = str | dict[str, Any] | list[Any]
+
+
+@dataclass(frozen=True)
+class ReasoningResult:
+    result: bool | None
+    trace: ReasoningTrace | None = None
+    variables: dict[str, str] = field(default_factory=dict)
+    exceptions: list[ReasoningException] = field(default_factory=list)
+    reasoner_output: list[str] = field(default_factory=list)
+    metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
+    artifacts: dict[str, Any] = field(default_factory=dict)
+    artifact_paths: dict[str, Path] = field(default_factory=dict)
+
+    @property
+    def trace_format(self) -> Literal["none", "text", "json"]:
+        if self.trace is None:
+            return "none"
+        if isinstance(self.trace, str):
+            return "text"
+        return "json"
+
+    def __str__(self) -> str:
+        lines = [f"Result: {self.result}"]
+
+        lines.append("Exceptions:")
+        if self.exceptions:
+            lines.extend(
+                (
+                    "  - "
+                    f"id={exception.id}; "
+                    f"result={exception.result}; "
+                    f"exceptionName={exception.exception_name}"
+                )
+                for exception in self.exceptions
+            )
+        else:
+            lines.append("  <empty>")
+
+        lines.append("Trace:")
+        lines.extend(_indent_human_value(self.trace))
+
+        lines.append("Variables:")
+        if self.variables:
+            for name, value in sorted(self.variables.items()):
+                lines.append(f"  {name} = {value}")
+        else:
+            lines.append("  <empty>")
+
+        lines.append("Metrics:")
+        if self.metrics:
+            for name, metric in sorted(self.metrics.items()):
+                details = {
+                    key: value
+                    for key, value in metric.items()
+                    if key not in {"type", "name"}
+                }
+                rendered_metric = _format_human_value(details).splitlines()
+                if rendered_metric:
+                    lines.append(f"  {name}: {rendered_metric[0]}")
+                    lines.extend(f"    {line}" for line in rendered_metric[1:])
+        else:
+            lines.append("  <empty>")
+
+        if self.artifact_paths:
+            lines.append("Artifact paths:")
+            for name, path in sorted(self.artifact_paths.items()):
+                lines.append(f"  {name}: {path}")
+
+        return "\n".join(lines)
 
 
 def make_path(project: TpgProject) -> list[str | Path]:
@@ -148,12 +226,18 @@ def solve_reasoning(
     tag: str | None = None,
     tree: str | None = None,
     verbose: bool = False,
-    result_format: ReasoningResultFormat = "raw",
-) -> str | None:
+    json_trace: bool = False,
+    export_domain: bool = False,
+    reasoner_output_stream: TextIO | None = None,
+) -> ReasoningResult | None:
     """Run its_Reasoner reasoning for a specific domain LOQI.
 
-    ``result_format="raw"`` returns the CLI trace from stdout.
-    ``result_format="loqi"`` returns the exported specific domain LOQI after reasoning.
+    The reasoner is always called with ``--format jsonl`` and returns a parsed
+    :class:`ReasoningResult`. Trace is text by default; pass ``json_trace=True``
+    to request structured JSON trace values from the CLI.
+
+    If ``reasoner_output_stream`` is provided, ``reasoner-output`` JSONL events
+    are printed to it while being collected in the result.
     """
     args = [
         "reason",
@@ -162,19 +246,20 @@ def solve_reasoning(
         *_tag_args(tag),
         *_value_option("--tree", tree),
         *(["--verbose"] if verbose else []),
+        "--format",
+        "jsonl",
+        *(["--json-trace"] if json_trace else []),
+        *(["--export-domain", "-"] if export_domain else []),
     ]
-    if result_format == "raw":
-        return _run_reasoner_cli(*args)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        output = Path(temp_dir) / "reasoning-result.loqi"
-        raw_result = _run_reasoner_cli(*args, "--export-domain", str(output))
-        if raw_result is None:
-            return None
-        if not output.exists():
-            logger.error("its_Reasoner CLI did not create exported LOQI: %s", output)
-            return None
-        return output.read_text(encoding="utf-8")
+    raw_result = _run_reasoner_cli(*args)
+    if raw_result is None:
+        return None
+
+    return parse_reasoning_jsonl(
+        raw_result,
+        reasoner_output_stream=reasoner_output_stream,
+    )
 
 
 def solve_reasoning_result(
@@ -184,37 +269,135 @@ def solve_reasoning_result(
     tag: str | None = None,
     tree: str | None = None,
     verbose: bool = False,
+    reasoner_output_stream: TextIO | None = None,
 ) -> bool | None:
-    """Run reasoning and return parsed Result value from the raw trace."""
-    raw_result = solve_reasoning(
+    """Run reasoning and return parsed result value."""
+    result = solve_reasoning(
         model_dir,
         domain_loqi,
         tag=tag,
         tree=tree,
         verbose=verbose,
-        result_format="raw",
+        reasoner_output_stream=reasoner_output_stream,
     )
-    if raw_result is None:
+    if not isinstance(result, ReasoningResult):
         return None
-    return extract_reasoning_result(raw_result)
+    return result.result
 
 
-def extract_reasoning_result(raw_trace: str) -> bool | None:
-    """Extract ``Result: ...`` from a reasoner trace.
+def parse_reasoning_jsonl(
+    raw_jsonl: str,
+    *,
+    reasoner_output_stream: TextIO | None = None,
+) -> ReasoningResult:
+    """Parse its_Reasoner JSONL events into a structured result."""
+    result: bool | None = None
+    trace: ReasoningTrace | None = None
+    reasoner_output: list[str] = []
+    variables: dict[str, str] = {}
+    exceptions: list[ReasoningException] = []
+    metrics: dict[str, dict[str, Any]] = {}
+    artifacts: dict[str, Any] = {}
+    artifact_paths: dict[str, Path] = {}
 
-    true/correct -> True, false/error -> False, null or missing result -> None.
-    Matching is case-insensitive.
-    """
-    match = re.search(r"(?im)^\s*Result:\s*(true|false|null|correct|error)\s*$", raw_trace)
-    if match is None:
+    for line_number, line in enumerate(raw_jsonl.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSONL from its_Reasoner at line {line_number}: {line}") from e
+        if not isinstance(event, dict):
+            raise ValueError(f"Invalid JSONL event from its_Reasoner at line {line_number}: {event!r}")
+
+        event_type = event.get("type")
+
+        if event_type == "reasoner-output":
+            message = str(event.get("value", ""))
+            reasoner_output.append(message)
+            if reasoner_output_stream:
+                print(message, file=reasoner_output_stream)
+        elif event_type == "result":
+            result = _parse_reasoning_result_value(event.get("value"))
+        elif event_type == "variables":
+            event_variables = event.get("value")
+            if isinstance(event_variables, dict):
+                variables = {str(key): str(value) for key, value in event_variables.items()}
+        elif event_type == "exceptions":
+            event_exceptions = event.get("value")
+            if isinstance(event_exceptions, list):
+                exceptions = [
+                    _parse_reasoning_exception(exception)
+                    for exception in event_exceptions
+                    if isinstance(exception, dict)
+                ]
+        elif event_type == "trace":
+            event_trace = event.get("value")
+            if isinstance(event_trace, str | dict | list):
+                trace = event_trace
+        elif event_type == "metric":
+            name = event.get("name")
+            if name is not None:
+                metrics[str(name)] = event
+        elif event_type == "artifact":
+            name = event.get("name")
+            if name is not None:
+                artifacts[str(name)] = event.get("value")
+        elif event_type == "service" and event.get("name") == "exportDomain":
+            path = event.get("path")
+            if path is not None:
+                artifact_paths["specificDomain"] = Path(str(path))
+
+    return ReasoningResult(
+        result=result,
+        trace=trace,
+        variables=variables,
+        exceptions=exceptions,
+        reasoner_output=reasoner_output,
+        metrics=metrics,
+        artifacts=artifacts,
+        artifact_paths=artifact_paths,
+    )
+
+
+def _parse_reasoning_result_value(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if value is None:
         return None
 
-    value = match.group(1).lower()
-    if value in {"true", "correct"}:
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "correct"}:
         return True
-    if value in {"false", "error"}:
+    if normalized in {"false", "error"}:
         return False
+    if normalized in {"null", "none"}:
+        return None
+    logger.warning("Unknown its_Reasoner result value: %r", value)
     return None
+
+
+def _parse_reasoning_exception(value: dict[str, Any]) -> ReasoningException:
+    return ReasoningException(
+        id=None if value.get("id") is None else str(value.get("id")),
+        result=_parse_reasoning_result_value(value.get("result")),
+        exception_name=None
+        if value.get("exceptionName") is None
+        else str(value.get("exceptionName")),
+    )
+
+
+def _indent_human_value(value: Any) -> list[str]:
+    rendered = _format_human_value(value)
+    return [f"  {line}" if line else "" for line in rendered.splitlines()]
+
+
+def _format_human_value(value: Any) -> str:
+    if value is None:
+        return "<none>"
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, indent=2, default=str)
 
 
 def _run_domain_cli_bool(*args: str) -> bool:
@@ -256,9 +439,10 @@ def _run_tpg_cli(project: TpgProject, *args: str) -> str | None:
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.error("Error calling %s CLI", project)
-        if _debug_enabled():
+        parsed_errors = _log_cli_json_errors(project, e.stdout, e.stderr)
+        if _debug_enabled() and not parsed_errors:
             _print_cli_streams(e.stdout, e.stderr)
-        elif e.stderr:
+        elif e.stderr and not parsed_errors:
             logger.error("Error output: %s", e.stderr)
         if not _debug_enabled() and e.stdout:
             logger.debug("Output before failure: %s", e.stdout)
@@ -277,6 +461,45 @@ def _print_cli_streams(stdout: str | None, stderr: str | None) -> None:
         print(stdout, end="")
     if stderr:
         print(stderr, end="", file=sys.stderr)
+
+
+def _log_cli_json_errors(project: TpgProject, stdout: str | None, stderr: str | None) -> bool:
+    errors = [
+        event
+        for stream in (stderr, stdout)
+        for event in _parse_jsonl_events(stream)
+        if event.get("type") == "error"
+    ]
+    for event in errors:
+        exception_name = event.get("exceptionName")
+        message = event.get("message")
+        stack_trace = event.get("stackTrace")
+        header = f"{project} CLI error"
+        if exception_name:
+            header += f" {exception_name}"
+        if message:
+            header += f": {message}"
+        if stack_trace:
+            logger.error("%s\n%s", header, stack_trace)
+        else:
+            logger.error("%s", header)
+    return bool(errors)
+
+
+def _parse_jsonl_events(raw_jsonl: str | None) -> list[dict[str, Any]]:
+    if not raw_jsonl:
+        return []
+    events: list[dict[str, Any]] = []
+    for line in raw_jsonl.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
 
 
 def _tag_args(tag: str | None) -> list[str]:

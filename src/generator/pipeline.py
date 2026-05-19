@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from abc import ABC, abstractmethod
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from importlib.resources import as_file, files
 from typing import Any, Protocol, Self, TypeVar, cast
 
@@ -13,11 +13,12 @@ from src.json_search import JSONPath
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
+    InterruptionType,
     TransitionDeclaration,
     load_construct_declarations,
     locate_construct_declaration_by_ast_node,
 )
-from src.model.situation import Action, Construct, TraceAct
+from src.model.situation import Action, Construct, TraceAct, TraceState
 from src.types import Node
 
 
@@ -68,7 +69,7 @@ class Pipeline(ABC):
     def current_result(self) -> PipelineRegistry:
         ...
 
-    def flatten_results(self) -> list[PipelineRegistry]:
+    def flatten_results(self) -> Sequence[PipelineRegistry]:
         result = [self.current_result]
         for child in self.children:
             result.extend(child.flatten_results())
@@ -99,6 +100,8 @@ class SituationDomainDataRegistry:
         self.action_orders: dict[int, int] = {}
         self._next_action_order = 0
         self.trace_acts: list[TraceAct] = []
+        self.trace_state = TraceState(InterruptionType.NONE)
+        self.variables: dict[str, Any] = {"S": self.trace_state}
         self.utilities = set()
 
     def collect(self) -> list[Any]:
@@ -108,9 +111,109 @@ class SituationDomainDataRegistry:
             *self.constructs.values(),
             *actions,
             *self.anonymous_actions,
+            self.trace_state,
             *self.trace_acts,
             *self.utilities,
         ]
+
+    def get_construct_for(self, ast_id: int) -> Construct | None:
+        return self.constructs.get(ast_id)
+
+    def get_actions_for(self, ast_id: int | None) -> list[Action]:
+        if ast_id is None:
+            return self.anonymous_actions.copy()
+        return self.actions.get(ast_id, []).copy()
+
+    def get_related_actions(self, construct: Construct) -> list[Action]:
+        result = [
+            action
+            for action in (
+                *[action for actions in self.actions.values() for action in actions],
+                *self.anonymous_actions,
+            )
+            if action.parent is construct
+        ]
+        return sorted(result, key=self._action_order_key)
+
+    def find_actions(
+        self,
+        *,
+        ast_id: int | None = None,
+        role: str | None = None,
+        construct: Construct | None = None,
+        construct_ast_id: int | None = None,
+    ) -> list[Action]:
+        if construct is None and construct_ast_id is not None:
+            construct = self.get_construct_for(construct_ast_id)
+            if construct is None:
+                return []
+
+        candidates = self.get_actions_for(ast_id) if ast_id is not None else [
+            action
+            for actions in self.actions.values()
+            for action in actions
+        ] + self.anonymous_actions
+
+        return [
+            action
+            for action in candidates
+            if (role is None or action.rule.role == role)
+            and (construct is None or action.parent is construct)
+        ]
+
+    def require_action(
+        self,
+        *,
+        ast_id: int | None = None,
+        role: str | None = None,
+        construct: Construct | None = None,
+        construct_ast_id: int | None = None,
+    ) -> Action:
+        matches = self.find_actions(
+            ast_id=ast_id,
+            role=role,
+            construct=construct,
+            construct_ast_id=construct_ast_id,
+        )
+        if len(matches) != 1:
+            conditions = _format_lookup_conditions(
+                ast_id=ast_id,
+                role=role,
+                construct=construct,
+                construct_ast_id=construct_ast_id,
+            )
+            raise LookupError(f"Expected exactly one action for {conditions}, found {len(matches)}")
+        return matches[0]
+
+    def add(self, object: Any) -> None:
+        if isinstance(object, Construct):
+            self.constructs[object.ast_id] = object
+            return
+
+        if isinstance(object, Action):
+            actions = self.actions.setdefault(object.ast_id, []) \
+                if object.ast_id is not None else self.anonymous_actions
+            if not any(action is object for action in actions):
+                actions.append(object)
+            self.remember_action_order(object)
+            return
+
+        if isinstance(object, TraceAct):
+            if not any(trace_act is object for trace_act in self.trace_acts):
+                self.trace_acts.append(object)
+            return
+
+        if isinstance(object, TraceState):
+            previous_trace_state = self.trace_state
+            self.trace_state = object
+            self.variables = {
+                name: object if value is previous_trace_state else value
+                for name, value in self.variables.items()
+            }
+            self.variables.setdefault("S", object)
+            return
+
+        self.utilities.add(object)
 
     def copy(self, owner: DomainDataGeneratorPipeline) -> SituationDomainDataRegistry:
         new_registry = SituationDomainDataRegistry(owner)
@@ -121,6 +224,8 @@ class SituationDomainDataRegistry:
         new_registry.action_orders = self.action_orders.copy()
         new_registry._next_action_order = self._next_action_order
         new_registry.trace_acts = self.trace_acts.copy()
+        new_registry.trace_state = self.trace_state
+        new_registry.variables = self.variables.copy()
         new_registry.utilities = self.utilities.copy()
         return new_registry
 
@@ -134,6 +239,13 @@ class SituationDomainDataRegistry:
 
     def action_order(self, action: Action) -> int:
         return self.action_orders.get(id(action), self._next_action_order)
+
+    def _action_order_key(self, action: Action) -> tuple[int, int]:
+        if action.rule.role == "BEGIN":
+            return (0, self.action_order(action))
+        if action.rule.role == "END":
+            return (2, self.action_order(action))
+        return (1, self.action_order(action))
 
     def _used_rules(self, actions: list[Action]) -> list[ConstructDeclaration]:
         """Вернуть только rules, реально использованные объектами situation."""
@@ -175,22 +287,17 @@ class DomainDataGeneratorPipeline(Pipeline):
     def current_result(self) -> SituationDomainDataRegistry:
         return self.registry
 
+    def flatten_results(self) -> Sequence[SituationDomainDataRegistry]:
+        return cast(Sequence[SituationDomainDataRegistry], super().flatten_results())
+
     def get_construct_for(self, ast_id: int) -> Construct | None:
-        return self.registry.constructs.get(ast_id)
+        return self.registry.get_construct_for(ast_id)
 
     def get_actions_for(self, ast_id: int) -> list[Action]:
-        return self.registry.actions.get(ast_id, []).copy()
+        return self.registry.get_actions_for(ast_id)
 
     def get_related_actions(self, construct: Construct) -> list[Action]:
-        result = [
-            action
-            for action in (
-                *[action for actions in self.registry.actions.values() for action in actions],
-                *self.registry.anonymous_actions,
-            )
-            if action.parent is construct
-        ]
-        return sorted(result, key=self._action_order_key)
+        return self.registry.get_related_actions(construct)
 
     def _action_order_key(self, action: Action) -> tuple[int, int]:
         # BEGIN/END создаются при Construct.__post_init__, но в цепочке должны
@@ -208,24 +315,7 @@ class DomainDataGeneratorPipeline(Pipeline):
         return self.rules[0]
 
     def add(self, object: Any) -> None:
-        if isinstance(object, Construct):
-            self.registry.constructs[object.ast_id] = object
-            return
-
-        if isinstance(object, Action):
-            actions = self.registry.actions.setdefault(object.ast_id, []) \
-                if object.ast_id is not None else self.registry.anonymous_actions
-            if not any(action is object for action in actions):
-                actions.append(object)
-            self.registry.remember_action_order(object)
-            return
-
-        if isinstance(object, TraceAct):
-            if not any(trace_act is object for trace_act in self.registry.trace_acts):
-                self.registry.trace_acts.append(object)
-            return
-
-        self.registry.utilities.add(object)
+        self.registry.add(object)
 
     def can_fork(self) -> bool:
         return self.fork_enabled
@@ -403,6 +493,18 @@ class DomainDataGeneratorPipeline(Pipeline):
                 queue.append((transition.to_role, path, absent_roles))
 
     @pipeline_stage(4)
+    def _create_default_situation(self):
+        entry_point = self.registry.get_construct_for(self.code.ast.find_paths_by_type("program_entry_point")[0].id)
+        assert entry_point, "Unknown entry point"
+        self.registry.add(
+            TraceAct(
+                entry_point.begin_action(),
+                entry_point.rule.compiled_transitions_from_role('BEGIN')[0],
+                self
+            )
+        )
+
+    @pipeline_stage(5)
     def _generate_bool_values(self):
         # TODO: Заглушка, пока не будет нормального анализатора значений
         pass
@@ -416,6 +518,25 @@ def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ..
     if isinstance(transition.to_when_absent, list):
         return tuple(transition.to_when_absent)
     return (transition.to_when_absent,)
+
+
+def _format_lookup_conditions(
+    *,
+    ast_id: int | None,
+    role: str | None,
+    construct: Construct | None,
+    construct_ast_id: int | None,
+) -> str:
+    parts: list[str] = []
+    if ast_id is not None:
+        parts.append(f"ast_id={ast_id!r}")
+    if role is not None:
+        parts.append(f"role={role!r}")
+    if construct is not None:
+        parts.append(f"construct_ast_id={construct.ast_id!r}")
+    elif construct_ast_id is not None:
+        parts.append(f"construct_ast_id={construct_ast_id!r}")
+    return ", ".join(parts) if parts else "no conditions"
 
 
 def _unique_bool_values(values: Iterable[bool]) -> list[bool]:

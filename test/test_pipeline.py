@@ -8,14 +8,20 @@ from src.generator.pipeline import (
     PipelineRegistry,
     pipeline_stage,
 )
-from src.generator.utilities import pipeline_results_to_loqi
+from src.generator.utilities import (
+    collect_registry_objects,
+    pipeline_to_loqi,
+    registry_to_loqi,
+    serialize_domain_objects_to_loqi,
+)
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
     Identification,
+    InterruptionType,
     TransitionDeclaration,
 )
-from src.model.situation import Action, Construct, TraceAct
+from src.model.situation import Action, Construct, TraceAct, TraceState
 
 
 class ListRegistry(PipelineRegistry):
@@ -226,6 +232,67 @@ def test_domain_pipeline_implements_situation_context_registry_methods():
         construct.end_action(),
     ]
     assert pipeline.trace_acts == [trace_act]
+    assert isinstance(pipeline.registry.trace_state, TraceState)
+    assert pipeline.registry.variables["S"] is pipeline.registry.trace_state
+
+
+def test_situation_registry_can_be_used_directly_to_lookup_actions_and_store_trace_acts():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="body", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    action = Action(
+        ast_id=11,
+        values=[],
+        rule=rule.actions[1],
+        parent=construct,
+        owner=pipeline,
+    )
+    pipeline.registry.add(construct)
+    pipeline.registry.add(action)
+
+    trace_act = TraceAct(
+        action=pipeline.registry.require_action(ast_id=11, role="body", construct_ast_id=10),
+        used_transition=None,
+        situation=pipeline,
+    )
+    pipeline.registry.add(trace_act)
+
+    assert pipeline.registry.get_construct_for(10) is construct
+    assert pipeline.registry.find_actions(ast_id=11, role="body") == [action]
+    assert trace_act.action is action
+    assert pipeline.registry.trace_acts == [trace_act]
+
+
+def test_situation_registry_require_action_rejects_ambiguous_matches():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="body", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.registry.add(construct)
+    pipeline.registry.add(Action(ast_id=11, values=[], rule=rule.actions[1], parent=construct, owner=pipeline))
+    pipeline.registry.add(Action(ast_id=12, values=[], rule=rule.actions[1], parent=construct, owner=pipeline))
+
+    with pytest.raises(LookupError, match="Expected exactly one action"):
+        pipeline.registry.require_action(role="body", construct_ast_id=10)
 
 
 def test_situation_registry_collects_used_rules_before_situation_objects():
@@ -271,7 +338,7 @@ def test_situation_registry_collects_rules_used_by_actions():
     assert collected.index(action_rule_owner) < collected.index(action)
 
 
-def test_pipeline_results_to_loqi_passes_variable_map_to_serializer():
+def test_pipeline_to_loqi_serializes_each_registry_with_variable_map():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
     pipeline = DomainDataGeneratorPipeline(manager)
@@ -280,9 +347,104 @@ def test_pipeline_results_to_loqi_passes_variable_map_to_serializer():
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
     pipeline.add(construct)
 
-    rendered = pipeline_results_to_loqi(pipeline, variables={"DemoRule": rule})
+    rendered = pipeline_to_loqi(pipeline, variables={"DemoRule": rule})
 
+    assert len(rendered) == 1
+    serializer, loqi = rendered[0]
+    assert serializer.object_name(rule) == "construct_demo"
+    assert serializer.object_by_name("construct_demo") is rule
+    assert "var DemoRule = obj construct_demo : ConstructSpec {" in loqi
+    assert "var S = obj trace_state_none : TraceState {" in loqi
+
+
+def test_registry_trace_state_is_singleton_and_can_be_replaced():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    initial_state = pipeline.registry.trace_state
+    replacement = TraceState(InterruptionType.BREAK)
+
+    pipeline.registry.add(replacement)
+
+    assert pipeline.registry.trace_state is replacement
+    assert initial_state not in pipeline.registry.collect()
+    assert replacement in pipeline.registry.collect()
+    assert pipeline.registry.variables["S"] is replacement
+
+
+def test_registry_default_variables_can_be_overridden_by_call_variables():
+    manager = Mock(language="python")
+    pipeline = DomainDataGeneratorPipeline(manager)
+    override_state = TraceState(InterruptionType.BREAK)
+
+    rendered = pipeline_to_loqi(pipeline, variables={"S": override_state})
+
+    serializer, loqi = rendered[0]
+    assert serializer.object_name(override_state) == "trace_state_break"
+    assert "var S = obj trace_state_break : TraceState {" in loqi
+    assert "var S = obj trace_state_none : TraceState {" not in loqi
+
+
+def test_pipeline_to_loqi_keeps_forked_registries_separate():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.registry.add(construct)
+    child = pipeline.fork()
+    child.registry.add(
+        TraceAct(
+            action=child.registry.require_action(ast_id=10, role="BEGIN"),
+            used_transition=None,
+            situation=child,
+        )
+    )
+
+    rendered = pipeline_to_loqi(pipeline)
+
+    assert len(rendered) == 2
+    assert "obj trace_act_0_10_BEGIN : TraceAct {" not in rendered[0][1]
+    assert "obj trace_act_0_10_BEGIN : TraceAct {" in rendered[1][1]
+
+
+def test_pipeline_registry_utilities_allow_editing_before_serialization():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.registry.add(construct)
+
+    registries = pipeline.flatten_results()
+    trace_act = TraceAct(
+        action=registries[0].require_action(ast_id=10, role="BEGIN"),
+        used_transition=None,
+        situation=pipeline,
+    )
+    registries[0].add(trace_act)
+    objects = collect_registry_objects(registries[0])
+    serializer, rendered = serialize_domain_objects_to_loqi(objects, variables={"DemoRule": rule})
+
+    assert serializer.object_name(trace_act) == "trace_act_0_10_BEGIN"
     assert "var DemoRule = obj construct_demo : ConstructSpec {" in rendered
+    assert "obj trace_act_0_10_BEGIN : TraceAct {" in rendered
+
+
+def test_registry_to_loqi_serializes_registry_roots():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.registry.add(construct)
+
+    serializer, rendered = registry_to_loqi(pipeline.flatten_results()[0])
+
+    assert serializer.object_name(construct) == "concrete_construct_10_demo"
+    assert "obj concrete_construct_10_demo : ConcreteConstruct {" in rendered
 
 
 def test_action_possible_transitions_uses_compiled_concrete_transitions():

@@ -197,6 +197,10 @@ class ActionDeclaration:
     parent: ConstructDeclaration | None = field(default=None, init=False, repr=False, compare=False)
 
     @property
+    def is_opaque(self):
+        return self.role != "BEGIN" and self.role != "END"
+
+    @property
     def kind_classes(self) -> set[str]:
         return set(self.kind.split("."))
 

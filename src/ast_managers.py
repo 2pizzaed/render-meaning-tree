@@ -233,6 +233,24 @@ class ASTNodeManager:
                 if path_element == node:
                     return ast_node
 
+    def find_paths_by_type(
+        self,
+        node_type: str,
+        *,
+        include_subtypes: bool = False,
+    ) -> list[NodePathElement]:
+        if include_subtypes:
+            return [
+                path
+                for path, _node in self._cache.values()
+                if path.instanceof(node_type)
+            ]
+        return [
+            path
+            for path, _node in self._cache.values()
+            if path.type == node_type
+        ]
+
     def get_parent_of(self, node: int | NodePathElement) -> JSON | None:
         if isinstance(node, int):
             if path := self.get_path(node):
@@ -256,6 +274,15 @@ class ASTNodeManager:
 
     def __iter__(self):
         return iter(self._cache.items())
+
+
+def _node_path_depth(node: NodePathElement) -> int:
+    depth = 0
+    current = node.parent
+    while current is not None:
+        depth += 1
+        current = current.parent
+    return depth
 
 
 class SkipStreamIterationException(Exception):
@@ -477,12 +504,9 @@ class CodeManager:
             return None
         return start_line, end_line
 
-    def get_code_line_number_by_id(self, ast_id: int | str) -> int | None:
+    def code_line_number_by_id(self, ast_id: int | str) -> int | None:
         """
         Возвращает номер строки (1-based) по ast_id узла.
-
-        Совместимо по контракту с ASTNodeAnalyzer.get_code_line_number_by_id
-        и используется в runtime-модуле matcher.
         """
         try:
             node_id = int(ast_id)
@@ -493,6 +517,39 @@ class CodeManager:
         if not line_range:
             return None
         return line_range[0]
+
+    def line_number_to_ast_node(self, line_number: int) -> NodePathElement | None:
+        """
+        Ищет в строке кода наименее вложенный узел ast. Если таких узлов на одном уровне несколько или нет, то возвращается None
+        """
+        if line_number < 1:
+            return None
+
+        candidates: dict[int, NodePathElement] = {}
+        for ast_id, (path, _node) in self._ast:
+            if path.type == "program_entry_point":
+                continue
+
+            token_range = self.token_index_range(ast_id)
+            if token_range is None:
+                continue
+
+            start_line = self.line_number(token_range[0])
+            if start_line == line_number:
+                candidates[path.id] = path
+
+        if not candidates:
+            return None
+
+        by_depth: dict[int, list[NodePathElement]] = {}
+        for candidate in candidates.values():
+            by_depth.setdefault(_node_path_depth(candidate), []).append(candidate)
+
+        least_depth = min(by_depth)
+        least_nested = by_depth[least_depth]
+        if len(least_nested) != 1:
+            return None
+        return least_nested[0]
 
     @property
     def nodes_cache(self) -> dict[int, Node]:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.env import MEANING_TREE_CLI_DEBUG_ENV_VAR, env_flag
-from src.types import JSON, MeaningTree, SourceMap, TokenList
+from src.types import JSON, MeaningTree, SourceMap, SupportedProgrammingLanguage, TokenList
 
 m2_repo = (
     Path.home() / ".m2" / "repository" / "org" / "vstu" / "meaningtree" / "application" / "1.0-SNAPSHOT"
@@ -31,11 +31,11 @@ def serialize_config(config: JSON | None = None) -> list[str]:
     return ["--config", json.dumps(config, ensure_ascii=False)]
 
 
-def to_dict(language: str, code: str, config: JSON | None = None) -> MeaningTree | None:
+def to_dict(language: SupportedProgrammingLanguage, code: str, config: JSON | None = None) -> MeaningTree | None:
     """Convert code from language to Meaning Tree
 
     Args:
-        language: The source programming language (e.g., 'java', 'python', 'cpp')
+        language: The source programming language (e.g., 'java', 'python', 'c++')
         code: The code to convert
 
     Returns:
@@ -47,11 +47,11 @@ def to_dict(language: str, code: str, config: JSON | None = None) -> MeaningTree
     return _parse_json(json_output) # type: ignore
 
 
-def to_dot(language: str, code: str, config: JSON | None = None) -> str | None:
+def to_dot(language: SupportedProgrammingLanguage, code: str, config: JSON | None = None) -> str | None:
     """Convert code from language to string dot graph representation using meaning tree
 
     Args:
-        language: The source programming language (e.g., 'java', 'python', 'cpp')
+        language: The source programming language (e.g., 'java', 'python', 'c++')
         code: The code to convert
 
     Returns:
@@ -64,12 +64,15 @@ def to_dot(language: str, code: str, config: JSON | None = None) -> str | None:
 
 
 def to_tokens(
-    from_language: str, code: str, to_language: str | None = None, config: JSON | None = None
+    from_language: SupportedProgrammingLanguage,
+    code: str,
+    to_language: SupportedProgrammingLanguage | None = None,
+    config: JSON | None = None,
 ) -> TokenList | None:
     """Tokenize source code into a structured representation
 
     Args:
-        from_language: The source programming language (e.g., 'java', 'python', 'cpp')
+        from_language: The source programming language (e.g., 'java', 'python', 'c++')
         code: The code to tokenize
         to_language: Optional target language to map tokens into (if supported).
             If None, tokens remain in the source language context.
@@ -84,7 +87,11 @@ def to_tokens(
 
 
 def convert(
-    code: str, from_language: str, to_language: str, source_map: bool = False, config: JSON | None = None
+    code: str,
+    from_language: SupportedProgrammingLanguage,
+    to_language: SupportedProgrammingLanguage,
+    source_map: bool = False,
+    config: JSON | None = None,
 ) -> str | SourceMap | None:
     """Convert code between programming languages or produce a source map
 
@@ -110,7 +117,7 @@ def convert(
 
 def generate(
     ast: str,
-    to_language: str,
+    to_language: SupportedProgrammingLanguage,
     format: str = "json",
     source_map: bool = False, config: JSON | None = None
 ) -> str | dict[str, Any] | None:
@@ -194,7 +201,12 @@ def _print_cli_streams(stdout: str | None, stderr: str | None) -> None:
         print(stderr, end="", file=sys.stderr)
 
 
-def _run_serialize(code: str, source_lang: str, target_lang: str = "json", config: JSON | None = None) -> str | None:
+def _run_serialize(
+    code: str,
+    source_lang: SupportedProgrammingLanguage,
+    target_lang: str = "json",
+    config: JSON | None = None,
+) -> str | None:
     return _run_meaning_tree(
         "translate",
         "--from",
@@ -207,8 +219,12 @@ def _run_serialize(code: str, source_lang: str, target_lang: str = "json", confi
     )
 
 
-def _run_tokenize(code: str, source_lang: str,
-                  target_lang: str | None = None, config: JSON | None = None) -> str | None:
+def _run_tokenize(
+    code: str,
+    source_lang: SupportedProgrammingLanguage,
+    target_lang: SupportedProgrammingLanguage | None = None,
+    config: JSON | None = None,
+) -> str | None:
     if target_lang is None:
         conv_args = ["--tokenize-noconvert"]
     else:
@@ -225,7 +241,10 @@ def _run_tokenize(code: str, source_lang: str,
 
 
 def _run_convert(
-    code: str, source_lang: str, target_lang: str, source_map: bool = False,
+    code: str,
+    source_lang: SupportedProgrammingLanguage,
+    target_lang: SupportedProgrammingLanguage,
+    source_map: bool = False,
     config: JSON | None = None
 ) -> str | None:
     return _run_meaning_tree(
@@ -243,7 +262,7 @@ def _run_convert(
 def _run_generate(
     ast: str,
     format: str,
-    target_lang: str,
+    target_lang: SupportedProgrammingLanguage,
     source_map: bool = False,
     config: JSON | None = None
 ) -> str | None:

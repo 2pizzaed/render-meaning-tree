@@ -7,7 +7,15 @@ from typing import Any, Literal, Protocol, cast, runtime_checkable
 from src.coderenderer.colors import colorize_token
 from src.coderenderer.entities import RendererEntity, Token
 from src.meaning_tree import convert, node_hierarchy, to_tokens
-from src.types import JSON, JsonObject, MeaningTree, Node, SourceMap, TokenList
+from src.types import (
+    JSON,
+    JsonObject,
+    MeaningTree,
+    Node,
+    SourceMap,
+    SupportedProgrammingLanguage,
+    TokenList,
+)
 from src.types import Token as TokenJson
 
 type Declaration = tuple[str, int]
@@ -392,8 +400,8 @@ class CodeManager:
         self._process_declarations()
 
     @property
-    def language(self) -> str:
-        return self.source_map.get("language", "") # type: ignore
+    def language(self) -> SupportedProgrammingLanguage:
+        return cast(SupportedProgrammingLanguage, self.source_map.get("language", ""))
 
     @property
     def user_defined_function_names(self) -> dict[str, int]:
@@ -1067,15 +1075,21 @@ def manage_code(tokens: TokenList, source_map: SourceMap) -> CodeManager:
     return CodeManager(analyzer, source_map, tokens)
 
 
-def prepare_code(code: str, language: str, mode: Literal["full", "simple", "expression"] = "simple") -> CodeManager:
+def prepare_code(
+    code: str,
+    language: SupportedProgrammingLanguage,
+    mode: Literal["full", "simple", "expression"] = "simple",
+    target_language: SupportedProgrammingLanguage | None = None,
+) -> CodeManager:
     config: JSON = {"translationUnitMode": mode}
+    render_language = target_language or language
     # 1. Токенизация
-    tokens_list = to_tokens(language, code, config=config)
+    tokens_list = to_tokens(language, code, render_language, config=config)
     if not tokens_list:
         raise ValueError("Failed to tokenize code (backend returned None)")
 
     # 2. Source Map
-    source_map = convert(code, language, language, source_map=True, config=config)
+    source_map = convert(code, language, render_language, source_map=True, config=config)
     if not source_map or not isinstance(source_map, dict):
         raise ValueError("Failed to generate source map")
     return manage_code(tokens_list, source_map)
@@ -1272,7 +1286,7 @@ def stream_ensure_token(obj: Any) -> Token:
     return obj
 
 
-def is_language(name: str) -> Observation:
+def is_language(name: SupportedProgrammingLanguage) -> Observation:
 
     @observable_token()
     def is_language_instance(cur: TokenCursor) -> bool | None:
@@ -1280,7 +1294,7 @@ def is_language(name: str) -> Observation:
 
     return is_language_instance
 
-def is_language_not_in(names: list[str]) -> Observation:
+def is_language_not_in(names: list[SupportedProgrammingLanguage]) -> Observation:
     @observable_token()
     def is_notlanguage_instance(cur: TokenCursor) -> bool | None:
         return cur.manager.language not in names

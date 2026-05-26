@@ -1,5 +1,7 @@
 from typing import Literal
 
+type SupportedProgrammingLanguage = Literal["java", "python", "c++"]
+
 type NodeType = Literal[
     "program_entry_point",
     "if_statement",

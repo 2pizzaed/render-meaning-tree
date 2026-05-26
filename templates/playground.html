@@ -79,6 +79,8 @@
     </style>
 </head>
 <body>
+    {% set language_options = language_options|default([['java', 'Java'], ['python', 'Python'], ['c++', 'C++']]) %}
+    {% set target_language = target_language|default('') %}
     {% if not static_used %}
     <div class="sidebar">
         <h3>Playground</h3>
@@ -86,14 +88,23 @@
             <div class="form-group">
                 <label>Language</label>
                 <select name="language">
-                    <option value="java" {% if language == 'java' %}selected{% endif %}>Java</option>
-                    <option value="python" {% if language == 'python' %}selected{% endif %}>Python</option>
-                    <option value="cpp" {% if language == 'cpp' %}selected{% endif %}>C++</option>
+                    {% for option_value, option_label in language_options %}
+                    <option value="{{ option_value }}" {% if language == option_value %}selected{% endif %}>{{ option_label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">
                 <label>Code</label>
                 <textarea name="code" spellcheck="false">{{ code }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Translate to</label>
+                <select name="target_language">
+                    <option value="" {% if not target_language %}selected{% endif %}>Don't translate to another language</option>
+                    {% for option_value, option_label in language_options %}
+                    <option value="{{ option_value }}" {% if target_language == option_value %}selected{% endif %}>{{ option_label }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <button type="submit" class="submit-btn">Render</button>
         </form>

@@ -48,8 +48,10 @@ def test_plain_statements(tmp_path: Path):
         resolve_project_root() / 'domain',
         loqi_file,
         tree="findCorrect",
+        debug_enabled=True,
         reasoner_output_stream=sys.stdout
     )
     assert solve_output and solve_output.result
     print(solve_output)
     assert not len(solve_output.exceptions)
+    print(open_file_and_wait(loqi_file))

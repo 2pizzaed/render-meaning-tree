@@ -227,6 +227,7 @@ def solve_reasoning(
     tree: str | None = None,
     verbose: bool = False,
     json_trace: bool = False,
+    debug_enabled: bool = False,
     export_domain: bool = False,
     reasoner_output_stream: TextIO | None = None,
 ) -> ReasoningResult | None:
@@ -250,6 +251,7 @@ def solve_reasoning(
         "jsonl",
         *(["--json-trace"] if json_trace else []),
         *(["--export-domain", "-"] if export_domain else []),
+        *(["--debug"] if debug_enabled else []),
     ]
 
     raw_result = _run_reasoner_cli(*args)

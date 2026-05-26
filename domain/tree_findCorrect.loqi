@@ -31,7 +31,7 @@ fragment findLastTracedAction(last: TraceAct) {
     ask (
         P->hasTransition=>hasEffects() and 
         P->hasTransition->hasEffects.call_stack != CallStackAction:none
-    ) out true else {
+    ) out false else {
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and
             $a.ast_id == P->hasAction.ast_id
@@ -86,16 +86,16 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
     var L: TraceAct = P;
     while (L->hasAction->derivedFrom.is_opaque or L == P) {
         body -> {
-            `fragment`:findLastTracedAction(L) out true;
+            `fragment`:findLastTracedAction(L) out true, null;
 
             ask (L->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" 
-                and L->hasAction->derivedFrom.role != "END") out false else {
+                and L->hasAction->derivedFrom.role == "END") out false else {
                 conclude: true with (P = L) [
                     // все вычислено
                 ];
             };
 
-            var T: TransitionSpec = find TransitionSpec t {
+            var T: TransitionSpec = find TransitionSpec t {debug:trace(
                 $t->from_ == L->hasAction->derivedFrom and
                 $t->belongsTo == L->hasAction->belongsTo and
                 (S.interruption_mode == $t->hasConstraints.interruption_mode 
@@ -104,7 +104,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                     L->hasValue, 
                     findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {$c=>afterOf(L->hasValue)})
                 }).bool_value == $t->hasConstraints.condition_value)
-            } out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
+            )} out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
 
             var N: ConcreteAction = find ConcreteAction a {
                 $a != L and

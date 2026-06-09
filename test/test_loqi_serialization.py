@@ -117,6 +117,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         obj action_BEGIN : ActionSpec {
             role = "BEGIN";
             kind = "marker";
+            is_opaque = false;
             generalization = "entry";
             belongsTo(construct_if_statement);
         }
@@ -124,6 +125,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         obj action_END : ActionSpec {
             role = "END";
             kind = "marker";
+            is_opaque = false;
             belongsTo(construct_if_statement);
         }
 

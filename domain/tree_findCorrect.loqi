@@ -24,7 +24,7 @@ fragment findLastTracedAction(last: TraceAct) {
                     });
                     hasTransition(find TransitionSpec t {
                         $t->from_ == possibleLast->hasAction->derivedFrom and
-                        $t->belongsTo == possibleLast->hasAction->belongsTo
+                        $t->belongsTo == possibleLast->hasAction->belongsTo->derivedFrom
                     });
                     hasValue(possibleLast->hasValue);
                     directlyBeforeOf(P);
@@ -111,21 +111,39 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
             // Ищем переход внутри конструкта последнего действия, который соответствует условиям прерывания, значения условия
             var T: TransitionSpec = find TransitionSpec t {debug:trace(
                 $t->from_ == L->hasAction->derivedFrom and
-                $t->belongsTo == L->hasAction->belongsTo and
-                (S.interruption_mode == $t->hasConstraints.interruption_mode 
-                    or $t->hasConstraints.interruption_mode == InterruptionType:any) and
-                (L=>hasValue() and (find SemanticValue v {$v=>afterOf(L->hasValue) and not $v.used and $v=>isCloserToThan(
-                    L->hasValue, 
-                    findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {$c=>afterOf(L->hasValue)})
+                $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
+                (not $t=>hasConstraints() or (
+                    S.interruption_mode == $t->hasConstraints.interruption_mode 
+                    or $t->hasConstraints.interruption_mode == InterruptionType:any
+                )) and (not L=>hasValue() or (find SemanticValue v {
+                    $v=>afterOf(L->hasValue) and 
+                    not $v.used and 
+                    $v=>isCloserToThan(
+                        L->hasValue, 
+                        findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {
+                            $c=>afterOf(L->hasValue)}
+                    )
                 }).bool_value == $t->hasConstraints.condition_value)
             )} out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
 
             // По найденному переходу ищем конкретное действие
             var N: ConcreteAction = find ConcreteAction a {
-                $a != L and
+                $a != L->hasAction and
                 $a->derivedFrom == T->to_ and
-                $a->belongsTo->derivedFrom == T->belongsTo and
-                $a->belongsTo.ast_id == L->hasAction.ast_id
+                $a->belongsTo == L->hasAction->belongsTo and
+                (
+                    not L->hasAction=>directlyBeforeOf() // либо действие не в цепочке, либо выбираем такое, которое сразу после L
+                    or (
+                        $a=>afterOf(L->hasAction) and
+                        not forAny ConcreteAction mid {
+                            $mid != $a and
+                            $mid->derivedFrom == T->to_ and
+                            $mid->belongsTo == $a->belongsTo and
+                            $mid=>afterOf(L->hasAction) and
+                            $a=>afterOf($mid)
+                        }
+                    )
+                )
             } out true else {conclude : error [exception = true; exceptionName = "NoNextAction";];};
 
             // Если действия уже было в трассе

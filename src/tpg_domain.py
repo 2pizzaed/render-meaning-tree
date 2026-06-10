@@ -30,6 +30,14 @@ type ReasoningTrace = str | dict[str, Any] | list[Any]
 
 
 @dataclass(frozen=True)
+class ExpressionQueryResult:
+    objects: list[str] = field(default_factory=list)
+    trace: str | None = None
+    reasoner_output: list[str] = field(default_factory=list)
+    metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ReasoningResult:
     result: bool | None
     trace: ReasoningTrace | None = None
@@ -215,7 +223,11 @@ def rdf_to_domain_loqi(
         *(["--old-nary-compat"] if old_nary_compat else []),
         *(["--throw-invalid-meta"] if throw_invalid_meta else []),
         *(["--separate-metadata"] if separate_metadata else []),
-        *(["--separate-class-property-values"] if separate_class_property_values else []),
+        *(
+            ["--separate-class-property-values"]
+            if separate_class_property_values
+            else []
+        ),
     )
 
 
@@ -287,6 +299,44 @@ def solve_reasoning_result(
     return result.result
 
 
+def query_expression(
+    domain_loqi: str | Path,
+    expression: str,
+    *,
+    model_dir: str | Path | None = None,
+    tag: str | None = None,
+    debug_enabled: bool = False,
+    trace: bool = False,
+    verbose: bool = False,
+    limit: int | None = None,
+    time_measure: bool = False,
+    reasoner_output_stream: TextIO | None = None,
+) -> ExpressionQueryResult | None:
+    """Run its_Reasoner expression-query against a specific LOQI domain."""
+    args = [
+        "expression-query",
+        *([str(model_dir)] if model_dir is not None else []),
+        str(domain_loqi),
+        expression,
+        *_tag_args(tag),
+        *(["--debug"] if debug_enabled else []),
+        *(["--trace"] if trace else []),
+        *(["--verbose"] if verbose else []),
+        *([] if limit is None else ["--limit", str(limit)]),
+        *(["--time-measure"] if time_measure else []),
+        "--format",
+        "jsonl",
+    ]
+
+    raw_result = _run_reasoner_cli(*args)
+    if raw_result is None:
+        return None
+    return parse_expression_query_jsonl(
+        raw_result,
+        reasoner_output_stream=reasoner_output_stream,
+    )
+
+
 def parse_reasoning_jsonl(
     raw_jsonl: str,
     *,
@@ -308,9 +358,13 @@ def parse_reasoning_jsonl(
         try:
             event = json.loads(line)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSONL from its_Reasoner at line {line_number}: {line}") from e
+            raise ValueError(
+                f"Invalid JSONL from its_Reasoner at line {line_number}: {line}"
+            ) from e
         if not isinstance(event, dict):
-            raise ValueError(f"Invalid JSONL event from its_Reasoner at line {line_number}: {event!r}")
+            raise ValueError(
+                f"Invalid JSONL event from its_Reasoner at line {line_number}: {event!r}"
+            )
 
         event_type = event.get("type")
 
@@ -324,7 +378,9 @@ def parse_reasoning_jsonl(
         elif event_type == "variables":
             event_variables = event.get("value")
             if isinstance(event_variables, dict):
-                variables = {str(key): str(value) for key, value in event_variables.items()}
+                variables = {
+                    str(key): str(value) for key, value in event_variables.items()
+                }
         elif event_type == "exceptions":
             event_exceptions = event.get("value")
             if isinstance(event_exceptions, list):
@@ -359,6 +415,58 @@ def parse_reasoning_jsonl(
         metrics=metrics,
         artifacts=artifacts,
         artifact_paths=artifact_paths,
+    )
+
+
+def parse_expression_query_jsonl(
+    raw_jsonl: str,
+    *,
+    reasoner_output_stream: TextIO | None = None,
+) -> ExpressionQueryResult:
+    """Parse its_Reasoner expression-query JSONL events into a structured result."""
+    objects: list[str] = []
+    trace: str | None = None
+    reasoner_output: list[str] = []
+    metrics: dict[str, dict[str, Any]] = {}
+
+    for line_number, line in enumerate(raw_jsonl.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Invalid JSONL from its_Reasoner at line {line_number}: {line}"
+            ) from e
+        if not isinstance(event, dict):
+            raise ValueError(
+                f"Invalid JSONL event from its_Reasoner at line {line_number}: {event!r}"
+            )
+
+        event_type = event.get("type")
+        if event_type == "reasoner-output":
+            message = str(event.get("value", ""))
+            reasoner_output.append(message)
+            if reasoner_output_stream:
+                print(message, file=reasoner_output_stream)
+        elif event_type == "expression-query-result":
+            event_objects = event.get("objects")
+            if isinstance(event_objects, list):
+                objects = [str(item) for item in event_objects]
+        elif event_type == "expression-trace":
+            event_trace = event.get("value")
+            if event_trace is not None:
+                trace = str(event_trace)
+        elif event_type == "metric":
+            name = event.get("name")
+            if name is not None:
+                metrics[str(name)] = event
+
+    return ExpressionQueryResult(
+        objects=objects,
+        trace=trace,
+        reasoner_output=reasoner_output,
+        metrics=metrics,
     )
 
 
@@ -406,7 +514,9 @@ def _run_domain_cli_bool(*args: str) -> bool:
     return _run_domain_cli(*args) is not None
 
 
-def _run_domain_cli_text_or_bool(output: str | Path | None, *args: str) -> str | bool | None:
+def _run_domain_cli_text_or_bool(
+    output: str | Path | None, *args: str
+) -> str | bool | None:
     result = _run_domain_cli(*args)
     if output is not None:
         return result is not None
@@ -465,7 +575,9 @@ def _print_cli_streams(stdout: str | None, stderr: str | None) -> None:
         print(stderr, end="", file=sys.stderr)
 
 
-def _log_cli_json_errors(project: TpgProject, stdout: str | None, stderr: str | None) -> bool:
+def _log_cli_json_errors(
+    project: TpgProject, stdout: str | None, stderr: str | None
+) -> bool:
     errors = [
         event
         for stream in (stderr, stdout)

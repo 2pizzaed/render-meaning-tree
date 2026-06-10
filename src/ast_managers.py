@@ -525,9 +525,9 @@ class CodeManager:
         return self._tokens.index(token)
 
     def code_piece(self, ast_node_id: int) -> str | None:
-        byte_range: tuple[int, int] = self._source_map.get("byte_positions", {}).get(
+        byte_range: tuple[int, int] = self._source_map.get("byte_positions", {}).get( # type: ignore
             str(ast_node_id)
-        )  # type: ignore
+        ) 
         code = self.bytes
         if not byte_range:
             return None

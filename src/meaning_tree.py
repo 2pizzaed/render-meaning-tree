@@ -1,15 +1,29 @@
 import json
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from src.env import MEANING_TREE_CLI_DEBUG_ENV_VAR, env_flag
-from src.types import JSON, MeaningTree, SourceMap, SupportedProgrammingLanguage, TokenList
+from src.types import (
+    JSON,
+    MeaningTree,
+    SourceMap,
+    SupportedProgrammingLanguage,
+    TokenList,
+)
 
 m2_repo = (
-    Path.home() / ".m2" / "repository" / "org" / "vstu" / "meaningtree" / "application" / "1.0-SNAPSHOT"
+    Path.home()
+    / ".m2"
+    / "repository"
+    / "org"
+    / "vstu"
+    / "meaningtree"
+    / "application"
+    / "1.0-SNAPSHOT"
 )
 JAR_PATH = m2_repo / "application-1.0-SNAPSHOT.jar"
 JAVA_EXECUTABLE = "java"
@@ -31,7 +45,15 @@ def serialize_config(config: JSON | None = None) -> list[str]:
     return ["--config", json.dumps(config, ensure_ascii=False)]
 
 
-def to_dict(language: SupportedProgrammingLanguage, code: str, config: JSON | None = None) -> MeaningTree | None:
+def to_dict(
+    language: SupportedProgrammingLanguage,
+    code: str,
+    config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
+) -> MeaningTree | None:
     """Convert code from language to Meaning Tree
 
     Args:
@@ -41,13 +63,28 @@ def to_dict(language: SupportedProgrammingLanguage, code: str, config: JSON | No
     Returns:
         Dict representation of the code's meaning tree or None if conversion failed
     """
-    json_output = _run_serialize(code, language, config=config)
+    json_output = _run_serialize(
+        code,
+        language,
+        config=config,
+        skip_errors=skip_errors,
+        project_root=project_root,
+        project_file=project_file,
+    )
     if not json_output:
         return None
-    return _parse_json(json_output) # type: ignore
+    return _parse_json(json_output)  # type: ignore
 
 
-def to_dot(language: SupportedProgrammingLanguage, code: str, config: JSON | None = None) -> str | None:
+def to_dot(
+    language: SupportedProgrammingLanguage,
+    code: str,
+    config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
+) -> str | None:
     """Convert code from language to string dot graph representation using meaning tree
 
     Args:
@@ -57,7 +94,15 @@ def to_dot(language: SupportedProgrammingLanguage, code: str, config: JSON | Non
     Returns:
         dot language graph code
     """
-    output = _run_serialize(code, language, "dot", config=config)
+    output = _run_serialize(
+        code,
+        language,
+        "dot",
+        config=config,
+        skip_errors=skip_errors,
+        project_root=project_root,
+        project_file=project_file,
+    )
     if not output:
         return None
     return output
@@ -68,6 +113,10 @@ def to_tokens(
     code: str,
     to_language: SupportedProgrammingLanguage | None = None,
     config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
 ) -> TokenList | None:
     """Tokenize source code into a structured representation
 
@@ -80,10 +129,18 @@ def to_tokens(
     Returns:
         Dict representation of the tokenized code, or None if tokenization failed
     """
-    json_output = _run_tokenize(code, from_language, to_language, config=config)
+    json_output = _run_tokenize(
+        code,
+        from_language,
+        to_language,
+        config=config,
+        skip_errors=skip_errors,
+        project_root=project_root,
+        project_file=project_file,
+    )
     if not json_output:
         return None
-    return _parse_json(json_output) # type: ignore
+    return _parse_json(json_output)  # type: ignore
 
 
 def convert(
@@ -92,6 +149,10 @@ def convert(
     to_language: SupportedProgrammingLanguage,
     source_map: bool = False,
     config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
 ) -> str | SourceMap | None:
     """Convert code between programming languages or produce a source map
 
@@ -107,11 +168,20 @@ def convert(
         dict representation of the source map if source_map is True,
         or None if conversion failed
     """
-    output = _run_convert(code, from_language, to_language, source_map, config=config)
+    output = _run_convert(
+        code,
+        from_language,
+        to_language,
+        source_map,
+        config=config,
+        skip_errors=skip_errors,
+        project_root=project_root,
+        project_file=project_file,
+    )
     if not output:
         return None
     if source_map:
-        return _parse_json(output) # type: ignore
+        return _parse_json(output)  # type: ignore
     return output
 
 
@@ -119,7 +189,10 @@ def generate(
     ast: str,
     to_language: SupportedProgrammingLanguage,
     format: str = "json",
-    source_map: bool = False, config: JSON | None = None
+    source_map: bool = False,
+    config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
 ) -> str | dict[str, Any] | None:
     """Convert code between programming languages or produce a source map
 
@@ -135,7 +208,14 @@ def generate(
         dict representation of the source map if source_map is True,
         or None if conversion failed
     """
-    output = _run_generate(ast, format, to_language, source_map, config=config)
+    output = _run_generate(
+        ast,
+        format,
+        to_language,
+        source_map,
+        config=config,
+        skip_errors=skip_errors,
+    )
     if not output:
         return None
     if source_map:
@@ -158,7 +238,6 @@ def node_hierarchy() -> JSON:
     return json
 
 
-
 def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
     try:
         prepared_args = [*JAR_RUN, *args]
@@ -170,7 +249,7 @@ def _run_meaning_tree(*args: str, stdin_data: str | None = None) -> str | None:
             input=stdin_data,
             capture_output=True,
             text=True,
-            encoding='utf-8',
+            encoding="utf-8",
             check=True,
         )
         if debug:
@@ -206,6 +285,10 @@ def _run_serialize(
     source_lang: SupportedProgrammingLanguage,
     target_lang: str = "json",
     config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
 ) -> str | None:
     return _run_meaning_tree(
         "translate",
@@ -213,6 +296,8 @@ def _run_serialize(
         source_lang,
         "--serialize",
         target_lang,
+        *(["--skip-errors"] if skip_errors else []),
+        *_project_option(project_root, project_file),
         *serialize_config(config),
         "-",
         stdin_data=code,
@@ -224,6 +309,10 @@ def _run_tokenize(
     source_lang: SupportedProgrammingLanguage,
     target_lang: SupportedProgrammingLanguage | None = None,
     config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
 ) -> str | None:
     if target_lang is None:
         conv_args = ["--tokenize-noconvert"]
@@ -234,6 +323,8 @@ def _run_tokenize(
         "--from",
         source_lang,
         *conv_args,
+        *(["--skip-errors"] if skip_errors else []),
+        *_project_option(project_root, project_file),
         *serialize_config(config),
         "-",
         stdin_data=code,
@@ -245,7 +336,11 @@ def _run_convert(
     source_lang: SupportedProgrammingLanguage,
     target_lang: SupportedProgrammingLanguage,
     source_map: bool = False,
-    config: JSON | None = None
+    config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
+    project_root: str | Path | None = None,
+    project_file: str | Path | None = None,
 ) -> str | None:
     return _run_meaning_tree(
         "translate",
@@ -254,17 +349,22 @@ def _run_convert(
         "--to",
         target_lang,
         *(["--source-map"] if source_map else []),
+        *(["--skip-errors"] if skip_errors else []),
+        *_project_option(project_root, project_file),
         *serialize_config(config),
         "-",
         stdin_data=code,
     )
+
 
 def _run_generate(
     ast: str,
     format: str,
     target_lang: SupportedProgrammingLanguage,
     source_map: bool = False,
-    config: JSON | None = None
+    config: JSON | None = None,
+    *,
+    skip_errors: bool = False,
 ) -> str | None:
     return _run_meaning_tree(
         "generate",
@@ -273,10 +373,22 @@ def _run_generate(
         "--format",
         format,
         *(["--source-map"] if source_map else []),
+        *(["--skip-errors"] if skip_errors else []),
         *serialize_config(config),
         "-",
         stdin_data=ast,
     )
+
+
+def _project_option(
+    project_root: str | Path | None,
+    project_file: str | Path | None,
+) -> list[str]:
+    if project_root is None and project_file is None:
+        return []
+    if project_root is None or project_file is None:
+        raise ValueError("project_root and project_file must be provided together")
+    return ["--project", f"{Path(project_root)}{os.pathsep}{Path(project_file)}"]
 
 
 def _parse_json(json_data: str) -> JSON | None:

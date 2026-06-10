@@ -24,10 +24,7 @@ def _manager(
     tokens: list[Token],
 ) -> CodeManager:
     ast = object.__new__(ASTNodeManager)
-    ast._cache = {
-        path.id: (path, {"id": path.id, "type": path.type})
-        for path in paths
-    }
+    ast._cache = {path.id: (path, {"id": path.id, "type": path.type}) for path in paths}
     manager = object.__new__(CodeManager)
     manager._ast = ast
     manager._source_map = {}
@@ -86,6 +83,28 @@ def test_line_number_to_ast_node_returns_none_for_invalid_or_empty_line() -> Non
 
     assert manager.line_number_to_ast_node(0) is None
     assert manager.line_number_to_ast_node(2) is None
+
+
+def test_line_number_to_ast_nodes_returns_all_nodes_starting_on_line_in_stable_order() -> (
+    None
+):
+    root = _path(1, "program_entry_point")
+    statement = _path(2, "assignment_statement", root)
+    expression = _path(3, "binary_expression", statement)
+    nested = _path(4, "identifier", expression)
+    next_statement = _path(5, "return_statement", root)
+    manager = _manager(
+        [root, statement, expression, nested, next_statement],
+        [
+            _token(0, "x", nested),
+            _token(1, "\n", None),
+            _token(2, "return", next_statement),
+        ],
+    )
+
+    assert manager.line_number_to_ast_nodes(1) == [statement, expression, nested]
+    assert manager.line_number_to_ast_nodes(2) == [next_statement]
+    assert manager.line_number_to_ast_nodes(0) == []
 
 
 def test_ast_node_manager_finds_paths_and_nodes_by_exact_type() -> None:

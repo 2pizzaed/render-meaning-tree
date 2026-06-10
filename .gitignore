@@ -3,6 +3,7 @@ __pycache__/
 .pytest*/
 .idea/
 .env
+.ruff_cache/
 /domain/test.xml
 /test/output/
 /test/genout/
@@ -10,3 +11,4 @@ __pycache__/
 *_scenarios.json
 output.html
 result.html
+.tmp/

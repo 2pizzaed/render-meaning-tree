@@ -21,7 +21,9 @@ from src.types import Token as TokenJson
 type Declaration = tuple[str, int]
 type TopLevelKey = Literal["functions", "classes", "globals"]
 type InnerLevelKey = Literal["methods", "fields", "classes"]
-type DeclarationElement = Declaration | tuple[Declaration, dict[InnerLevelKey, list["DeclarationElement"]]]
+type DeclarationElement = (
+    Declaration | tuple[Declaration, dict[InnerLevelKey, list["DeclarationElement"]]]
+)
 type DeclarationContainer = dict[TopLevelKey, list[DeclarationElement]]
 
 node_type_hierarchy: JSON | None = None
@@ -33,6 +35,7 @@ class Observation(Protocol):
     Протокол для декорированных функций наблюдения.
     Имеет атрибуты id и accepts_node_only.
     """
+
     id: str
     accepts_node_only: bool
 
@@ -47,6 +50,7 @@ class Injection(Protocol):
     Протокол для инъекций.
     Имеет атрибут conditions (список/кортеж наблюдений) и возвращает bool (сработал или нет).
     """
+
     conditions: tuple[Observation, ...]
 
     def __call__(self, point: "InjectionPoint") -> bool: ...
@@ -71,13 +75,19 @@ class NodePathElement:
     def get(self, analyzer: "ASTNodeManager") -> Node | None:
         return analyzer.get(self)
 
-    def has_parent(self, id_or_type: int | str | list[str], strict: bool = False) -> bool:
+    def has_parent(
+        self, id_or_type: int | str | list[str], strict: bool = False
+    ) -> bool:
         if isinstance(id_or_type, str) and not strict:
-            return self.find_first_parent(
-                lambda x: x.instanceof(id_or_type)) is not None
+            return (
+                self.find_first_parent(lambda x: x.instanceof(id_or_type)) is not None
+            )
         return self.find_first_parent(id_or_type) is not None
 
-    def find_first_parent(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool | None]) -> "NodePathElement | None":
+    def find_first_parent(
+        self,
+        query: str | Iterable[str] | int | Callable[["NodePathElement"], bool | None],
+    ) -> "NodePathElement | None":
         """
         Ищет первый совпавший по условию `NodePathElement` ТОЛЬКО среди родителей
         """
@@ -110,10 +120,13 @@ class NodePathElement:
             curr = curr.parent
         return curr
 
-    def find_first(self, query: str | Iterable[str] | int | Callable[["NodePathElement"], bool | None]) -> "NodePathElement | None":
-        '''
+    def find_first(
+        self,
+        query: str | Iterable[str] | int | Callable[["NodePathElement"], bool | None],
+    ) -> "NodePathElement | None":
+        """
         Ищет первый совпавший по условию `NodePathElement` среди текущего и его родителей
-        '''
+        """
         predicate: Callable[[NodePathElement], bool | None]
         if isinstance(query, str):
             query_type = query
@@ -143,6 +156,7 @@ class NodePathElement:
             return self.find_first_parent(predicate)
         return self
 
+
 class ASTNodeManager:
     def __init__(self, root: MeaningTree | Node):
         self._root = root
@@ -153,21 +167,23 @@ class ASTNodeManager:
     def root(self) -> MeaningTree | Node:
         return self._root
 
-    def properties(self, root: Node | NodePathElement | int | None = None) -> dict[str, Any]:
+    def properties(
+        self, root: Node | NodePathElement | int | None = None
+    ) -> dict[str, Any]:
         if root is None:
             src = self.root
         elif isinstance(root, (int, NodePathElement)):
             src = self.get(root) or {}
 
         labels: dict[str, Any] = {}
-        raw_labels: list[dict[str, Any]] = src.get("labels", []) # type: ignore
+        raw_labels: list[dict[str, Any]] = src.get("labels", [])  # type: ignore
         if isinstance(raw_labels, list):
             for label in raw_labels:
                 label_id = label.get("id", None)
                 if label_id == 0:
                     labels["value"] = label.get("attr")
                 elif label_id == 3:
-                    match (label.get("attr", "").lower()):
+                    match label.get("attr", "").lower():
                         case 0:
                             labels["origin_language"] = "c++"
                         case 1:
@@ -183,13 +199,20 @@ class ASTNodeManager:
             node_type_hierarchy = node_hierarchy()
 
     def _process(self):
-        def traverse(node,
-                     prev: NodePathElement | None = None,
-                     field: str | None = None,
-                     f_id: str | int | None = None) -> NodePathElement | None:
+        def traverse(
+            node,
+            prev: NodePathElement | None = None,
+            field: str | None = None,
+            f_id: str | int | None = None,
+        ) -> NodePathElement | None:
             if isinstance(node, dict) and "id" in node and "type" in node:
-                if node["id"] in self._cache and node["type"] != self._cache[node["id"]][1]["type"]:
-                    raise ValueError(f"AST ID collision detected for ID {node['id']}, tree is corrupted")
+                if (
+                    node["id"] in self._cache
+                    and node["type"] != self._cache[node["id"]][1]["type"]
+                ):
+                    raise ValueError(
+                        f"AST ID collision detected for ID {node['id']}, tree is corrupted"
+                    )
 
                 if node["id"] not in self._cache:
                     node_id = int(node["id"])
@@ -199,7 +222,10 @@ class ASTNodeManager:
                         prev_node = prev.get(self)
                         if prev_node is not None:
                             field_value = prev_node.get(field or "")
-                            if isinstance(field_value, dict) and "id" not in field_value:
+                            if (
+                                isinstance(field_value, dict)
+                                and "id" not in field_value
+                            ):
                                 field_type = "map"
                             elif isinstance(field_value, list):
                                 field_type = "collection"
@@ -210,7 +236,7 @@ class ASTNodeManager:
                         type=node["type"],
                         field_name=field,
                         field_type=field_type,
-                        container_field_id=f_id
+                        container_field_id=f_id,
                     )
                     self._cache[node_id] = (path_element, node)
                     for key, value in node.items():
@@ -253,11 +279,7 @@ class ASTNodeManager:
                 for path, _node in self._cache.values()
                 if path.instanceof(node_type)
             ]
-        return [
-            path
-            for path, _node in self._cache.values()
-            if path.type == node_type
-        ]
+        return [path for path, _node in self._cache.values() if path.type == node_type]
 
     def get_parent_of(self, node: int | NodePathElement) -> JSON | None:
         if isinstance(node, int):
@@ -271,7 +293,7 @@ class ASTNodeManager:
         cls._init_hierarchy()
         if not node_type_hierarchy:
             return None
-        return node_type_hierarchy.get(node_type) # type: ignore
+        return node_type_hierarchy.get(node_type)  # type: ignore
 
     def instanceof(self, node_id: int, node_type: str) -> bool:
         node = self.get_path(node_id)
@@ -298,15 +320,16 @@ class SkipStreamIterationException(Exception):
 
 
 class TokenCursor:
-    '''Указатель на токен (индекс равен 0), вокруг него могут быть другие токены (индексы -1, -2... и +1, +2...) в зависимости от lookaround'''
+    """Указатель на токен (индекс равен 0), вокруг него могут быть другие токены (индексы -1, -2... и +1, +2...) в зависимости от lookaround"""
 
-    def __init__(self,
-                 owner: "CodeManager",
-                 lookaround: int,
-                 real_index: int,
-                 buf: "list[RendererEntity] | list_view",
-                 center_override: int | None = None
-                 ):
+    def __init__(
+        self,
+        owner: "CodeManager",
+        lookaround: int,
+        real_index: int,
+        buf: "list[RendererEntity] | list_view",
+        center_override: int | None = None,
+    ):
         self._center = center_override if center_override is not None else lookaround
         self._lookaround = lookaround
         self._buf: list[RendererEntity] | list_view = buf
@@ -320,7 +343,9 @@ class TokenCursor:
     def __iter__(self):
         return iter(self._buf)
 
-    def __getitem__(self, offset: int | slice) -> RendererEntity | list[RendererEntity] | None:
+    def __getitem__(
+        self, offset: int | slice
+    ) -> RendererEntity | list[RendererEntity] | None:
         if isinstance(offset, slice):
             s = self._align(offset.start)
             e = self._align(offset.stop)
@@ -330,8 +355,9 @@ class TokenCursor:
                 e = self._align(self._lookaround)
             return self._buf[s:e]
 
-        if offset < abs(self._lookaround) \
-                and not (0 <= self._align(offset) < len(self._buf)):
+        if offset < abs(self._lookaround) and not (
+            0 <= self._align(offset) < len(self._buf)
+        ):
             return None
         else:
             return self._buf[self._align(offset)]
@@ -340,15 +366,16 @@ class TokenCursor:
         return self._align(1) < len(self._buf)
 
     def _translate_index(self, offset: int | slice) -> int | slice:
-        '''
+        """
         Крайне не рекомендуется использовать в изменяемых буферах
         Получает реальный индекс элемента в буфере (а не в общем списке токенов!!)
-        '''
+        """
         if isinstance(offset, slice):
-            return slice(self._real_index + offset.start,
-                         self._real_index + offset.stop,
-                         offset.step
-                         )
+            return slice(
+                self._real_index + offset.start,
+                self._real_index + offset.stop,
+                offset.step,
+            )
         return self._real_index + offset
 
     def token(self, index: int) -> Token | None:
@@ -358,10 +385,10 @@ class TokenCursor:
         return None
 
     def token_index(self, index: int) -> int | None:
-        '''
+        """
         Индекс токена в глобальном списке токенов.
         Поддерживает изменяемые буферы
-        '''
+        """
         tok = self.token(index)
         return self._owner.token_indexof(tok) if tok else None
 
@@ -371,7 +398,9 @@ class TokenCursor:
             return tok.ast_node
         return None
 
-    def provide_context(self, context_node: NodePathElement | None, rewrite: bool = False) -> NodePathElement | None:
+    def provide_context(
+        self, context_node: NodePathElement | None, rewrite: bool = False
+    ) -> NodePathElement | None:
         # Вовзращает себя, чтобы можно было использовать в выражениях проверки
         if context_node is not None and (rewrite or self._context_node is None):
             self._context_node = context_node
@@ -383,7 +412,7 @@ class TokenCursor:
 
     @property
     def lookaround(self) -> int:
-        '''Заданный 'радиус' доступных токенов вокруг текущего'''
+        """Заданный 'радиус' доступных токенов вокруг текущего"""
         return self._lookaround
 
 
@@ -391,10 +420,12 @@ class CodeManager:
     def __init__(self, ast: ASTNodeManager, source_map: SourceMap, tokens: TokenList):
         self._ast = ast
         self._source_map = source_map
-        self._tokens: list[Token] = self._remap(tokens) # type: ignore
+        self._tokens: list[Token] = self._remap(tokens)  # type: ignore
         self._code: str = self._source_map.get("source_code", "")  # type: ignore
         self._declarations: DeclarationContainer = {
-            "functions": [], "classes": [], "globals": []
+            "functions": [],
+            "classes": [],
+            "globals": [],
         }
         self._last_stream: InjectionManager | None = None
         self._process_declarations()
@@ -410,27 +441,34 @@ class CodeManager:
 
         Используется runtime-слоем для сопоставления вызовов и возвратов функций.
         """
-        return dict(self._declarations.get("functions", [])) # type: ignore
+        return dict(self._declarations.get("functions", []))  # type: ignore
 
     def _remap(self, tlist: TokenList) -> list[Token]:
-        tokens: list[Token] = tlist.get("items", []) # type: ignore
-        results = [colorize_token(Token(
-                token.get("id"),
-                token.get("value", "").replace("\r", ""),
-                token.get("token_type", ""),
-                token.get("type", ""),
-                i,
-                self._locate(i, token),
-                []
-            )) for i, token in enumerate(tokens) if not isinstance(token, Token)]
+        tokens: list[Token] = tlist.get("items", [])  # type: ignore
+        results = [
+            colorize_token(
+                Token(
+                    token.get("id"),
+                    token.get("value", "").replace("\r", ""),
+                    token.get("token_type", ""),
+                    token.get("type", ""),
+                    i,
+                    self._locate(i, token),
+                    [],
+                )
+            )
+            for i, token in enumerate(tokens)
+            if not isinstance(token, Token)
+        ]
         return results
 
     def _locate(self, index: int, token: TokenJson) -> NodePathElement | None:
-        token_byte_pos: tuple[int, int] | None = token.get("byte_pos", None) # type: ignore
+        token_byte_pos: tuple[int, int] | None = token.get("byte_pos", None)  # type: ignore
         if not token_byte_pos:
             return None
         map_byteranges: dict[int, tuple[int, int]] = self._source_map.get(
-            "byte_positions", {})  # type: ignore
+            "byte_positions", {}
+        )  # type: ignore
 
         candidates: list[tuple[int, tuple[int, int]]] = []
         for ast_id, byte_range in map_byteranges.items():
@@ -438,11 +476,14 @@ class CodeManager:
             ast_path = self.get_path(ast_id)
             start_byte, length = byte_range
             start_token_byte, token_length = token_byte_pos
-            if start_byte <= start_token_byte and \
-                start_token_byte + token_length <= start_byte + length \
-                    and ast_path and ast_path.type != "program_entry_point":
-                    candidates.append((ast_id, (start_byte, length)))
-        candidates.sort(key=lambda x: (x[1][1], -x[1][0])) # по уровню вложенности
+            if (
+                start_byte <= start_token_byte
+                and start_token_byte + token_length <= start_byte + length
+                and ast_path
+                and ast_path.type != "program_entry_point"
+            ):
+                candidates.append((ast_id, (start_byte, length)))
+        candidates.sort(key=lambda x: (x[1][1], -x[1][0]))  # по уровню вложенности
         if candidates:
             ast_id = candidates[0][0]
             path_element = self._ast.get_path(ast_id)
@@ -471,8 +512,9 @@ class CodeManager:
 
     def get_token(self, index: int | slice) -> Token | list[Token] | None:
         if isinstance(index, slice):
-            if 0 <= index.start < len(self._tokens) \
-                and 0 <= (index.stop - 1) < len(self._tokens):
+            if 0 <= index.start < len(self._tokens) and 0 <= (index.stop - 1) < len(
+                self._tokens
+            ):
                 return self._tokens[index]  # type: ignore
         else:
             if 0 <= index < len(self._tokens):
@@ -483,13 +525,13 @@ class CodeManager:
         return self._tokens.index(token)
 
     def code_piece(self, ast_node_id: int) -> str | None:
-        byte_range: tuple[int, int] = self._source_map.get(
-            "byte_positions", {}
-        ).get(str(ast_node_id))  # type: ignore
+        byte_range: tuple[int, int] = self._source_map.get("byte_positions", {}).get(
+            str(ast_node_id)
+        )  # type: ignore
         code = self.bytes
         if not byte_range:
             return None
-        return code[byte_range[0]:byte_range[0] + byte_range[1]].decode('utf-8')
+        return code[byte_range[0] : byte_range[0] + byte_range[1]].decode("utf-8")
 
     def line_number(self, token: int | Token) -> int | None:
         line = 1
@@ -501,7 +543,9 @@ class CodeManager:
                 line += newlines
         return None
 
-    def line_number_range(self, ast_node: int | NodePathElement) -> tuple[int, int] | None:
+    def line_number_range(
+        self, ast_node: int | NodePathElement
+    ) -> tuple[int, int] | None:
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
         token_start, token_end = self.token_index_range(ast_node_id) or (None, None)
         if token_start is None or token_end is None:
@@ -530,10 +574,28 @@ class CodeManager:
         """
         Ищет в строке кода наименее вложенный узел ast. Если таких узлов на одном уровне несколько или нет, то возвращается None
         """
-        if line_number < 1:
+        candidates = self.line_number_to_ast_nodes(line_number)
+        if not candidates:
             return None
 
-        candidates: dict[int, NodePathElement] = {}
+        by_depth: dict[int, list[NodePathElement]] = {}
+        for candidate in candidates:
+            by_depth.setdefault(_node_path_depth(candidate), []).append(candidate)
+
+        least_depth = min(by_depth)
+        least_nested = by_depth[least_depth]
+        if len(least_nested) != 1:
+            return None
+        return least_nested[0]
+
+    def line_number_to_ast_nodes(self, line_number: int) -> list[NodePathElement]:
+        """
+        Возвращает все AST-узлы, начинающиеся на указанной строке, в порядке обхода по token range.
+        """
+        if line_number < 1:
+            return []
+
+        candidates: list[tuple[int, int, NodePathElement]] = []
         for ast_id, (path, _node) in self._ast:
             if path.type == "program_entry_point":
                 continue
@@ -544,20 +606,13 @@ class CodeManager:
 
             start_line = self.line_number(token_range[0])
             if start_line == line_number:
-                candidates[path.id] = path
+                candidates.append((token_range[0], _node_path_depth(path), path))
 
         if not candidates:
-            return None
+            return []
 
-        by_depth: dict[int, list[NodePathElement]] = {}
-        for candidate in candidates.values():
-            by_depth.setdefault(_node_path_depth(candidate), []).append(candidate)
-
-        least_depth = min(by_depth)
-        least_nested = by_depth[least_depth]
-        if len(least_nested) != 1:
-            return None
-        return least_nested[0]
+        candidates.sort(key=lambda item: (item[0], item[1], item[2].id))
+        return [path for _token_start, _depth, path in candidates]
 
     @property
     def nodes_cache(self) -> dict[int, Node]:
@@ -578,13 +633,15 @@ class CodeManager:
             return None
         return self._ast.get(nid)
 
-    def token_index_range(self, ast_node: int | NodePathElement) -> tuple[int, int] | None:
+    def token_index_range(
+        self, ast_node: int | NodePathElement
+    ) -> tuple[int, int] | None:
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
         min_i, max_i = self.token_count, 0
         for i, token in enumerate(self):
             if token.ast_node and (
-                token.ast_node.id == ast_node_id or \
-                    token.ast_node.has_parent(ast_node_id)
+                token.ast_node.id == ast_node_id
+                or token.ast_node.has_parent(ast_node_id)
             ):
                 min_i = min(min_i, i)
                 max_i = max(max_i, i)
@@ -606,8 +663,12 @@ class CodeManager:
         if trange:
             return token_index == (trange[-1] - 1)
 
-    def _process_class_def(self, node: Node, decl: JsonObject,
-                           parent: list[DeclarationElement] | None = None):
+    def _process_class_def(
+        self,
+        node: Node,
+        decl: JsonObject,
+        parent: list[DeclarationElement] | None = None,
+    ):
         content = {"methods": [], "fields": [], "classes": []}
         if parent is None:
             parent = self._declarations["classes"]
@@ -618,20 +679,17 @@ class CodeManager:
                 content,
             )
         )
-        for child in node.get("body", {}).get("statements", []): # type: ignore
+        for child in node.get("body", {}).get("statements", []):  # type: ignore
             if child["type"] == "method_declaration":
-                content["methods"].append(
-                    (child["name"], child["definitionNodeId"])
-                )
+                content["methods"].append((child["name"], child["definitionNodeId"]))
             elif child["type"] == "field_declaration":
-                content["fields"].append(
-                    (child["name"], child["declarationNodeId"])
-                )
+                content["fields"].append((child["name"], child["declarationNodeId"]))
             elif child["type"] == "class_declaration":
-                self._process_class_def(child, {
-                    "name": child["name"],
-                    "definitionNodeId": child["id"]
-                }, content["classes"])
+                self._process_class_def(
+                    child,
+                    {"name": child["name"], "definitionNodeId": child["id"]},
+                    content["classes"],
+                )
 
     def _process_declarations(self):
         for decl in self._source_map.get("declarations", []):  # type: ignore
@@ -644,14 +702,18 @@ class CodeManager:
                 if node:
                     self._process_class_def(node, decl)
                 else:
-                    raise ValueError(f"Class declaration {decl["name"]} node not found in AST")
+                    raise ValueError(
+                        f"Class declaration {decl['name']} node not found in AST"
+                    )
             elif decl["type"] == "variable_declaration":
-                self._declarations["globals"].append((decl["name"], decl["declarationNodeId"]))
+                self._declarations["globals"].append(
+                    (decl["name"], decl["declarationNodeId"])
+                )
 
     def __getattr__(self, name):
         # Проксирование к ASTNodeAnalyzer
         try:
-            return getattr(self._ast, name) # если нет в текущем объекте только
+            return getattr(self._ast, name)  # если нет в текущем объекте только
         except AttributeError:
             raise AttributeError(
                 f"{self.__class__.__name__!r} object has no attribute {name!r}"
@@ -668,11 +730,18 @@ class CodeManager:
     def __iter__(self):
         return iter(self._tokens)
 
-    def stream(self, from_: int | None = None, to: int | None = None, step: int = 1, *, lookaround: int = 1) -> Generator[TokenCursor]:
-        '''
+    def stream(
+        self,
+        from_: int | None = None,
+        to: int | None = None,
+        step: int = 1,
+        *,
+        lookaround: int = 1,
+    ) -> Generator[TokenCursor]:
+        """
         Итератор токен, который имеет курсор текущего просматриваемого элемента с индексом 0,
         а также токены слева и справа, если есть, максимальный радиус задает `lookaround`
-        '''
+        """
         from_ = from_ if from_ is not None else 0
         to = to if to is not None else self.token_count
 
@@ -691,15 +760,16 @@ class CodeManager:
                     continue
                 token = self.get_token(j)
                 tokens.append(token if token is not None else {})
-            yield TokenCursor(self, lookaround, i, tokens,
-                              center_offset)
+            yield TokenCursor(self, lookaround, i, tokens, center_offset)
 
-    def apply_injections(self,
-                         injections: 'list[Injection] | type[InjectionPool]',
-                         from_: int | None = None,
-                         to: int | None = None,
-                         step: int = 1,
-                         lookaround: int = 3):
+    def apply_injections(
+        self,
+        injections: "list[Injection] | type[InjectionPool]",
+        from_: int | None = None,
+        to: int | None = None,
+        step: int = 1,
+        lookaround: int = 3,
+    ):
         """
         К токенам применяется набор трансформаций - инъекций,
         где каждая инъекция - совокупность предиката(-ов) её применимости и действия
@@ -709,16 +779,17 @@ class CodeManager:
         Логика их появления не определена, поэтому нельзя полагаться на наличие этих кнопок
         в индексах курсора, отличных от нуля (используйте `stream_ensure_token` или `TokenCursor.token`)
         """
-        self._last_stream = InjectionManager(self, None,
-            from_, to, step, lookaround)
+        self._last_stream = InjectionManager(self, None, from_, to, step, lookaround)
         return self._last_stream.apply(injections)
 
-    def injection_stream(self,
-                         conditions: Iterable[Observation],
-                         from_: int | None = None,
-                         to: int | None = None,
-                         step: int = 1,
-                         lookaround: int = 3) -> Generator["InjectionPoint"]:
+    def injection_stream(
+        self,
+        conditions: Iterable[Observation],
+        from_: int | None = None,
+        to: int | None = None,
+        step: int = 1,
+        lookaround: int = 3,
+    ) -> Generator["InjectionPoint"]:
         """
         Создается итератор, который останавливается только при срабатывании предиката наблюдения
 
@@ -731,22 +802,23 @@ class CodeManager:
         в индексах курсора, отличных от нуля (используйте `TokenCursor.token`)
         """
         self._last_stream = InjectionManager(
-            self, conditions,
-            from_, to, step, lookaround
+            self, conditions, from_, to, step, lookaround
         )
         yield from self._last_stream
 
 
 class InjectionPoint(TokenCursor):
-    def __init__(self, owner: "InjectionManager", lookaround: int,
-                 real_index: int,
-                 matched_conditions: list[Observation],
-                 buf: "list[RendererEntity] | list_view",
-                 center_override: int | None = None,
-                 context_node: NodePathElement | None = None
-                 ):
-        super().__init__(owner._owner, lookaround,
-                         real_index, buf, center_override)
+    def __init__(
+        self,
+        owner: "InjectionManager",
+        lookaround: int,
+        real_index: int,
+        matched_conditions: list[Observation],
+        buf: "list[RendererEntity] | list_view",
+        center_override: int | None = None,
+        context_node: NodePathElement | None = None,
+    ):
+        super().__init__(owner._owner, lookaround, real_index, buf, center_override)
         self._injection_owner = owner
         self._context_node = context_node
         self._matched_conditions = matched_conditions
@@ -764,7 +836,7 @@ class InjectionPoint(TokenCursor):
         return self._injection_owner._applied_count
 
     def cancel(self):
-        '''Отменяет инъекцию'''
+        """Отменяет инъекцию"""
         raise SkipStreamIterationException()
 
     def push_before(self, *items: RendererEntity):
@@ -777,7 +849,7 @@ class InjectionPoint(TokenCursor):
         self._buf[self._align(index)] = item
         self._injection_owner._trigger()
 
-    def remove_after(self, count: int): # в пределах lookaround
+    def remove_after(self, count: int):  # в пределах lookaround
         self.remove(1, count)
 
     def remove_before(self, count: int):  # в пределах lookaround
@@ -789,11 +861,8 @@ class InjectionPoint(TokenCursor):
 
     @property
     def distances(self) -> tuple[int, int]:
-        '''Использовать вместо `lookaround`, так как теперь буфер может изменяться'''
-        return (
-            self._align(0),
-            len(self._buf) - self._align(1) - 1
-        )
+        """Использовать вместо `lookaround`, так как теперь буфер может изменяться"""
+        return (self._align(0), len(self._buf) - self._align(1) - 1)
 
     def insert(self, i: int, *items: RendererEntity):
         aligned_i = self._align(i)
@@ -803,7 +872,7 @@ class InjectionPoint(TokenCursor):
         self._buf[aligned_i:aligned_i] = items
         self._injection_owner._trigger()
 
-    def remove(self, i: int, count: int, rtl = False):
+    def remove(self, i: int, count: int, rtl=False):
         i = self._align(i)
         if count <= 0:
             return
@@ -835,9 +904,11 @@ class list_view:
 
     def __getitem__(self, i: int | slice):
         if isinstance(i, slice):
-            start = None if i.start is None else cast(int, self.translate_index(i.start))
+            start = (
+                None if i.start is None else cast(int, self.translate_index(i.start))
+            )
             stop = None if i.stop is None else cast(int, self.translate_index(i.stop))
-            return self._src[start:stop:i.step]
+            return self._src[start : stop : i.step]
         return self._src[self.translate_index(i)]
 
     def __setitem__(self, i: int | slice, item: Any):
@@ -847,7 +918,7 @@ class list_view:
             if step != 1:
                 # Extended slice - размер должен совпадать
                 target_indices = self._indices[i]
-                if hasattr(item, '__iter__') and not isinstance(item, str):
+                if hasattr(item, "__iter__") and not isinstance(item, str):
                     items = list(item)
                     if len(items) != len(target_indices):
                         raise ValueError(
@@ -862,7 +933,11 @@ class list_view:
             else:
                 # Simple slice - можно вставлять/удалять
                 old_indices = self._indices[start:stop]
-                items = list(item) if hasattr(item, '__iter__') and not isinstance(item, str) else [item]
+                items = (
+                    list(item)
+                    if hasattr(item, "__iter__") and not isinstance(item, str)
+                    else [item]
+                )
 
                 # Определяем позицию вставки в исходном списке
                 if start >= len(self._indices):
@@ -870,7 +945,11 @@ class list_view:
                 elif start == 0 and not self._indices:
                     insert_pos = 0
                 else:
-                    insert_pos = self._indices[start] if start < len(self._indices) else len(self._src)
+                    insert_pos = (
+                        self._indices[start]
+                        if start < len(self._indices)
+                        else len(self._src)
+                    )
 
                 # Удаляем старые элементы (с конца)
                 for src_idx in sorted(old_indices, reverse=True):
@@ -894,7 +973,9 @@ class list_view:
 
                 # Добавляем новые индексы на место старых
                 new_item_indices = list(range(insert_pos, insert_pos + len(items)))
-                self._indices = new_indices[:start] + new_item_indices + new_indices[start:]
+                self._indices = (
+                    new_indices[:start] + new_item_indices + new_indices[start:]
+                )
         else:
             self._src[self._indices[i]] = item
 
@@ -937,7 +1018,9 @@ class list_view:
 
     def translate_index(self, i: int | slice) -> int | slice:
         if isinstance(i, slice):
-            return slice(self.translate_index(i.start), self.translate_index(i.stop), i.step)
+            return slice(
+                self.translate_index(i.start), self.translate_index(i.stop), i.step
+            )
         if i < 0 or i >= len(self._indices):
             raise IndexError(f"Invalid list_view position, {i}")
         return self._indices[i]
@@ -947,8 +1030,9 @@ class list_view:
         # Находим позицию в исходном списке
         if pos < 0 or pos > len(self._indices):
             raise IndexError(f"Position {pos} not found in list_view")
-        insert_idx = self._indices[-1] + 1 \
-            if pos == len(self._indices) else self._indices[pos]
+        insert_idx = (
+            self._indices[-1] + 1 if pos == len(self._indices) else self._indices[pos]
+        )
 
         # Вставляем в исходный список
         self._src.insert(insert_idx, item)
@@ -987,13 +1071,15 @@ class list_view:
 
 
 class InjectionManager:
-    def __init__(self,
-                 tokens: CodeManager,
-                 conditions: Iterable[Observation] | None = None,
-                 from_: int | None = None,
-                 to_: int | None = None,
-                 step: int | None = None,
-                 lookaround: int = 1):
+    def __init__(
+        self,
+        tokens: CodeManager,
+        conditions: Iterable[Observation] | None = None,
+        from_: int | None = None,
+        to_: int | None = None,
+        step: int | None = None,
+        lookaround: int = 1,
+    ):
         self._lookaround = lookaround
         self._owner = tokens
         self._conditions = conditions
@@ -1001,7 +1087,7 @@ class InjectionManager:
         self._skipped_count = 0
         self._triggered = False
         self._origin = tokens._tokens[from_:to_:step]
-        self._result: list[RendererEntity] = list(self._origin) # type: ignore
+        self._result: list[RendererEntity] = list(self._origin)  # type: ignore
         self._ptr = -1
         self._flags: dict[str, int | bool] = {}
 
@@ -1015,7 +1101,9 @@ class InjectionManager:
 
     def _count_injected_before(self, abs_pos: int) -> int:
         return sum(
-            1 for i, x in enumerate(self._result) if i < abs_pos and not isinstance(x, Token)
+            1
+            for i, x in enumerate(self._result)
+            if i < abs_pos and not isinstance(x, Token)
         )
 
     def __next__(self):
@@ -1031,12 +1119,11 @@ class InjectionManager:
         end_index = min(ptr + self._lookaround + 1, len(self._result))
 
         buffer = list_view(self._result, range(begin_index, end_index))
-        cursor = TokenCursor(self._owner,
-                             self._lookaround,
-                             center_index,
-                             buffer, center_buf_position)
+        cursor = TokenCursor(
+            self._owner, self._lookaround, center_index, buffer, center_buf_position
+        )
         matched: list[Observation] = []
-        for obs in (self._conditions or []):
+        for obs in self._conditions or []:
             try:
                 if obs(cursor):
                     matched.append(obs)
@@ -1044,9 +1131,13 @@ class InjectionManager:
                 pass
         context_node: NodePathElement | None = cursor._context_node
         cursor = InjectionPoint(
-            self, cursor.lookaround,
-            center_index, matched,
-            buffer, center_buf_position, context_node
+            self,
+            cursor.lookaround,
+            center_index,
+            matched,
+            buffer,
+            center_buf_position,
+            context_node,
         )
         return cursor
 
@@ -1070,7 +1161,7 @@ class InjectionManager:
 
 
 def manage_code(tokens: TokenList, source_map: SourceMap) -> CodeManager:
-    analyzer = ASTNodeManager(source_map.get("origin", {})) # type: ignore
+    analyzer = ASTNodeManager(source_map.get("origin", {}))  # type: ignore
     analyzer._process()
     return CodeManager(analyzer, source_map, tokens)
 
@@ -1089,7 +1180,9 @@ def prepare_code(
         raise ValueError("Failed to tokenize code (backend returned None)")
 
     # 2. Source Map
-    source_map = convert(code, language, render_language, source_map=True, config=config)
+    source_map = convert(
+        code, language, render_language, source_map=True, config=config
+    )
     if not source_map or not isinstance(source_map, dict):
         raise ValueError("Failed to generate source map")
     return manage_code(tokens_list, source_map)
@@ -1111,7 +1204,7 @@ def observable_token(
 
         @wraps(observation)
         def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
-            for obs in (before or []):
+            for obs in before or []:
                 # Если условие before не выполнено, прерываем
                 if obs(cur) is False:
                     return False
@@ -1131,7 +1224,9 @@ def observable_token(
     return decorator
 
 
-def observable_node(before: list[Observation] | None = None, name: str = "") -> Callable[[Callable], Any]:
+def observable_node(
+    before: list[Observation] | None = None, name: str = ""
+) -> Callable[[Callable], Any]:
     """
     Фабрика декораторов.
     Использование: @observable_node(name="is_atomic")
@@ -1144,7 +1239,7 @@ def observable_node(before: list[Observation] | None = None, name: str = "") -> 
 
         @wraps(observation)
         def wrapper(cur: TokenCursor | NodePathElement) -> bool | None:
-            for obs in (before or []):
+            for obs in before or []:
                 res = obs(cur)
                 if not res:
                     return res
@@ -1265,14 +1360,15 @@ def observations_from(pool: list[Injection]) -> list[Observation]:
     return res
 
 
-def stream_require[T](obj: T | None,
-                      msg: str | None = None) -> T:
-    '''
+def stream_require[T](obj: T | None, msg: str | None = None) -> T:
+    """
     Пропускает итерацию (наблюдение или инъекция), если значение - None
     Пропускает только при вызове `apply_injections`, в остальных случаях - исключение
-    '''
+    """
     if obj is None:
-        raise SkipStreamIterationException(msg or "Stream point requires non null element")
+        raise SkipStreamIterationException(
+            msg or "Stream point requires non null element"
+        )
     return obj
 
 
@@ -1282,7 +1378,9 @@ def stream_ensure_token(obj: Any) -> Token:
     Пропускает только при вызове `apply_injections`, в остальных случаях - исключение
     """
     if not isinstance(obj, Token):
-        raise SkipStreamIterationException("Stream point requires token at specified position")
+        raise SkipStreamIterationException(
+            "Stream point requires token at specified position"
+        )
     return obj
 
 
@@ -1293,6 +1391,7 @@ def is_language(name: SupportedProgrammingLanguage) -> Observation:
         return cur.manager.language == name
 
     return is_language_instance
+
 
 def is_language_not_in(names: list[SupportedProgrammingLanguage]) -> Observation:
     @observable_token()

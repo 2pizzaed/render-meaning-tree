@@ -4,19 +4,26 @@ import os
 import platform
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
-from src.generator.pipeline import DomainDataGeneratorPipeline, PipelineRegistry
+from src.generator.pipeline import (
+    DomainDataGeneratorPipeline,
+    PipelineRegistry,
+    SituationDomainDataRegistry,
+)
 from src.generator.utilities import (
     code_file_to_pipeline,
     code_snippet_to_pipeline,
     pipeline_to_loqi,
 )
+from src.model.rules import TransitionDeclaration
+from src.model.situation import Action, TraceAct
 from src.serialization.loqi import LoqiSerializer
 from src.tpg_domain import validate_domain_loqi
 
 TEST_OUTPUT_DIR_ENV_VAR = "DOMAIN_BUILD_OUTPUT_DIR"
+OPEN_TEST_ARTIFACTS_ENV_VAR = "OPEN_TEST_ARTIFACTS"
 
 
 def resolve_project_root(start: str | Path | None = None) -> Path:
@@ -30,7 +37,9 @@ def resolve_project_root(start: str | Path | None = None) -> Path:
         if (candidate / "domain").is_dir():
             return candidate
 
-    raise FileNotFoundError(f"Could not find project root with a domain directory from {current}")
+    raise FileNotFoundError(
+        f"Could not find project root with a domain directory from {current}"
+    )
 
 
 def resolve_test_output_dir(default: Path) -> Path:
@@ -54,11 +63,21 @@ def write_text_file(
     return path
 
 
-def open_file_and_wait(path: str | Path) -> None:
+def should_open_test_artifacts(default: bool = False) -> bool:
+    """Нужно ли открывать тестовые артефакты во внешнем viewer."""
+    configured = os.getenv(OPEN_TEST_ARTIFACTS_ENV_VAR)
+    if configured is None:
+        return default
+    return configured.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def open_file_and_wait(path: str | Path, *, enabled: bool = False) -> Path | None:
     """Open a file with the system viewer and wait until that viewer process exits."""
     file_path = Path(path).expanduser().resolve()
     if not file_path.exists():
         raise FileNotFoundError(file_path)
+    if not enabled:
+        return None
 
     system = platform.system()
     if system == "Windows":
@@ -78,20 +97,22 @@ def open_file_and_wait(path: str | Path) -> None:
             env=env,
             check=True,
         )
-        return
+        return file_path
 
     if system == "Darwin":
         subprocess.run(["open", "-W", str(file_path)], check=True)
-        return
+        return file_path
 
     opener = shutil.which("xdg-open")
     if opener is None:
         raise RuntimeError("xdg-open is required to open files on this platform")
 
     subprocess.run([opener, str(file_path)], check=True)
+    return file_path
 
 
 # TPG/domain helpers
+
 
 def code_snippet_to_loqi_files(
     directory: Path,
@@ -125,7 +146,9 @@ def pipeline_to_loqi_files(
     return [
         (
             serializer,
-            write_text_file(directory, loqi, _loqi_filename(filename, index, len(loqi_results))),
+            write_text_file(
+                directory, loqi, _loqi_filename(filename, index, len(loqi_results))
+            ),
         )
         for index, (serializer, loqi) in enumerate(loqi_results, start=1)
     ]
@@ -155,7 +178,10 @@ def validate_code_snippet_domain_loqi(
         mode=mode,
         filename=filename,
     )
-    return all(validate_domain_loqi(loqi_file, model_dir, tag=tag) for _serializer, loqi_file in loqi_files)
+    return all(
+        validate_domain_loqi(loqi_file, model_dir, tag=tag)
+        for _serializer, loqi_file in loqi_files
+    )
 
 
 def validate_code_file_domain_loqi(
@@ -170,4 +196,114 @@ def validate_code_file_domain_loqi(
 ) -> bool:
     pipeline = code_file_to_pipeline(code_file, language=language, mode=mode)
     loqi_files = pipeline_to_loqi_files(directory, pipeline, filename=filename)
-    return all(validate_domain_loqi(loqi_file, model_dir, tag=tag) for _serializer, loqi_file in loqi_files)
+    return all(
+        validate_domain_loqi(loqi_file, model_dir, tag=tag)
+        for _serializer, loqi_file in loqi_files
+    )
+
+
+def line_actions(
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    line_number: int,
+) -> list[Action]:
+    """Вернуть все situation-actions, привязанные к указанной строке, в порядке обхода AST."""
+    registry = _registry_for(context)
+    actions: list[Action] = []
+    seen: set[int] = set()
+    for node in _code_manager_for(context).line_number_to_ast_nodes(line_number):
+        for action in registry.get_actions_for(node.id):
+            action_identity = id(action)
+            if action_identity in seen:
+                continue
+            seen.add(action_identity)
+            actions.append(action)
+    return actions
+
+
+def require_line_action(
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    line_number: int,
+    *,
+    action_index: int = 0,
+) -> Action:
+    """Выбрать action по номеру строки и индексу действия на этой строке."""
+    actions = line_actions(context, line_number)
+    if action_index < 0 or action_index >= len(actions):
+        raise LookupError(
+            f"Expected action index {action_index} on line {line_number}, found {len(actions)} action(s)"
+        )
+    return actions[action_index]
+
+
+def add_trace_act_for_line(
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    line_number: int,
+    *,
+    action_index: int = 0,
+    transition: TransitionDeclaration | None = None,
+    variable_name: str | None = "P",
+) -> TraceAct:
+    """Создать TraceAct для action на строке и добавить его в registry."""
+    registry = _registry_for(context)
+    action = require_line_action(context, line_number, action_index=action_index)
+    trace_act = TraceAct(
+        action=action,
+        used_transition=_resolve_transition(action, transition),
+        situation=registry.owner,
+    )
+    registry.add(trace_act)
+    if variable_name is not None:
+        registry.variables[variable_name] = trace_act
+    return trace_act
+
+
+def add_trace_act_for_action(
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    action: Action,
+    *,
+    transition: TransitionDeclaration | None = None,
+    variable_name: str | None = "P",
+) -> TraceAct:
+    """Создать TraceAct для уже выбранного action и добавить его в registry."""
+    registry = _registry_for(context)
+    trace_act = TraceAct(
+        action=action,
+        used_transition=_resolve_transition(action, transition),
+        situation=registry.owner,
+    )
+    registry.add(trace_act)
+    if variable_name is not None:
+        registry.variables[variable_name] = trace_act
+    return trace_act
+
+
+def _code_manager_for(
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+):
+    if isinstance(context, DomainDataGeneratorPipeline):
+        return context.code
+    return context.owner.code
+
+
+def _registry_for(
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+) -> SituationDomainDataRegistry:
+    if isinstance(context, DomainDataGeneratorPipeline):
+        return context.registry
+    return context
+
+
+def _resolve_transition(
+    action: Action,
+    transition: TransitionDeclaration | None,
+) -> TransitionDeclaration | None:
+    if transition is not None:
+        return transition
+    transitions = action.possible_transitions()
+    if len(transitions) == 1:
+        return transitions[0]
+    if not transitions:
+        return None
+    raise LookupError(
+        f"Expected explicit transition for action {action.rule.role!r}, found {len(transitions)} candidates"
+    )

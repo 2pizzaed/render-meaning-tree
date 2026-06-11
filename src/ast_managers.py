@@ -422,6 +422,9 @@ class CodeManager:
         self._source_map = source_map
         self._tokens: list[Token] = self._remap(tokens)  # type: ignore
         self._code: str = self._source_map.get("source_code", "")  # type: ignore
+        self._metrics: dict[str, Any] = cast(
+            dict[str, Any], self._source_map.get("metrics", {})
+        )
         self._declarations: DeclarationContainer = {
             "functions": [],
             "classes": [],
@@ -442,6 +445,10 @@ class CodeManager:
         Используется runtime-слоем для сопоставления вызовов и возвратов функций.
         """
         return dict(self._declarations.get("functions", []))  # type: ignore
+
+    @property
+    def metrics(self) -> dict[str, Any]:
+        return dict(self._metrics)
 
     def _remap(self, tlist: TokenList) -> list[Token]:
         tokens: list[Token] = tlist.get("items", [])  # type: ignore
@@ -691,7 +698,128 @@ class CodeManager:
                     content["classes"],
                 )
 
+    @staticmethod
+    def _scope_node_ast_id(node: Any) -> int | None:
+        if not isinstance(node, dict):
+            return None
+        raw_id = node.get("ast_id")
+        if raw_id is None:
+            return None
+        try:
+            return int(raw_id)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _scope_node_type(node: Any) -> str | None:
+        if not isinstance(node, dict):
+            return None
+        node_type = node.get("node_type")
+        return node_type if isinstance(node_type, str) else None
+
+    @staticmethod
+    def _scope_node_name(node: Any) -> str | None:
+        if not isinstance(node, dict):
+            return None
+        identifier = node.get("identifier")
+        if isinstance(identifier, str) and identifier:
+            return identifier
+        repr_name = node.get("repr_name")
+        if isinstance(repr_name, str) and repr_name:
+            return repr_name
+        return None
+
+    def _append_global_declaration(self, name: str, ast_id: int) -> None:
+        entry = (name, ast_id)
+        if entry not in self._declarations["globals"]:
+            self._declarations["globals"].append(entry)
+
+    def _append_function_declaration(self, name: str, ast_id: int) -> None:
+        entry = (name, ast_id)
+        if entry not in self._declarations["functions"]:
+            self._declarations["functions"].append(entry)
+
+    def _append_class_declaration(self, name: str, ast_id: int) -> None:
+        entry = (name, ast_id)
+        if any(class_decl[0] == entry for class_decl in self._declarations["classes"]):
+            return
+        self._declarations["classes"].append(
+            (entry, {"methods": [], "fields": [], "classes": []})
+        )
+
+    def _process_scope_table_declarations(self, scope_table: JsonObject) -> None:
+        definitions_by_decl_id: dict[int, int] = {}
+        symbols = scope_table.get("symbols")
+        if isinstance(symbols, dict):
+            definitions = symbols.get("definitions", [])
+            if isinstance(definitions, list):
+                for item in definitions:
+                    if not isinstance(item, dict):
+                        continue
+                    decl_id = self._scope_node_ast_id(item.get("declaration"))
+                    definition_id = self._scope_node_ast_id(item.get("definition"))
+                    if decl_id is not None and definition_id is not None:
+                        definitions_by_decl_id[decl_id] = definition_id
+
+        scopes = scope_table.get("scopes", [])
+        if not isinstance(scopes, list):
+            return
+
+        for scope in scopes:
+            if not isinstance(scope, dict) or scope.get("parent_id") is not None:
+                continue
+
+            declarations = scope.get("declarations", [])
+            if isinstance(declarations, list):
+                for item in declarations:
+                    if not isinstance(item, dict):
+                        continue
+                    decl = item.get("declaration")
+                    decl_type = self._scope_node_type(decl)
+                    decl_id = self._scope_node_ast_id(decl)
+                    name = item.get("name")
+                    if not isinstance(name, str) or not name or decl_id is None:
+                        continue
+                    if decl_type == "function_declaration":
+                        self._append_function_declaration(
+                            name, definitions_by_decl_id.get(decl_id, decl_id)
+                        )
+
+            variables = scope.get("variables", [])
+            if isinstance(variables, list):
+                for item in variables:
+                    if not isinstance(item, dict):
+                        continue
+                    decl = item.get("declaration")
+                    decl_id = self._scope_node_ast_id(decl)
+                    name = item.get("name")
+                    if isinstance(name, str) and name and decl_id is not None:
+                        self._append_global_declaration(name, decl_id)
+
+            type_declarations = scope.get("type_declarations", [])
+            if isinstance(type_declarations, list):
+                for item in type_declarations:
+                    if not isinstance(item, dict):
+                        continue
+                    decl = item.get("declaration")
+                    decl_type = self._scope_node_type(decl)
+                    if decl_type not in {"class_declaration", "structure_declaration"}:
+                        continue
+                    decl_id = self._scope_node_ast_id(decl)
+                    name = self._scope_node_name(decl)
+                    if name is None or decl_id is None:
+                        continue
+                    self._append_class_declaration(
+                        name, definitions_by_decl_id.get(decl_id, decl_id)
+                    )
+
     def _process_declarations(self):
+        scope_table = self._source_map.get("scope_table")
+        if isinstance(scope_table, dict):
+            self._process_scope_table_declarations(scope_table)
+            if any(self._declarations.values()):
+                return
+
         for decl in self._source_map.get("declarations", []):  # type: ignore
             if decl["type"] == "function_declaration":
                 self._declarations["functions"].append(

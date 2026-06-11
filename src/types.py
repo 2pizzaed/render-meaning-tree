@@ -45,8 +45,8 @@ type TokenField = Literal["id", "value", "token_type", "byte_pos"] | str
 
 type MapField = Literal[
         "type", "origin", "source_code", "language",
-        "byte_positions", "declarations",
-        "imports", "user_type_hierarchy"]
+        "byte_positions", "scope_table", "metrics",
+        "declarations", "imports", "user_type_hierarchy"]
 
 type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
 

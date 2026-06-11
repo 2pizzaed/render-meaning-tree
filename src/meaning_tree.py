@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 from src.env import MEANING_TREE_CLI_DEBUG_ENV_VAR, env_flag
 from src.types import (
@@ -161,7 +160,9 @@ def convert(
         from_language: The source programming language
         to_language: The target programming language
         source_map: If True, return a JSON-serializable dict describing
-            the source map of code transformations instead of converted code
+            the source map of code transformations instead of converted code.
+            The returned map includes `scope_table` and `metrics` in modern
+            Meaning Tree builds.
 
     Returns:
         Converted code as a string if source_map is False,
@@ -181,7 +182,7 @@ def convert(
     if not output:
         return None
     if source_map:
-        return _parse_json(output)  # type: ignore
+        return _parse_source_map(output)
     return output
 
 
@@ -193,7 +194,7 @@ def generate(
     config: JSON | None = None,
     *,
     skip_errors: bool = False,
-) -> str | dict[str, Any] | None:
+) -> str | SourceMap | None:
     """Convert code between programming languages or produce a source map
 
     Args:
@@ -201,7 +202,9 @@ def generate(
         format: Meaning Tree representation format
         to_language: The target programming language
         source_map: If True, return a JSON-serializable dict describing
-            the source map of code transformations instead of converted code
+            the source map of code transformations instead of converted code.
+            The returned map includes `scope_table` and `metrics` in modern
+            Meaning Tree builds.
 
     Returns:
         Converted code as a string if source_map is False,
@@ -219,7 +222,7 @@ def generate(
     if not output:
         return None
     if source_map:
-        return _parse_json(output)
+        return _parse_source_map(output)
     return output
 
 
@@ -405,3 +408,19 @@ def _parse_json(json_data: str) -> JSON | None:
     except json.JSONDecodeError:
         logger.exception("Error parsing JSON output: %s")
         return None
+
+
+def _parse_source_map(json_data: str) -> SourceMap | None:
+    parsed = _parse_json(json_data)
+    if not isinstance(parsed, dict):
+        return None
+    return _normalize_source_map(parsed)
+
+
+def _normalize_source_map(data: JSON) -> SourceMap:
+    source_map = dict(data)
+    if not isinstance(source_map.get("scope_table"), dict):
+        source_map["scope_table"] = {}
+    if not isinstance(source_map.get("metrics"), dict):
+        source_map["metrics"] = {}
+    return source_map  # type: ignore[return-value]

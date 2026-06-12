@@ -23,6 +23,7 @@ from test.helpers import (
 
 TREE_NAME = "findCorrect"
 
+
 SEQUENCE_CASES = [
     (
         "python",
@@ -322,8 +323,10 @@ def _build_registry(code: str, *, language: str) -> tuple[
 
 def _assert_line_roles(
     registry: SituationDomainDataRegistry,
-    expectations: dict[int, list[str]],
+    expectations: dict[int, list[str]] | None,
 ) -> None:
+    if expectations is None:
+        return
     for line_number, expected_roles in expectations.items():
         assert [action.rule.role for action in line_actions(registry, line_number)] == (
             expected_roles
@@ -378,7 +381,7 @@ def test_solve_tree_sequences(
     *,
     language: str,
     code: str,
-    expected_roles: dict[int, list[str]],
+    expected_roles: dict[int, list[str]] | None,
     expected_actions: list[tuple[int, int]],
     loqi_filename: str,
 ):

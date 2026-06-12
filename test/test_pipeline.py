@@ -618,6 +618,61 @@ def test_domain_pipeline_fill_actions_creates_multiple_actions_for_self_loop_rol
     assert [action.rule.role for action in pipeline.get_actions_for(13)] == ["next"]
 
 
+def test_domain_pipeline_fill_actions_skips_noop_nodes_without_materializing_concrete_action():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "compound_statement",
+            "statements": [
+                {"id": 11, "type": "comment"},
+                {"id": 12, "type": "expression_statement"},
+            ],
+        },
+        11: {"id": 11, "type": "comment"},
+        12: {"id": 12, "type": "expression_statement"},
+    }.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="block",
+        kind="compound.sequence.block",
+        ast_node="block_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="first",
+                kind="auto",
+                identification=Identification(property_path="statements / [0]"),
+                generalization="item",
+            ),
+            ActionDeclaration(
+                role="next",
+                kind="auto",
+                identification=Identification(origin="previous", property_path="[next]"),
+                generalization="item",
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    pipeline.registry.rules = [
+        rule,
+        ConstructDeclaration(name="noop", kind="noop", ast_node="comment"),
+        ConstructDeclaration(name="atom", kind="inline", ast_node="expression_statement"),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    assert pipeline.get_actions_for(11) == []
+    visible_actions = pipeline.get_actions_for(12)
+    assert [action.rule.role for action in visible_actions] == ["first"]
+
+
 def test_domain_pipeline_fill_actions_materializes_inline_construct_effects_on_concrete_action():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False

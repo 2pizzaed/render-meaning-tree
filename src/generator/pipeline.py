@@ -473,35 +473,60 @@ class DomainDataGeneratorPipeline(Pipeline):
         automaton = ConstructTransitionAutomaton(construct.rule)
         # Структурно обходим граф переходов, передавая JSON path предыдущего
         # action occurrence для identification вида "next".
-        queue: deque[tuple[str, JSONPath | None, tuple[str, ...]]] = deque()
+        queue: deque[tuple[str, str, JSONPath | None, tuple[str, ...]]] = deque()
         for transition in automaton.transitions_from("BEGIN"):
-            queue.append((transition.to_role, None, ()))
+            queue.append((transition.to_role, transition.to_role, None, ()))
 
         # Одна роль может найтись в нескольких AST path (sequence next / elif),
         # но один и тот же (role, path) нельзя разворачивать бесконечно.
         visited: set[tuple[str, JSONPath | int | None]] = set()
         while queue:
-            role, previous_path, fallback_roles = queue.popleft()
+            role, materialize_role, previous_path, fallback_roles = queue.popleft()
             if role in {"BEGIN", "END"}:
                 continue
 
-            action_decl = automaton.action_by_role(role)
-            child, path = self._resolve_action_node(construct, action_decl, previous_path)
+            resolve_decl = automaton.action_by_role(role)
+            materialize_decl = automaton.action_by_role(materialize_role)
+            child, path = self._resolve_action_node(construct, resolve_decl, previous_path)
             if child is None:
                 # Если основной target отсутствует, идем по to_when_absent от
                 # того же предыдущего occurrence.
-                queue.extend((fallback_role, previous_path, ()) for fallback_role in fallback_roles)
+                queue.extend(
+                    (fallback_role, fallback_role, previous_path, ())
+                    for fallback_role in fallback_roles
+                )
                 continue
 
-            action_key = (role, path if path is not None else cast(int | None, child.get("id")))
+            action_key = (
+                materialize_role,
+                path if path is not None else cast(int | None, child.get("id")),
+            )
             if action_key in visited:
                 continue
             visited.add(action_key)
 
-            self._add_action_for_node(construct, action_decl, child, automaton)
-            for transition in automaton.transitions_from(role):
+            if self._is_noop_node(child):
+                for transition in automaton.transitions_from(role):
+                    absent_roles = _transition_absent_roles(transition)
+                    next_role = transition.to_role
+                    next_decl = automaton.action_by_role(next_role)
+                    next_materialize_role = next_role
+                    if (
+                        materialize_decl.generalization is not None
+                        and materialize_decl.generalization == next_decl.generalization
+                    ):
+                        next_materialize_role = materialize_role
+                    queue.append((next_role, next_materialize_role, path, absent_roles))
+                continue
+
+            self._add_action_for_node(construct, materialize_decl, child, automaton)
+            for transition in automaton.transitions_from(materialize_role):
                 absent_roles = _transition_absent_roles(transition)
-                queue.append((transition.to_role, path, absent_roles))
+                queue.append((transition.to_role, transition.to_role, path, absent_roles))
+
+    def _is_noop_node(self, node: Node) -> bool:
+        matched_rule = locate_construct_declaration_by_ast_node(node, self.rules)
+        return matched_rule is not None and "noop" in matched_rule.kind_classes
 
     @pipeline_stage(4)
     def _create_default_situation(self):

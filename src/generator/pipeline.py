@@ -351,7 +351,7 @@ class DomainDataGeneratorPipeline(Pipeline):
                     f"No construct declaration found for AST node type {node_type!r} (id: {ast_id})",
                     stacklevel=2)
             return
-        if not construct_decl.kind_classes.isdisjoint({"noop", "inline"}):
+        if "noop" in construct_decl.kind_classes or construct_decl.is_atomic_inline:
             # конструкты для этих AST структур либо атомарные actions, либо не нужны рассуждателю
             return
         parent = self._build_parent_construct(ast_id)
@@ -443,7 +443,7 @@ class DomainDataGeneratorPipeline(Pipeline):
 
     def _inline_effects_for_node(self, node: Node) -> EffectDeclaration | None:
         inline_rule = locate_construct_declaration_by_ast_node(node, self.rules)
-        if inline_rule is None or "inline" not in inline_rule.kind_classes:
+        if inline_rule is None or not inline_rule.is_atomic_inline:
             return None
         return inline_rule.effects
 

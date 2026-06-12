@@ -252,8 +252,17 @@ class ConstructDeclaration:
     def kind_classes(self) -> set[str]:
         return set(self.kind.split("."))
 
+    @property
+    def has_runtime_actions(self) -> bool:
+        return any(action.role not in {"BEGIN", "END"} for action in self.actions)
+
+    @property
+    def is_atomic_inline(self) -> bool:
+        return "inline" in self.kind_classes and not self.has_runtime_actions
+
     def __post_init__(self) -> None:
         self.ast_node = AstNodeQuery.from_raw(self.ast_node)
+        self.actions = _ensure_boundary_actions(self.actions)
         for action in self.actions:
             if action.parent is not None:
                 raise ValueError(f"Action {action.role!r} in construct {self.name!r} has multiple parents: {action.parent.name!r} and {self.name!r}")
@@ -328,9 +337,6 @@ class ConstructDeclaration:
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> ConstructDeclaration:
-        actions = _ensure_boundary_actions(
-            [ActionDeclaration.from_dict(item) for item in data.get("actions", [])]
-        )
         return cls(
             name=name,
             kind=data["kind"],
@@ -338,7 +344,7 @@ class ConstructDeclaration:
             applicable_languages=list(data.get("applicable_languages", [])),
             metadata=Metadata.from_dict(data.get("metadata")),
             effects=_load_effect(data.get("effects")),
-            actions=actions,
+            actions=[ActionDeclaration.from_dict(item) for item in data.get("actions", [])],
             transitions=[TransitionDeclaration.from_dict(item) for item in data.get("transitions", [])],
         )
 

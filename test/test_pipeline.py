@@ -111,7 +111,7 @@ def test_domain_pipeline_can_disable_fork_with_flag():
         pipeline.fork()
 
 
-def test_domain_pipeline_build_construct_skips_inline_and_noop_rules():
+def test_domain_pipeline_build_construct_skips_atomic_inline_and_noop_rules():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
     pipeline = DomainDataGeneratorPipeline(manager)
@@ -124,6 +124,30 @@ def test_domain_pipeline_build_construct_skips_inline_and_noop_rules():
     assert pipeline._build_construct(2, {"id": 2, "type": "atom_node"}) is None
     assert pipeline._build_construct(3, {"id": 3, "type": "ignored_node"}) is None
     assert pipeline.registry.constructs == {}
+
+
+def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "call_node"}
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="call",
+            kind="inline.call",
+            ast_node="call_node",
+            actions=[
+                ActionDeclaration(role="name", kind="identifier"),
+                ActionDeclaration(role="func", kind="compound"),
+            ],
+        ),
+    ]
+
+    construct = pipeline._build_construct(2, {"id": 2, "type": "call_node"})
+
+    assert construct is not None
+    assert construct.rule.name == "call"
 
 
 def test_domain_pipeline_first_construct_declaration_is_root_rule_without_parent():

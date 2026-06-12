@@ -242,6 +242,7 @@ def solve_reasoning(
     debug_enabled: bool = False,
     export_domain: bool = False,
     reasoner_output_stream: TextIO | None = None,
+    time_limit_seconds: int | None = None
 ) -> ReasoningResult | None:
     """Run its_Reasoner reasoning for a specific domain LOQI.
 
@@ -264,6 +265,7 @@ def solve_reasoning(
         *(["--json-trace"] if json_trace else []),
         *(["--export-domain", "-"] if export_domain else []),
         *(["--debug"] if debug_enabled else []),
+        *(["--time-limit", str(time_limit_seconds)] if time_limit_seconds is not None else []),
     ]
 
     raw_result = _run_reasoner_cli(*args)
@@ -284,6 +286,7 @@ def solve_reasoning_result(
     tree: str | None = None,
     verbose: bool = False,
     reasoner_output_stream: TextIO | None = None,
+    time_limit_seconds: int | None = None
 ) -> bool | None:
     """Run reasoning and return parsed result value."""
     result = solve_reasoning(
@@ -293,6 +296,7 @@ def solve_reasoning_result(
         tree=tree,
         verbose=verbose,
         reasoner_output_stream=reasoner_output_stream,
+        time_limit_seconds=time_limit_seconds
     )
     if not isinstance(result, ReasoningResult):
         return None

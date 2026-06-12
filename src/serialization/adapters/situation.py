@@ -80,6 +80,8 @@ class ActionAdapter:
             ctx.relationship("derivedFrom", _serialize_action_spec(obj.rule, ctx)),
             *ctx.relationship_links("hasValue", _semantic_values_for(obj.values, owner=obj)),
         ]
+        if obj.effects is not None:
+            relationships.append(ctx.relationship("hasEffects", obj.effects))
 
         next_action = _next_by_identity(obj.chain, obj)
         if next_action is not None:

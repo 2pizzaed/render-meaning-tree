@@ -7,6 +7,7 @@ from src.ast_managers import CodeManager
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
+    EffectDeclaration,
     InterruptionType,
     TransitionDeclaration,
 )
@@ -56,6 +57,7 @@ class Action:
     rule: ActionDeclaration
     parent: Construct
     owner: SituationContext
+    effects: EffectDeclaration | None = None
 
     @property
     def chain(self) -> list[Action]:

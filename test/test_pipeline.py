@@ -17,6 +17,7 @@ from src.generator.utilities import (
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
+    EffectDeclaration,
     Identification,
     InterruptionType,
     TransitionDeclaration,
@@ -591,6 +592,51 @@ def test_domain_pipeline_fill_actions_creates_multiple_actions_for_self_loop_rol
     assert [action.rule.role for action in pipeline.get_actions_for(11)] == ["first"]
     assert [action.rule.role for action in pipeline.get_actions_for(12)] == ["next"]
     assert [action.rule.role for action in pipeline.get_actions_for(13)] == ["next"]
+
+
+def test_domain_pipeline_fill_actions_materializes_inline_construct_effects_on_concrete_action():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "root_node",
+            "body": {"id": 11, "type": "return_statement"},
+        },
+        11: {"id": 11, "type": "return_statement"},
+    }.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="root",
+            kind="compound",
+            ast_node="root_node",
+            actions=[
+                ActionDeclaration(role="BEGIN", kind="BEGIN"),
+                ActionDeclaration(
+                    role="body",
+                    kind="inline",
+                    identification=Identification(property="body"),
+                ),
+                ActionDeclaration(role="END", kind="END"),
+            ],
+            transitions=[TransitionDeclaration(from_role="BEGIN", to_role="body")],
+        ),
+        ConstructDeclaration(
+            name="return_action",
+            kind="inline",
+            ast_node="return_statement",
+            effects=EffectDeclaration(interruption_start=InterruptionType.RETURN),
+        ),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=pipeline.registry.rules[0], owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    action = pipeline.registry.require_action(ast_id=11, role="body", construct_ast_id=10)
+    assert action.effects is not None
+    assert action.effects.interruption_start is InterruptionType.RETURN
 
 
 def test_domain_pipeline_fork_copies_situation_context_registry_state():

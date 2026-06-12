@@ -494,6 +494,36 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "directlyBeforeOf(concrete_action_11_body);" in rendered
 
 
+def test_serialize_loqi_situation_action_includes_inline_effects() -> None:
+    ctx = SituationContextStub()
+    construct_rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="body", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=construct_rule, owner=ctx)
+    action = Action(
+        ast_id=11,
+        values=[],
+        rule=construct_rule.actions[1],
+        parent=construct,
+        owner=ctx,
+        effects=EffectDeclaration(interruption_start=InterruptionType.RETURN),
+    )
+    ctx.add(construct)
+    ctx.add(action)
+
+    rendered = serialize_loqi(action, adapters_by_type=_all_model_adapters())
+
+    assert "obj concrete_action_11_body : ConcreteAction {" in rendered
+    assert "hasEffects(effect_return);" in rendered
+
+
 def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None:
     ctx = SituationContextStub()
     transition = TransitionDeclaration(from_role="BEGIN", to_role="body")

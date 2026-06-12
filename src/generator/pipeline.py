@@ -13,6 +13,7 @@ from src.json_search import JSONPath
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,
+    EffectDeclaration,
     InterruptionType,
     TransitionDeclaration,
     load_construct_declarations,
@@ -435,9 +436,16 @@ class DomainDataGeneratorPipeline(Pipeline):
             rule=action_decl,
             parent=construct,
             owner=self,
+            effects=self._inline_effects_for_node(child),
         )
         self.add(action)
         return action
+
+    def _inline_effects_for_node(self, node: Node) -> EffectDeclaration | None:
+        inline_rule = locate_construct_declaration_by_ast_node(node, self.rules)
+        if inline_rule is None or "inline" not in inline_rule.kind_classes:
+            return None
+        return inline_rule.effects
 
     def _resolve_action_node(
         self,

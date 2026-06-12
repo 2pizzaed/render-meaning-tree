@@ -342,7 +342,10 @@ class DomainDataGeneratorPipeline(Pipeline):
         construct_decl = locate_construct_declaration_by_ast_node(
                  node_type, self.rules)
         if not construct_decl:
-            if self.manager.ast.instanceof(ast_id, "statement"):
+            if (
+                node_type != "condition_branch"
+                and self.manager.ast.instanceof(ast_id, "statement")
+            ):
                 warnings.warn(
                     f"No construct declaration found for AST node type {node_type!r} (id: {ast_id})",
                     stacklevel=2)

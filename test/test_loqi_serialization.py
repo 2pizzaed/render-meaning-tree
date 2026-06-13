@@ -318,7 +318,11 @@ def test_loqi_serializer_keeps_created_objects_in_objects_list() -> None:
 
     serializer.serialize(construct)
 
-    assert [obj.object_id for obj in serializer.objects] == ["construct_branch", "action_BEGIN"]
+    assert [obj.object_id for obj in serializer.objects] == [
+        "construct_branch",
+        "action_BEGIN",
+        "action_END",
+    ]
 
 
 def test_loqi_serializer_serializes_many_roots_once() -> None:

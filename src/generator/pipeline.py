@@ -564,10 +564,12 @@ class DomainDataGeneratorPipeline(Pipeline):
 
     def _promote_procedural_entry_body_to_root(self) -> None:
         entry_points = self.code.ast.find_paths_by_type("program_entry_point")
-        if not entry_points:
+        if not isinstance(entry_points, Sequence) or not entry_points:
             return
 
         entry_point_path = entry_points[0]
+        if not hasattr(entry_point_path, "get") or not hasattr(entry_point_path, "id"):
+            return
         entry_point = entry_point_path.get(self.code.ast)
         if not isinstance(entry_point, dict):
             return

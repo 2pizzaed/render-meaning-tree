@@ -119,7 +119,7 @@ def code_snippet_to_loqi_files(
     code: str,
     *,
     language: str = "python",
-    mode: str = "simple",
+    mode: str = "procedural",
     filename: str = "generated-domain.loqi",
 ) -> list[tuple[LoqiSerializer, Path]]:
     pipeline = code_snippet_to_pipeline(code, language=language, mode=mode)
@@ -130,7 +130,7 @@ def code_snippet_to_pipeline_registries(
     code: str,
     *,
     language: str = "python",
-    mode: str = "simple",
+    mode: str = "procedural",
 ) -> Sequence[PipelineRegistry]:
     pipeline = code_snippet_to_pipeline(code, language=language, mode=mode)
     return pipeline.flatten_results()
@@ -167,7 +167,7 @@ def validate_code_snippet_domain_loqi(
     *,
     model_dir: str | Path = "domain",
     language: str = "python",
-    mode: str = "simple",
+    mode: str = "procedural",
     tag: str | None = None,
     filename: str = "generated-domain.loqi",
 ) -> bool:
@@ -190,7 +190,7 @@ def validate_code_file_domain_loqi(
     *,
     model_dir: str | Path = "domain",
     language: str = "python",
-    mode: str = "simple",
+    mode: str = "procedural",
     tag: str | None = None,
     filename: str = "generated-domain.loqi",
 ) -> bool:
@@ -205,13 +205,17 @@ def validate_code_file_domain_loqi(
 def line_actions(
     context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
     line_number: int,
+    *,
+    include_transparent: bool = False,
 ) -> list[Action]:
-    """Вернуть все situation-actions, привязанные к указанной строке, в порядке обхода AST."""
+    """Вернуть actions для строки; по умолчанию только opaque, опционально и transparent."""
     registry = _registry_for(context)
     actions: list[Action] = []
     seen: set[int] = set()
     for node in _code_manager_for(context).line_number_to_ast_nodes(line_number):
         for action in registry.get_actions_for(node.id):
+            if not include_transparent and not action.is_opaque:
+                continue
             action_identity = id(action)
             if action_identity in seen:
                 continue
@@ -225,9 +229,14 @@ def require_line_action(
     line_number: int,
     *,
     action_index: int = 0,
+    include_transparent: bool = False,
 ) -> Action:
     """Выбрать action по номеру строки и индексу действия на этой строке."""
-    actions = line_actions(context, line_number)
+    actions = line_actions(
+        context,
+        line_number,
+        include_transparent=include_transparent,
+    )
     if action_index < 0 or action_index >= len(actions):
         raise LookupError(
             f"Expected action index {action_index} on line {line_number}, found {len(actions)} action(s)"
@@ -240,12 +249,18 @@ def add_trace_act_for_line(
     line_number: int,
     *,
     action_index: int = 0,
+    include_transparent: bool = False,
     transition: TransitionDeclaration | None = None,
     variable_name: str | None = "P",
 ) -> TraceAct:
     """Создать TraceAct для action на строке и добавить его в registry."""
     registry = _registry_for(context)
-    action = require_line_action(context, line_number, action_index=action_index)
+    action = require_line_action(
+        context,
+        line_number,
+        action_index=action_index,
+        include_transparent=include_transparent,
+    )
     trace_act = TraceAct(
         action=action,
         used_transition=_resolve_transition(action, transition),

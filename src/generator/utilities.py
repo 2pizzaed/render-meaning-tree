@@ -14,7 +14,7 @@ def code_snippet_to_pipeline(
     code: str,
     *,
     language: str = "python",
-    mode: str = "simple",
+    mode: str = "procedural",
 ) -> DomainDataGeneratorPipeline:
     manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
     pipeline = DomainDataGeneratorPipeline(manager)
@@ -26,7 +26,7 @@ def code_file_to_pipeline(
     code_file: str | Path,
     *,
     language: str = "python",
-    mode: str = "simple",
+    mode: str = "procedural",
 ) -> DomainDataGeneratorPipeline:
     code = Path(code_file).read_text(encoding="utf-8")
     return code_snippet_to_pipeline(code, language=language, mode=mode)

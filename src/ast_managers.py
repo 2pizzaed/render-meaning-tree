@@ -532,9 +532,9 @@ class CodeManager:
         return self._tokens.index(token)
 
     def code_piece(self, ast_node_id: int) -> str | None:
-        byte_range: tuple[int, int] = self._source_map.get("byte_positions", {}).get( # type: ignore
+        byte_range: tuple[int, int] = self._source_map.get("byte_positions", {}).get(  # type: ignore
             str(ast_node_id)
-        ) 
+        )
         code = self.bytes
         if not byte_range:
             return None
@@ -751,6 +751,19 @@ class CodeManager:
         definitions_by_decl_id: dict[int, int] = {}
         symbols = scope_table.get("symbols")
         if isinstance(symbols, dict):
+            symbol_declarations = symbols.get("declarations", [])
+            if isinstance(symbol_declarations, list):
+                for item in symbol_declarations:
+                    if not isinstance(item, dict):
+                        continue
+                    decl = item.get("declaration")
+                    decl_type = self._scope_node_type(decl)
+                    decl_id = self._scope_node_ast_id(decl)
+                    name = item.get("name")
+                    if not isinstance(name, str) or not name or decl_id is None:
+                        continue
+                    if decl_type == "function_declaration":
+                        self._append_function_declaration(name, decl_id)
             definitions = symbols.get("definitions", [])
             if isinstance(definitions, list):
                 for item in definitions:
@@ -1297,7 +1310,7 @@ def manage_code(tokens: TokenList, source_map: SourceMap) -> CodeManager:
 def prepare_code(
     code: str,
     language: SupportedProgrammingLanguage,
-    mode: Literal["full", "simple", "expression"] = "simple",
+    mode: Literal["full", "simple", "procedural", "expression"] = "procedural",
     target_language: SupportedProgrammingLanguage | None = None,
 ) -> CodeManager:
     config: JSON = {"translationUnitMode": mode}

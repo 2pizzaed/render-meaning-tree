@@ -35,12 +35,12 @@ SEQUENCE_CASES = [
         y = 3
         """,
         {
-            1: ["BEGIN", "END", "first", "first_cond"],
-            2: ["BEGIN", "END", "if_branch", "first"],
-            4: ["BEGIN", "END", "else_branch", "first"],
+            1: ["first", "first_cond"],
+            2: ["if_branch", "first"],
+            4: ["else_branch", "first"],
             5: ["next"],
         },
-        [(1, 2), (5, 0)],
+        [(1, 0), (5, 0)],
         "python_if_else.loqi",
     ),
     (
@@ -53,11 +53,11 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["first"],
-            2: ["BEGIN", "END", "next", "cond"],
-            3: ["BEGIN", "END", "body", "first"],
+            2: ["next", "cond"],
+            3: ["body", "first"],
             4: ["next"],
         },
-        [(1, 0), (2, 2), (4, 0)],
+        [(1, 0), (2, 0), (4, 0)],
         "python_while.loqi",
     ),
     (
@@ -69,11 +69,11 @@ SEQUENCE_CASES = [
         x = add(1, 2)
         """,
         {
-            1: ["first"],
-            2: ["BEGIN", "END", "first"],
-            5: ["next"],
+            1: ["func"],
+            2: ["first"],
+            5: ["first"],
         },
-        [(1, 0), (5, 0)],
+        [(5, 0)],
         "python_function_call.loqi",
     ),
     (
@@ -87,13 +87,13 @@ SEQUENCE_CASES = [
         x = fact(3)
         """,
         {
-            1: ["first"],
-            2: ["BEGIN", "END", "BEGIN", "END", "first", "first_cond"],
-            3: ["BEGIN", "END", "if_branch", "first"],
+            1: ["func", "func"],
+            2: ["first", "first_cond"],
+            3: ["if_branch", "first"],
             4: ["next"],
-            7: ["next"],
+            7: ["first"],
         },
-        [(1, 0), (7, 0)],
+        [(7, 0)],
         "python_recursion.loqi",
     ),
     (
@@ -108,13 +108,12 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["first"],
-            2: ["BEGIN", "END", "next", "first_cond"],
-            3: ["BEGIN", "END", "if_branch"],
-            4: ["first"],
-            6: ["next"],
+            3: ["first"],
+            4: ["next", "first_cond"],
+            5: ["if_branch"],
+            6: ["first"],
         },
-        [(1, 0), (2, 2), (6, 0)],
+        [(3, 0), (4, 0), (8, 0)],
         "cpp_if.loqi",
     ),
     (
@@ -128,12 +127,12 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["first"],
-            2: ["BEGIN", "END", "next", "cond"],
-            3: ["BEGIN", "END", "body"],
-            4: ["first"],
+            3: ["first"],
+            4: ["next", "cond"],
+            5: ["body"],
+            6: ["first"],
         },
-        [(1, 0), (2, 2)],
+        [(3, 0), (4, 0)],
         "cpp_while.loqi",
     ),
     (
@@ -148,10 +147,12 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["first"],
-            2: ["next"],
+            1: ["func"],
+            3: ["first"],
+            7: ["first"],
+            8: ["next"],
         },
-        [(1, 0), (2, 0)],
+        [(7, 0), (8, 0)],
         "cpp_function_call.loqi",
     ),
     (
@@ -168,9 +169,14 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["first"],
+            1: ["func", "func"],
+            3: ["first", "first_cond"],
+            4: ["if_branch"],
+            5: ["first"],
+            7: ["next"],
+            11: ["first"],
         },
-        [(1, 0)],
+        [(11, 0)],
         "cpp_recursion.loqi",
     ),
     (
@@ -188,11 +194,11 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["first"],
-            2: ["BEGIN", "END", "next", "first_cond", "BEGIN", "END", "if_branch"],
+            2: ["next", "first_cond", "if_branch"],
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 2), (5, 0)],
+        [(1, 0), (2, 0), (5, 0)],
         "java_if.loqi",
     ),
     (
@@ -210,11 +216,11 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["first"],
-            2: ["BEGIN", "END", "next", "cond", "BEGIN", "END", "body"],
+            2: ["next", "cond", "body"],
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 2), (5, 0)],
+        [(1, 0), (2, 0), (5, 0)],
         "java_while.loqi",
     ),
     (
@@ -230,9 +236,11 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["first"],
+            1: ["func"],
+            2: ["first"],
+            6: ["first"],
         },
-        [(1, 0)],
+        [(6, 0)],
         "java_function_call.loqi",
     ),
     (
@@ -251,9 +259,13 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["first"],
+            1: ["func", "func"],
+            2: ["first", "first_cond", "if_branch"],
+            3: ["first"],
+            5: ["next"],
+            9: ["first"],
         },
-        [(1, 0)],
+        [(9, 0)],
         "java_recursion.loqi",
     ),
 ]
@@ -310,7 +322,9 @@ def test_plain_statements(tmp_path: Path):
     open_file_and_wait(tmp_path / loqi_filename, enabled=should_open_test_artifacts())
 
 
-def _build_registry(code: str, *, language: str) -> tuple[
+def _build_registry(
+    code: str, *, language: str
+) -> tuple[
     DomainDataGeneratorPipeline,
     SituationDomainDataRegistry,
 ]:
@@ -324,13 +338,20 @@ def _build_registry(code: str, *, language: str) -> tuple[
 def _assert_line_roles(
     registry: SituationDomainDataRegistry,
     expectations: dict[int, list[str]] | None,
+    *,
+    include_transparent: bool = False,
 ) -> None:
     if expectations is None:
         return
     for line_number, expected_roles in expectations.items():
-        assert [action.rule.role for action in line_actions(registry, line_number)] == (
-            expected_roles
-        )
+        assert [
+            action.rule.role
+            for action in line_actions(
+                registry,
+                line_number,
+                include_transparent=include_transparent,
+            )
+        ] == expected_roles
 
 
 def _assert_solve_sequence(
@@ -363,6 +384,7 @@ def _assert_solve_sequence(
         resolve_project_root() / "domain",
         loqi_file,
         tree=TREE_NAME,
+        time_limit_seconds=45,
     )
 
     assert final_output is not None
@@ -396,6 +418,30 @@ def test_solve_tree_sequences(
     )
 
 
+def test_line_actions_excludes_transparent_by_default() -> None:
+    _pipeline, registry = _build_registry(
+        """
+        if True:
+            x = 1
+        """,
+        language="python",
+    )
+
+    assert [action.rule.role for action in line_actions(registry, 1)] == [
+        "first",
+        "first_cond",
+    ]
+    assert [
+        action.rule.role
+        for action in line_actions(registry, 1, include_transparent=True)
+    ] == [
+        "BEGIN",
+        "END",
+        "first",
+        "first_cond",
+    ]
+
+
 def _solve_next_step(
     tmp_path: Path,
     pipeline: DomainDataGeneratorPipeline,
@@ -412,6 +458,7 @@ def _solve_next_step(
         resolve_project_root() / "domain",
         loqi_file,
         tree=TREE_NAME,
+        time_limit_seconds=45,
     )
 
     assert solve_output is not None

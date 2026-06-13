@@ -17,8 +17,10 @@ from test.helpers import (
     open_file_and_wait,
     pipeline_to_loqi_files,
     require_line_action,
+    render_trace_acts_artifacts,
     resolve_project_root,
     should_open_test_artifacts,
+    trace_acts_from_loqi,
 )
 
 TREE_NAME = "findCorrect"
@@ -319,6 +321,11 @@ def test_plain_statements(tmp_path: Path):
         add_trace_act_for_action(pipeline, expected_action, transition=transition)
         assert solve_output.variables["T"].startswith("object transition_")
 
+    _write_final_loqi_trace_artifacts(
+        tmp_path,
+        pipeline,
+        loqi_filename=loqi_filename,
+    )
     open_file_and_wait(tmp_path / loqi_filename, enabled=should_open_test_artifacts())
 
 
@@ -375,11 +382,11 @@ def _assert_solve_sequence(
         add_trace_act_for_action(pipeline, expected_action, transition=transition)
         assert solve_output.variables["T"].startswith("object transition_")
 
-    serializer, loqi_file = pipeline_to_loqi_files(
+    loqi_file = _write_final_loqi_trace_artifacts(
         tmp_path,
         pipeline,
-        filename=loqi_filename,
-    )[0]
+        loqi_filename=loqi_filename,
+    )
     final_output = solve_reasoning(
         resolve_project_root() / "domain",
         loqi_file,
@@ -392,6 +399,27 @@ def _assert_solve_sequence(
     assert not final_output.exceptions
     assert "N" not in final_output.variables
     assert final_output.variables["P"].startswith("object ")
+
+
+def _write_final_loqi_trace_artifacts(
+    tmp_path: Path,
+    pipeline: DomainDataGeneratorPipeline,
+    *,
+    loqi_filename: str,
+) -> Path:
+    _serializer, loqi_file = pipeline_to_loqi_files(
+        tmp_path,
+        pipeline,
+        filename=loqi_filename,
+    )[0]
+    loqi_text = loqi_file.read_text(encoding="utf-8")
+    trace_acts = trace_acts_from_loqi(loqi_text, pipeline)
+    render_trace_acts_artifacts(
+        tmp_path,
+        trace_acts,
+        filename_stem=f"{Path(loqi_filename).stem}-trace-acts",
+    )
+    return loqi_file
 
 
 @pytest.mark.parametrize(

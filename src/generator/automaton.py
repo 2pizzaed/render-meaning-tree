@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.model.rules import ActionDeclaration, ConstructDeclaration, TransitionDeclaration
+from src.dot import dot_escape, render_dot_png
+from src.model.rules import (
+    ActionDeclaration,
+    ConstructDeclaration,
+    TransitionDeclaration,
+)
 
 
 class ConstructAutomatonValidationError(ValueError):
@@ -99,9 +104,7 @@ class ConstructTransitionAutomaton:
         self._edges_by_from = _group_edges_by_from(self.transitions)
         self._loops = _find_loops(self._edges_by_from)
         self._loops_by_role = {
-            role: loop
-            for loop in self._loops
-            for role in loop.roles
+            role: loop for loop in self._loops for role in loop.roles
         }
         self.validate()
 
@@ -177,7 +180,9 @@ class ConstructTransitionAutomaton:
                     continue
                 if not absent_roles:
                     continue
-                if not any(absent_role not in loop.roles for absent_role in absent_roles):
+                if not any(
+                    absent_role not in loop.roles for absent_role in absent_roles
+                ):
                     continue
                 controls.append(
                     SelfLoopControl(
@@ -227,8 +232,12 @@ class ConstructTransitionAutomaton:
             raise ConstructAutomatonValidationError(
                 f"Transition from {transition.from_role!r} cannot be applied to current role {current_role!r}"
             )
-        next_role = _transition_target(transition, absent=absent, absent_index=absent_index)
-        return self._build_step(next_role, incoming_transition=transition, previous_role=current_role)
+        next_role = _transition_target(
+            transition, absent=absent, absent_index=absent_index
+        )
+        return self._build_step(
+            next_role, incoming_transition=transition, previous_role=current_role
+        )
 
     def iter_steps(
         self,
@@ -275,8 +284,7 @@ class ConstructTransitionAutomaton:
         infinite_loops = [loop for loop in self._loops if not loop.exit_roles]
         if infinite_loops:
             loop_roles = ", ".join(
-                "{" + ", ".join(sorted(loop.roles)) + "}"
-                for loop in infinite_loops
+                "{" + ", ".join(sorted(loop.roles)) + "}" for loop in infinite_loops
             )
             raise ConstructAutomatonValidationError(
                 f"Construct {self.construct.name!r} has non-terminating transition loops: {loop_roles}"
@@ -298,7 +306,9 @@ class ConstructTransitionAutomaton:
                 attributes.update({"style": "filled", "fillcolor": "lightyellow"})
                 if action.role in loop.entry_roles:
                     attributes.update({"color": "orange", "penwidth": "2"})
-            lines.append(f"    {_dot_node_ref(action.role)} [{_dot_attributes(attributes)}];")
+            lines.append(
+                f"    {_dot_node_ref(action.role)} [{_dot_attributes(attributes)}];"
+            )
 
         for transition in self.transitions:
             edges = [(transition.to_role, False)]
@@ -308,20 +318,20 @@ class ConstructTransitionAutomaton:
                 if is_absent:
                     attributes.update({"style": "dashed", "label": "absent"})
                 attr_text = f" [{_dot_attributes(attributes)}]" if attributes else ""
-                lines.append(f"    {_dot_node_ref(transition.from_role)} -> {_dot_node_ref(target)}{attr_text};")
+                lines.append(
+                    f"    {_dot_node_ref(transition.from_role)} -> {_dot_node_ref(target)}{attr_text};"
+                )
 
         lines.append("}")
         return "\n".join(lines)
 
     def write_png(self, path: str | Path) -> None:
-        import pydot
-
-        graphs = pydot.graph_from_dot_data(self.to_dot())
-        if not graphs:
+        try:
+            render_dot_png(self.to_dot(), path)
+        except ValueError as error:
             raise ConstructAutomatonValidationError(
                 f"Could not render DOT for construct automaton {self.construct.name!r}"
-            )
-        graphs[0].write_png(str(path)) # type: ignore
+            ) from error
 
     def _build_step(
         self,
@@ -337,7 +347,9 @@ class ConstructTransitionAutomaton:
 
         if loop is not None and role in loop.entry_roles:
             starts_loop_iteration = True
-            ends_loop_iteration = previous_role in loop.roles if previous_role is not None else False
+            ends_loop_iteration = (
+                previous_role in loop.roles if previous_role is not None else False
+            )
 
         return ConstructAutomatonStep(
             action=action,
@@ -374,7 +386,9 @@ def _group_transitions_by_from(
     return {role: tuple(items) for role, items in grouped.items()}
 
 
-def _group_edges_by_from(transitions: Iterable[TransitionDeclaration]) -> dict[str, set[str]]:
+def _group_edges_by_from(
+    transitions: Iterable[TransitionDeclaration],
+) -> dict[str, set[str]]:
     grouped: dict[str, set[str]] = {}
     for transition in transitions:
         grouped.setdefault(transition.from_role, set()).add(transition.to_role)
@@ -406,7 +420,9 @@ def _find_loops(edges_by_from: dict[str, set[str]]) -> tuple[LoopInfo, ...]:
     return tuple(loops)
 
 
-def _strongly_connected_components(edges_by_from: dict[str, set[str]]) -> list[set[str]]:
+def _strongly_connected_components(
+    edges_by_from: dict[str, set[str]],
+) -> list[set[str]]:
     index = 0
     stack: list[str] = []
     on_stack: set[str] = set()
@@ -464,7 +480,11 @@ def _entry_roles(component: set[str], edges_by_from: dict[str, set[str]]) -> set
 def _exit_roles(component: set[str], edges_by_from: dict[str, set[str]]) -> set[str]:
     exits: set[str] = set()
     for source in component:
-        exits.update(target for target in edges_by_from.get(source, set()) if target not in component)
+        exits.update(
+            target
+            for target in edges_by_from.get(source, set())
+            if target not in component
+        )
     return exits
 
 
@@ -494,11 +514,16 @@ def _absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:
 
 
 def _uses_condition_value(transition: TransitionDeclaration) -> bool:
-    return transition.constraints is not None and transition.constraints.condition_value is not None
+    return (
+        transition.constraints is not None
+        and transition.constraints.condition_value is not None
+    )
 
 
 def _dot_id(value: str) -> str:
-    normalized = "".join(char if char.isalnum() or char == "_" else "_" for char in value)
+    normalized = "".join(
+        char if char.isalnum() or char == "_" else "_" for char in value
+    )
     if not normalized:
         return "automaton"
     if normalized[0].isdigit():
@@ -507,12 +532,10 @@ def _dot_id(value: str) -> str:
 
 
 def _dot_node_ref(value: Any) -> str:
-    return f'"{_dot_escape(str(value))}"'
+    return f'"{dot_escape(str(value))}"'
 
 
 def _dot_attributes(attributes: dict[str, str]) -> str:
-    return ", ".join(f'{name}="{_dot_escape(value)}"' for name, value in attributes.items())
-
-
-def _dot_escape(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return ", ".join(
+        f'{name}="{dot_escape(value)}"' for name, value in attributes.items()
+    )

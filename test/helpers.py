@@ -9,6 +9,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.dot import (
+    DEFAULT_DOT_PALETTE,
+    DotDiagram,
+    multiline_label,
+    render_dot_png,
+)
 from src.generator.pipeline import (
     DomainDataGeneratorPipeline,
     PipelineRegistry,
@@ -21,7 +27,7 @@ from src.generator.utilities import (
     registry_to_loqi,
 )
 from src.model.rules import TransitionDeclaration
-from src.model.situation import Action, TraceAct
+from src.model.situation import Action, Construct, TraceAct
 from src.serialization.loqi import LoqiSerializer
 from src.tpg_domain import validate_domain_loqi
 
@@ -354,12 +360,120 @@ def trace_acts_from_loqi(
     return trace_acts
 
 
+def trace_acts_to_dot(
+    trace_acts: Sequence[TraceAct],
+    *,
+    name: str = "trace_acts",
+) -> str:
+    """Построить DOT-граф цепочки TraceAct с группировкой по construct."""
+    diagram = DotDiagram(name, palette=DEFAULT_DOT_PALETTE)
+    construct_clusters: dict[int, str] = {}
+
+    for index, trace_act in enumerate(trace_acts):
+        action = trace_act.action
+        construct = action.parent
+        cluster_id = construct_clusters.get(id(construct))
+        if cluster_id is None:
+            cluster_index = len(construct_clusters)
+            cluster_id = f"cluster_{cluster_index}_{construct.ast_id}"
+            construct_clusters[id(construct)] = cluster_id
+            diagram.ensure_cluster(
+                cluster_id,
+                label=f"{construct.rule.name} [{construct.ast_id}]",
+                color_index=cluster_index,
+            )
+            diagram.add_cluster_annotation(
+                cluster_id,
+                text=_construct_annotation_text(construct),
+                note_id=f"{cluster_id}__note",
+            )
+
+        node_id = f"trace_act_{index}"
+        label = multiline_label(
+            _trace_action_title(action),
+            f"role: {action.rule.role}",
+            f"ast_id: {action.ast_id}",
+        )
+        node_attrs = _trace_action_node_attrs(action)
+        diagram.add_node(
+            node_id,
+            label=label,
+            cluster_id=cluster_id,
+            **node_attrs,
+        )
+
+        if index > 0:
+            diagram.add_edge(f"trace_act_{index - 1}", node_id)
+
+    return diagram.to_string()
+
+
+def render_trace_acts_artifacts(
+    directory: Path,
+    trace_acts: Sequence[TraceAct],
+    *,
+    filename_stem: str = "trace-acts",
+) -> tuple[Path, Path]:
+    """Сохранить DOT и PNG для цепочки TraceAct в указанную директорию."""
+    dot_text = trace_acts_to_dot(trace_acts, name=filename_stem)
+    dot_path = write_text_file(directory, dot_text, f"{filename_stem}.dot")
+    png_path = directory / f"{filename_stem}.png"
+    render_dot_png(dot_text, png_path)
+    return dot_path, png_path
+
+
 def _code_manager_for(
     context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
 ):
     if isinstance(context, DomainDataGeneratorPipeline):
         return context.code
     return context.owner.code
+
+
+def _construct_annotation_text(construct: Construct) -> str:
+    snippet = construct.owner.code.code_piece(construct.ast_id) or "<no code snippet>"
+    return multiline_label(
+        f"construct: {construct.rule.name}",
+        f"ast_id: {construct.ast_id}",
+        "",
+        _trim_code_snippet(snippet),
+    )
+
+
+def _trim_code_snippet(
+    snippet: str,
+    *,
+    max_lines: int = 8,
+    max_chars: int = 360,
+) -> str:
+    stripped = snippet.strip()
+    if not stripped:
+        return "<empty>"
+    lines = stripped.splitlines()
+    clipped_lines = lines[:max_lines]
+    clipped = "\n".join(clipped_lines)
+    if len(lines) > max_lines or len(clipped) > max_chars:
+        clipped = clipped[:max_chars].rstrip()
+        return f"{clipped}\n..."
+    return clipped
+
+
+def _trace_action_title(action: Action) -> str:
+    return f"{action.parent.rule.name}.{action.rule.role}"
+
+
+def _trace_action_node_attrs(action: Action) -> dict[str, str]:
+    if action.rule.role == "BEGIN":
+        return {"fillcolor": "#e0f2fe", "color": "#0284c7"}
+    if action.rule.role == "END":
+        return {"fillcolor": "#fee2e2", "color": "#dc2626"}
+    if not action.is_opaque:
+        return {
+            "fillcolor": DEFAULT_DOT_PALETTE.transparent_node_fill,
+            "color": "#9ca3af",
+            "style": "rounded,filled,dashed",
+        }
+    return {}
 
 
 def _registry_for(

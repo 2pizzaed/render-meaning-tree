@@ -1,7 +1,16 @@
 import re
+from pathlib import Path
 
 from src.generator.utilities import pipeline_to_loqi
-from test.helpers import add_trace_act_for_line, code_snippet_to_pipeline, trace_acts_from_loqi
+import test.helpers as helpers_module
+from test.helpers import (
+    add_trace_act_for_line,
+    code_snippet_to_pipeline,
+    render_trace_acts_artifacts,
+    resolve_test_output_dir,
+    trace_acts_from_loqi,
+    trace_acts_to_dot,
+)
 
 
 def test_trace_acts_from_loqi_restores_trace_chain() -> None:
@@ -66,3 +75,39 @@ def test_trace_acts_from_loqi_orders_chain_by_directly_before_of() -> None:
     assert [trace_act.action.rule.role for trace_act in trace_acts] == [
         trace_act.action.rule.role for trace_act in source_pipeline.registry.trace_acts
     ]
+
+
+def test_trace_acts_to_dot_groups_actions_by_construct_and_renders_artifacts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    code = """
+x = 1
+y = 2
+"""
+    pipeline = code_snippet_to_pipeline(code, language="python")
+    add_trace_act_for_line(pipeline, 1)
+    add_trace_act_for_line(pipeline, 2)
+
+    def fake_render_dot_png(dot_text: str, path: Path) -> Path:
+        path.write_bytes(dot_text.encode("utf-8"))
+        return path
+
+    monkeypatch.setattr(helpers_module, "render_dot_png", fake_render_dot_png)
+
+    trace_acts = pipeline.registry.trace_acts
+    dot = trace_acts_to_dot(trace_acts)
+    output_dir = resolve_test_output_dir(tmp_path)
+    dot_path, png_path = render_trace_acts_artifacts(
+        output_dir,
+        trace_acts,
+        filename_stem="trace-act-graph",
+    )
+
+    assert "subgraph cluster_" in dot
+    assert "construct:" in dot
+    assert "global_statements_structure" in dot
+    assert "x: int = 1" in dot
+    assert "role:" in dot
+    assert dot_path.exists()
+    assert png_path.exists()

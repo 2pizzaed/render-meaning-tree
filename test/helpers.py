@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shutil
 import subprocess
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from src.generator.pipeline import (
@@ -16,6 +18,7 @@ from src.generator.utilities import (
     code_file_to_pipeline,
     code_snippet_to_pipeline,
     pipeline_to_loqi,
+    registry_to_loqi,
 )
 from src.model.rules import TransitionDeclaration
 from src.model.situation import Action, TraceAct
@@ -24,6 +27,23 @@ from src.tpg_domain import validate_domain_loqi
 
 TEST_OUTPUT_DIR_ENV_VAR = "DOMAIN_BUILD_OUTPUT_DIR"
 OPEN_TEST_ARTIFACTS_ENV_VAR = "OPEN_TEST_ARTIFACTS"
+
+_TRACE_ACT_OBJECT_RE = re.compile(
+    r"(?:var\s+\w+\s*=\s*)?obj\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*TraceAct\s*\{(?P<body>.*?)\}",
+    re.DOTALL,
+)
+_TRACE_ACT_REF_RE = re.compile(
+    r"\b(?P<rel>hasAction|hasTransition|directlyBeforeOf)\((?P<target>[A-Za-z_][A-Za-z0-9_]*)\);"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _TraceActSpec:
+    object_name: str
+    action_name: str
+    transition_name: str | None
+    next_name: str | None
+    source_order: int
 
 
 def resolve_project_root(start: str | Path | None = None) -> Path:
@@ -292,6 +312,48 @@ def add_trace_act_for_action(
     return trace_act
 
 
+def trace_acts_from_loqi(
+    loqi_text: str,
+    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    *,
+    replace_existing: bool = True,
+) -> list[TraceAct]:
+    """Восстановить TraceAct из LOQI-текста и привязать их к текущему registry."""
+    registry = _registry_for(context)
+    serializer, _ = registry_to_loqi(registry)
+    trace_specs = _parse_trace_act_specs(loqi_text)
+
+    if replace_existing:
+        registry.trace_acts.clear()
+
+    trace_acts: list[TraceAct] = []
+    for trace_spec in _order_trace_act_specs(trace_specs):
+        action = serializer.object_by_name(trace_spec.action_name)
+        if not isinstance(action, Action):
+            raise LookupError(
+                f"Expected Action for {trace_spec.action_name!r}, found {type(action).__name__}"
+            )
+
+        used_transition = None
+        if trace_spec.transition_name is not None:
+            used_transition = serializer.object_by_name(trace_spec.transition_name)
+            if not isinstance(used_transition, TransitionDeclaration):
+                raise LookupError(
+                    "Expected TransitionDeclaration for "
+                    f"{trace_spec.transition_name!r}, found {type(used_transition).__name__}"
+                )
+
+        trace_act = TraceAct(
+            action=action,
+            used_transition=used_transition,
+            situation=registry.owner,
+        )
+        registry.add(trace_act)
+        trace_acts.append(trace_act)
+
+    return trace_acts
+
+
 def _code_manager_for(
     context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
 ):
@@ -322,3 +384,65 @@ def _resolve_transition(
     raise LookupError(
         f"Expected explicit transition for action {action.rule.role!r}, found {len(transitions)} candidates"
     )
+
+
+def _parse_trace_act_specs(loqi_text: str) -> list[_TraceActSpec]:
+    trace_specs: list[_TraceActSpec] = []
+    for index, match in enumerate(_TRACE_ACT_OBJECT_RE.finditer(loqi_text)):
+        refs = {
+            ref_match.group("rel"): ref_match.group("target")
+            for ref_match in _TRACE_ACT_REF_RE.finditer(match.group("body"))
+        }
+        action_name = refs.get("hasAction")
+        if action_name is None:
+            raise ValueError(
+                f"TraceAct {match.group('name')!r} does not declare hasAction(...)"
+            )
+        trace_specs.append(
+            _TraceActSpec(
+                object_name=match.group("name"),
+                action_name=action_name,
+                transition_name=refs.get("hasTransition"),
+                next_name=refs.get("directlyBeforeOf"),
+                source_order=index,
+            )
+        )
+    return trace_specs
+
+
+def _order_trace_act_specs(trace_specs: Sequence[_TraceActSpec]) -> list[_TraceActSpec]:
+    specs_by_name = {trace_spec.object_name: trace_spec for trace_spec in trace_specs}
+    incoming_names = {
+        trace_spec.next_name
+        for trace_spec in trace_specs
+        if trace_spec.next_name in specs_by_name
+    }
+    ordered: list[_TraceActSpec] = []
+    seen: set[str] = set()
+
+    for trace_spec in trace_specs:
+        if trace_spec.object_name in incoming_names:
+            continue
+        _append_trace_chain(trace_spec, specs_by_name, seen, ordered)
+
+    for trace_spec in trace_specs:
+        _append_trace_chain(trace_spec, specs_by_name, seen, ordered)
+
+    return ordered
+
+
+def _append_trace_chain(
+    start: _TraceActSpec,
+    specs_by_name: dict[str, _TraceActSpec],
+    seen: set[str],
+    ordered: list[_TraceActSpec],
+) -> None:
+    current: _TraceActSpec | None = start
+    while current is not None and current.object_name not in seen:
+        ordered.append(current)
+        seen.add(current.object_name)
+        current = (
+            specs_by_name.get(current.next_name)
+            if current.next_name is not None
+            else None
+        )

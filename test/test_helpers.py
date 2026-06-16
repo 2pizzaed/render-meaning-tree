@@ -1,15 +1,16 @@
 import re
 from pathlib import Path
 
-from src.generator.utilities import pipeline_to_loqi
-import test.helpers as helpers_module
+import test.helpers.dot as helpers_dot_module
+from src.generator.utilities import code_snippet_to_pipeline, pipeline_to_loqi
 from test.helpers import (
     add_trace_act_for_line,
-    code_snippet_to_pipeline,
     render_trace_acts_artifacts,
     resolve_test_output_dir,
+    restore_trace_from_loqi,
     trace_acts_from_loqi,
     trace_acts_to_dot,
+    trace_state_from_loqi,
 )
 
 
@@ -77,6 +78,43 @@ def test_trace_acts_from_loqi_orders_chain_by_directly_before_of() -> None:
     ]
 
 
+def test_trace_state_from_loqi_replaces_registry_state() -> None:
+    code = """
+    x = 1
+    """
+    pipeline = code_snippet_to_pipeline(code, language="python")
+    loqi_text = """
+    var S = obj trace_state_break : TraceState {
+        interruption_mode = InterruptionType:break;
+    }
+    """
+
+    trace_state = trace_state_from_loqi(loqi_text, pipeline)
+
+    assert trace_state is not None
+    assert trace_state.interruption_mode.value == "break"
+    assert pipeline.registry.trace_state is trace_state
+    assert pipeline.registry.variables["S"] is trace_state
+
+
+def test_restore_trace_from_loqi_restores_state_and_trace_chain() -> None:
+    code = """
+    x = 1
+    y = 2
+    """
+    source_pipeline = code_snippet_to_pipeline(code, language="python")
+    add_trace_act_for_line(source_pipeline, 1)
+    add_trace_act_for_line(source_pipeline, 2)
+    _serializer, loqi_text = pipeline_to_loqi(source_pipeline)[0]
+
+    target_pipeline = code_snippet_to_pipeline(code, language="python")
+    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, target_pipeline)
+
+    assert trace_state is target_pipeline.registry.trace_state
+    assert trace_state is target_pipeline.registry.variables["S"]
+    assert trace_acts == target_pipeline.registry.trace_acts
+
+
 def test_trace_acts_to_dot_groups_actions_by_construct_and_renders_artifacts(
     tmp_path: Path,
     monkeypatch,
@@ -93,7 +131,7 @@ y = 2
         path.write_bytes(dot_text.encode("utf-8"))
         return path
 
-    monkeypatch.setattr(helpers_module, "render_dot_png", fake_render_dot_png)
+    monkeypatch.setattr(helpers_dot_module, "render_dot_png", fake_render_dot_png)
 
     trace_acts = pipeline.registry.trace_acts
     dot = trace_acts_to_dot(trace_acts)

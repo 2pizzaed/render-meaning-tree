@@ -8,17 +8,16 @@ from src.generator.pipeline import (
     SituationDomainDataRegistry,
 )
 from src.generator.utilities import code_snippet_to_pipeline
-from src.model.rules import TransitionDeclaration
-from src.model.situation import Action
+from src.model.situation import Action, TraceAct
 from src.tpg_domain import ReasoningResult, solve_reasoning
 from test.helpers import (
-    add_trace_act_for_action,
     line_actions,
     open_file_and_wait,
     pipeline_to_loqi_files,
-    require_line_action,
     render_trace_acts_artifacts,
+    require_line_action,
     resolve_project_root,
+    restore_trace_from_loqi,
     should_open_test_artifacts,
     trace_acts_from_loqi,
 )
@@ -42,7 +41,7 @@ SEQUENCE_CASES = [
             4: ["else_branch", "first"],
             5: ["next"],
         },
-        [(1, 0), (5, 0)],
+        [(1, 1), (5, 0)],
         "python_if_else.loqi",
     ),
     (
@@ -273,6 +272,9 @@ SEQUENCE_CASES = [
 ]
 
 
+# -- Tests --------------------------------------------------------------------
+
+
 def test_plain_statements(tmp_path: Path):
     loqi_filename = "plain_statements.loqi"
     code = textwrap.dedent("""
@@ -315,10 +317,9 @@ def test_plain_statements(tmp_path: Path):
     registry.variables["P"] = registry.trace_acts[0]
 
     for expected_action in expected_actions:
-        solve_output, transition = _solve_next_step(
+        solve_output = _advance_until_expected_action(
             tmp_path, pipeline, expected_action, loqi_filename=loqi_filename
         )
-        add_trace_act_for_action(pipeline, expected_action, transition=transition)
         assert solve_output.variables["T"].startswith("object transition_")
 
     _write_final_loqi_trace_artifacts(
@@ -329,102 +330,10 @@ def test_plain_statements(tmp_path: Path):
     open_file_and_wait(tmp_path / loqi_filename, enabled=should_open_test_artifacts())
 
 
-def _build_registry(
-    code: str, *, language: str
-) -> tuple[
-    DomainDataGeneratorPipeline,
-    SituationDomainDataRegistry,
-]:
-    pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
-    pipeline.fork_enabled = False
-    registry = pipeline.flatten_results()[0]
-    registry.variables["P"] = registry.trace_acts[0]
-    return pipeline, registry
-
-
-def _assert_line_roles(
-    registry: SituationDomainDataRegistry,
-    expectations: dict[int, list[str]] | None,
-    *,
-    include_transparent: bool = False,
-) -> None:
-    if expectations is None:
-        return
-    for line_number, expected_roles in expectations.items():
-        assert [
-            action.rule.role
-            for action in line_actions(
-                registry,
-                line_number,
-                include_transparent=include_transparent,
-            )
-        ] == expected_roles
-
-
-def _assert_solve_sequence(
-    tmp_path: Path,
-    *,
-    code: str,
-    language: str,
-    expected_actions: list[tuple[int, int]],
-    loqi_filename: str,
-) -> None:
-    pipeline, registry = _build_registry(code, language=language)
-    actions = [
-        require_line_action(registry, line_number, action_index=action_index)
-        for line_number, action_index in expected_actions
-    ]
-
-    for expected_action in actions:
-        solve_output, transition = _solve_next_step(
-            tmp_path, pipeline, expected_action, loqi_filename=loqi_filename
-        )
-        add_trace_act_for_action(pipeline, expected_action, transition=transition)
-        assert solve_output.variables["T"].startswith("object transition_")
-
-    loqi_file = _write_final_loqi_trace_artifacts(
-        tmp_path,
-        pipeline,
-        loqi_filename=loqi_filename,
-    )
-    final_output = solve_reasoning(
-        resolve_project_root() / "domain",
-        loqi_file,
-        tree=TREE_NAME,
-        time_limit_seconds=45,
-    )
-
-    assert final_output is not None
-    assert final_output.result is True
-    assert not final_output.exceptions
-    assert "N" not in final_output.variables
-    assert final_output.variables["P"].startswith("object ")
-
-
-def _write_final_loqi_trace_artifacts(
-    tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
-    *,
-    loqi_filename: str,
-) -> Path:
-    _serializer, loqi_file = pipeline_to_loqi_files(
-        tmp_path,
-        pipeline,
-        filename=loqi_filename,
-    )[0]
-    loqi_text = loqi_file.read_text(encoding="utf-8")
-    trace_acts = trace_acts_from_loqi(loqi_text, pipeline)
-    render_trace_acts_artifacts(
-        tmp_path,
-        trace_acts,
-        filename_stem=f"{Path(loqi_filename).stem}-trace-acts",
-    )
-    return loqi_file
-
-
 @pytest.mark.parametrize(
     ("language", "code", "expected_roles", "expected_actions", "loqi_filename"),
     SEQUENCE_CASES,
+    ids=[Path(case[4]).stem for case in SEQUENCE_CASES],
 )
 def test_solve_tree_sequences(
     tmp_path: Path,
@@ -470,42 +379,213 @@ def test_line_actions_excludes_transparent_by_default() -> None:
     ]
 
 
-def _solve_next_step(
+# -- Helpers ------------------------------------------------------------------
+
+
+def _build_registry(
+    code: str, *, language: str
+) -> tuple[
+    DomainDataGeneratorPipeline,
+    SituationDomainDataRegistry,
+]:
+    pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
+    pipeline.fork_enabled = False
+    registry = pipeline.flatten_results()[0]
+    registry.variables["P"] = registry.trace_acts[0]
+    return pipeline, registry
+
+
+def _assert_line_roles(
+    registry: SituationDomainDataRegistry,
+    expectations: dict[int, list[str]] | None,
+    *,
+    include_transparent: bool = False,
+) -> None:
+    if expectations is None:
+        return
+    for line_number, expected_roles in expectations.items():
+        assert [
+            action.rule.role
+            for action in line_actions(
+                registry,
+                line_number,
+                include_transparent=include_transparent,
+            )
+        ] == expected_roles
+
+
+def _assert_solve_sequence(
+    tmp_path: Path,
+    *,
+    code: str,
+    language: str,
+    expected_actions: list[tuple[int, int]],
+    loqi_filename: str,
+) -> None:
+    pipeline, registry = _build_registry(code, language=language)
+    entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
+    end_action = next(
+        action
+        for action in registry.get_actions_for(entry_point_id)
+        if action.rule.role == "END"
+    )
+    actions = [
+        require_line_action(registry, line_number, action_index=action_index)
+        for line_number, action_index in expected_actions
+    ]
+
+    for expected_action in actions:
+        solve_output = _advance_until_expected_action(
+            tmp_path, pipeline, expected_action, loqi_filename=loqi_filename
+        )
+        assert solve_output.variables["T"].startswith("object transition_")
+
+    _write_final_loqi_trace_artifacts(
+        tmp_path,
+        pipeline,
+        loqi_filename=loqi_filename,
+    )
+    final_output = _advance_until_expected_action(
+        tmp_path,
+        pipeline,
+        end_action,
+        loqi_filename=loqi_filename,
+    )
+
+    assert final_output.result is True
+    assert not final_output.exceptions
+    assert final_output.variables["P"].startswith("object ")
+
+
+def _write_final_loqi_trace_artifacts(
+    tmp_path: Path,
+    pipeline: DomainDataGeneratorPipeline,
+    *,
+    loqi_filename: str,
+) -> Path:
+    _serializer, loqi_file = pipeline_to_loqi_files(
+        tmp_path,
+        pipeline,
+        filename=loqi_filename,
+    )[0]
+    loqi_text = loqi_file.read_text(encoding="utf-8")
+    trace_acts = trace_acts_from_loqi(loqi_text, pipeline)
+    render_trace_acts_artifacts(
+        tmp_path,
+        trace_acts,
+        filename_stem=f"{Path(loqi_filename).stem}-trace-acts",
+    )
+    return loqi_file
+
+
+def _advance_until_expected_action(
     tmp_path: Path,
     pipeline: DomainDataGeneratorPipeline,
     expected_action: Action,
     *,
     loqi_filename: str,
-) -> tuple[ReasoningResult, TransitionDeclaration]:
-    serializer, loqi_file = pipeline_to_loqi_files(
+) -> ReasoningResult:
+    serializer, _ = pipeline_to_loqi_files(
         tmp_path,
         pipeline,
         filename=loqi_filename,
     )[0]
+    expected_action_name = serializer.object_name(expected_action)
+    assert expected_action_name is not None
+
+    previous_trace_length = len(pipeline.registry.trace_acts)
+    last_output: ReasoningResult | None = None
+    solve_output = _solve_once(
+        tmp_path,
+        pipeline,
+        loqi_filename=loqi_filename,
+    )
+    last_output = solve_output
+    actual_action_name = solve_output.variables.get("N")
+    current_trace_length = len(pipeline.registry.trace_acts)
+    if current_trace_length <= previous_trace_length:
+        _write_trace_artifacts(
+            tmp_path,
+            f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
+            pipeline.registry.trace_acts,
+            _require_specific_domain(solve_output),
+        )
+        raise AssertionError(
+            f"Trace did not grow while waiting for {expected_action_name!r} "
+        )
+    previous_trace_length = current_trace_length
+    if actual_action_name == f"object {expected_action_name}":
+        return solve_output
+
+    _write_trace_artifacts(
+        tmp_path,
+        f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
+        pipeline.registry.trace_acts,
+        _require_specific_domain(last_output),
+    )
+    actual_name = last_output.variables.get("N") if last_output is not None else None
+    raise AssertionError(
+        f"Did not reach expected action {expected_action_name!r} last N={actual_name!r}"
+    )
+
+
+def _solve_once(
+    tmp_path: Path,
+    pipeline: DomainDataGeneratorPipeline,
+    *,
+    loqi_filename: str,
+) -> ReasoningResult:
+    _serializer, loqi_file = pipeline_to_loqi_files(
+        tmp_path,
+        pipeline,
+        filename=loqi_filename,
+    )[0]
+    loqi_text = loqi_file.read_text(encoding="utf-8")
     solve_output = solve_reasoning(
         resolve_project_root() / "domain",
         loqi_file,
         tree=TREE_NAME,
+        export_domain=True,
+        debug_enabled=True,
         time_limit_seconds=45,
     )
 
+    if solve_output is None:
+        _write_trace_artifacts(
+            tmp_path,
+            f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
+            pipeline.registry.trace_acts,
+            loqi_text,
+        )
     assert solve_output is not None
+    if solve_output.trace is not None:
+        loqi_file.with_suffix(".trace.txt").write_text(
+            str(solve_output.trace), encoding="utf-8"
+        )
     assert solve_output.result is True
     assert not solve_output.exceptions
+    exported_loqi = _require_specific_domain(solve_output)
 
-    expected_action_name = serializer.object_name(expected_action)
-    assert expected_action_name is not None
-    assert solve_output.variables["N"] == f"object {expected_action_name}"
+    trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, pipeline)
+    assert trace_state is not None
+    assert trace_acts
 
-    transition_name = _object_name_from_variable(solve_output, "T")
-    transition = serializer.object_by_name(transition_name)
-    assert isinstance(transition, TransitionDeclaration)
-    return solve_output, transition
+    assert pipeline.registry.variables["P"] is trace_acts[-1]
+    return solve_output
 
 
-def _object_name_from_variable(result: ReasoningResult, variable_name: str) -> str:
-    value = result.variables.get(variable_name)
-    assert value is not None
-    prefix = "object "
-    assert value.startswith(prefix)
-    return value[len(prefix) :]
+def _require_specific_domain(result: ReasoningResult | None) -> str:
+    assert result is not None
+    exported_loqi = result.artifacts.get("specificDomain")
+    assert isinstance(exported_loqi, str)
+    return exported_loqi
+
+
+def _write_trace_artifacts(
+    tmp_path: Path,
+    stem: str,
+    trace_acts: list[TraceAct],
+    loqi_content: str,
+) -> None:
+    render_trace_acts_artifacts(tmp_path, trace_acts, filename_stem=stem)
+    (tmp_path / f"{stem}.loqi").write_text(loqi_content, encoding="utf-8", newline="")

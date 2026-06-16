@@ -11,5 +11,5 @@ __pycache__/
 *_scenarios.json
 output.html
 result.html
-.tmp/
+.tmp*/
 TODO.md

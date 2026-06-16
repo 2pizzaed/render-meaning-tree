@@ -24,7 +24,7 @@ from test.helpers import (
 
 TREE_NAME = "findCorrect"
 
-
+# TODO: данные тестов пока не валидны!
 SEQUENCE_CASES = [
     (
         "python",

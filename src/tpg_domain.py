@@ -32,7 +32,7 @@ type ReasoningTrace = str | dict[str, Any] | list[Any]
 @dataclass(frozen=True)
 class ExpressionQueryResult:
     objects: list[str] = field(default_factory=list)
-    trace: str | None = None
+    trace: ReasoningTrace | None = None
     reasoner_output: list[str] = field(default_factory=list)
     metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -312,6 +312,7 @@ def query_expression(
     debug_enabled: bool = False,
     trace: bool = False,
     verbose: bool = False,
+    json_trace: bool = False,
     limit: int | None = None,
     time_measure: bool = False,
     reasoner_output_stream: TextIO | None = None,
@@ -326,6 +327,7 @@ def query_expression(
         *(["--debug"] if debug_enabled else []),
         *(["--trace"] if trace else []),
         *(["--verbose"] if verbose else []),
+        *(["--json-trace"] if json_trace else []),
         *([] if limit is None else ["--limit", str(limit)]),
         *(["--time-measure"] if time_measure else []),
         "--format",
@@ -429,7 +431,7 @@ def parse_expression_query_jsonl(
 ) -> ExpressionQueryResult:
     """Parse its_Reasoner expression-query JSONL events into a structured result."""
     objects: list[str] = []
-    trace: str | None = None
+    trace: ReasoningTrace | None = None
     reasoner_output: list[str] = []
     metrics: dict[str, dict[str, Any]] = {}
 
@@ -459,8 +461,8 @@ def parse_expression_query_jsonl(
                 objects = [str(item) for item in event_objects]
         elif event_type == "expression-trace":
             event_trace = event.get("value")
-            if event_trace is not None:
-                trace = str(event_trace)
+            if isinstance(event_trace, str | dict | list):
+                trace = event_trace
         elif event_type == "metric":
             name = event.get("name")
             if name is not None:
@@ -555,13 +557,17 @@ def _run_tpg_cli(project: TpgProject, *args: str) -> str | None:
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.error("Error calling %s CLI", project)
+        _log_cli_json_trace(e.stdout, e.stderr)
         parsed_errors = _log_cli_json_errors(project, e.stdout, e.stderr)
+
         if _debug_enabled() and not parsed_errors:
             _print_cli_streams(e.stdout, e.stderr)
         elif e.stderr and not parsed_errors:
             logger.error("Error output: %s", e.stderr)
+
         if not _debug_enabled() and e.stdout:
             logger.debug("Output before failure: %s", e.stdout)
+
         return None
     except OSError as e:
         logger.error("Could not start %s CLI: %s", project, e)
@@ -602,6 +608,17 @@ def _log_cli_json_errors(
         else:
             logger.error("%s", header)
     return bool(errors)
+
+
+def _log_cli_json_trace(stdout: str | None, stderr: str | None) -> None:
+    _TRACE_TYPES = {"trace", "partial-trace", "partial-expression-trace"}
+    for stream in (stderr, stdout):
+        for event in _parse_jsonl_events(stream):
+            if event.get("type") in _TRACE_TYPES:
+                value = event.get("value")
+                if value is not None:
+                    logger.error("Trace:\n%s", _format_human_value(value))
+                    return
 
 
 def _parse_jsonl_events(raw_jsonl: str | None) -> list[dict[str, Any]]:

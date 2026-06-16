@@ -3,7 +3,7 @@ fragment findLastTracedAction(last: TraceAct) {
 
     // последнее вычисленное действие является END в его конструкте
     ask (P->hasAction->derivedFrom.role == "END") out false else {
-        // ищем еще незаверщенное действие конструкта, который ближе к P
+        // ищем еще незавершенное действие конструкта, который ближе к P (но не сам конструкт из P)
         var possibleLast: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($c)] among TraceAct c {
             $c->hasAction->derivedFrom.role != "END" and 
             not forAny TraceAct t2 {
@@ -15,8 +15,7 @@ fragment findLastTracedAction(last: TraceAct) {
         conclude: true with (last = possibleLast);
     };
     // Если последнее действие - это добавление в стек вызовов (прыжок в функцию)
-    ask (
-        P->hasTransition=>hasEffects() and 
+    ask (P=>hasTransition() and P->hasTransition=>hasEffects() and 
         P->hasTransition->hasEffects.call_stack != CallStackAction:none
     ) out false else {
         // Ищем начало тела функции и создаем акт вызова функции
@@ -48,44 +47,38 @@ fragment classifyAction(N: ConcreteAction) {
                     var A: ConcreteAction = find ConcreteAction c {
                         $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
                     } out true else { conclude : error [exception = true;];};
-                    var Prev: TraceAct = L;
-                    conclude : true with ({
+                    conclude : null with ({
                         L = +obj : TraceAct (
                             {
                                 hasAction(A);
                                 (A=>hasValue()) ? hasValue(A->hasValue);
                             }
                         );
-                        Prev +=> directlyBeforeOf(L);
-                        P = L
+                        P +=> directlyBeforeOf(L)
                     });
                 }
                 false -> {
                     // иначе, следующее действие - это само действие N, без раскрытия в конструкт
-                    var Prev: TraceAct = L;
+                    var Prev: TraceAct = P;
                     conclude : true with ({
-                        L = +obj : TraceAct (
+                        P = +obj : TraceAct (
                             {
                                 hasAction(N);
                                 (N=>hasValue()) ? hasValue(N->hasValue);
                                 hasTransition(T);
                             }
                         );
-                        Prev +=> directlyBeforeOf(L);
-                        P = L
+                        Prev +=> directlyBeforeOf(P);
+                        L = P
                     });
                 }
             };
         }
         false -> {
-            // Для прозрачного действия тоже нужно продвинуть трассу вперед,
-            // иначе внешний while останется на том же L и начнет повторять
-            // один и тот же fallback-переход. При этом нельзя создавать
-            // дубликат уже существующего TraceAct для того же ConcreteAction.
+            // Для прозрачного действия тоже нужно продвинуть трассу вперед
             ask (forAny TraceAct t {$t->hasAction == N}) out false else {
                 conclude : error [exception = true; exceptionName = "RepeatedTransparentAction";];
             };
-            var Prev: TraceAct = L;
             conclude: null with ({
                 L = +obj : TraceAct (
                     {
@@ -94,8 +87,7 @@ fragment classifyAction(N: ConcreteAction) {
                         hasTransition(T);
                     }
                 );
-                Prev +=> directlyBeforeOf(L);
-                P = L
+                P +=> directlyBeforeOf(L);
             });
             // продолжаем искать ответ уже от нового прозрачного действия
         }
@@ -119,9 +111,10 @@ fragment checkRepeatedAction(N: ConcreteAction) {
 }
 
 tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
-    var L: TraceAct = P; // точка отсчета - P - предыдущее корректное действие
+    // L - точка отсчета для рассуждения о следующем, P - предыдущее корректное действие
+    var L: TraceAct = P;
     // Пока не найдем следующее корректное НЕПРОЗРАЧНОЕ действие
-    while (L->hasAction->derivedFrom.is_opaque or L == P) {
+    while (not L->hasAction->derivedFrom.is_opaque or L == P) {
         body -> {
             `fragment`:findLastTracedAction(L) out true, null; // присоединяем выходы true, null из фрагмента в этот поток
 
@@ -134,7 +127,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
             };
 
             // Ищем переход внутри конструкта последнего действия, который соответствует условиям прерывания, значения условия
-            var T: TransitionSpec = find TransitionSpec t {debug:trace(
+            var T: TransitionSpec = find TransitionSpec t {
                 $t->from_ == L->hasAction->derivedFrom and
                 $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
                 (not $t=>hasConstraints() or (
@@ -149,7 +142,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                             $c=>afterOf(L->hasValue)}
                     )
                 }).bool_value == $t->hasConstraints.condition_value)
-            )} out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
+            } out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
 
             // По найденному переходу ищем конкретное действие
             var N: ConcreteAction = find ConcreteAction a {

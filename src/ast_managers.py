@@ -263,7 +263,7 @@ class ASTNodeManager:
         if isinstance(node, int):
             return self._cache.get(node, (None, None))[1]
         else:
-            for _, (path_element, ast_node) in self._cache.items():
+            for (path_element, ast_node) in self._cache.values():
                 if path_element == node:
                     return ast_node
 

@@ -98,6 +98,8 @@ class ActionAdapter:
 
 class TraceActAdapter:
     def object_name(self, obj: TraceAct) -> str:
+        if obj.chain_order == 0:
+            return "trace_act_root"
         return f"trace_act_{obj.chain_order}_{obj.action.ast_id}_{obj.action.rule.role}"
 
     def type_name(self, obj: TraceAct) -> str:
@@ -131,7 +133,7 @@ class TraceActAdapter:
 
 class TraceStateAdapter:
     def object_name(self, obj: TraceState) -> str:
-        return f"trace_state_{obj.interruption_mode.value}"
+        return "trace_state"
 
     def type_name(self, obj: TraceState) -> str:
         return "TraceState"

@@ -7,7 +7,7 @@ from collections.abc import Callable, Iterable, Sequence
 from importlib.resources import as_file, files
 from typing import Any, Protocol, Self, TypeVar, cast
 
-from src.ast_managers import CodeManager
+from src.ast_managers import CodeManager, NodePathElement
 from src.generator.automaton import ConstructTransitionAutomaton
 from src.json_search import JSONPath
 from src.model.rules import (
@@ -568,7 +568,7 @@ class DomainDataGeneratorPipeline(Pipeline):
             return
 
         entry_point_path = entry_points[0]
-        if not hasattr(entry_point_path, "get") or not hasattr(entry_point_path, "id"):
+        if not isinstance(entry_point_path, NodePathElement):
             return
         entry_point = entry_point_path.get(self.code.ast)
         if not isinstance(entry_point, dict):
@@ -647,7 +647,7 @@ class DomainDataGeneratorPipeline(Pipeline):
         self.registry.add(
             TraceAct(
                 entry_point.begin_action(),
-                entry_point.rule.compiled_transitions_from_role("BEGIN")[0],
+                None,
                 self,
             )
         )

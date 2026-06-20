@@ -1,8 +1,36 @@
+lambda applyInterruptionMode(T: TransitionSpec, S: TraceState) =
+    if (T=>hasEffects()) {
+        T->hasEffects.interruption_start != InterruptionType:none ? 
+            T->hasEffects.interruption_start
+        : (
+            T->hasEffects.interruption_stop != InterruptionType:none and (
+                T->hasEffects.interruption_stop == InterruptionType:any or
+                S.interruption_mode == T->hasEffects.interruption_stop
+            )
+                ? InterruptionType:none
+                : S.interruption_mode
+        );
+    };
+
+lambda findUnusedValue(A: ConcreteAction) = find SemanticValue v {
+    A=>hasValue() and not $v.used and
+    (
+        $v=>afterOf(A->hasValue) and $v=>isCloserToThan(A->hasValue, 
+        findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {
+            $c=>afterOf(A->hasValue)}
+    ) or 
+        $v == A->hasValue and not forAny SemanticValue m {
+            $m=>afterOf(A->hasValue) and not $m.used
+        }
+    ) 
+};
+
+
 fragment findLastTracedAction(last: TraceAct) {
     // фрагмент поиска "реального" последнего действия, от которого будет происходить дальнейший поиск следующего корректного
 
     // последнее вычисленное действие является END в его конструкте
-    ask (P->hasAction->derivedFrom.role == "END") out false else {
+    ask (last->hasAction->derivedFrom.role == "END") out false else {
         // ищем еще незавершенное действие конструкта, который ближе к P (но не сам конструкт из P)
         var possibleLast: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($c)] among TraceAct c {
             $c->hasAction->derivedFrom.role != "END" and 
@@ -15,22 +43,27 @@ fragment findLastTracedAction(last: TraceAct) {
         conclude: true with (last = possibleLast);
     };
     // Если последнее действие - это добавление в стек вызовов (прыжок в функцию)
-    ask (P=>hasTransition() and P->hasTransition=>hasEffects() and 
-        P->hasTransition->hasEffects.call_stack != CallStackAction:none
+    ask (last=>hasTransition() and last->hasTransition=>hasEffects() and 
+        last->hasTransition->hasEffects.call_stack != CallStackAction:none
     ) out false else {
         // Ищем начало тела функции и создаем акт вызова функции
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and
-            $a.ast_id == P->hasAction.ast_id
+            $a.ast_id == last->hasAction.ast_id
         } out true else {conclude : error [exception = true;];};
+        var actionValue: SemanticValue = findUnusedValue(callAction) {
+            true, false -> out;
+        };
+        var Prev: TraceAct = last;
         conclude : true with ({
             last = +obj : TraceAct (
                 {
                     hasAction(callAction);
-                    hasValue(callAction->hasValue);
+                    (callAction=>hasValue()) ? hasValue(actionValue);
                 }
             );
-            P +=> directlyBeforeOf(last);
+            if (callAction=>hasValue()) actionValue.used = true;
+            Prev +=> directlyBeforeOf(last);
         });
     };
     // Иначе, P и есть последнее корректное действие для поиска следующего
@@ -47,27 +80,37 @@ fragment classifyAction(N: ConcreteAction) {
                     var A: ConcreteAction = find ConcreteAction c {
                         $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
                     } out true else { conclude : error [exception = true;];};
+                    var Prev: TraceAct = L;
+                    var actionValue: SemanticValue = findUnusedValue(A) {
+                        true, false -> out;
+                    };
                     conclude : null with ({
                         L = +obj : TraceAct (
                             {
                                 hasAction(A);
-                                (A=>hasValue()) ? hasValue(A->hasValue);
+                                (A=>hasValue()) ? hasValue(actionValue);
                             }
                         );
-                        P +=> directlyBeforeOf(L)
+                        if (A=>hasValue()) actionValue.used = true;
+                        Prev +=> directlyBeforeOf(L)
                     });
                 }
                 false -> {
                     // иначе, следующее действие - это само действие N, без раскрытия в конструкт
-                    var Prev: TraceAct = P;
+                    var Prev: TraceAct = L;
+                    var actionValue: SemanticValue = findUnusedValue(N) {
+                        true, false -> out;
+                    };
                     conclude : true with ({
                         P = +obj : TraceAct (
                             {
                                 hasAction(N);
-                                (N=>hasValue()) ? hasValue(N->hasValue);
+                                (N=>hasValue()) ? hasValue(actionValue);
                                 hasTransition(T);
                             }
                         );
+                        if (N=>hasValue()) actionValue.used = true;
+                        applyInterruptionMode(T, S);
                         Prev +=> directlyBeforeOf(P);
                         L = P
                     });
@@ -79,15 +122,21 @@ fragment classifyAction(N: ConcreteAction) {
             ask (forAny TraceAct t {$t->hasAction == N}) out false else {
                 conclude : error [exception = true; exceptionName = "RepeatedTransparentAction";];
             };
+            var Prev: TraceAct = L;
+            var actionValue: SemanticValue = findUnusedValue(N) {
+                true, false -> out;
+            };
             conclude: null with ({
                 L = +obj : TraceAct (
                     {
                         hasAction(N);
-                        (N=>hasValue()) ? hasValue(N->hasValue);
+                        (N=>hasValue()) ? hasValue(actionValue);
                         hasTransition(T);
                     }
                 );
-                P +=> directlyBeforeOf(L);
+                if (N=>hasValue()) actionValue.used = true;
+                applyInterruptionMode(T, S);
+                Prev +=> directlyBeforeOf(L);
             });
             // продолжаем искать ответ уже от нового прозрачного действия
         }
@@ -127,22 +176,16 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
             };
 
             // Ищем переход внутри конструкта последнего действия, который соответствует условиям прерывания, значения условия
-            var T: TransitionSpec = find TransitionSpec t {
+            var T: TransitionSpec = debug:trace(find TransitionSpec t {
                 $t->from_ == L->hasAction->derivedFrom and
                 $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
                 (not $t=>hasConstraints() or (
                     S.interruption_mode == $t->hasConstraints.interruption_mode 
                     or $t->hasConstraints.interruption_mode == InterruptionType:any
-                )) and (not L=>hasValue() or (find SemanticValue v {
-                    $v=>afterOf(L->hasValue) and 
-                    not $v.used and 
-                    $v=>isCloserToThan(
-                        L->hasValue, 
-                        findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {
-                            $c=>afterOf(L->hasValue)}
-                    )
-                }).bool_value == $t->hasConstraints.condition_value)
-            } out true else {conclude : error [exception = true; exceptionName = "AmbiguousTransition";];};
+                )) and (not L=>hasValue() or 
+                    findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
+                )
+            }) out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
 
             // По найденному переходу ищем конкретное действие
             var N: ConcreteAction = find ConcreteAction a {

@@ -483,19 +483,19 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
 
     rendered = serialize_loqi(construct, adapters_by_type=_all_model_adapters())
 
-    assert "obj concrete_construct_10_demo : ConcreteConstruct {" in rendered
+    assert "obj construct_demo_ast10 : ConcreteConstruct {" in rendered
     assert "ast_id = 10;" in rendered
     assert 'ast_type = "node_10";' in rendered
     assert "derivedFrom(construct_demo);" in rendered
-    assert "hasActions(concrete_action_10_BEGIN);" in rendered
-    assert "hasActions(concrete_action_11_body);" in rendered
-    assert "belongsTo(concrete_construct_10_demo);" in rendered
+    assert "hasActions(demo_action_BEGIN_ast10);" in rendered
+    assert "hasActions(demo_action_body_ast11);" in rendered
+    assert "belongsTo(construct_demo_ast10);" in rendered
     assert "derivedFrom(action_body);" in rendered
     assert "jump_ast_id" not in rendered
     assert "obj semantic_value_action_11_body_0 : SemanticValue {" in rendered
     assert "bool_value = true;" in rendered
     assert "directlyBeforeOf(semantic_value_action_11_body_1);" in rendered
-    assert "directlyBeforeOf(concrete_action_11_body);" in rendered
+    assert "directlyBeforeOf(demo_action_body_ast11);" in rendered
 
 
 def test_serialize_loqi_situation_action_includes_inline_effects() -> None:
@@ -524,7 +524,7 @@ def test_serialize_loqi_situation_action_includes_inline_effects() -> None:
 
     rendered = serialize_loqi(action, adapters_by_type=_all_model_adapters())
 
-    assert "obj concrete_action_11_body : ConcreteAction {" in rendered
+    assert "obj demo_action_body_ast11 : ConcreteAction {" in rendered
     assert "hasEffects(effect_return);" in rendered
 
 
@@ -559,11 +559,12 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
 
     rendered = serialize_loqi(first_trace, adapters_by_type=_all_model_adapters())
 
-    assert "obj trace_act_0_20_BEGIN : TraceAct {" in rendered
-    assert "hasAction(concrete_action_20_BEGIN);" in rendered
+    assert "obj act_root : TraceAct {" in rendered
+    assert "hasAction(demo_trace_action_BEGIN_ast20);" in rendered
     assert "hasTransition(transition_demo_trace_BEGIN_to_body);" in rendered
-    assert "directlyBeforeOf(trace_act_1_21_body);" in rendered
+    assert "directlyBeforeOf(act_demo_trace_body_1_ast21);" in rendered
     assert "hasValue(semantic_value_action_21_body_0);" in rendered
+    assert "semantic_value_owner_" not in rendered
 
 
 def test_serialize_loqi_situation_expanded_from_is_single_link() -> None:
@@ -645,5 +646,5 @@ def test_serialize_loqi_situation_trace_state() -> None:
         adapters_by_type=_all_model_adapters(),
     )
 
-    assert "obj trace_state_break : TraceState {" in rendered
+    assert "obj trace_state : TraceState {" in rendered
     assert "interruption_mode = InterruptionType:break;" in rendered

@@ -31,7 +31,7 @@ class SemanticValue:
 
 class ConstructAdapter:
     def object_name(self, obj: Construct) -> str:
-        return f"concrete_construct_{obj.ast_id}_{obj.rule.name}"
+        return f"construct_{obj.rule.name}_ast{obj.ast_id}"
 
     def type_name(self, obj: Construct) -> str:
         return "ConcreteConstruct"
@@ -69,7 +69,7 @@ class ConstructAdapter:
 
 class ActionAdapter:
     def object_name(self, obj: Action) -> str:
-        return f"concrete_action_{obj.ast_id}_{obj.rule.role}"
+        return f"{obj.parent.rule.name}__action_{obj.rule.role}_ast{obj.ast_id}"
 
     def type_name(self, obj: Action) -> str:
         return "ConcreteAction"
@@ -99,16 +99,17 @@ class ActionAdapter:
 class TraceActAdapter:
     def object_name(self, obj: TraceAct) -> str:
         if obj.chain_order == 0:
-            return "trace_act_root"
-        return f"trace_act_{obj.chain_order}_{obj.action.ast_id}_{obj.action.rule.role}"
+            return "act_root"
+        return f"act_{obj.action.parent.rule.name}_{obj.action.rule.role}_{obj.chain_order}_ast{obj.action.ast_id}"
 
     def type_name(self, obj: TraceAct) -> str:
         return "TraceAct"
 
     def describe(self, obj: TraceAct, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
+        action_ref = ctx.serialize(obj.action)
         relationships: list[RelationshipLink] = [
-            ctx.relationship("hasAction", obj.action),
-            *ctx.relationship_links("hasValue", _semantic_values_for(obj.action.values, owner=obj)),
+            RelationshipLink(name="hasAction", targets=(action_ref,)),
+            *ctx.relationship_links("hasValue", _semantic_value_refs_for_action(obj.action, ctx)),
         ]
 
         if obj.used_transition is not None:
@@ -184,6 +185,15 @@ def _semantic_values_for(values: list[bool], *, owner: Any) -> list[SemanticValu
     for semantic_value in semantic_values:
         semantic_value._chain = semantic_values
     return semantic_values
+
+
+def _semantic_value_refs_for_action(
+    action: Action, ctx: LoqiAdapterContext
+) -> list[LoqiObjectRef]:
+    return [
+        LoqiObjectRef(_normalize_object_name(f"semantic_value_{_semantic_scope(action)}_{index}"))
+        for index in range(len(action.values))
+    ]
 
 
 def _serialize_construct_spec(

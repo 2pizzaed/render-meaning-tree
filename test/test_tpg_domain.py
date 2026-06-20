@@ -227,3 +227,29 @@ def test_run_reasoner_cli_logs_jsonl_errors_as_readable_exception(
         in caplog.text
     )
     assert '\\"stackTrace\\"' not in caplog.text
+
+
+def test_run_reasoner_cli_logs_variables_event_on_failure(
+    monkeypatch, caplog
+) -> None:
+    def fake_run(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=args[0],
+            stderr="\n".join(
+                [
+                    '{"type":"variables","value":{"x":"1","state":"failed"}}',
+                    '{"type":"error","message":"boom"}',
+                ]
+            ),
+        )
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    with caplog.at_level(logging.ERROR, logger="src.tpg_domain"):
+        result = _run_reasoner_cli(
+            "reason", "domain", "generated.loqi", "--format", "jsonl"
+        )
+
+    assert result is None
+    assert 'Variables:\n{\n  "x": "1",\n  "state": "failed"\n}' in caplog.text

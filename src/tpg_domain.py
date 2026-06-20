@@ -557,7 +557,18 @@ def _run_tpg_cli(project: TpgProject, *args: str) -> str | None:
         return result.stdout
     except subprocess.CalledProcessError as e:
         logger.error("Error calling %s CLI", project)
-        _log_cli_json_trace(e.stdout, e.stderr)
+        _log_cli_json_event_value(
+            e.stdout,
+            e.stderr,
+            event_types={"trace", "partial-trace", "partial-expression-trace"},
+            label="Trace",
+        )
+        _log_cli_json_event_value(
+            e.stdout,
+            e.stderr,
+            event_types={"variables"},
+            label="Variables",
+        )
         parsed_errors = _log_cli_json_errors(project, e.stdout, e.stderr)
 
         if _debug_enabled() and not parsed_errors:
@@ -610,14 +621,19 @@ def _log_cli_json_errors(
     return bool(errors)
 
 
-def _log_cli_json_trace(stdout: str | None, stderr: str | None) -> None:
-    _TRACE_TYPES = {"trace", "partial-trace", "partial-expression-trace"}
+def _log_cli_json_event_value(
+    stdout: str | None,
+    stderr: str | None,
+    *,
+    event_types: set[str],
+    label: str,
+) -> None:
     for stream in (stderr, stdout):
         for event in _parse_jsonl_events(stream):
-            if event.get("type") in _TRACE_TYPES:
+            if event.get("type") in event_types:
                 value = event.get("value")
                 if value is not None:
-                    logger.error("Trace:\n%s", _format_human_value(value))
+                    logger.error("%s:\n%s", label, _format_human_value(value))
                     return
 
 

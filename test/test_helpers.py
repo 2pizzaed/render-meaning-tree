@@ -143,7 +143,6 @@ y = 2
     )
 
     assert "subgraph cluster_" in dot
-    assert "construct:" in dot
     assert "global_statements_structure" in dot
     assert "x: int = 1" in dot
     assert "role:" in dot

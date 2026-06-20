@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from abc import ABC, abstractmethod
 from collections import deque
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from importlib.resources import as_file, files
 from typing import Any, Protocol, Self, TypeVar, cast
 
@@ -416,35 +416,6 @@ class DomainDataGeneratorPipeline(Pipeline):
             f"{action_decl.role} in {construct.rule.name} can't be identified"
         )
 
-    def _action_values_for(
-        self, action_decl: ActionDeclaration, automaton: ConstructTransitionAutomaton
-    ) -> list[bool]:
-        """Подобрать возможные значения action-условия на уровне situation.
-
-        Здесь пока задаются только допустимые/дефолтные значения условия.
-        Для проверки конкретного числа итераций нужно положить в Action.values
-        эталонную последовательность вроде [True, True, False]: ученический
-        TraceAct будет проверяться рассуждателем на потребление этих значений.
-        assumed_value используется как дефолт правила, например для неявного
-        или отсутствующего компонента цикла.
-        """
-
-        if automaton.controls_loop(action_decl) and not automaton.repeats_action(
-            action_decl
-        ):
-            return _unique_bool_values(
-                value
-                for control in automaton.loop_controls()
-                if control.action is action_decl
-                for value in control.condition_values
-            )
-        if (
-            action_decl.behaviour is not None
-            and action_decl.behaviour.assumed_value is not None
-        ):
-            return [action_decl.behaviour.assumed_value]
-        return []
-
     def _add_action_for_node(
         self,
         construct: Construct,
@@ -459,7 +430,7 @@ class DomainDataGeneratorPipeline(Pipeline):
 
         action = Action(
             ast_id=ast_id,
-            values=self._action_values_for(action_decl, automaton),
+            values=[],
             rule=action_decl,
             parent=construct,
             owner=self,
@@ -654,8 +625,14 @@ class DomainDataGeneratorPipeline(Pipeline):
 
     @pipeline_stage(5)
     def _generate_bool_values(self):
-        # TODO: Заглушка, пока не будет нормального анализатора значений
-        pass
+        for action in (
+            action
+            for actions in self.registry.actions.values()
+            for action in actions
+        ):
+            action.values = _bool_values_for_action(action.rule, action.parent.rule)
+        for action in self.registry.anonymous_actions:
+            action.values = _bool_values_for_action(action.rule, action.parent.rule)
 
 
 def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:
@@ -687,11 +664,11 @@ def _format_lookup_conditions(
     return ", ".join(parts) if parts else "no conditions"
 
 
-def _unique_bool_values(values: Iterable[bool]) -> list[bool]:
-    """Сохранить порядок исходов условия и убрать дубли."""
-
-    result: list[bool] = []
-    for value in values:
-        if value not in result:
-            result.append(value)
-    return result
+def _bool_values_for_action(
+    action_decl: ActionDeclaration, construct_decl: ConstructDeclaration
+) -> list[bool]:
+    if "condition" not in action_decl.kind:
+        return []
+    if "loop" in construct_decl.kind_classes:
+        return [True, True, False]
+    return [True]

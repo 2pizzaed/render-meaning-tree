@@ -161,6 +161,30 @@ def validate_domain_loqi(
     )
 
 
+def tree_loqi_to_xml(
+    tree_loqi: str | Path,
+    *,
+    output: str | Path | None = None,
+    model_dir: str | Path | None = None,
+    tag: str | None = None,
+    cdata_expressions: bool = True,
+) -> str | bool | None:
+    """Convert a LOQI thought process tree to XML through its_DomainModel CLI.
+
+    If ``output`` is provided, returns True/False by the CLI exit status.
+    Otherwise returns XML text from stdout, or None on failure.
+    """
+    return _run_domain_cli_text_or_bool(
+        output,
+        "tree-loqi-to-xml",
+        str(tree_loqi),
+        *(_path_option("--model-dir", model_dir)),
+        *(_tag_args(tag)),
+        *(["--cdata-expressions"] if cdata_expressions else []),
+        *(_path_option("-o", output)),
+    )
+
+
 def domain_to_rdf(
     model_dir: str | Path,
     *,

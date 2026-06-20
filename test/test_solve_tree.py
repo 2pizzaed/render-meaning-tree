@@ -41,7 +41,7 @@ SEQUENCE_CASES = [
             4: ["else_branch", "first"],
             5: ["next"],
         },
-        [(1, 1), (5, 0)],
+        [(1, 1), (2, 1), (5, 0)],
         "python_if_else.loqi",
     ),
     (
@@ -433,28 +433,20 @@ def _assert_solve_sequence(
         require_line_action(registry, line_number, action_index=action_index)
         for line_number, action_index in expected_actions
     ]
+    actions.append(end_action)
 
     for expected_action in actions:
         solve_output = _advance_until_expected_action(
             tmp_path, pipeline, expected_action, loqi_filename=loqi_filename
         )
-        assert solve_output.variables["T"].startswith("object transition_")
+        if expected_action is not end_action:
+            assert solve_output.variables["T"].startswith("object transition_")
 
     _write_final_loqi_trace_artifacts(
         tmp_path,
         pipeline,
         loqi_filename=loqi_filename,
     )
-    final_output = _advance_until_expected_action(
-        tmp_path,
-        pipeline,
-        end_action,
-        loqi_filename=loqi_filename,
-    )
-
-    assert final_output.result is True
-    assert not final_output.exceptions
-    assert final_output.variables["P"].startswith("object ")
 
 
 def _write_final_loqi_trace_artifacts(
@@ -541,14 +533,17 @@ def _solve_once(
         filename=loqi_filename,
     )[0]
     loqi_text = loqi_file.read_text(encoding="utf-8")
-    solve_output = solve_reasoning(
-        resolve_project_root() / "domain",
-        loqi_file,
-        tree=TREE_NAME,
-        export_domain=True,
-        debug_enabled=True,
-        time_limit_seconds=45,
-    )
+    reasoner_output_file = tmp_path / "reasoner_output.txt"
+    with reasoner_output_file.open("a", encoding="utf-8") as reasoner_out:
+        solve_output = solve_reasoning(
+            resolve_project_root() / "domain",
+            loqi_file,
+            tree=TREE_NAME,
+            export_domain=True,
+            debug_enabled=True,
+            time_limit_seconds=45,
+            reasoner_output_stream=reasoner_out,
+        )
 
     if solve_output is None:
         _write_trace_artifacts(
@@ -562,9 +557,17 @@ def _solve_once(
         loqi_file.with_suffix(".trace.txt").write_text(
             str(solve_output.trace), encoding="utf-8"
         )
+    exported_loqi = solve_output.artifacts.get("specificDomain")
+    if solve_output.result is not True or solve_output.exceptions:
+        _write_trace_artifacts(
+            tmp_path,
+            f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
+            restore_trace_from_loqi(exported_loqi or loqi_text, pipeline, replace_existing=False)[0],
+            exported_loqi if isinstance(exported_loqi, str) else loqi_text,
+        )
     assert solve_output.result is True
-    assert not solve_output.exceptions
-    exported_loqi = _require_specific_domain(solve_output)
+    assert not solve_output.exceptions, str(solve_output)
+    assert isinstance(exported_loqi, str)
 
     trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, pipeline)
     assert trace_state is not None

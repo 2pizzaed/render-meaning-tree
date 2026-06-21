@@ -366,7 +366,7 @@ class DomainDataGeneratorPipeline(Pipeline):
                     stacklevel=2,
                 )
             return
-        if "noop" in construct_decl.kind_classes or construct_decl.is_atomic_inline:
+        if not construct_decl.should_build_construct:
             # конструкты для этих AST структур либо атомарные actions, либо не нужны рассуждателю
             return
         parent = self._build_parent_construct(ast_id)

@@ -149,6 +149,14 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
     ).strip()
 
 
+def test_serialize_loqi_action_declaration_respects_explicit_opaque() -> None:
+    action = ActionDeclaration(role="name", kind="identifier", opaque=False)
+
+    rendered = serialize_loqi(action)
+
+    assert "is_opaque = false;" in rendered
+
+
 def test_serialize_loqi_to_when_absent_supports_single_and_many_roles() -> None:
     construct = ConstructDeclaration(
         name="loop",
@@ -492,6 +500,8 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "belongsTo(construct_demo_ast10);" in rendered
     assert "derivedFrom(action_body);" in rendered
     assert "jump_ast_id" not in rendered
+    assert "hasValue(semantic_value_action_11_body_0);" in rendered
+    assert "hasValue(semantic_value_action_11_body_1);" not in rendered
     assert "obj semantic_value_action_11_body_0 : SemanticValue {" in rendered
     assert "bool_value = true;" in rendered
     assert "directlyBeforeOf(semantic_value_action_11_body_1);" in rendered

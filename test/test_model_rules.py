@@ -117,6 +117,15 @@ def test_action_declaration_knows_parent_construct_declaration():
     assert action.parent is construct
 
 
+def test_action_declaration_loads_explicit_opaque_flag():
+    action = ActionDeclaration.from_dict(
+        {"role": "name", "kind": "identifier", "opaque": False}
+    )
+
+    assert action.opaque is False
+    assert not action.is_opaque
+
+
 def test_construct_declaration_from_dict_adds_missing_boundary_actions():
     construct = ConstructDeclaration.from_dict(
         "demo",

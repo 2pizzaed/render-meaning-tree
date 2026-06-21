@@ -5,6 +5,7 @@ from typing import Any
 from src.model.rules import (
     ActionDeclaration,
     Behaviour,
+    CallStackAction,
     ConstraintsDeclaration,
     ConstructDeclaration,
     EffectDeclaration,
@@ -140,14 +141,19 @@ class EffectDeclarationAdapter:
         return "Effect"
 
     def describe(self, obj: EffectDeclaration, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        properties = []
-        if obj.interruption_start is not None:
-            properties.append(ctx.property("interruption_start", obj.interruption_start))
-        if obj.interruption_stop is not None:
-            properties.append(ctx.property("interruption_stop", obj.interruption_stop))
-        if obj.call_stack is not None:
-            properties.append(ctx.property("call_stack", obj.call_stack))
-        return LoqiObjectSpec(properties=tuple(properties))
+        return LoqiObjectSpec(
+            properties=(
+                ctx.property(
+                    "interruption_start",
+                    obj.interruption_start or InterruptionType.NONE,
+                ),
+                ctx.property(
+                    "interruption_stop",
+                    obj.interruption_stop or InterruptionType.NONE,
+                ),
+                ctx.property("call_stack", obj.call_stack or CallStackAction.NONE),
+            )
+        )
 
 
 class ConstraintsDeclarationAdapter:

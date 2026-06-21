@@ -126,6 +126,30 @@ def test_domain_pipeline_build_construct_skips_atomic_inline_and_noop_rules():
     assert pipeline.registry.constructs == {}
 
 
+def test_domain_pipeline_build_construct_keeps_external_noop_rule():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        "id": ast_id,
+        "type": "external_node",
+    }
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="external",
+            kind="compound.external.noop",
+            ast_node="external_node",
+            actions=[ActionDeclaration(role="body", kind="compound")],
+        ),
+    ]
+
+    construct = pipeline._build_construct(4, {"id": 4, "type": "external_node"})
+
+    assert construct is not None
+    assert construct.rule.name == "external"
+
+
 def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False

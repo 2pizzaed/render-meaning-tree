@@ -75,11 +75,13 @@ class ActionAdapter:
         return "ConcreteAction"
 
     def describe(self, obj: Action, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
+        value_head = _semantic_value_head_for(obj.values, owner=obj)
         relationships: list[RelationshipLink] = [
             ctx.relationship("belongsTo", obj.parent),
             ctx.relationship("derivedFrom", _serialize_action_spec(obj.rule, ctx)),
-            *ctx.relationship_links("hasValue", _semantic_values_for(obj.values, owner=obj)),
         ]
+        if value_head is not None:
+            relationships.append(ctx.relationship("hasValue", value_head))
         if obj.effects is not None:
             relationships.append(ctx.relationship("hasEffects", obj.effects))
 
@@ -109,8 +111,10 @@ class TraceActAdapter:
         action_ref = ctx.serialize(obj.action)
         relationships: list[RelationshipLink] = [
             RelationshipLink(name="hasAction", targets=(action_ref,)),
-            *ctx.relationship_links("hasValue", _semantic_value_refs_for_action(obj.action, ctx)),
         ]
+        value_head_ref = _semantic_value_head_ref_for_action(obj.action)
+        if value_head_ref is not None:
+            relationships.append(ctx.relationship("hasValue", value_head_ref))
 
         if obj.used_transition is not None:
             relationships.append(
@@ -187,13 +191,15 @@ def _semantic_values_for(values: list[bool], *, owner: Any) -> list[SemanticValu
     return semantic_values
 
 
-def _semantic_value_refs_for_action(
-    action: Action, ctx: LoqiAdapterContext
-) -> list[LoqiObjectRef]:
-    return [
-        LoqiObjectRef(_normalize_object_name(f"semantic_value_{_semantic_scope(action)}_{index}"))
-        for index in range(len(action.values))
-    ]
+def _semantic_value_head_for(values: list[bool], *, owner: Any) -> SemanticValue | None:
+    semantic_values = _semantic_values_for(values, owner=owner)
+    return semantic_values[0] if semantic_values else None
+
+
+def _semantic_value_head_ref_for_action(action: Action) -> LoqiObjectRef | None:
+    if not action.values:
+        return None
+    return LoqiObjectRef(_normalize_object_name(f"semantic_value_{_semantic_scope(action)}_0"))
 
 
 def _serialize_construct_spec(

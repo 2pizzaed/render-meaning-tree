@@ -189,6 +189,7 @@ class ConstraintsDeclaration:
 class ActionDeclaration:
     role: str
     kind: str
+    opaque: bool | None = None
     identification: Identification | None = None
     metadata: Metadata | None = None
     generalization: str | None = None
@@ -198,6 +199,8 @@ class ActionDeclaration:
 
     @property
     def is_opaque(self):
+        if self.opaque is not None:
+            return self.opaque
         return self.role != "BEGIN" and self.role != "END"
 
     @property
@@ -209,6 +212,7 @@ class ActionDeclaration:
         return cls(
             role=data["role"],
             kind=data["kind"],
+            opaque=data.get("opaque"),
             identification=Identification.from_dict(data.get("identification")),
             metadata=Metadata.from_dict(data.get("metadata")),
             generalization=data.get("generalization"),
@@ -259,6 +263,12 @@ class ConstructDeclaration:
     @property
     def is_atomic_inline(self) -> bool:
         return "inline" in self.kind_classes and not self.has_runtime_actions
+
+    @property
+    def should_build_construct(self) -> bool:
+        return "external" in self.kind_classes or (
+            "noop" not in self.kind_classes and not self.is_atomic_inline
+        )
 
     def __post_init__(self) -> None:
         self.ast_node = AstNodeQuery.from_raw(self.ast_node)

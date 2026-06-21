@@ -449,6 +449,9 @@
           "type": "string",
           "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
         },
+        "opaque": {
+          "type": "boolean"
+        },
         "identification": {
           "$ref": "#/$defs/identification"
         },

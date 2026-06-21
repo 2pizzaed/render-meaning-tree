@@ -386,10 +386,11 @@ block_structure:
 # Определение функции
 # --------------------------------
 func_def_structure:
-  kind: compound.noop
+  kind: compound.external.noop
   ast_node: ['function_definition', 'method_definition']
   actions:
     - role: name
+      opaque: false
       kind: identifier
       identification:
         property_path: 'declaration / name'

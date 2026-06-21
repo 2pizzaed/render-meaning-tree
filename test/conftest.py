@@ -5,6 +5,8 @@ from pathlib import Path
 
 from src.env import load_project_env
 
+pytest_plugins = ("test.helpers.fixtures",)
+
 load_project_env()
 
 MAX_PYTEST_RUN_DIRS = 3

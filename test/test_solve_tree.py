@@ -13,6 +13,7 @@ from src.tpg_domain import ReasoningResult, solve_reasoning
 from test.helpers import (
     line_actions,
     open_file_and_wait,
+    pipeline_debug_json_artifacts,
     pipeline_to_loqi_files,
     render_trace_acts_artifacts,
     require_line_action,
@@ -58,7 +59,7 @@ SEQUENCE_CASES = [
             3: ["body", "first"],
             4: ["next"],
         },
-        [(1, 0), (2, 0), (4, 0)],
+        [(1, 0), (2, 1), (3, 1), (2, 1), (4, 0)],
         "python_while.loqi",
     ),
     (
@@ -71,7 +72,7 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["func"],
-            2: ["first"],
+            2: ["func_body", "first"],
             5: ["first"],
         },
         [(5, 0)],
@@ -89,7 +90,7 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["func", "func"],
-            2: ["first", "first_cond"],
+            2: ["func_body", "first", "first_cond"],
             3: ["if_branch", "first"],
             4: ["next"],
             7: ["first"],
@@ -100,40 +101,36 @@ SEQUENCE_CASES = [
     (
         "c++",
         """
-        int main() {
-            bool cond = true;
-            if (cond) {
-                int x = 1;
-            }
-            return 0;
+        bool cond = true;
+        if (cond) {
+            int x = 1;
         }
+        int y = 0;
         """,
         {
-            3: ["first"],
-            4: ["next", "first_cond"],
-            5: ["if_branch"],
-            6: ["first"],
+            1: ["first"],
+            2: ["next", "first_cond"],
+            3: ["if_branch"],
+            4: ["first"],
+            6: ["next"],
         },
-        [(3, 0), (4, 0), (8, 0)],
+        [(1, 0), (2, 1), (4, 0), (6, 0)],
         "cpp_if.loqi",
     ),
     (
         "c++",
         """
-        int main() {
-            bool cond = true;
-            while (cond) {
-                return 0;
-            }
+        bool cond = true;
+        while (cond) {
+            cond = false;
         }
         """,
         {
-            3: ["first"],
-            4: ["next", "cond"],
-            5: ["body"],
-            6: ["first"],
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["body"],
         },
-        [(3, 0), (4, 0)],
+        [(1, 0), (2, 1), (4, 0), (2, 1)],
         "cpp_while.loqi",
     ),
     (
@@ -149,7 +146,9 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["func"],
+            2: ["func_body"],
             3: ["first"],
+            6: ["func_body"],
             7: ["first"],
             8: ["next"],
         },
@@ -171,10 +170,12 @@ SEQUENCE_CASES = [
         """,
         {
             1: ["func", "func"],
+            2: ["func_body"],
             3: ["first", "first_cond"],
             4: ["if_branch"],
             5: ["first"],
             7: ["next"],
+            10: ["func_body"],
             11: ["first"],
         },
         [(11, 0)],
@@ -199,7 +200,7 @@ SEQUENCE_CASES = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 0), (5, 0)],
+        [(1, 0), (2, 1), (3, 0), (5, 0)],
         "java_if.loqi",
     ),
     (
@@ -221,7 +222,7 @@ SEQUENCE_CASES = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 0), (5, 0)],
+        [(1, 0), (2, 1), (3, 0), (2, 1), (5, 0)],
         "java_while.loqi",
     ),
     (
@@ -237,8 +238,9 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["func"],
+            1: ["func", "func_body"],
             2: ["first"],
+            5: ["func_body"],
             6: ["first"],
         },
         [(6, 0)],
@@ -260,10 +262,11 @@ SEQUENCE_CASES = [
         }
         """,
         {
-            1: ["func", "func"],
+            1: ["func", "func", "func_body"],
             2: ["first", "first_cond", "if_branch"],
             3: ["first"],
             5: ["next"],
+            8: ["func_body"],
             9: ["first"],
         },
         [(9, 0)],
@@ -315,6 +318,11 @@ def test_plain_statements(tmp_path: Path):
     ]
 
     registry.variables["P"] = registry.trace_acts[0]
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        pipeline,
+        filename_stem=Path(loqi_filename).stem,
+    )
 
     for expected_action in expected_actions:
         solve_output = _advance_until_expected_action(
@@ -344,7 +352,12 @@ def test_solve_tree_sequences(
     expected_actions: list[tuple[int, int]],
     loqi_filename: str,
 ):
-    _pipeline, registry = _build_registry(code, language=language)
+    pipeline, registry = _build_registry(code, language=language)
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        pipeline,
+        filename_stem=Path(loqi_filename).stem,
+    )
     _assert_line_roles(registry, expected_roles)
     _assert_solve_sequence(
         tmp_path,
@@ -423,12 +436,12 @@ def _assert_solve_sequence(
     loqi_filename: str,
 ) -> None:
     pipeline, registry = _build_registry(code, language=language)
-    entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
-    end_action = next(
-        action
-        for action in registry.get_actions_for(entry_point_id)
-        if action.rule.role == "END"
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        pipeline,
+        filename_stem=Path(loqi_filename).stem,
     )
+    end_action = _require_root_end_action(pipeline, registry)
     actions = [
         require_line_action(registry, line_number, action_index=action_index)
         for line_number, action_index in expected_actions
@@ -449,6 +462,20 @@ def _assert_solve_sequence(
     )
 
 
+def _require_root_end_action(
+    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationDomainDataRegistry,
+) -> Action:
+    entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
+    entry_point = pipeline.get_construct_for(entry_point_id)
+    assert entry_point is not None
+    return next(
+        action
+        for action in registry.get_related_actions(entry_point)
+        if action.rule.role == "END"
+    )
+
+
 def _write_final_loqi_trace_artifacts(
     tmp_path: Path,
     pipeline: DomainDataGeneratorPipeline,
@@ -466,6 +493,11 @@ def _write_final_loqi_trace_artifacts(
         tmp_path,
         trace_acts,
         filename_stem=f"{Path(loqi_filename).stem}-trace-acts",
+    )
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        pipeline,
+        filename_stem=Path(loqi_filename).stem,
     )
     return loqi_file
 
@@ -568,7 +600,9 @@ def _solve_once(
         _write_trace_artifacts(
             tmp_path,
             f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
-            restore_trace_from_loqi(exported_loqi or loqi_text, pipeline, replace_existing=False)[0],
+            restore_trace_from_loqi(
+                exported_loqi or loqi_text, pipeline, replace_existing=False
+            )[0],
             exported_loqi if isinstance(exported_loqi, str) else loqi_text,
         )
     assert solve_output.result is True

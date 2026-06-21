@@ -17,6 +17,7 @@ from test.helpers.env import (
 from test.helpers.pipeline import (
     code_snippet_to_loqi_files,
     code_snippet_to_pipeline_registries,
+    pipeline_debug_json_artifacts,
     pipeline_to_loqi_files,
     validate_code_file_domain_loqi,
     validate_code_snippet_domain_loqi,
@@ -36,6 +37,7 @@ __all__ = [
     "code_snippet_to_pipeline_registries",
     "line_actions",
     "open_file_and_wait",
+    "pipeline_debug_json_artifacts",
     "pipeline_to_loqi_files",
     "render_trace_acts_artifacts",
     "require_line_action",

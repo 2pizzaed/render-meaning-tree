@@ -1,9 +1,12 @@
 mt:
-	cd meaning_tree && mvn clean install
+	./build_libs.sh mt
+
+tpg:
+	./build_libs.sh tpg
 
 run:
 	uv run main.py
 
-.PHONY: test
+.PHONY: mt tpg rebuild run test
 test:
 	uv run pytest

@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Literal, cast
 
 from src.env import MEANING_TREE_CLI_DEBUG_ENV_VAR, env_flag
 from src.types import (
@@ -13,6 +14,9 @@ from src.types import (
     SupportedProgrammingLanguage,
     TokenList,
 )
+
+type SerializationFormat = Literal["json", "dot", "xml", "rdf", "rdf-turtle"]
+type DeserializationFormat = Literal["json", "dot", "xml", "rdf", "rdf-turtle"]
 
 m2_repo = (
     Path.home()
@@ -76,7 +80,7 @@ def to_dict(
 
 
 def to_dot(
-    language: SupportedProgrammingLanguage,
+    language: SupportedProgrammingLanguage | DeserializationFormat,
     code: str,
     config: JSON | None = None,
     *,
@@ -87,7 +91,7 @@ def to_dot(
     """Convert code from language to string dot graph representation using meaning tree
 
     Args:
-        language: The source programming language (e.g., 'java', 'python', 'c++')
+        language: The source programming language (e.g., 'java', 'python', 'c++') or deserialization format (e.g., 'json', 'xml')
         code: The code to convert
 
     Returns:
@@ -188,8 +192,8 @@ def convert(
 
 def generate(
     ast: str,
-    to_language: SupportedProgrammingLanguage,
-    format: str = "json",
+    to: SupportedProgrammingLanguage,
+    format: SerializationFormat = "json",
     source_map: bool = False,
     config: JSON | None = None,
     *,
@@ -200,7 +204,7 @@ def generate(
     Args:
         ast: Meaning Tree representation in specified format
         format: Meaning Tree representation format
-        to_language: The target programming language
+        to: The target programming language
         source_map: If True, return a JSON-serializable dict describing
             the source map of code transformations instead of converted code.
             The returned map includes `scope_table` and `metrics` in modern
@@ -214,7 +218,7 @@ def generate(
     output = _run_generate(
         ast,
         format,
-        to_language,
+        to,
         source_map,
         config=config,
         skip_errors=skip_errors,
@@ -285,20 +289,24 @@ def _print_cli_streams(stdout: str | None, stderr: str | None) -> None:
 
 def _run_serialize(
     code: str,
-    source_lang: SupportedProgrammingLanguage,
-    target_lang: str = "json",
+    source_lang: SupportedProgrammingLanguage | DeserializationFormat,
+    target: SerializationFormat = "json",
     config: JSON | None = None,
     *,
     skip_errors: bool = False,
     project_root: str | Path | None = None,
     project_file: str | Path | None = None,
 ) -> str | None:
+    no_translate = source_lang in DeserializationFormat.__value__.__args__
+    if no_translate:
+        code = _normalize_deserialization_input(
+            cast(DeserializationFormat, source_lang),
+            code,
+        )
     return _run_meaning_tree(
-        "translate",
-        "--from",
-        source_lang,
+        *(["generate", "--format", source_lang] if no_translate else ["translate", "--from", source_lang]),
         "--serialize",
-        target_lang,
+        target,
         *(["--skip-errors"] if skip_errors else []),
         *_project_option(project_root, project_file),
         *serialize_config(config),
@@ -362,7 +370,7 @@ def _run_convert(
 
 def _run_generate(
     ast: str,
-    format: str,
+    format: DeserializationFormat,
     target_lang: SupportedProgrammingLanguage,
     source_map: bool = False,
     config: JSON | None = None,
@@ -408,6 +416,24 @@ def _parse_json(json_data: str) -> JSON | None:
     except json.JSONDecodeError:
         logger.exception("Error parsing JSON output: %s")
         return None
+
+
+def _normalize_deserialization_input(
+    source_lang: DeserializationFormat,
+    code: str,
+) -> str:
+    if source_lang != "json":
+        return code
+    parsed = _parse_json(code)
+    if not isinstance(parsed, dict):
+        return code
+    if parsed.get("type") == "meaning_tree":
+        return code
+    wrapped: JSON = {
+        "type": "meaning_tree",
+        "root_node": parsed,
+    }
+    return json.dumps(wrapped, ensure_ascii=False)
 
 
 def _parse_source_map(json_data: str) -> SourceMap | None:

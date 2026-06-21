@@ -493,7 +493,9 @@ def _advance_until_expected_action(
         loqi_filename=loqi_filename,
     )
     last_output = solve_output
-    actual_action_name = solve_output.variables.get("N")
+    actual_action_name = solve_output.variables.get("N") or solve_output.variables.get(
+        "N_absent"
+    )
     current_trace_length = len(pipeline.registry.trace_acts)
     if current_trace_length <= previous_trace_length:
         _write_trace_artifacts(
@@ -515,7 +517,11 @@ def _advance_until_expected_action(
         pipeline.registry.trace_acts,
         _require_specific_domain(last_output),
     )
-    actual_name = last_output.variables.get("N") if last_output is not None else None
+    actual_name = (
+        last_output.variables.get("N") or last_output.variables.get("N_absent")
+        if last_output is not None
+        else None
+    )
     raise AssertionError(
         f"Did not reach expected action {expected_action_name!r} last N={actual_name!r}"
     )

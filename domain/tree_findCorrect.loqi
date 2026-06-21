@@ -187,7 +187,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
             `fragment`:findLastTracedAction(L) out true, null; // присоединяем выходы true, null из фрагмента в этот поток
         
             // Ищем переход внутри конструкта последнего действия, который соответствует условиям прерывания, значения условия
-            var T: TransitionSpec = debug:trace(find TransitionSpec t {
+            var T: TransitionSpec = find TransitionSpec t {
                 $t->from_ == L->hasAction->derivedFrom and
                 $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
                 (not $t=>hasConstraints() or (
@@ -196,7 +196,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                 )) and (not L=>hasValue() or 
                     findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
                 )
-            }) out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
+            } out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
 
             // По найденному переходу ищем конкретное действие
             var N: ConcreteAction = find ConcreteAction a {

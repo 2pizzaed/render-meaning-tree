@@ -24,7 +24,6 @@ from src.serialization.loqi import (
     LoqiAdapter,
     LoqiAdapterContext,
     LoqiAdapterNotFoundError,
-    LoqiDomainMismatchError,
     LoqiObjectSpec,
     LoqiSerializationError,
     LoqiSerializer,
@@ -143,6 +142,8 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         }
 
         obj effect_add_frame : Effect {
+            interruption_start = InterruptionType:none;
+            interruption_stop = InterruptionType:none;
             call_stack = CallStackAction:add_frame;
         }
         """
@@ -576,78 +577,6 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     assert "hasValue(semantic_value_action_21_body_0);" in rendered
     assert "semantic_value_owner_" not in rendered
 
-
-def test_serialize_loqi_situation_expanded_from_is_single_link() -> None:
-    ctx = SituationContextStub()
-    parent_rule = ConstructDeclaration(
-        name="parent",
-        kind="compound",
-        ast_node="parent_node",
-        actions=[
-            ActionDeclaration(role="BEGIN", kind="BEGIN"),
-            ActionDeclaration(role="child", kind="compound"),
-            ActionDeclaration(role="END", kind="END"),
-        ],
-    )
-    child_rule = ConstructDeclaration(
-        name="child",
-        kind="compound",
-        ast_node="child_node",
-        actions=[
-            ActionDeclaration(role="BEGIN", kind="BEGIN"),
-            ActionDeclaration(role="END", kind="END"),
-        ],
-    )
-    parent = Construct(parent=None, ast_id=30, rule=parent_rule, owner=ctx)
-    child = Construct(parent=parent, ast_id=31, rule=child_rule, owner=ctx)
-    parent_action = Action(
-        ast_id=31,
-        values=[],
-        rule=parent_rule.actions[1],
-        parent=parent,
-        owner=ctx,
-    )
-    ctx.add(parent)
-    ctx.add(child)
-    ctx.add(parent_action)
-
-    rendered = serialize_loqi(child, adapters_by_type=_all_model_adapters())
-
-    assert "expandedFrom(action_child);" in rendered
-    assert "expandedFrom(action_child," not in rendered
-
-
-def test_serialize_loqi_situation_errors_when_expanded_from_has_multiple_sources() -> None:
-    ctx = SituationContextStub()
-    parent_rule = ConstructDeclaration(
-        name="parent",
-        kind="compound",
-        ast_node="parent_node",
-        actions=[
-            ActionDeclaration(role="BEGIN", kind="BEGIN"),
-            ActionDeclaration(role="left", kind="compound"),
-            ActionDeclaration(role="right", kind="compound"),
-            ActionDeclaration(role="END", kind="END"),
-        ],
-    )
-    child_rule = ConstructDeclaration(
-        name="child",
-        kind="compound",
-        ast_node="child_node",
-        actions=[
-            ActionDeclaration(role="BEGIN", kind="BEGIN"),
-            ActionDeclaration(role="END", kind="END"),
-        ],
-    )
-    parent = Construct(parent=None, ast_id=40, rule=parent_rule, owner=ctx)
-    child = Construct(parent=parent, ast_id=41, rule=child_rule, owner=ctx)
-    ctx.add(parent)
-    ctx.add(child)
-    ctx.add(Action(ast_id=41, values=[], rule=parent_rule.actions[1], parent=parent, owner=ctx))
-    ctx.add(Action(ast_id=41, values=[], rule=parent_rule.actions[2], parent=parent, owner=ctx))
-
-    with pytest.raises(LoqiDomainMismatchError, match="expands from multiple action specs"):
-        serialize_loqi(child, adapters_by_type=_all_model_adapters())
 
 
 def test_serialize_loqi_situation_trace_state() -> None:

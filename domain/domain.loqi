@@ -148,7 +148,6 @@ class ConcreteConstruct : ASTEntity {
     rel derivedFrom(ConstructSpec): {* -> 1};
 	
 	rel hasParent(ConcreteConstruct) : {* -> 1};
-	rel expandedFrom(ActionSpec) : {* -> 1}; // из какого действия родительского конструкта пришли
 } [
 	RU.localizedName = "конструкция" ;
 	EN.localizedName = "construct" ;

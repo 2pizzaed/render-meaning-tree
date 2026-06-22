@@ -452,6 +452,28 @@ return_action:
   effects:
     - interruption_start: return
 
+return_compound_action:
+  kind: inline.compound
+  ast_node:
+    query:
+      - type: return_statement
+        contains_any:
+          key: "type"
+          value_in: [
+            'function_call',
+            'method_call' # могут быть другие вложенные конструкты
+          ]
+  actions:
+    - role: content
+      opaque: false
+      kind: auto
+  transitions:
+    - from: BEGIN
+      to: content
+    - from: content
+      to: content
+      to_when_absent: END
+
 # --------------------------------
 # break
 # --------------------------------

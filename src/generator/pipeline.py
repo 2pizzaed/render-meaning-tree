@@ -22,6 +22,8 @@ from src.model.rules import (
 from src.model.situation import Action, Construct, TraceAct, TraceState
 from src.types import Node
 
+_INLINE_CALL_NODE_TYPES = frozenset({"function_call", "method_call"})
+
 
 class PipelineRegistry(Protocol):
     def collect(self) -> list[Any]: ...
@@ -356,7 +358,7 @@ class DomainDataGeneratorPipeline(Pipeline):
         if ast_id in self.registry.constructs:
             return self.registry.constructs[ast_id]
         node_type: str = cast(str, node.get("type"))
-        construct_decl = locate_construct_declaration_by_ast_node(node_type, self.rules)
+        construct_decl = locate_construct_declaration_by_ast_node(node, self.rules)
         if not construct_decl:
             if node_type != "condition_branch" and self.manager.ast.instanceof(
                 ast_id, "statement"
@@ -397,24 +399,81 @@ class DomainDataGeneratorPipeline(Pipeline):
             self._build_construct(ast_id, node)
 
     def _lookup_node_without_identification(
-        self, construct: Construct, action_decl: ActionDeclaration
-    ) -> Node | None:
-        if (node := self.code.ast.get_path(construct.ast_id)) and node.instanceof(
-            "function_call"
-        ):
-            node_content = node.get(self.code.ast)
-            assert node_content
-            name = cast(
-                str,
-                cast(dict[str, str], node_content.get("function", {})).get("repr_name"),
+        self,
+        construct: Construct,
+        action_decl: ActionDeclaration,
+        previous_path: JSONPath | None,
+    ) -> tuple[Node | None, JSONPath | None]:
+        if self._is_inline_compound_construct(construct):
+            inline_call_node = self._lookup_next_inline_compound_call_node(
+                construct, previous_path
             )
-            funcs = self.code.user_defined_function_names
-            found = funcs.get(name)
-            if found:
-                return self.code.get_node_by_id(found)
+            return inline_call_node if inline_call_node is not None else (None, None)
+
+        found = self._lookup_function_call_definition(construct)
+        if found is not None:
+            return found, None
         raise ValueError(
             f"{action_decl.role} in {construct.rule.name} can't be identified"
         )
+
+    def _lookup_next_inline_compound_call_node(
+        self, construct: Construct, previous_path: JSONPath | None
+    ) -> tuple[Node, JSONPath] | None:
+        call_nodes = _iter_inline_call_nodes(construct.ast_node)
+        if previous_path is None:
+            if not call_nodes:
+                return None
+            path, node = call_nodes[0]
+            return node, path
+
+        for index, (path, _) in enumerate(call_nodes):
+            if path == previous_path:
+                next_index = index + 1
+                if next_index >= len(call_nodes):
+                    return None
+                next_path, next_node = call_nodes[next_index]
+                return next_node, next_path
+        return None
+
+    def _is_inline_compound_construct(self, construct: Construct) -> bool:
+        return {"inline", "compound"}.issubset(construct.rule.kind_classes)
+
+    def _lookup_function_call_definition(self, construct: Construct) -> Node | None:
+        node = self.code.ast.get_path(construct.ast_id)
+        if node is None or not node.instanceof("function_call"):
+            return None
+
+        node_content = node.get(self.code.ast)
+        if not node_content:
+            return None
+
+        name = cast(
+            str | None,
+            cast(dict[str, str], node_content.get("function", {})).get("repr_name"),
+        )
+        if name is None:
+            return None
+
+        found = self.code.user_defined_function_names.get(name)
+        if found is None:
+            return None
+
+        function_node = self._function_definition_node_for(found)
+        return function_node if function_node is not None else self.code.get_node_by_id(found)
+
+    def _function_definition_node_for(self, ast_id: int) -> Node | None:
+        current = self.code.get_node_by_id(ast_id)
+        while current is not None:
+            node_type = current.get("type")
+            if node_type in {"function_definition", "method_definition"}:
+                return current
+            current_id = cast(int | None, current.get("id"))
+            if current_id is None:
+                return None
+            parent = self.code.ast.get_parent_of(current_id)
+            current = cast(Node | None, parent) if isinstance(parent, dict) else None
+        return None
 
     def _add_action_for_node(
         self,
@@ -453,8 +512,8 @@ class DomainDataGeneratorPipeline(Pipeline):
     ) -> tuple[Node | None, JSONPath | None]:
         if not action_decl.identification:
             return self._lookup_node_without_identification(
-                construct, action_decl
-            ), None
+                construct, action_decl, previous_path
+            )
 
         resolved_path = action_decl.identification.resolve_json(
             construct.ast_node,
@@ -508,7 +567,7 @@ class DomainDataGeneratorPipeline(Pipeline):
                 continue
             visited.add(action_key)
 
-            if self._is_noop_node(child):
+            if self._is_noop_node(child, construct):
                 for transition in automaton.transitions_from(role):
                     absent_roles = _transition_absent_roles(transition)
                     next_role = transition.to_role
@@ -529,9 +588,13 @@ class DomainDataGeneratorPipeline(Pipeline):
                     (transition.to_role, transition.to_role, path, absent_roles)
                 )
 
-    def _is_noop_node(self, node: Node) -> bool:
+    def _is_noop_node(self, node: Node, construct: Construct) -> bool:
         matched_rule = locate_construct_declaration_by_ast_node(node, self.rules)
-        return matched_rule is not None and "noop" in matched_rule.kind_classes
+        if matched_rule is None or "noop" not in matched_rule.kind_classes:
+            return False
+        if "external" in matched_rule.kind_classes:
+            return bool({"program", "block"} & construct.rule.kind_classes)
+        return True
 
     def _promote_procedural_entry_body_to_root(self) -> None:
         entry_points = self.code.ast.find_paths_by_type("program_entry_point")
@@ -662,6 +725,19 @@ def _format_lookup_conditions(
     elif construct_ast_id is not None:
         parts.append(f"construct_ast_id={construct_ast_id!r}")
     return ", ".join(parts) if parts else "no conditions"
+
+
+def _iter_inline_call_nodes(value: Any, path: JSONPath = ()) -> list[tuple[JSONPath, Node]]:
+    result: list[tuple[JSONPath, Node]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            result.extend(_iter_inline_call_nodes(child, (*path, key)))
+        if value.get("type") in _INLINE_CALL_NODE_TYPES and isinstance(value.get("id"), int):
+            result.append((path, cast(Node, value)))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            result.extend(_iter_inline_call_nodes(child, (*path, index)))
+    return result
 
 
 def _bool_values_for_action(

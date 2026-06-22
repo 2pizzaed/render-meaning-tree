@@ -14,7 +14,7 @@ The `ast_node` field in `constructs.yml` supports two compatible forms:
    - An atomic item must contain `type`, where the value is either one type string
      or a non-empty list of type strings.
    - An atomic item may contain zero or one check operator. Supported checks are:
-     `exists`, `equals`, `length`, and `contains`.
+     `exists`, `equals`, `length`, `contains`, and `contains_any`.
    - Logical items are `{"and": [...]}`, `{"or": [...]}`, and `{"not": item}`.
      `and` and `or` contain non-empty lists, while `not` contains exactly one item.
 
@@ -42,6 +42,7 @@ project. A query matches when the provided `Node` satisfies the expression tree.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
@@ -50,8 +51,9 @@ from src.types import Node
 
 type AstNodeQuerySource = str | list[str] | dict[str, Any] | AstNodeQuery
 
-_CHECK_OPERATORS = frozenset({"exists", "equals", "length", "contains"})
+_CHECK_OPERATORS = frozenset({"exists", "equals", "length", "contains", "contains_any"})
 _LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
+_CONTAINS_ANY_LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
 _MISSING = object()
 
 
@@ -85,6 +87,9 @@ class AstNodeQuery:
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
         return self.expression.duplicate_keys()
+
+    def specificity(self) -> int:
+        return self.expression.specificity()
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +182,115 @@ class AstNodeExpression:
         child_keys = tuple(sorted((child.key() for child in self.children), key=repr))
         return (self.kind, child_keys)
 
+    def specificity(self) -> int:
+        if self.kind == "atom":
+            return 1 + (10 + self.condition.specificity() if self.condition else 0)
+        if self.kind == "and":
+            return sum(child.specificity() for child in self.children)
+        if self.kind == "or":
+            return max(child.specificity() for child in self.children)
+        if self.kind == "not":
+            return 1 + self.children[0].specificity()
+        raise ValueError(f"Unsupported ast_node expression kind {self.kind!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class ContainsAnyPredicate:
+    key: str
+    value: Any = field(default=_MISSING)
+    value_in: tuple[Any, ...] | None = None
+
+    @classmethod
+    def from_raw(cls, payload: Any) -> ContainsAnyPredicate:
+        data = _ensure_dict(payload, operation="contains_any item")
+        extra_keys = set(data) - {"key", "value", "value_in"}
+        if extra_keys:
+            raise ValueError(f"Unsupported contains_any item keys: {sorted(extra_keys)!r}")
+        key = _ensure_string(data.get("key"), "contains_any item key")
+        has_value = "value" in data
+        has_value_in = "value_in" in data
+        if has_value and has_value_in:
+            raise ValueError("contains_any item can contain either value or value_in, not both")
+        if has_value_in:
+            value_in = data["value_in"]
+            if not isinstance(value_in, list) or not value_in:
+                raise ValueError("contains_any item value_in must be a non-empty list")
+            return cls(key=key, value_in=tuple(value_in))
+        if has_value:
+            return cls(key=key, value=data["value"])
+        return cls(key=key)
+
+    def matches(self, node: dict[str, Any]) -> bool:
+        if self.key not in node:
+            return False
+        value = node[self.key]
+        if self.value is not _MISSING:
+            return value == self.value
+        if self.value_in is not None:
+            return value in self.value_in
+        return True
+
+    def key_data(self) -> tuple[Any, ...]:
+        return (self.key, _freeze_json(self.value), _freeze_json(self.value_in))
+
+
+@dataclass(frozen=True, slots=True)
+class ContainsAnyExpression:
+    kind: Literal["predicate", "and", "or", "not"]
+    predicate: ContainsAnyPredicate | None = None
+    children: tuple[ContainsAnyExpression, ...] = ()
+
+    @classmethod
+    def from_raw(cls, payload: Any) -> ContainsAnyExpression:
+        data = _ensure_dict(payload, operation="contains_any")
+        logical_keys = [key for key in _CONTAINS_ANY_LOGICAL_OPERATORS if key in data]
+        if logical_keys:
+            if len(logical_keys) != 1 or len(data) != 1:
+                raise ValueError("contains_any logical item must contain exactly one logical operator")
+            operator = logical_keys[0]
+            if operator == "not":
+                not_payload = data[operator]
+                if not isinstance(not_payload, dict):
+                    raise ValueError("contains_any 'not' requires an object predicate")
+                return cls(kind="not", children=(cls.from_raw(not_payload),))
+            return cls(
+                kind=cast(Literal["and", "or"], operator),
+                children=_parse_contains_any_expression_list(data[operator], operation=operator),
+            )
+        return cls(kind="predicate", predicate=ContainsAnyPredicate.from_raw(data))
+
+    def matches(self, node: dict[str, Any]) -> bool:
+        if self.kind == "predicate":
+            if self.predicate is None:
+                raise ValueError("contains_any predicate expression has no predicate")
+            return self.predicate.matches(node)
+        if self.kind == "and":
+            return all(child.matches(node) for child in self.children)
+        if self.kind == "or":
+            return any(child.matches(node) for child in self.children)
+        if self.kind == "not":
+            return not self.children[0].matches(node)
+        raise ValueError(f"Unsupported contains_any expression kind {self.kind!r}")
+
+    def key_data(self) -> tuple[Any, ...]:
+        if self.kind == "predicate":
+            if self.predicate is None:
+                raise ValueError("contains_any predicate expression has no predicate")
+            return ("predicate", self.predicate.key_data())
+        child_keys = tuple(sorted((child.key_data() for child in self.children), key=repr))
+        return (self.kind, child_keys)
+
+    def specificity(self) -> int:
+        if self.kind == "predicate":
+            return 1
+        if self.kind == "and":
+            return sum(child.specificity() for child in self.children)
+        if self.kind == "or":
+            return max(child.specificity() for child in self.children)
+        if self.kind == "not":
+            return 1 + self.children[0].specificity()
+        raise ValueError(f"Unsupported contains_any expression kind {self.kind!r}")
+
 
 @dataclass(frozen=True, slots=True)
 class AstNodeCondition:
@@ -186,6 +300,7 @@ class AstNodeCondition:
     equals: int | None = None
     min: int | None = None
     max: int | None = None
+    contains_any: ContainsAnyExpression | None = None
 
     @classmethod
     def from_raw(cls, kind: str, payload: Any) -> AstNodeCondition:
@@ -217,9 +332,22 @@ class AstNodeCondition:
                 path=_parse_path_value(data.get("path"), operation="contains"),
                 value=data.get("value"),
             )
+        if kind == "contains_any":
+            return cls(
+                kind="contains_any",
+                path="",
+                contains_any=ContainsAnyExpression.from_raw(payload),
+            )
         raise ValueError(f"Unsupported ast_node query condition {kind!r}")
 
     def matches(self, node: Node) -> bool:
+        if self.kind == "contains_any":
+            if self.contains_any is None:
+                raise ValueError("ast_node contains_any condition has no expression")
+            return any(
+                self.contains_any.matches(descendant)
+                for descendant in _iter_descendant_objects(node, include_self=False)
+            )
         resolved = get_json_by_property_path(node, self.path, default=_MISSING)
         if self.kind == "exists":
             return resolved is not _MISSING
@@ -232,7 +360,20 @@ class AstNodeCondition:
         raise ValueError(f"Unsupported ast_node condition kind {self.kind!r}")
 
     def key(self) -> tuple[Any, ...]:
-        return (self.kind, self.path, _freeze_json(self.value), self.equals, self.min, self.max)
+        return (
+            self.kind,
+            self.path,
+            _freeze_json(self.value),
+            self.equals,
+            self.min,
+            self.max,
+            self.contains_any.key_data() if self.contains_any is not None else None,
+        )
+
+    def specificity(self) -> int:
+        if self.kind == "contains_any":
+            return self.contains_any.specificity() if self.contains_any is not None else 0
+        return 1
 
     def _matches_length(self, value: int) -> bool:
         if self.equals is not None and value != self.equals:
@@ -246,6 +387,14 @@ def _parse_expression_list(value: Any, *, operation: str) -> tuple[AstNodeExpres
     if not isinstance(value, list) or not value:
         raise ValueError(f"ast_node query {operation!r} requires a non-empty list")
     return tuple(AstNodeExpression.from_raw(item) for item in value)
+
+
+def _parse_contains_any_expression_list(
+    value: Any, *, operation: str
+) -> tuple[ContainsAnyExpression, ...]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"contains_any {operation!r} requires a non-empty list")
+    return tuple(ContainsAnyExpression.from_raw(item) for item in value)
 
 
 def _parse_types(value: Any) -> tuple[str, ...]:
@@ -274,6 +423,17 @@ def _ensure_string(value: Any, field_name: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{field_name} must be a non-empty string")
     return value
+
+
+def _iter_descendant_objects(value: Any, *, include_self: bool = True) -> Iterable[dict[str, Any]]:
+    if isinstance(value, dict):
+        for child in value.values():
+            yield from _iter_descendant_objects(child)
+        if include_self:
+            yield value
+    elif isinstance(value, list):
+        for child in value:
+            yield from _iter_descendant_objects(child)
 
 
 def _optional_int(value: Any, *, field_name: str) -> int | None:

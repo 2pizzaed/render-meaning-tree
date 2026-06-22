@@ -70,6 +70,37 @@ fragment findLastTracedAction(last: TraceAct) {
     conclude : null;
 }
 
+fragment unwindNewConstruct(C: ConcreteConstruct) {
+    var A: ConcreteAction = find ConcreteAction c {
+        $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
+    } out true else { conclude : error [exception = true;];};
+    var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
+    var actionValue: SemanticValue = findUnusedValue(N) {
+        true, false -> out;
+    };
+    conclude : null with ({
+        // Сначала само действие
+        L = +obj : TraceAct (
+            {
+                hasAction(N);
+                hasTransition(T);
+                (N=>hasValue()) ? hasValue(actionValue);
+            }
+        );
+        Prev +=> directlyBeforeOf(L);
+        Prev = L;
+        if (N=>hasValue()) actionValue.used = true;
+        // Затем то, во что оно разворачивается (BEGIN нового конструкта)
+        L = +obj : TraceAct (
+            {
+                hasAction(A);
+            }
+        );
+        Prev +=> directlyBeforeOf(L);
+        applyInterruptionMode(T, S);
+    });
+}
+
 fragment classifyAction(N: ConcreteAction) {
     // если действие является непрозрачным
     ask (N->derivedFrom.is_opaque) {
@@ -77,34 +108,7 @@ fragment classifyAction(N: ConcreteAction) {
             var C: ConcreteConstruct = find ConcreteConstruct c {$c.ast_id == N.ast_id} {
                 true -> {
                     // если действие разворачивается в новый конструкт, то его первое прозрачное действие и есть следующее действие
-                    var A: ConcreteAction = find ConcreteAction c {
-                        $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
-                    } out true else { conclude : error [exception = true;];};
-                    var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
-                    var actionValue: SemanticValue = findUnusedValue(N) {
-                        true, false -> out;
-                    };
-                    conclude : null with ({
-                        // Сначала само действие
-                        L = +obj : TraceAct (
-                            {
-                                hasAction(N);
-                                hasTransition(T);
-                                (N=>hasValue()) ? hasValue(actionValue);
-                            }
-                        );
-                        Prev +=> directlyBeforeOf(L);
-                        Prev = L;
-                        if (N=>hasValue()) actionValue.used = true;
-                        // Затем то, во что оно разворачивается (BEGIN нового конструкта)
-                        L = +obj : TraceAct (
-                            {
-                                hasAction(A);
-                            }
-                        );
-                        Prev +=> directlyBeforeOf(L);
-                        applyInterruptionMode(T, S);
-                    });
+                    `fragment`:unwindNewConstruct(C);
                 }
                 false -> {
                     // иначе, следующее действие - это само действие N, без раскрытия в конструкт
@@ -130,25 +134,34 @@ fragment classifyAction(N: ConcreteAction) {
         }
         false -> {
             // Для прозрачного действия тоже нужно продвинуть трассу вперед
-            ask (forAny TraceAct t {$t->hasAction == N}) out false else {
-                conclude : error [exception = true; exceptionName = "RepeatedTransparentAction";];
+            var C: ConcreteConstruct = find ConcreteConstruct c {$c.ast_id == N.ast_id and N->derivedFrom.role != "END" and N->derivedFrom.role != "BEGIN"} {
+                true -> {
+                    // если ПРОЗРАЧНОЕ действие (кроме BEGIN и END, это нужно для поддержки произвольных прозрачных действий) разворачивается в новый конструкт, то его первое прозрачное действие и есть следующее действие
+                    `fragment`:unwindNewConstruct(C);
+                }
+                false -> {
+                    // если не новый конструкт, то просто оставляем действие
+                    ask (forAny TraceAct t {$t->hasAction == N}) out false else {
+                        conclude : error [exception = true; exceptionName = "RepeatedTransparentAction";];
+                    };
+                    var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
+                    var actionValue: SemanticValue = findUnusedValue(N) {
+                        true, false -> out;
+                    };
+                    conclude: null with ({
+                        L = +obj : TraceAct (
+                            {
+                                hasAction(N);
+                                (N=>hasValue()) ? hasValue(actionValue);
+                                hasTransition(T);
+                            }
+                        );
+                        if (N=>hasValue()) actionValue.used = true;
+                        applyInterruptionMode(T, S);
+                        Prev +=> directlyBeforeOf(L);
+                    });
+                }
             };
-            var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
-            var actionValue: SemanticValue = findUnusedValue(N) {
-                true, false -> out;
-            };
-            conclude: null with ({
-                L = +obj : TraceAct (
-                    {
-                        hasAction(N);
-                        (N=>hasValue()) ? hasValue(actionValue);
-                        hasTransition(T);
-                    }
-                );
-                if (N=>hasValue()) actionValue.used = true;
-                applyInterruptionMode(T, S);
-                Prev +=> directlyBeforeOf(L);
-            });
             // продолжаем искать ответ уже от нового прозрачного действия
         }
     };

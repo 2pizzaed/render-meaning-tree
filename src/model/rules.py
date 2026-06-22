@@ -368,6 +368,8 @@ def load_construct_declarations(path: str | Path) -> list[ConstructDeclaration]:
 def load_construct_declarations_from_dict(data: dict[str, Any]) -> list[ConstructDeclaration]:
     declarations: list[ConstructDeclaration] = []
     for name, rule_data in data.items():
+        if not _is_construct_rule_data(name, rule_data):
+            continue
         if rule_data.get("disabled", False):
             continue
         declarations.append(ConstructDeclaration.from_dict(name, rule_data))
@@ -379,15 +381,41 @@ def locate_construct_declaration_by_ast_node(
     ast_data: str | Node, declarations: list[ConstructDeclaration], safe_mode: bool = True
 ) -> ConstructDeclaration | None:
     node: Node = {"type": ast_data} if isinstance(ast_data, str) else ast_data
-    result: ConstructDeclaration | None = None
+    matches: list[ConstructDeclaration] = []
     for declaration in declarations:
         if declaration.matches_ast_node(node):
-            if result is not None:
-                raise ValueError(f"Multiple construct declarations match AST node type {ast_data!r}: {result.name!r} and {declaration.name!r}")
-            result = declaration
-        if result is not None and not safe_mode:
+            matches.append(declaration)
+        if matches and not safe_mode:
             break
-    return result
+    if not matches:
+        return None
+
+    best_specificity = max(match.ast_node_query.specificity() for match in matches)
+    best_matches = [
+        match
+        for match in matches
+        if match.ast_node_query.specificity() == best_specificity
+    ]
+    if len(best_matches) == 1:
+        return best_matches[0]
+
+    matched_names = ", ".join(repr(match.name) for match in best_matches)
+    raise ValueError(
+        f"Multiple equally specific construct declarations match AST node type {ast_data!r}: {matched_names}"
+    )
+
+
+def _is_construct_rule_data(name: str, data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    has_kind = "kind" in data
+    has_ast_node = "ast_node" in data
+    if has_kind and has_ast_node:
+        return True
+    if not has_kind and not has_ast_node:
+        return False
+    missing_key = "kind" if not has_kind else "ast_node"
+    raise ValueError(f"Construct declaration {name!r} must contain {missing_key!r}")
 
 
 def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDeclaration | None:

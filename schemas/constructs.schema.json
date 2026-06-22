@@ -8,9 +8,42 @@
     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
   },
   "additionalProperties": {
-    "$ref": "#/$defs/construct"
+    "oneOf": [
+      {
+        "$ref": "#/$defs/construct"
+      },
+      {
+        "$ref": "#/$defs/sharedDefinition"
+      }
+    ]
   },
   "$defs": {
+    "sharedDefinition": {
+      "description": "Top-level reusable YAML anchor value. It is not treated as a construct by the loader.",
+      "oneOf": [
+        {
+          "type": "array"
+        },
+        {
+          "type": "object",
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "required": [
+                  "ast_node"
+                ]
+              }
+            ]
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
     "stringList": {
       "type": "array",
       "items": {
@@ -104,6 +137,9 @@
         },
         {
           "$ref": "#/$defs/astNodeAtomicContains"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicContainsAny"
         },
         {
           "$ref": "#/$defs/astNodeAnd"
@@ -301,6 +337,143 @@
       "required": [
         "type",
         "contains"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicContainsAny": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "contains_any": {
+          "$ref": "#/$defs/containsAnyExpression"
+        }
+      },
+      "required": [
+        "type",
+        "contains_any"
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyExpression": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/containsAnyPredicate"
+        },
+        {
+          "$ref": "#/$defs/containsAnyAnd"
+        },
+        {
+          "$ref": "#/$defs/containsAnyOr"
+        },
+        {
+          "$ref": "#/$defs/containsAnyNot"
+        }
+      ]
+    },
+    "containsAnyPredicate": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "$ref": "#/$defs/jsonValue"
+        },
+        "value_in": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "value"
+                ]
+              },
+              {
+                "required": [
+                  "value_in"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "value"
+          ],
+          "not": {
+            "required": [
+              "value_in"
+            ]
+          }
+        },
+        {
+          "required": [
+            "value_in"
+          ],
+          "not": {
+            "required": [
+              "value"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyAnd": {
+      "type": "object",
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/containsAnyExpression"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "and"
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyOr": {
+      "type": "object",
+      "properties": {
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/containsAnyExpression"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "or"
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyNot": {
+      "type": "object",
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/containsAnyExpression"
+        }
+      },
+      "required": [
+        "not"
       ],
       "additionalProperties": false
     },

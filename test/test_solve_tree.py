@@ -75,7 +75,7 @@ SEQUENCE_CASES = [
             2: ["func_body", "first"],
             5: ["first"],
         },
-        [(5, 0)],
+        [(2, 1)],
         "python_function_call.loqi",
     ),
     (
@@ -525,9 +525,6 @@ def _advance_until_expected_action(
         loqi_filename=loqi_filename,
     )
     last_output = solve_output
-    actual_action_name = solve_output.variables.get("N") or solve_output.variables.get(
-        "N_absent"
-    )
     current_trace_length = len(pipeline.registry.trace_acts)
     if current_trace_length <= previous_trace_length:
         _write_trace_artifacts(
@@ -540,7 +537,13 @@ def _advance_until_expected_action(
             f"Trace did not grow while waiting for {expected_action_name!r} "
         )
     previous_trace_length = current_trace_length
-    if actual_action_name == f"object {expected_action_name}":
+    actual_trace_act = pipeline.registry.variables.get("P")
+    actual_action = (
+        actual_trace_act.action
+        if isinstance(actual_trace_act, TraceAct)
+        else None
+    )
+    if actual_action is expected_action:
         return solve_output
 
     _write_trace_artifacts(
@@ -549,13 +552,14 @@ def _advance_until_expected_action(
         pipeline.registry.trace_acts,
         _require_specific_domain(last_output),
     )
-    actual_name = (
-        last_output.variables.get("N") or last_output.variables.get("N_absent")
-        if last_output is not None
+    actual_p_name = (
+        serializer.object_name(actual_action)
+        if actual_action is not None
         else None
     )
     raise AssertionError(
-        f"Did not reach expected action {expected_action_name!r} last N={actual_name!r}"
+        f"Did not reach expected action {expected_action_name!r}; "
+        f"last P={actual_p_name!r}"
     )
 
 

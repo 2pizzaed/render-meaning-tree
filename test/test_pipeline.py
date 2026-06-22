@@ -737,6 +737,48 @@ def test_domain_pipeline_fill_actions_skips_noop_nodes_without_materializing_con
     assert [action.rule.role for action in visible_actions] == ["first"]
 
 
+def test_domain_pipeline_fill_actions_skips_external_noop_inside_block_sequence():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "compound_statement",
+            "statements": [
+                {"id": 11, "type": "function_definition"},
+                {"id": 12, "type": "expression_statement"},
+            ],
+        },
+        11: {"id": 11, "type": "function_definition"},
+        12: {"id": 12, "type": "expression_statement"},
+    }.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="block",
+        kind="compound.sequence.block",
+        ast_node="block_node",
+        actions=[
+            ActionDeclaration(role="first", kind="auto", identification=Identification(property_path="statements / [0]"), generalization="item"),
+            ActionDeclaration(role="next", kind="auto", identification=Identification(origin="previous", property_path="[next]"), generalization="item"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    pipeline.registry.rules = [
+        rule,
+        ConstructDeclaration(name="function", kind="compound.external.noop", ast_node="function_definition"),
+        ConstructDeclaration(name="atom", kind="inline", ast_node="expression_statement"),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    assert pipeline.get_actions_for(11) == []
+    assert [action.rule.role for action in pipeline.get_actions_for(12)] == ["first"]
+
+
 def test_domain_pipeline_fill_actions_materializes_inline_construct_effects_on_concrete_action():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
@@ -780,6 +822,175 @@ def test_domain_pipeline_fill_actions_materializes_inline_construct_effects_on_c
     action = pipeline.registry.require_action(ast_id=11, role="body", construct_ast_id=10)
     assert action.effects is not None
     assert action.effects.interruption_start is InterruptionType.RETURN
+
+
+def test_domain_pipeline_fill_actions_expands_inline_call_content_from_inner_to_outer():
+    nodes = {
+        10: {
+            "id": 10,
+            "type": "assignment_statement",
+            "right": {
+                "id": 11,
+                "type": "function_call",
+                "function": {"type": "identifier", "repr_name": "outer"},
+                "arguments": [
+                    {
+                        "id": 12,
+                        "type": "function_call",
+                        "function": {"type": "identifier", "repr_name": "inner"},
+                    }
+                ],
+            },
+        },
+        11: {
+            "id": 11,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "outer"},
+        },
+        12: {
+            "id": 12,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "inner"},
+        },
+    }
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="inline_compound_atom",
+            kind="inline.compound",
+            ast_node="assignment_statement",
+            actions=[
+                ActionDeclaration(role="content", kind="auto"),
+            ],
+            transitions=[
+                TransitionDeclaration(from_role="BEGIN", to_role="content"),
+                TransitionDeclaration(
+                    from_role="content",
+                    to_role="content",
+                    to_when_absent="END",
+                ),
+            ],
+        ),
+        ConstructDeclaration(
+            name="function_call",
+            kind="inline.call",
+            ast_node="function_call",
+            actions=[
+                ActionDeclaration(role="func", kind="compound"),
+            ],
+        ),
+    ]
+    construct = Construct(
+        parent=None,
+        ast_id=10,
+        rule=pipeline.registry.rules[0],
+        owner=pipeline,
+    )
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    content_actions = [
+        action for action in construct.actions if action.rule.role == "content"
+    ]
+    assert [action.ast_id for action in content_actions] == [12, 11]
+
+
+def test_domain_pipeline_function_call_lookup_returns_definition_node_for_declaration():
+    nodes = {
+        10: {
+            "id": 10,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "add"},
+        },
+        14: {"id": 14, "type": "function_declaration", "name": "add"},
+        15: {
+            "id": 15,
+            "type": "function_definition",
+            "declaration": {"id": 14, "type": "function_declaration", "name": "add"},
+        },
+    }
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
+    manager.user_defined_function_names = {"add": 14}
+    manager.ast.get_parent_of.side_effect = lambda ast_id: nodes[15] if ast_id == 14 else None
+
+    call_path = Mock()
+    call_path.instanceof.side_effect = lambda node_type: node_type == "function_call"
+    call_path.get.return_value = nodes[10]
+    manager.ast.get_path.return_value = call_path
+
+    pipeline = DomainDataGeneratorPipeline(manager)
+    construct = Construct(
+        parent=None,
+        ast_id=10,
+        rule=ConstructDeclaration(
+            name="function_call",
+            kind="inline.call",
+            ast_node="function_call",
+            actions=[ActionDeclaration(role="func", kind="compound")],
+        ),
+        owner=pipeline,
+    )
+
+    found, path = pipeline._lookup_node_without_identification(
+        construct,
+        construct.rule.action_declaration_by_role("func"),  # type: ignore[arg-type]
+        previous_path=None,
+    )
+
+    assert found is nodes[15]
+    assert path is None
+
+
+def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program_or_block():
+    nodes = {
+        10: {
+            "id": 10,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "add"},
+        },
+        14: {"id": 14, "type": "function_declaration", "name": "add"},
+        15: {
+            "id": 15,
+            "type": "function_definition",
+            "declaration": {"id": 14, "type": "function_declaration", "name": "add"},
+        },
+    }
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
+    manager.user_defined_function_names = {"add": 14}
+    manager.ast.get_parent_of.side_effect = lambda ast_id: nodes[15] if ast_id == 14 else None
+
+    call_path = Mock()
+    call_path.instanceof.side_effect = lambda node_type: node_type == "function_call"
+    call_path.get.return_value = nodes[10]
+    manager.ast.get_path.return_value = call_path
+
+    pipeline = DomainDataGeneratorPipeline(manager)
+    call_rule = ConstructDeclaration(
+        name="function_call",
+        kind="inline.call",
+        ast_node="function_call",
+        actions=[ActionDeclaration(role="func", kind="compound")],
+        transitions=[TransitionDeclaration(from_role="BEGIN", to_role="func")],
+    )
+    pipeline.registry.rules = [
+        call_rule,
+        ConstructDeclaration(
+            name="function",
+            kind="compound.external.noop",
+            ast_node="function_definition",
+        ),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=call_rule, owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+
+    assert [action.rule.role for action in pipeline.get_actions_for(15)] == ["func"]
 
 
 def test_domain_pipeline_fork_copies_situation_context_registry_state():

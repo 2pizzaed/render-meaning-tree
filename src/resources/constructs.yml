@@ -530,33 +530,56 @@ try_except_structure:
 # --------------------------------
 # Заглушка для всех простых действий (с одной кнопкой СТАРТ)
 # --------------------------------
+inline_atom_ast_nodes: &inline_atom_ast_nodes
+  - identifier
+  - variable_declaration
+  - not_eq_operator
+  - not_operator
+  - assignment_statement
+  - expression_statement
+  - int_literal
+  - add_operator
+  - eq_operator
+  - reference_eq_operator
+  - lt_operator
+  - gt_operator
+  - le_operator
+  - ge_operator
+  - contains_operator
+  - short_circuit_and_operator
+  - short_circuit_or_operator
+  - multiple_assignment_statement
+  - range
+  - compound_comparison
+  - parenthesized_expression
+  # TODO: add new here
+
+
 inline_atom_structure:
   kind: inline
-  ast_node: [
-    'identifier',
-    'variable_declaration',
-    'not_eq_operator',
-    'not_operator',
-    'assignment_statement',
-    'expression_statement',
-    'int_literal',
-    'add_operator',
-    'eq_operator',
-    'reference_eq_operator',
-    'lt_operator',
-    'gt_operator',
-    'le_operator',
-    'ge_operator',
-    'contains_operator',
-    'short_circuit_and_operator',
-    'short_circuit_or_operator',
-    'multiple_assignment_statement',
-    'range',
-    'compound_comparison',
-    'parenthesized_expression'
-    # TODO: add new here
-  ]
+  ast_node: *inline_atom_ast_nodes
 
+inline_compound_atom_structure:
+  kind: inline.compound
+  ast_node:
+    query:
+      - type: *inline_atom_ast_nodes
+        contains_any:
+          key: "type"
+          value_in: [
+            'function_call',
+            'method_call' # могут быть другие вложенные конструкты
+          ]
+  actions:
+    - role: content
+      opaque: false
+      kind: auto
+  transitions:
+    - from: BEGIN
+      to: content
+    - from: content
+      to: content
+      to_when_absent: END
 
 # --------------------------------
 # Заглушка для комментария и др. незначимых для CFG действий (без кнопок)
@@ -570,5 +593,4 @@ noop_structure:
     'import_members_from_module',
     # TODO: add more no-op ast node types here
   ]
-
 

@@ -326,6 +326,63 @@ def test_construct_declaration_ast_node_query_matches_node_conditions():
     )
 
 
+def test_construct_declaration_ast_node_query_supports_contains_any():
+    construct = ConstructDeclaration(
+        name="inline_compound_atom",
+        kind="inline",
+        ast_node={
+            "query": [
+                {
+                    "type": ["assignment_statement", "expression_statement"],
+                    "contains_any": {"key": "type", "value_in": ["function_call", "method_call"]},
+                }
+            ],
+        },
+    )
+
+    assert construct.matches_ast_node(
+        {
+            "type": "assignment_statement",
+            "left": {"type": "identifier"},
+            "right": {
+                "type": "function_call",
+                "function": {"type": "identifier", "name": "f"},
+            },
+        }
+    )
+    assert not construct.matches_ast_node(
+        {
+            "type": "assignment_statement",
+            "left": {"type": "identifier"},
+            "right": {"type": "int_literal", "value": 1},
+        }
+    )
+
+    logical_construct = ConstructDeclaration(
+        name="inline_named_call_atom",
+        kind="inline",
+        ast_node={
+            "query": [
+                {
+                    "type": "assignment_statement",
+                    "contains_any": {
+                        "and": [
+                            {"key": "type", "value": "function_call"},
+                            {"not": {"key": "name", "value": "ignored"}},
+                        ]
+                    },
+                }
+            ],
+        },
+    )
+    assert logical_construct.matches_ast_node(
+        {
+            "type": "assignment_statement",
+            "right": {"type": "function_call", "name": "used"},
+        }
+    )
+
+
 def test_locate_construct_declaration_supports_ast_node_query():
     declarations = load_construct_declarations_from_dict(
         {
@@ -352,6 +409,53 @@ def test_locate_construct_declaration_supports_ast_node_query():
     assert matched is not None
     assert matched.name == "program"
     assert locate_construct_declaration_by_ast_node("program_entry_point", declarations) is None
+
+
+def test_locate_construct_declaration_prefers_more_specific_ast_node_query():
+    declarations = load_construct_declarations_from_dict(
+        {
+            "inline_atom": {
+                "kind": "inline",
+                "ast_node": ["assignment_statement", "expression_statement"],
+            },
+            "inline_compound_atom": {
+                "kind": "inline",
+                "ast_node": {
+                    "query": [
+                        {
+                            "type": ["assignment_statement", "expression_statement"],
+                            "contains_any": {"key": "type", "value": "function_call"},
+                        }
+                    ]
+                },
+            },
+        }
+    )
+
+    matched = locate_construct_declaration_by_ast_node(
+        {
+            "type": "assignment_statement",
+            "right": {"type": "function_call"},
+        },
+        declarations,
+    )
+
+    assert matched is not None
+    assert matched.name == "inline_compound_atom"
+
+
+def test_load_construct_declarations_from_dict_skips_shared_entries():
+    declarations = load_construct_declarations_from_dict(
+        {
+            "inline_atom_ast_nodes": ["identifier", "assignment_statement"],
+            "inline_atom": {
+                "kind": "inline",
+                "ast_node": ["identifier", "assignment_statement"],
+            },
+        }
+    )
+
+    assert [declaration.name for declaration in declarations] == ["inline_atom"]
 
 
 def test_construct_declaration_ast_node_query_supports_logical_operators():

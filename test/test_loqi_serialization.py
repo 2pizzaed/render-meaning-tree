@@ -96,15 +96,19 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             TransitionDeclaration(
                 from_role="BEGIN",
                 to_role="END",
-                constraints=ConstraintsDeclaration(condition_value=True, interruption_mode=InterruptionType.NONE),
+                constraints=ConstraintsDeclaration(
+                    condition_value=True, interruption_mode=InterruptionType.NONE
+                ),
             )
         ],
     )
 
     rendered = serialize_loqi(construct)
 
-    assert rendered == dedent(
-        """
+    assert (
+        rendered
+        == dedent(
+            """
         obj construct_if_statement : ConstructSpec {
             name = "if_statement";
             kind = "branch";
@@ -147,7 +151,8 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             call_stack = CallStackAction:add_frame;
         }
         """
-    ).strip()
+        ).strip()
+    )
 
 
 def test_serialize_loqi_action_declaration_respects_explicit_opaque() -> None:
@@ -169,8 +174,12 @@ def test_serialize_loqi_to_when_absent_supports_single_and_many_roles() -> None:
             ActionDeclaration(role="END", kind="marker"),
         ],
         transitions=[
-            TransitionDeclaration(from_role="BEGIN", to_role="BODY", to_when_absent="END"),
-            TransitionDeclaration(from_role="BODY", to_role="END", to_when_absent=["BEGIN", "END"]),
+            TransitionDeclaration(
+                from_role="BEGIN", to_role="BODY", to_when_absent="END"
+            ),
+            TransitionDeclaration(
+                from_role="BODY", to_role="END", to_when_absent=["BEGIN", "END"]
+            ),
         ],
     )
 
@@ -182,7 +191,9 @@ def test_serialize_loqi_to_when_absent_supports_single_and_many_roles() -> None:
     assert "to_when_absent(action_BEGIN, action_END);" not in rendered
 
 
-def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relationship() -> None:
+def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relationship() -> (
+    None
+):
     shared_effect = EffectDeclaration(interruption_start=InterruptionType.BREAK)
     construct = ConstructDeclaration(
         name="loop",
@@ -193,7 +204,9 @@ def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relation
             ActionDeclaration(role="END", kind="marker"),
         ],
         transitions=[
-            TransitionDeclaration(from_role="BEGIN", to_role="END", effects=shared_effect),
+            TransitionDeclaration(
+                from_role="BEGIN", to_role="END", effects=shared_effect
+            ),
         ],
     )
 
@@ -204,7 +217,9 @@ def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relation
     assert rendered.count("hasEffects(effect_break);") == 1
 
 
-def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_generalization() -> None:
+def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_generalization() -> (
+    None
+):
     construct = ConstructDeclaration(
         name="sequence",
         kind="compound",
@@ -218,7 +233,9 @@ def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_gene
         ],
         transitions=[
             TransitionDeclaration(from_role="BEGIN", to_role="first"),
-            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+            TransitionDeclaration(
+                from_role="item", to_role="next", to_when_absent="END"
+            ),
         ],
     )
 
@@ -244,9 +261,13 @@ def test_serialize_loqi_allows_minimal_custom_registry_override() -> None:
             return "ExplicitThing"
 
         def describe(self, obj, ctx):
-            return LoqiObjectSpec(properties=(ctx.property("value", f"explicit:{obj.value}"),))
+            return LoqiObjectSpec(
+                properties=(ctx.property("value", f"explicit:{obj.value}"),)
+            )
 
-    adapters_by_type: dict[type[Any], LoqiAdapter[Any]] = {GenericThing: ExplicitThingAdapter()}
+    adapters_by_type: dict[type[Any], LoqiAdapter[Any]] = {
+        GenericThing: ExplicitThingAdapter()
+    }
 
     rendered = serialize_loqi(GenericThing("x"), adapters_by_type=adapters_by_type)
 
@@ -255,7 +276,9 @@ def test_serialize_loqi_allows_minimal_custom_registry_override() -> None:
     assert "ExplicitThing" in rendered
 
 
-def test_serialize_loqi_falls_back_to_type_based_name_when_adapter_has_no_object_name() -> None:
+def test_serialize_loqi_falls_back_to_type_based_name_when_adapter_has_no_object_name() -> (
+    None
+):
     class GenericThing:
         def __init__(self, value: str) -> None:
             self.value = value
@@ -267,7 +290,9 @@ def test_serialize_loqi_falls_back_to_type_based_name_when_adapter_has_no_object
         def describe(self, obj, ctx):
             return LoqiObjectSpec(properties=(ctx.property("value", obj.value),))
 
-    rendered = serialize_loqi(GenericThing("x"), adapters_by_type={GenericThing: MinimalThingAdapter()})
+    rendered = serialize_loqi(
+        GenericThing("x"), adapters_by_type={GenericThing: MinimalThingAdapter()}
+    )
 
     assert "obj ExplicitThing_obj_1 : ExplicitThing {" in rendered
 
@@ -351,7 +376,9 @@ def test_serialize_loqi_renders_root_variable_name() -> None:
 
     rendered = serialize_loqi(construct, var_name="BranchRule")
 
-    assert rendered.startswith("var BranchRule = obj construct_branch : ConstructSpec {")
+    assert rendered.startswith(
+        "var BranchRule = obj construct_branch : ConstructSpec {"
+    )
 
 
 def test_loqi_serializer_serializes_many_with_variable_names() -> None:
@@ -359,14 +386,18 @@ def test_loqi_serializer_serializes_many_with_variable_names() -> None:
     first = ConstructDeclaration(name="first", kind="compound", ast_node="First")
     second = ConstructDeclaration(name="second", kind="compound", ast_node="Second")
 
-    serializer.serialize_many([first, second], variables={"FirstRule": first, "SecondRule": second})
+    serializer.serialize_many(
+        [first, second], variables={"FirstRule": first, "SecondRule": second}
+    )
     rendered = serializer.render()
 
     assert "var FirstRule = obj construct_first : ConstructSpec {" in rendered
     assert "var SecondRule = obj construct_second : ConstructSpec {" in rendered
     assert serializer.render_result().variables == (
         LoqiVariableAssignment(variable_name="FirstRule", object_id="construct_first"),
-        LoqiVariableAssignment(variable_name="SecondRule", object_id="construct_second"),
+        LoqiVariableAssignment(
+            variable_name="SecondRule", object_id="construct_second"
+        ),
     )
     assert not hasattr(serializer.objects[0], "variable_name")
 
@@ -410,7 +441,9 @@ def test_loqi_serializer_rejects_multiple_variables_for_same_object() -> None:
     construct = ConstructDeclaration(name="branch", kind="if", ast_node="IfStatement")
 
     with pytest.raises(LoqiSerializationError, match="already has variable"):
-        LoqiSerializer().serialize_many([], variables={"FirstRule": construct, "SecondRule": construct})
+        LoqiSerializer().serialize_many(
+            [], variables={"FirstRule": construct, "SecondRule": construct}
+        )
 
 
 def test_loqi_serializer_can_lookup_serialized_object_names_and_objects() -> None:
@@ -436,8 +469,12 @@ def test_loqi_serializer_can_lookup_serialized_object_names_and_objects() -> Non
 
 
 def test_rules_declarations_coerce_domain_enums() -> None:
-    effect = EffectDeclaration.from_dict({"interruption_start": "break", "call_stack": "add_frame"})
-    constraint = ConstraintsDeclaration.from_dict({"condition_value": True, "interruption_mode": "none"})
+    effect = EffectDeclaration.from_dict(
+        {"interruption_start": "break", "call_stack": "add_frame"}
+    )
+    constraint = ConstraintsDeclaration.from_dict(
+        {"condition_value": True, "interruption_mode": "none"}
+    )
 
     assert effect.interruption_start is InterruptionType.BREAK
     assert effect.call_stack is CallStackAction.ADD_FRAME
@@ -563,7 +600,9 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     )
     ctx.add(construct)
     ctx.add(action)
-    first_trace = TraceAct(action=construct.begin_action(), used_transition=transition, situation=ctx)
+    first_trace = TraceAct(
+        action=construct.begin_action(), used_transition=transition, situation=ctx
+    )
     second_trace = TraceAct(action=action, used_transition=None, situation=ctx)
     ctx.add(first_trace)
     ctx.add(second_trace)
@@ -577,6 +616,45 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     assert "hasValue(semantic_value_action_21_body_0);" in rendered
     assert "semantic_value_owner_" not in rendered
 
+
+def test_serialize_loqi_repeated_trace_act_uses_next_semantic_value() -> None:
+    ctx = SituationContextStub()
+    transition = TransitionDeclaration(from_role="cond", to_role="body")
+    construct_rule = ConstructDeclaration(
+        name="demo_loop",
+        kind="compound.loop",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="cond", kind="inline.condition"),
+            ActionDeclaration(role="body", kind="compound"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[transition],
+    )
+    construct = Construct(parent=None, ast_id=20, rule=construct_rule, owner=ctx)
+    action = Action(
+        ast_id=21,
+        values=[True, True, False],
+        rule=construct_rule.actions[1],
+        parent=construct,
+        owner=ctx,
+    )
+    ctx.add(construct)
+    ctx.add(action)
+    first_trace = TraceAct(action=action, used_transition=transition, situation=ctx)
+    second_trace = TraceAct(action=action, used_transition=transition, situation=ctx)
+    ctx.add(first_trace)
+    ctx.add(second_trace)
+
+    rendered = serialize_loqi(first_trace, adapters_by_type=_all_model_adapters())
+
+    assert "obj act_root : TraceAct {" in rendered
+    assert "hasValue(semantic_value_action_21_cond_0);" in rendered
+    assert "obj act_demo_loop_cond_1_ast21 : TraceAct {" in rendered
+    assert "hasValue(semantic_value_action_21_cond_1);" in rendered
+    assert "used = true;" in rendered
+    assert "bool_value = false;" in rendered
 
 
 def test_serialize_loqi_situation_trace_state() -> None:

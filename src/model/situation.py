@@ -16,38 +16,29 @@ from src.types import Node
 
 class SituationContext(Protocol):
     @property
-    def code(self) -> CodeManager:
-        ...
+    def code(self) -> CodeManager: ...
 
     @property
-    def rules(self) -> list[ConstructDeclaration]:
-        ...
+    def rules(self) -> list[ConstructDeclaration]: ...
 
     @property
-    def trace_acts(self) -> list[TraceAct]:
-        ...
+    def trace_acts(self) -> list[TraceAct]: ...
 
-    def get_construct_for(self, ast_id: int) -> Construct | None:
-        ...
+    def get_construct_for(self, ast_id: int) -> Construct | None: ...
 
-    def get_actions_for(self, ast_id: int) -> list[Action]:
-        ...
+    def get_actions_for(self, ast_id: int) -> list[Action]: ...
 
-    def get_related_actions(self, construct: Construct) -> list[Action]:
-        ...
+    def get_related_actions(self, construct: Construct) -> list[Action]: ...
 
-    def add(self, object: Any):
-        ...
+    def add(self, object: Any): ...
 
 
 class OrderedChain[T](Protocol):
     @property
-    def chain(self) -> list[T]:
-        ...
+    def chain(self) -> list[T]: ...
 
     @property
-    def chain_order(self) -> int:
-        ...
+    def chain_order(self) -> int: ...
 
 
 @dataclass(slots=True)
@@ -65,8 +56,11 @@ class Action:
 
     @property
     def ast_node(self) -> Node | None:
-        return self.owner.code.get_node_by_id(self.ast_id) \
-            if self.ast_id is not None else None
+        return (
+            self.owner.code.get_node_by_id(self.ast_id)
+            if self.ast_id is not None
+            else None
+        )
 
     def is_empty(self) -> bool:
         return self.ast_id == -1
@@ -86,8 +80,11 @@ class Action:
         return self.rule.is_opaque
 
     def expands_to(self) -> Construct | None:
-        return self.owner.get_construct_for(self.ast_id) \
-            if self.ast_id is not None else None
+        return (
+            self.owner.get_construct_for(self.ast_id)
+            if self.ast_id is not None
+            else None
+        )
 
 
 @dataclass(slots=True)
@@ -146,6 +143,7 @@ class TraceAct:
     action: Action
     used_transition: TransitionDeclaration | None
     situation: SituationContext
+    value: Any | None = None
 
     @property
     def chain(self) -> list[TraceAct]:
@@ -161,5 +159,21 @@ class TraceState:
     interruption_mode: InterruptionType
 
 
+@dataclass(slots=True)
+class SemanticValue:
+    bool_value: bool
+    owner: Any
+    index: int
+    used: bool = False
+    _chain: list[Any] | None = None
+
+    @property
+    def chain(self) -> list[Any]:
+        return self._chain or []
+
+
 def _chain_order[T](chain: list[T], item: T) -> int:
-    return chain.index(item) if item in chain else len(chain)
+    for index, candidate in enumerate(chain):
+        if candidate is item:
+            return index
+    return len(chain)

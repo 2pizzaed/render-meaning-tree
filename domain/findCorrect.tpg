@@ -12,19 +12,11 @@ lambda applyInterruptionMode(T: TransitionSpec, S: TraceState) =
         );
     };
 
-lambda findUnusedValue(A: ConcreteAction) = find SemanticValue v {
-    A=>hasValue() and not $v.used and
-    (
-        $v=>afterOf(A->hasValue) and $v=>isCloserToThan(A->hasValue, 
-        findExtreme lastV [not $lastV=>beforeOf($c)] among SemanticValue c {
-            $c=>afterOf(A->hasValue)}
-    ) or 
-        $v == A->hasValue and not forAny SemanticValue m {
-            $m=>afterOf(A->hasValue) and not $m.used
-        }
-    ) 
+lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
+    $unused == A->hasValue or $unused=>isCloserToThan(A->hasValue, $v)
+] among SemanticValue v {
+    A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
 };
-
 
 fragment findLastTracedAction(last: TraceAct) {
     // фрагмент поиска "реального" последнего действия, от которого будет происходить дальнейший поиск следующего корректного
@@ -141,9 +133,6 @@ fragment classifyAction(N: ConcreteAction) {
                 }
                 false -> {
                     // если не новый конструкт, то просто оставляем действие
-                    ask (forAny TraceAct t {$t->hasAction == N}) out false else {
-                        conclude : error [exception = true; exceptionName = "RepeatedTransparentAction";];
-                    };
                     var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
                     var actionValue: SemanticValue = findUnusedValue(N) {
                         true, false -> out;
@@ -177,7 +166,9 @@ fragment checkRepeatedAction(N: ConcreteAction) {
                 N,
                 findExtreme lastN [not $lastN=>beforeOf($c)] among ConcreteAction c {$c=>afterOf(N)}
             )
-        } out true else {conclude : error [exception = true; exceptionName = "NoChainedAction";];};
+        } out true else {
+            `fragment`:classifyAction(N);
+        };
         `fragment`:classifyAction(N1);
     };
     `fragment`:classifyAction(N);
@@ -218,7 +209,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                 $a->belongsTo == L->hasAction->belongsTo and
                 (
                     not L->hasAction=>directlyBeforeOf() // либо действие не в цепочке, либо выбираем такое, которое сразу после L
-                    or (
+                    or ( // если вдруг одни и те же действия идут подряд в одной цепочке
                         $a=>afterOf(L->hasAction) and
                         not forAny ConcreteAction mid {
                             $mid != $a and
@@ -226,6 +217,14 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                             $mid->belongsTo == $a->belongsTo and
                             $mid=>afterOf(L->hasAction) and
                             $a=>afterOf($mid)
+                        }
+                    )
+                    or ( // если вдруг мы возвращаемся в действие назад, которое ранее проходили, и у него например есть не used значения
+                        not T=>to_when_absent() and // без него в завершении однотипных действий (например, блок statement) неправильно выбирает действие, правильно ли??
+                        not forAny ConcreteAction fwd {
+                            $fwd->derivedFrom == T->to_ and
+                            $fwd->belongsTo == L->hasAction->belongsTo and
+                            $fwd=>afterOf(L->hasAction)
                         }
                     )
                 )

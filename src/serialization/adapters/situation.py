@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
-from src.model.rules import ActionDeclaration, ConstructDeclaration, TransitionDeclaration
-from src.model.situation import Action, Construct, TraceAct, TraceState
+from src.model.rules import (
+    ActionDeclaration,
+    ConstructDeclaration,
+    TransitionDeclaration,
+)
+from src.model.situation import Action, Construct, SemanticValue, TraceAct, TraceState
 from src.serialization.loqi import (
     LoqiAdapter,
     LoqiAdapterContext,
@@ -13,19 +16,6 @@ from src.serialization.loqi import (
     RelationshipLink,
     _normalize_object_name,
 )
-
-
-@dataclass(slots=True)
-class SemanticValue:
-    bool_value: bool
-    owner: Any
-    index: int
-    used: bool = False
-    _chain: list[SemanticValue] = field(default_factory=list, repr=False)
-
-    @property
-    def chain(self) -> list[SemanticValue]:
-        return self._chain
 
 
 class ConstructAdapter:
@@ -49,7 +39,6 @@ class ConstructAdapter:
         if obj.parent is not None:
             relationships.append(ctx.relationship("hasParent", obj.parent))
 
-
         return LoqiObjectSpec(
             properties=(
                 ctx.property("ast_id", obj.ast_id),
@@ -67,7 +56,10 @@ class ActionAdapter:
         return "ConcreteAction"
 
     def describe(self, obj: Action, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        value_head = _semantic_value_head_for(obj.values, owner=obj)
+        consumed_count = _consumed_value_count_for_action(obj)
+        value_head = _semantic_value_head_for(
+            obj.values, owner=obj, consumed_count=consumed_count
+        )
         relationships: list[RelationshipLink] = [
             ctx.relationship("belongsTo", obj.parent),
             ctx.relationship("derivedFrom", _serialize_action_spec(obj.rule, ctx)),
@@ -104,9 +96,9 @@ class TraceActAdapter:
         relationships: list[RelationshipLink] = [
             RelationshipLink(name="hasAction", targets=(action_ref,)),
         ]
-        value_head_ref = _semantic_value_head_ref_for_action(obj.action)
-        if value_head_ref is not None:
-            relationships.append(ctx.relationship("hasValue", value_head_ref))
+        value_ref = _semantic_value_ref_for_trace_act(obj)
+        if value_ref is not None:
+            relationships.append(ctx.relationship("hasValue", value_ref))
 
         if obj.used_transition is not None:
             relationships.append(
@@ -173,9 +165,16 @@ def build_situation_loqi_adapters() -> dict[type[Any], LoqiAdapter[Any]]:
     }
 
 
-def _semantic_values_for(values: list[bool], *, owner: Any) -> list[SemanticValue]:
+def _semantic_values_for(
+    values: list[bool],
+    *,
+    owner: Any,
+    consumed_count: int = 0,
+) -> list[SemanticValue]:
     semantic_values = [
-        SemanticValue(bool_value=value, owner=owner, index=index)
+        SemanticValue(
+            bool_value=value, owner=owner, index=index, used=index < consumed_count
+        )
         for index, value in enumerate(values)
     ]
     for semantic_value in semantic_values:
@@ -183,15 +182,76 @@ def _semantic_values_for(values: list[bool], *, owner: Any) -> list[SemanticValu
     return semantic_values
 
 
-def _semantic_value_head_for(values: list[bool], *, owner: Any) -> SemanticValue | None:
-    semantic_values = _semantic_values_for(values, owner=owner)
+def _semantic_value_head_for(
+    values: list[bool],
+    *,
+    owner: Any,
+    consumed_count: int = 0,
+) -> SemanticValue | None:
+    semantic_values = _semantic_values_for(
+        values, owner=owner, consumed_count=consumed_count
+    )
     return semantic_values[0] if semantic_values else None
 
 
-def _semantic_value_head_ref_for_action(action: Action) -> LoqiObjectRef | None:
+def _semantic_value_ref_for_action(action: Action, index: int) -> LoqiObjectRef | None:
     if not action.values:
         return None
-    return LoqiObjectRef(_normalize_object_name(f"semantic_value_{_semantic_scope(action)}_0"))
+    if index < 0 or index >= len(action.values):
+        return None
+    return LoqiObjectRef(
+        _normalize_object_name(f"semantic_value_{_semantic_scope(action)}_{index}")
+    )
+
+
+def _semantic_value_ref_for_trace_act(trace_act: TraceAct) -> LoqiObjectRef | None:
+    if not trace_act.action.values:
+        return None
+    if isinstance(trace_act.value, SemanticValue):
+        return _semantic_value_ref_for_action(trace_act.action, trace_act.value.index)
+    return _semantic_value_ref_for_action(
+        trace_act.action,
+        _trace_act_value_occurrence_index(trace_act),
+    )
+
+
+def _trace_act_value_occurrence_index(trace_act: TraceAct) -> int:
+    return sum(
+        1
+        for prior_trace_act in trace_act.chain[: trace_act.chain_order]
+        if prior_trace_act.action is trace_act.action
+    )
+
+
+def _consumed_value_count_for_action(action: Action) -> int:
+    current_trace_act = _current_trace_act(action)
+    explicit_indexes = [
+        trace_act.value.index
+        for trace_act in action.owner.trace_acts
+        if trace_act is not current_trace_act
+        and trace_act.action is action
+        and isinstance(trace_act.value, SemanticValue)
+    ]
+    inferred_count = sum(
+        1
+        for trace_act in action.owner.trace_acts
+        if trace_act is not current_trace_act
+        and trace_act.action is action
+        and trace_act.value is None
+    )
+    explicit_count = max(explicit_indexes, default=-1) + 1
+    return max(explicit_count, inferred_count)
+
+
+def _current_trace_act(action: Action) -> TraceAct | None:
+    registry = getattr(action.owner, "registry", None)
+    variables = getattr(registry, "variables", None) or getattr(
+        action.owner, "variables", None
+    )
+    if not isinstance(variables, dict):
+        return None
+    current = variables.get("P")
+    return current if isinstance(current, TraceAct) else None
 
 
 def _serialize_construct_spec(
@@ -222,7 +282,10 @@ def _serialize_transition_spec(
         for action in construct_rule.actions
     }
     _serialize_construct_spec(construct_rule, ctx)
-    transition = _matching_compiled_transition(transition, construct_rule, action_rule) or transition
+    transition = (
+        _matching_compiled_transition(transition, construct_rule, action_rule)
+        or transition
+    )
     existing_ref = _existing_transition_ref(transition, ctx)
     if existing_ref is not None:
         return existing_ref
@@ -237,7 +300,9 @@ def _matching_compiled_transition(
     construct_rule: ConstructDeclaration,
     action_rule: ActionDeclaration | None,
 ) -> TransitionDeclaration | None:
-    expected_from_role = action_rule.role if action_rule is not None else transition.from_role
+    expected_from_role = (
+        action_rule.role if action_rule is not None else transition.from_role
+    )
     for compiled in construct_rule.compiled_transitions():
         if compiled.from_role != expected_from_role:
             continue
@@ -256,7 +321,9 @@ def _existing_transition_ref(
     ctx: LoqiAdapterContext,
 ) -> LoqiObjectRef | None:
     if transition.parent is None:
-        object_id = _normalize_object_name(f"transition_{transition.from_role}_to_{transition.to_role}")
+        object_id = _normalize_object_name(
+            f"transition_{transition.from_role}_to_{transition.to_role}"
+        )
     else:
         object_id = _normalize_object_name(
             f"transition_{transition.parent.name}_{transition.from_role}_to_{transition.to_role}"
@@ -264,7 +331,6 @@ def _existing_transition_ref(
     if object_id in ctx.serializer._objects_by_id:
         return LoqiObjectRef(object_id)
     return None
-
 
 
 def _next_by_identity[T](chain: list[T], item: T) -> T | None:

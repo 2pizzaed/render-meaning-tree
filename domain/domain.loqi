@@ -138,8 +138,8 @@ class SemanticValue {
 	rel isCloserToThan(SemanticValue, SemanticValue) : closer to beforeOf ;
 	rel isFurtherFromThan(SemanticValue, SemanticValue) : further to beforeOf ;
 } [
-	RU.localizedName = "сущность, связанная с AST" ;
-	EN.localizedName = "AST-related entity" ;
+	RU.localizedName = "значение времени выполнения" ;
+	EN.localizedName = "runtime value" ;
 ]
 
 class ConcreteConstruct : ASTEntity {

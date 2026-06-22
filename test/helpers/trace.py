@@ -10,7 +10,7 @@ from src.generator.pipeline import (
 )
 from src.generator.utilities import registry_to_loqi
 from src.model.rules import InterruptionType, TransitionDeclaration
-from src.model.situation import Action, TraceAct, TraceState
+from src.model.situation import Action, SemanticValue, TraceAct, TraceState
 from test.helpers.actions import _registry_for
 
 _TRACE_ACT_OBJECT_RE = re.compile(
@@ -18,7 +18,7 @@ _TRACE_ACT_OBJECT_RE = re.compile(
     re.DOTALL,
 )
 _TRACE_ACT_REF_RE = re.compile(
-    r"\b(?P<rel>hasAction|hasTransition|directlyBeforeOf)\((?P<target>[A-Za-z_][A-Za-z0-9_]*)\)\s*;"
+    r"\b(?P<rel>hasAction|hasTransition|hasValue|directlyBeforeOf)\((?P<target>[A-Za-z_][A-Za-z0-9_]*)\)\s*;"
 )
 _TRACE_STATE_OBJECT_RE = re.compile(
     r"(?:var\s+(?P<var_name>\w+)\s*=\s*)?obj\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*TraceState\s*\{(?P<body>.*?)\}",
@@ -37,6 +37,7 @@ class _TraceActSpec:
     object_name: str
     action_name: str
     transition_name: str | None
+    value_name: str | None
     next_name: str | None
     source_order: int
 
@@ -79,10 +80,20 @@ def trace_acts_from_loqi(
                     f"{trace_spec.transition_name!r}, found {type(used_transition).__name__}"
                 )
 
+        value = None
+        if trace_spec.value_name is not None:
+            value = serializer.object_by_name(trace_spec.value_name)
+            if not isinstance(value, SemanticValue):
+                raise LookupError(
+                    "Expected SemanticValue for "
+                    f"{trace_spec.value_name!r}, found {type(value).__name__}"
+                )
+
         trace_act = TraceAct(
             action=action,
             used_transition=used_transition,
             situation=registry.owner,
+            value=value,
         )
         registry.add(trace_act)
         trace_acts.append(trace_act)
@@ -141,6 +152,7 @@ def _parse_trace_act_specs(loqi_text: str) -> list[_TraceActSpec]:
                 object_name=match.group("name"),
                 action_name=action_name,
                 transition_name=refs.get("hasTransition"),
+                value_name=refs.get("hasValue"),
                 next_name=refs.get("directlyBeforeOf"),
                 source_order=index,
             )

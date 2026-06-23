@@ -234,15 +234,21 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
         ],
         transitions=[
             TransitionDeclaration(from_role="BEGIN", to_role="body", effects=transition_effect),
+            TransitionDeclaration(from_role="END", to_role="BEGIN", effects=transition_effect),
         ],
     )
 
-    compiled = construct.compiled_transitions()[0]
+    begin_transition, end_transition = construct.compiled_transitions()
 
-    assert compiled.effects is not None
-    assert compiled.effects.interruption_start is InterruptionType.NONE
-    assert compiled.effects.interruption_stop is InterruptionType.CONTINUE
-    assert compiled.effects.call_stack is CallStackAction.ADD_FRAME
+    assert begin_transition.effects is not None
+    assert begin_transition.effects.interruption_start is InterruptionType.NONE
+    assert begin_transition.effects.interruption_stop is None
+    assert begin_transition.effects.call_stack is CallStackAction.ADD_FRAME
+
+    assert end_transition.effects is not None
+    assert end_transition.effects.interruption_start is InterruptionType.NONE
+    assert end_transition.effects.interruption_stop is InterruptionType.CONTINUE
+    assert end_transition.effects.call_stack is None
 
 
 def test_construct_declaration_compiled_transitions_merge_action_effect_into_all_outgoing_transitions():

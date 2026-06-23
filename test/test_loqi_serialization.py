@@ -248,6 +248,7 @@ def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_gene
             TransitionDeclaration(
                 from_role="item", to_role="next", to_when_absent="END"
             ),
+            TransitionDeclaration(from_role="END", to_role="BEGIN"),
         ],
     )
 
@@ -256,7 +257,9 @@ def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_gene
     assert "hasTransitions(transition_sequence_BEGIN_to_first);" in rendered
     assert "hasTransitions(transition_sequence_first_to_next);" in rendered
     assert "hasTransitions(transition_sequence_next_to_next);" in rendered
+    assert "hasTransitions(transition_sequence_END_to_BEGIN);" in rendered
     assert "from_(action_item)" not in rendered
+    assert "obj transition_sequence_END_to_BEGIN : TransitionSpec" in rendered
     assert "hasEffects(effect_break);" in rendered
 
 

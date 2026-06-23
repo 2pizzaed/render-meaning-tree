@@ -89,10 +89,25 @@ class ActionSpec : AbstractSpec {
 	EN.localizedName = "action specification" ;
 ]
 
+class ActionSpecChainPlaceholder {
+	rel contains(ActionSpec) : {* -> 1} ;
+
+	rel directlyBeforeOf(ActionSpecChainPlaceholder) : linear ;
+	rel directlyAfterOf(ActionSpecChainPlaceholder) : opposite to directlyBeforeOf ;
+	rel beforeOf(ActionSpecChainPlaceholder) : transitive to directlyBeforeOf ;
+	rel afterOf(ActionSpecChainPlaceholder) : transitive to directlyAfterOf ;
+	rel isBetween(ActionSpecChainPlaceholder, ActionSpecChainPlaceholder) : between to beforeOf ;
+	rel isCloserToThan(ActionSpecChainPlaceholder, ActionSpecChainPlaceholder) : closer to beforeOf ;
+	rel isFurtherFromThan(ActionSpecChainPlaceholder, ActionSpecChainPlaceholder) : further to beforeOf ;
+} [
+	RU.localizedName = "порядок спецификации действий" ;
+	EN.localizedName = "action specification ordered chain" ;
+]
+
 class TransitionSpec : AbstractSpec {
 	rel from_(ActionSpec) ; // может быть несколько from из-за generalization
 	rel to_(ActionSpec): {* -> 1};
-	rel to_when_absent(ActionSpec);
+	rel to_when_absent(ActionSpecChainPlaceholder) : {* -> 1};
 
 	rel belongsTo(ConstructSpec) : {* -> 1} ;
 	rel hasConstraints(Constraint): {* -> 1};

@@ -18,6 +18,15 @@ lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
     A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
 };
 
+// чтобы поддерживать порядок из нескольких to_when_absent
+lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_absent()) (findExtreme present [
+    $present=>isCloserToThan(T->to_when_absent, $a) or $present == T->to_when_absent
+] among ActionSpecChainPlaceholder a {
+    ($a=>afterOf(T->to_when_absent) or $a == T->to_when_absent) and 
+    forAny ConcreteAction aa {C=>hasActions($aa) and $aa=>derivedFrom($a->contains)}
+})->contains else T->to_;
+
+
 fragment findLastTracedAction(last: TraceAct) {
     // фрагмент поиска "реального" последнего действия, от которого будет происходить дальнейший поиск следующего корректного
 
@@ -235,7 +244,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                 var N_absent: ConcreteAction = find ConcreteAction a {
                     $a != L->hasAction and
                     forAny ActionSpec absent {
-                        $absent == T->to_when_absent and
+                        $absent == toWhenAbsent(T, L->hasAction->belongsTo) and
                         $a->derivedFrom == $absent
                     } and
                     $a->belongsTo == L->hasAction->belongsTo and
@@ -246,7 +255,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                             not forAny ConcreteAction mid {
                                 $mid != $a and
                                 forAny ActionSpec absent {
-                                    $absent == T->to_when_absent and
+                                    $absent == toWhenAbsent(T, L->hasAction->belongsTo) and
                                     $mid->derivedFrom == $absent
                                 } and
                                 $mid->belongsTo == $a->belongsTo and

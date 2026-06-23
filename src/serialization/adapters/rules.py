@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from src.model.rules import (
@@ -27,6 +28,15 @@ OPTIONAL_BOOL_VALUES = {
     False: "`false`",
     None: "`null`",
 }
+
+
+@dataclass(slots=True)
+class ActionSpecChainPlaceholder:
+    transition: TransitionDeclaration
+    role: str
+    index: int
+    next: ActionSpecChainPlaceholder | None = None
+
 
 class ConstructDeclarationAdapter:
     def object_name(self, obj: ConstructDeclaration) -> str:
@@ -96,9 +106,7 @@ class ActionDeclarationAdapter:
 
 class TransitionDeclarationAdapter:
     def object_name(self, obj: TransitionDeclaration) -> str:
-        if obj.parent is None:
-            return f"transition_{obj.from_role}_to_{obj.to_role}"
-        return f"transition_{obj.parent.name}_{obj.from_role}_to_{obj.to_role}"
+        return _transition_object_name(obj)
 
     def type_name(self, obj: TransitionDeclaration) -> str:
         return "TransitionSpec"
@@ -112,10 +120,10 @@ class TransitionDeclarationAdapter:
 
         if obj.to_when_absent is not None:
             absent_roles = obj.to_when_absent if isinstance(obj.to_when_absent, list) else [obj.to_when_absent]
-            relationships.extend(
-                ctx.relationship_links(
+            relationships.append(
+                ctx.relationship(
                     "to_when_absent",
-                    [_resolve_action_ref(action_refs_by_role, role) for role in absent_roles],
+                    _action_spec_chain_head(obj, absent_roles),
                 )
             )
 
@@ -124,6 +132,28 @@ class TransitionDeclarationAdapter:
         if obj.effects is not None:
             relationships.append(ctx.relationship("hasEffects", obj.effects))
 
+        return LoqiObjectSpec(relationship_links=tuple(relationships))
+
+
+class ActionSpecChainPlaceholderAdapter:
+    def object_name(self, obj: ActionSpecChainPlaceholder) -> str:
+        return f"{_transition_object_name(obj.transition)}_to_when_absent_{obj.index}_{obj.role}"
+
+    def type_name(self, obj: ActionSpecChainPlaceholder) -> str:
+        return "ActionSpecChainPlaceholder"
+
+    def describe(
+        self, obj: ActionSpecChainPlaceholder, ctx: LoqiAdapterContext
+    ) -> LoqiObjectSpec:
+        action_refs_by_role = ctx.require_state("action_refs_by_role")
+        relationships = [
+            ctx.relationship(
+                "contains",
+                _resolve_action_ref(action_refs_by_role, obj.role),
+            )
+        ]
+        if obj.next is not None:
+            relationships.append(ctx.relationship("directlyBeforeOf", obj.next))
         return LoqiObjectSpec(relationship_links=tuple(relationships))
 
 
@@ -199,6 +229,7 @@ def build_rules_loqi_adapters() -> dict[type[Any], LoqiAdapter[Any]]:
         ConstructDeclaration: ConstructDeclarationAdapter(),
         ActionDeclaration: ActionDeclarationAdapter(),
         TransitionDeclaration: TransitionDeclarationAdapter(),
+        ActionSpecChainPlaceholder: ActionSpecChainPlaceholderAdapter(),
         EffectDeclaration: EffectDeclarationAdapter(),
         ConstraintsDeclaration: ConstraintsDeclarationAdapter(),
         Behaviour: UnsupportedDomainAdapter(
@@ -221,6 +252,29 @@ def _resolve_action_ref(action_refs_by_role: dict[str, LoqiObjectRef], role: str
         return action_refs_by_role[role]
     except KeyError as error:
         raise LoqiDomainMismatchError(f"Transition references unknown action role {role!r}") from error
+
+
+def _transition_object_name(obj: TransitionDeclaration) -> str:
+    if obj.parent is None:
+        return f"transition_{obj.from_role}_to_{obj.to_role}"
+    return f"transition_{obj.parent.name}_{obj.from_role}_to_{obj.to_role}"
+
+
+def _action_spec_chain_head(
+    transition: TransitionDeclaration, roles: list[str]
+) -> ActionSpecChainPlaceholder:
+    next_placeholder: ActionSpecChainPlaceholder | None = None
+    for reverse_index, role in enumerate(reversed(roles)):
+        index = len(roles) - reverse_index - 1
+        next_placeholder = ActionSpecChainPlaceholder(
+            transition=transition,
+            role=role,
+            index=index,
+            next=next_placeholder,
+        )
+    if next_placeholder is None:
+        raise LoqiDomainMismatchError("Transition to_when_absent cannot be an empty list")
+    return next_placeholder
 
 
 def _metadata_entries(ctx: LoqiAdapterContext, metadata: Metadata | None):

@@ -185,10 +185,22 @@ def test_serialize_loqi_to_when_absent_supports_single_and_many_roles() -> None:
 
     rendered = serialize_loqi(construct)
 
-    assert "to_when_absent(action_END);" in rendered
-    assert rendered.count("to_when_absent(") == 3
-    assert "to_when_absent(action_BEGIN);" in rendered
-    assert "to_when_absent(action_BEGIN, action_END);" not in rendered
+    assert (
+        "to_when_absent(transition_loop_BEGIN_to_BODY_to_when_absent_0_END);"
+        in rendered
+    )
+    assert (
+        "to_when_absent(transition_loop_BODY_to_END_to_when_absent_0_BEGIN);"
+        in rendered
+    )
+    assert rendered.count("to_when_absent(") == 2
+    assert "obj transition_loop_BEGIN_to_BODY_to_when_absent_0_END : ActionSpecChainPlaceholder {" in rendered
+    assert "contains(action_END);" in rendered
+    assert "obj transition_loop_BODY_to_END_to_when_absent_0_BEGIN : ActionSpecChainPlaceholder {" in rendered
+    assert "contains(action_BEGIN);" in rendered
+    assert "directlyBeforeOf(transition_loop_BODY_to_END_to_when_absent_1_END);" in rendered
+    assert "obj transition_loop_BODY_to_END_to_when_absent_1_END : ActionSpecChainPlaceholder {" in rendered
+    assert "to_when_absent(action_BEGIN" not in rendered
 
 
 def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relationship() -> (

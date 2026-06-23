@@ -172,7 +172,7 @@ class ConcreteAction : ASTEntity {
 	rel belongsTo(ConcreteConstruct) : {* -> 1};
     rel derivedFrom(ActionSpec) : {* -> 1};
 
-	rel hasEffects(Effect) ; // проверяется только во времени выполнения, заранее неизвестен
+	rel hasEffects(Effect) : {* -> 1}; // проверяется только во времени выполнения, заранее неизвестен
 
 	rel directlyBeforeOf(ConcreteAction) : linear ;
 	rel directlyAfterOf(ConcreteAction) : opposite to directlyBeforeOf ;

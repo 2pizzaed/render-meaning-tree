@@ -1,16 +1,14 @@
-lambda applyInterruptionMode(T: TransitionSpec, S: TraceState) =
-    if (T=>hasEffects()) {
-        T->hasEffects.interruption_start != InterruptionType:none ? 
-            T->hasEffects.interruption_start
+lambda applyInterruptionMode(E: EffectDeclaration, S: TraceState) =
+    E.interruption_start != InterruptionType:none ? 
+            E.interruption_start
         : (
-            T->hasEffects.interruption_stop != InterruptionType:none and (
-                T->hasEffects.interruption_stop == InterruptionType:any or
-                S.interruption_mode == T->hasEffects.interruption_stop
+            E.interruption_stop != InterruptionType:none and (
+                E.interruption_stop == InterruptionType:any or
+                S.interruption_mode == E.interruption_stop
             )
                 ? InterruptionType:none
                 : S.interruption_mode
-        );
-    };
+    );
 
 lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
     $unused == A->hasValue or $unused=>isCloserToThan(A->hasValue, $v)
@@ -64,6 +62,7 @@ fragment findLastTracedAction(last: TraceAct) {
                 }
             );
             if (callAction=>hasValue()) actionValue.used = true;
+            if (callAction=>hasEffects()) applyInterruptionMode(callAction->hasEffects, S);
             Prev +=> directlyBeforeOf(last);
         });
     };
@@ -98,7 +97,8 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
             }
         );
         Prev +=> directlyBeforeOf(L);
-        applyInterruptionMode(T, S);
+        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+        if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
     });
 }
 
@@ -126,7 +126,8 @@ fragment classifyAction(N: ConcreteAction) {
                             }
                         );
                         if (N=>hasValue()) actionValue.used = true;
-                        applyInterruptionMode(T, S);
+                        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+                        if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                         Prev +=> directlyBeforeOf(P);
                         L = P
                     });
@@ -155,7 +156,8 @@ fragment classifyAction(N: ConcreteAction) {
                             }
                         );
                         if (N=>hasValue()) actionValue.used = true;
-                        applyInterruptionMode(T, S);
+                        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+                        if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                         Prev +=> directlyBeforeOf(L);
                     });
                 }

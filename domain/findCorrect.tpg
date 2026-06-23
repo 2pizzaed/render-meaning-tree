@@ -45,6 +45,18 @@ fragment findLastTracedAction(last: TraceAct) {
     ask (last=>hasTransition() and last->hasTransition=>hasEffects() and 
         last->hasTransition->hasEffects.call_stack != CallStackAction:none
     ) out false else {
+        // Рекурсия временно запрещена
+        ask (forAny TraceAct act {
+            $act->hasAction.ast_id == last->hasAction.ast_id and 
+            $act->derivedFrom.role == "BEGIN" and
+            not forAny TraceAct mid {
+                $mid->hasAction.ast_id == last->hasAction.ast_id and
+                $mid->derivedFrom.role == "END" and
+                $mid=>isBetween($act, last)
+            }
+        }) out false else {
+            conclude : error [exception = true; exceptionName = "RecursionDenied";];
+        };
         // Ищем начало тела функции и создаем акт вызова функции
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and

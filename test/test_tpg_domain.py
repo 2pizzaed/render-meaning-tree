@@ -9,9 +9,11 @@ from src.tpg_domain import (
     ExpressionQueryResult,
     ReasoningException,
     ReasoningResult,
-    _run_reasoner_cli,
     parse_expression_query_jsonl,
     parse_reasoning_jsonl,
+)
+from src.tpg_domain.cli import (
+    _run_reasoner_cli,
     query_expression,
     solve_reasoning,
 )
@@ -84,7 +86,7 @@ def test_solve_reasoning_requests_jsonl_and_text_trace_by_default(monkeypatch) -
         calls.append(args)
         return '{"type":"result","value":true}'
 
-    monkeypatch.setattr("src.tpg_domain._run_reasoner_cli", fake_run_reasoner_cli)
+    monkeypatch.setattr("src.tpg_domain.cli._run_reasoner_cli", fake_run_reasoner_cli)
 
     result = solve_reasoning("domain", "generated.loqi", tree="findCorrect")
 
@@ -107,7 +109,7 @@ def test_solve_reasoning_can_request_json_trace(monkeypatch) -> None:
             ]
         )
 
-    monkeypatch.setattr("src.tpg_domain._run_reasoner_cli", fake_run_reasoner_cli)
+    monkeypatch.setattr("src.tpg_domain.cli._run_reasoner_cli", fake_run_reasoner_cli)
 
     result = solve_reasoning("domain", "generated.loqi", json_trace=True)
 
@@ -126,7 +128,7 @@ def test_query_expression_requests_jsonl_and_supports_optional_model(
         calls.append(args)
         return '{"type":"expression-query-result","objects":["obj_1"]}'
 
-    monkeypatch.setattr("src.tpg_domain._run_reasoner_cli", fake_run_reasoner_cli)
+    monkeypatch.setattr("src.tpg_domain.cli._run_reasoner_cli", fake_run_reasoner_cli)
 
     result = query_expression(
         "generated.loqi",

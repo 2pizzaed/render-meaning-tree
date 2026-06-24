@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.meaning_tree import convert, generate, to_tokens
+from src.meaning_tree.cli import convert, generate, to_tokens
 
 
 def test_convert_supports_skip_errors_and_project_context(monkeypatch) -> None:
@@ -13,7 +13,7 @@ def test_convert_supports_skip_errors_and_project_context(monkeypatch) -> None:
         calls.append((args, stdin_data))
         return "converted"
 
-    monkeypatch.setattr("src.meaning_tree._run_meaning_tree", fake_run_meaning_tree)
+    monkeypatch.setattr("src.meaning_tree.cli._run_meaning_tree", fake_run_meaning_tree)
 
     result = convert(
         "print(1)",
@@ -40,7 +40,7 @@ def test_to_tokens_supports_skip_errors_without_conversion(monkeypatch) -> None:
         calls.append((args, stdin_data))
         return "{}"
 
-    monkeypatch.setattr("src.meaning_tree._run_meaning_tree", fake_run_meaning_tree)
+    monkeypatch.setattr("src.meaning_tree.cli._run_meaning_tree", fake_run_meaning_tree)
 
     result = to_tokens("python", "print(1)", skip_errors=True)
 
@@ -58,7 +58,7 @@ def test_generate_supports_skip_errors(monkeypatch) -> None:
         calls.append((args, stdin_data))
         return "generated"
 
-    monkeypatch.setattr("src.meaning_tree._run_meaning_tree", fake_run_meaning_tree)
+    monkeypatch.setattr("src.meaning_tree.cli._run_meaning_tree", fake_run_meaning_tree)
 
     result = generate('{"root_node": {}}', "python", skip_errors=True)
 

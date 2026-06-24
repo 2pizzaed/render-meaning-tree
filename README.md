@@ -87,6 +87,50 @@ python  main.py -c "a = 10; if (b > 10) if (X) if (Y) if (Z) if (W) if (N) if(M)
 
 ---
 
+## Бэкенды: CLI и JSON-RPC сервер
+
+Модули `src/meaning_tree` и `src/tpg_domain` поддерживают два взаимозаменяемых бэкенда с одинаковым публичным API:
+
+- **`cli`** (по умолчанию) — запускает JAR-инструментарии (`meaning_tree`, `its_DomainModel`, `its_Reasoner`) как подпроцессы. Работает «из коробки» после `make mt`/`make tpg`.
+- **`rpc`** — обращается к долгоживущему [CompPrehension Toolchain Server](../compph-toolchain-server) по JSON-RPC (через `httpx`). Сервер держит JVM запущенной, поэтому серии запросов идут заметно быстрее (нет старта JVM на каждый вызов).
+
+Переключение — через `.env` (см. `.env.example`), без изменения кода:
+
+```dotenv
+# Глобально для обоих инструментов: cli | rpc
+TOOLCHAIN_BACKEND=cli
+# Точечные переопределения (приоритетнее глобального):
+# MEANING_TREE_BACKEND=rpc
+# TPG_BACKEND=rpc
+
+# Подключение к серверу (когда бэкенд = rpc):
+JSON_RPC_TOOLCHAIN_SERVER=http://localhost:8080
+JSON_RPC_TOOLCHAIN_ACCESS_SECRET=   # пусто, если на сервере секрет не задан
+```
+
+Каждый модуль — это пакет с раздельными реализациями: `cli.py`, `rpc.py` и `__init__.py`, который по значению env-переменной отдаёт нужный бэкенд. Общая модель данных reasoning-результатов лежит в `src/tpg_domain/models.py`, общий JSON-RPC клиент — в `src/toolchain_rpc.py`.
+
+Файловые аргументы при RPC передаются содержимым (inline), а директории (например, модель для `validate-dsm` или `reason`) пакуются в «имитацию директории» — отбираются только нужные инструментарию файлы (`.loqi`, `.xml`, `.tpg`, `.csv`, `.ttl`) и разворачиваются сервером во временную директорию на время запроса.
+
+### Запуск сервера
+
+Скрипт `run_server.sh` (по аналогии с `build_libs.sh`) собирает и запускает JSON-RPC сервер. Путь к корню проекта сервера задаётся в `.env`:
+
+```dotenv
+TOOLCHAIN_SERVER_PATH=/path/to/compph-toolchain-server
+JSON_RPC_TOOLCHAIN_PORT=8080
+JSON_RPC_TOOLCHAIN_HOST=0.0.0.0
+# ACCESS_SECRET для сервера берётся из JSON_RPC_TOOLCHAIN_ACCESS_SECRET
+```
+
+```bash
+./run_server.sh --build      # mvn -DskipTests package, затем запуск jar из <root>/target
+./run_server.sh              # запуск уже собранного jar
+./run_server.sh --build 9000 # с переопределением порта
+```
+
+---
+
 ## Архитектура
 
 Проект построен по принципу разделения на два основных слоя: ядро анализа и парсинга (Java, папка `meaning_tree/`) и слой визуализации и инструментов (Python, папка `src/` и основной скрипт `main.py`). Взаимодействие между слоями происходит через сериализацию AST в JSON/словарь и дальнейшую обработку в Python.

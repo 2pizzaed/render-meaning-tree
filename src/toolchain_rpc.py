@@ -53,8 +53,15 @@ def call(route: str, method: str, params: dict[str, Any], *, timeout: float = DE
 
     try:
         response = httpx.post(url, json=request, headers=headers, timeout=timeout)
+    except httpx.ConnectError as exc:
+        raise RpcError(
+            f"Could not connect to the toolchain RPC server at {url}.\n"
+            f"  Start it with:  ./rpc_server.sh start\n"
+            f"  Or switch to CLI mode:  set TOOLCHAIN_BACKEND=cli in .env (not recommended, slower)\n"
+            f"  Connection error: {exc}"
+        ) from exc
     except httpx.HTTPError as exc:
-        raise RpcError(f"Could not reach toolchain server at {url}: {exc}") from exc
+        raise RpcError(f"HTTP error talking to toolchain server at {url}: {exc}") from exc
 
     if response.status_code == 403:
         raise RpcError("Toolchain server returned 403 (missing or invalid access secret)", code=403)

@@ -13,3 +13,6 @@ output.html
 result.html
 .tmp*/
 TODO.md
+.claude/
+.rpc_pid
+.rpc_server.log

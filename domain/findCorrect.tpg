@@ -1,13 +1,15 @@
 lambda applyInterruptionMode(E: EffectDeclaration, S: TraceState) =
     E.interruption_start != InterruptionType:none ? 
-            E.interruption_start
+            S.interruption_mode = E.interruption_start // начинается новое прерывание
         : (
+            // если какое-то прерывание останавливается
             E.interruption_stop != InterruptionType:none and (
+                // все прерывания или только текущее
                 E.interruption_stop == InterruptionType:any or
                 S.interruption_mode == E.interruption_stop
             )
-                ? InterruptionType:none
-                : S.interruption_mode
+                ? S.interruption_mode = InterruptionType:none // остановить прерывание
+                : S.interruption_mode // ничего не делать
     );
 
 lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [

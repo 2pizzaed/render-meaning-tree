@@ -5,7 +5,11 @@ from src.generator.automaton import (
     ConstructAutomatonValidationError,
     ConstructTransitionAutomaton,
 )
-from src.model.rules import ActionDeclaration, ConstructDeclaration, TransitionDeclaration
+from src.model.rules import (
+    ActionDeclaration,
+    ConstructDeclaration,
+    TransitionDeclaration,
+)
 
 
 def test_construct_automaton_iterates_linear_steps_without_callback():

@@ -37,6 +37,9 @@ filterwarnings = [
     "ignore::DeprecationWarning:pydot",
 ]
 
+[tool.ruff.lint]
+extend-select = ["I"]
+
 [tool.ruff]
 extend-exclude = ["test/data"]
 

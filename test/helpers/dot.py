@@ -11,7 +11,6 @@ from src.dot import (
 )
 from src.model.rules import InterruptionType
 from src.model.situation import Action, Construct, TraceAct
-
 from test.helpers.env import write_text_file
 
 

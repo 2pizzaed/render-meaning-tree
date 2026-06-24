@@ -1,4 +1,9 @@
-from src.json_search import get_node_by_path, search_bfs, search_dfs, search_with_paths_dfs
+from src.json_search import (
+    get_node_by_path,
+    search_bfs,
+    search_dfs,
+    search_with_paths_dfs,
+)
 
 
 def test_search_dfs_returns_nodes_from_deepest_to_root_left_to_right():

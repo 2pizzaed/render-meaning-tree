@@ -11,9 +11,8 @@ import logging
 from pathlib import Path
 from typing import Any, TextIO
 
-from src.toolchain_rpc import RpcError
+from src.toolchain_rpc import RpcError, dir_source, file_source
 from src.toolchain_rpc import call as _rpc_call
-from src.toolchain_rpc import dir_source, file_source
 
 from .models import (
     DomainBuildMethod,

@@ -3,7 +3,6 @@ import hashlib
 
 from src.coderenderer.entities import Token
 
-
 BRACKET_COLOR_PALETTE: list[str] = [
     "#E74C3C",  # Красный
     "#3498DB",  # Синий

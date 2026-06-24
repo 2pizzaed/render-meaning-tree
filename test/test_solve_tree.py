@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from src.model.rules import InterruptionType
 
 from src.generator.pipeline import (
     DomainDataGeneratorPipeline,

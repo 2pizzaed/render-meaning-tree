@@ -3,6 +3,7 @@ from pathlib import Path
 
 import test.helpers.dot as helpers_dot_module
 from src.generator.utilities import code_snippet_to_pipeline, pipeline_to_loqi
+from src.model.rules import InterruptionType
 from test.helpers import (
     add_trace_act_for_line,
     render_trace_acts_artifacts,
@@ -148,3 +149,19 @@ y = 2
     assert "role:" in dot
     assert dot_path.exists()
     assert png_path.exists()
+
+
+def test_trace_acts_to_dot_labels_edges_for_non_none_interruption_mode() -> None:
+    code = """
+    x = 1
+    y = 2
+    """
+    pipeline = code_snippet_to_pipeline(code, language="python")
+    add_trace_act_for_line(pipeline, 1)
+    add_trace_act_for_line(pipeline, 2)
+    trace_acts = pipeline.registry.trace_acts
+    dot = trace_acts_to_dot(
+        trace_acts,
+        trace_act_interruptions=[(trace_acts[0], InterruptionType.BREAK)],
+    )
+    assert "interruption_mode: break" in dot

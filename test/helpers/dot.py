@@ -9,18 +9,24 @@ from src.dot import (
     multiline_label,
     render_dot_png,
 )
+from src.model.rules import InterruptionType
 from src.model.situation import Action, Construct, TraceAct
+
 from test.helpers.env import write_text_file
 
 
 def trace_acts_to_dot(
     trace_acts: Sequence[TraceAct],
-    *,
     name: str = "trace_acts",
+    trace_act_interruptions: Sequence[tuple[TraceAct, InterruptionType]] | None = None,
 ) -> str:
     """Построить DOT-граф цепочки TraceAct с группировкой по construct."""
     diagram = DotDiagram(name, palette=DEFAULT_DOT_PALETTE)
     construct_clusters: dict[int, str] = {}
+    interruption_modes_by_action_id = {
+        id(trace_act.action): interruption_mode
+        for trace_act, interruption_mode in trace_act_interruptions or ()
+    }
 
     for index, trace_act in enumerate(trace_acts):
         action = trace_act.action
@@ -60,23 +66,36 @@ def trace_acts_to_dot(
             cluster_id=cluster_id,
             **node_attrs,
         )
-
         if index > 0:
-            diagram.add_edge(f"trace_act_{index - 1}", node_id)
+            previous_trace_act = trace_acts[index - 1]
+            edge_attrs: dict[str, str] = {}
+            interruption_mode = interruption_modes_by_action_id.get(
+                id(previous_trace_act.action)
+            )
+            if (
+                interruption_mode is not None
+                and interruption_mode is not InterruptionType.NONE
+            ):
+                edge_attrs["label"] = interruption_mode.value
+            diagram.add_edge(f"trace_act_{index - 1}", node_id, **edge_attrs)
 
     return diagram.to_string()
 
 
 def render_trace_acts_artifacts(
-    directory: Path,
+    dir: Path,
     trace_acts: Sequence[TraceAct],
-    *,
     filename_stem: str = "trace-acts",
+    trace_act_interruptions: Sequence[tuple[TraceAct, InterruptionType]] | None = None,
 ) -> tuple[Path, Path]:
     """Сохранить DOT и PNG для цепочки TraceAct в указанную директорию."""
-    dot_text = trace_acts_to_dot(trace_acts, name=filename_stem)
-    dot_path = write_text_file(directory, dot_text, f"{filename_stem}.dot")
-    png_path = directory / f"{filename_stem}.png"
+    dot_text = trace_acts_to_dot(
+        trace_acts,
+        name=filename_stem,
+        trace_act_interruptions=trace_act_interruptions,
+    )
+    dot_path = write_text_file(dir, dot_text, f"{filename_stem}.dot")
+    png_path = dir / f"{filename_stem}.png"
     render_dot_png(dot_text, png_path)
     return dot_path, png_path
 
@@ -85,14 +104,12 @@ def _construct_annotation_text(construct: Construct) -> str:
     snippet = construct.owner.code.code_piece(construct.ast_id) or "<no code snippet>"
     return multiline_label(
         f"ast_id: {construct.ast_id}",
-        "",
         _trim_code_snippet(snippet),
     )
 
 
 def _trim_code_snippet(
     snippet: str,
-    *,
     max_lines: int = 8,
     max_chars: int = 360,
 ) -> str:

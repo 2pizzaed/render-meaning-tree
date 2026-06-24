@@ -23,8 +23,8 @@ def trace_acts_to_dot(
     """Построить DOT-граф цепочки TraceAct с группировкой по construct."""
     diagram = DotDiagram(name, palette=DEFAULT_DOT_PALETTE)
     construct_clusters: dict[int, str] = {}
-    interruption_modes_by_action_id = {
-        id(trace_act.action): interruption_mode
+    interruption_modes_by_trace_key = {
+        _trace_act_key(trace_act): interruption_mode
         for trace_act, interruption_mode in trace_act_interruptions or ()
     }
 
@@ -69,14 +69,14 @@ def trace_acts_to_dot(
         if index > 0:
             previous_trace_act = trace_acts[index - 1]
             edge_attrs: dict[str, str] = {}
-            interruption_mode = interruption_modes_by_action_id.get(
-                id(previous_trace_act.action)
+            interruption_mode = interruption_modes_by_trace_key.get(
+                _trace_act_key(previous_trace_act)
             )
             if (
                 interruption_mode is not None
                 and interruption_mode is not InterruptionType.NONE
             ):
-                edge_attrs["label"] = interruption_mode.value
+                edge_attrs["label"] = f"interruption_mode: {interruption_mode.value}"
             diagram.add_edge(f"trace_act_{index - 1}", node_id, **edge_attrs)
 
     return diagram.to_string()
@@ -123,6 +123,15 @@ def _trim_code_snippet(
         clipped = clipped[:max_chars].rstrip()
         return f"{clipped}\n..."
     return clipped
+
+
+def _trace_act_key(trace_act: TraceAct) -> tuple[str, str, int, int | None]:
+    return (
+        trace_act.action.parent.rule.name,
+        trace_act.action.rule.role,
+        trace_act.chain_order,
+        trace_act.action.ast_id,
+    )
 
 
 def _trace_action_title(action: Action) -> str:

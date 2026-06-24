@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from src.model.rules import InterruptionType
 
 from src.generator.pipeline import (
     DomainDataGeneratorPipeline,
@@ -22,8 +23,9 @@ from test.helpers import (
     resolve_project_root,
     restore_trace_from_loqi,
     should_open_test_artifacts,
-    trace_acts_from_loqi,
 )
+
+pytestmark = [pytest.mark.serial, pytest.mark.xdist_group("solve_tree")]
 
 TREE_NAME = "findCorrect"
 ActionValuePatches = dict[tuple[int, int], list[bool]]
@@ -1114,7 +1116,8 @@ def _write_final_loqi_trace_artifacts(
         filename=loqi_filename,
     )[0]
     loqi_text = loqi_file.read_text(encoding="utf-8")
-    trace_acts = trace_acts_from_loqi(loqi_text, pipeline)
+    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, pipeline)
+    assert trace_state is not None
     render_trace_acts_artifacts(
         tmp_path,
         trace_acts,

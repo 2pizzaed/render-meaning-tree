@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "jinja2>=3.1.6",
     "pytest>=8.3.5",
+    "pytest-xdist>=3.6.1",
     "matplotlib>=3.8.4",
     "colorama>=0.4.6",
     "pyyaml>=6.0.1",
@@ -28,6 +29,9 @@ tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
 
 [tool.pytest.ini_options]
 addopts = "-q -s --tb=line --disable-warnings"
+markers = [
+    "serial: tests that should run outside xdist parallel scheduling",
+]
 filterwarnings = [
     "ignore::pytest.PytestRemovedIn10Warning",
     "ignore::DeprecationWarning:pydot",

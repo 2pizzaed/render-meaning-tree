@@ -131,6 +131,8 @@ cmd_start() {
     export ACCESS_SECRET="${JSON_RPC_TOOLCHAIN_ACCESS_SECRET}"
   fi
 
+  export DOTENV_PATH="${server_path}/.env"
+
   echo "==> Starting toolchain server (daemon)"
   echo "    jar:  ${jar}"
   echo "    bind: ${HOST}:${port}"

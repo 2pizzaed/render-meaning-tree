@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from src.env import toolchain_access_secret, toolchain_server_url
+from src.env import toolchain_access_secret, toolchain_local_files, toolchain_server_url
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,16 @@ def call(route: str, method: str, params: dict[str, Any], *, timeout: float = DE
 
 
 def file_source(content: str | bytes | Path) -> dict[str, str]:
-    """Build a FileSource payload from inline text, raw bytes, or a path to read."""
+    """Build a FileSource payload from inline text, raw bytes, or a path.
+
+    When ``TOOLCHAIN_LOCAL_FILES=true`` and *content* is a :class:`~pathlib.Path`, sends
+    ``{"path": str(content)}`` so the server reads the file directly (requires
+    ``LOCAL_FILES_DISCOVERY=true`` on the server). Otherwise the file is read locally and its
+    contents are embedded in the payload.
+    """
     if isinstance(content, Path):
+        if toolchain_local_files():
+            return {"path": str(content)}
         return _bytes_to_source(content.read_bytes())
     if isinstance(content, bytes):
         return _bytes_to_source(content)
@@ -97,13 +105,18 @@ def dir_source(
     *,
     extensions: frozenset[str] | None = MODEL_DIR_EXTENSIONS,
 ) -> dict[str, Any]:
-    """Pack a real directory into a DirSource (``{"files": {relpath: FileSource}}``).
+    """Build a DirSource payload for a local directory.
 
-    Only files whose suffix is in ``extensions`` are included (pass ``None`` to include everything).
+    When ``TOOLCHAIN_LOCAL_FILES=true``, sends ``{"path": str(directory)}`` so the server reads
+    the directory directly (requires ``LOCAL_FILES_DISCOVERY=true`` on the server). Otherwise
+    packs files whose suffix is in *extensions* into ``{"files": {relpath: FileSource}}`` (pass
+    ``extensions=None`` to include every file).
     """
     base = Path(directory)
     if not base.is_dir():
         raise RpcError(f"Directory does not exist: {base}")
+    if toolchain_local_files():
+        return {"path": str(base)}
     files: dict[str, dict[str, str]] = {}
     for path in sorted(base.rglob("*")):
         if not path.is_file():

@@ -18,6 +18,10 @@ TPG_BACKEND_ENV_VAR = "TPG_BACKEND"
 JSON_RPC_TOOLCHAIN_SERVER_ENV_VAR = "JSON_RPC_TOOLCHAIN_SERVER"
 JSON_RPC_TOOLCHAIN_ACCESS_SECRET_ENV_VAR = "JSON_RPC_TOOLCHAIN_ACCESS_SECRET"
 
+# When true, file_source(Path) and dir_source(Path) send {"path":"..."} instead of file contents.
+# Requires LOCAL_FILES_DISCOVERY=true on the server. Only safe for local deployments.
+TOOLCHAIN_LOCAL_FILES_ENV_VAR = "TOOLCHAIN_LOCAL_FILES"
+
 DEFAULT_TOOLCHAIN_SERVER_URL = "http://localhost:8080"
 
 type Backend = Literal["cli", "rpc"]
@@ -59,6 +63,11 @@ def toolchain_server_url() -> str:
 
 def toolchain_access_secret() -> str | None:
     return env_str(JSON_RPC_TOOLCHAIN_ACCESS_SECRET_ENV_VAR)
+
+
+def toolchain_local_files() -> bool:
+    """True when file/dir sources should be sent as local path references instead of inline content."""
+    return env_flag(TOOLCHAIN_LOCAL_FILES_ENV_VAR)
 
 
 def load_project_env() -> None:

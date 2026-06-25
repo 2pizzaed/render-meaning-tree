@@ -56,6 +56,8 @@ def make_path(project: TpgProject) -> list[str | Path]:
 def validate_domain_solving_model(
     model_dir: str | Path,
     build_method: DomainBuildMethod = "LOQI",
+    *,
+    debug_enabled: bool = False,
 ) -> bool:
     """Validate a DomainSolvingModel directory through its_DomainModel CLI."""
     return _run_domain_cli_bool(
@@ -63,6 +65,7 @@ def validate_domain_solving_model(
         str(model_dir),
         "--build-method",
         build_method,
+        *(["--debug"] if debug_enabled else []),
     )
 
 

@@ -31,10 +31,13 @@ logger = logging.getLogger(__name__)
 def validate_domain_solving_model(
     model_dir: str | Path,
     build_method: DomainBuildMethod = "LOQI",
+    *,
+    debug_enabled: bool = False,
 ) -> bool:
     result = _safe_call(DOMAIN_ROUTE, "validate-dsm", {
         "model": dir_source(model_dir),
         "buildMethod": _build_method(build_method),
+        "debug": debug_enabled,
     })
     return result is not None
 
@@ -287,9 +290,25 @@ def _safe_call(route: str, method: str, params: dict[str, Any]) -> Any | None:
         return _rpc_call(route, method, params)
     except RpcError as exc:
         logger.error("tpg_domain %s via JSON-RPC failed: %s", method, exc)
-        if exc.data:
-            logger.debug("Error data: %s", exc.data)
+        _log_rpc_error_data(exc.data)
         return None
+
+
+def _log_rpc_error_data(data: Any) -> None:
+    if not isinstance(data, dict):
+        return
+    exception_name = data.get("exceptionName")
+    root_cause_message = data.get("rootCauseMessage")
+    stack_trace = data.get("stackTrace")
+    header = "Server exception"
+    if exception_name:
+        header += f" {exception_name}"
+    if root_cause_message:
+        header += f": {root_cause_message}"
+    if stack_trace:
+        logger.error("%s\n%s", header, stack_trace)
+    elif exception_name or root_cause_message:
+        logger.error("%s", header)
 
 
 def _put(params: dict[str, Any], key: str, value: Any) -> None:

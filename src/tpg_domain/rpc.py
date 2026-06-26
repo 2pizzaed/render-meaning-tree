@@ -18,6 +18,7 @@ from .models import (
     DomainBuildMethod,
     ExpressionQueryResult,
     ReasoningResult,
+    _format_human_value,
     _parse_reasoning_exception,
     _parse_reasoning_result_value,
 )
@@ -309,6 +310,58 @@ def _log_rpc_error_data(data: Any) -> None:
         logger.error("%s\n%s", header, stack_trace)
     elif exception_name or root_cause_message:
         logger.error("%s", header)
+    _log_rpc_event_value(
+        data,
+        event_types={"trace", "partialTrace", "partialExpressionTrace"},
+        data_keys=("trace", "partialTrace", "partialExpressionTrace"),
+        label="Trace",
+    )
+    _log_rpc_event_value(
+        data,
+        event_types={"variables"},
+        data_keys=("variables",),
+        label="Variables",
+    )
+
+
+def _log_rpc_event_value(
+    data: Any,
+    *,
+    event_types: set[str],
+    data_keys: tuple[str, ...],
+    label: str,
+) -> None:
+    value = _find_rpc_event_value(data, event_types=event_types, data_keys=data_keys)
+    if value is not None:
+        logger.error("%s:\n%s", label, _format_human_value(value))
+
+
+def _find_rpc_event_value(
+    data: Any,
+    *,
+    event_types: set[str],
+    data_keys: tuple[str, ...],
+) -> Any | None:
+    if isinstance(data, dict):
+        for key in data_keys:
+            if key in data and data[key] is not None:
+                return data[key]
+        event_type = data.get("type")
+        if event_type in event_types and data.get("value") is not None:
+            return data.get("value")
+        for nested_key in ("error", "data", "details", "payload", "events", "items", "value"):
+            if nested_key in data:
+                found = _find_rpc_event_value(
+                    data[nested_key], event_types=event_types, data_keys=data_keys
+                )
+                if found is not None:
+                    return found
+    elif isinstance(data, list):
+        for item in data:
+            found = _find_rpc_event_value(item, event_types=event_types, data_keys=data_keys)
+            if found is not None:
+                return found
+    return None
 
 
 def _put(params: dict[str, Any], key: str, value: Any) -> None:

@@ -1213,7 +1213,7 @@ def _solve_once(
             tree=TREE_NAME,
             export_domain=True,
             debug_enabled=True,
-            time_limit_seconds=45,
+            time_limit_seconds=30,
             reasoner_output_stream=reasoner_out,
         )
 

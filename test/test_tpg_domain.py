@@ -5,6 +5,7 @@ import logging
 import subprocess
 from pathlib import Path
 
+from src.toolchain_rpc import RpcError
 from src.tpg_domain import (
     ExpressionQueryResult,
     ReasoningException,
@@ -17,6 +18,7 @@ from src.tpg_domain.cli import (
     query_expression,
     solve_reasoning,
 )
+from src.tpg_domain.rpc import solve_reasoning as solve_reasoning_rpc
 
 
 def test_parse_reasoning_jsonl_builds_structured_result() -> None:
@@ -200,7 +202,7 @@ def test_reasoning_result_str_is_human_readable() -> None:
 def test_run_reasoner_cli_logs_jsonl_errors_as_readable_exception(
     monkeypatch, caplog
 ) -> None:
-    def fake_run(*args, **kwargs):
+    def fake_run(*args, **_):
         raise subprocess.CalledProcessError(
             returncode=1,
             cmd=args[0],
@@ -234,7 +236,7 @@ def test_run_reasoner_cli_logs_jsonl_errors_as_readable_exception(
 def test_run_reasoner_cli_logs_variables_event_on_failure(
     monkeypatch, caplog
 ) -> None:
-    def fake_run(*args, **kwargs):
+    def fake_run(*args, **_):
         raise subprocess.CalledProcessError(
             returncode=1,
             cmd=args[0],
@@ -254,4 +256,37 @@ def test_run_reasoner_cli_logs_variables_event_on_failure(
         )
 
     assert result is None
+    assert 'Variables:\n{\n  "x": "1",\n  "state": "failed"\n}' in caplog.text
+
+
+def test_run_reasoner_rpc_logs_trace_and_variables_on_error(
+    monkeypatch, caplog
+) -> None:
+    def fake_rpc_call(*_, **__):
+        raise RpcError(
+            "reason failed: boom",
+            code=500,
+            data={
+                "exceptionName": "java.lang.IllegalStateException",
+                "rootCauseMessage": "boom",
+                "stackTrace": "java.lang.IllegalStateException: boom\n\tat demo.Main",
+                "partialTrace": {"branchResult": "Error", "elements": []},
+                "variables": {"x": "1", "state": "failed"},
+            },
+        )
+
+    monkeypatch.setattr("src.tpg_domain.rpc._rpc_call", fake_rpc_call)
+
+    with caplog.at_level(logging.ERROR, logger="src.tpg_domain.rpc"):
+        result = solve_reasoning_rpc("domain", "generated.loqi")
+
+    assert result is None
+    assert (
+        "tpg_domain reason via JSON-RPC failed: reason failed: boom" in caplog.text
+    )
+    assert (
+        "Server exception java.lang.IllegalStateException: boom\njava.lang.IllegalStateException: boom\n\tat demo.Main"
+        in caplog.text
+    )
+    assert 'Trace:\n{\n  "branchResult": "Error",\n  "elements": []\n}' in caplog.text
     assert 'Variables:\n{\n  "x": "1",\n  "state": "failed"\n}' in caplog.text

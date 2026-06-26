@@ -17,7 +17,7 @@ def pytest_configure(config):
     project_root = Path(__file__).resolve().parents[1]
     temp_root = project_root / ".tmp.pytest"
     temp_root.mkdir(parents=True, exist_ok=True)
-    worker_id = os.getenv("PYTEST_XDIST_WORKER", 0)
+    worker_id = os.getenv("PYTEST_XDIST_WORKER")
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_suffix = f"{timestamp}-{worker_id}" if worker_id else timestamp
     run_temp = temp_root / f"run-{run_suffix}"

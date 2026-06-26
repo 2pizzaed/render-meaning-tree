@@ -376,7 +376,7 @@ def _text_or_bool(result: Any | None, key: str, output: str | Path | None) -> st
         text = _extract(result, key)
         if text is None:
             return False
-        Path(output).write_text(text, encoding="utf-8")
+        Path(output).write_text(text, encoding="utf-8", newline="")
         return True
     if not isinstance(result, dict):
         return None

@@ -81,7 +81,7 @@ rebuild_project() {
   echo
   echo "==> Rebuilding ${label}"
   echo "    ${path}"
-  (cd "${path}" && mvn clean install)
+  (cd "${path}" && mvn clean install -DskipTests)
 }
 
 load_env

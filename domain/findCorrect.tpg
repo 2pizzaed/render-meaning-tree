@@ -30,6 +30,47 @@ lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_ab
 fragment findLastTracedAction(last: TraceAct) {
     // фрагмент поиска "реального" последнего действия, от которого будет происходить дальнейший поиск следующего корректного
 
+    // было начато прерывание, нужно последовательно выходить из всех конструктов, пока не найдем остановку прерывания
+    while (S.interruption_mode != InterruptionType:none) {
+        body -> {
+        // Найти последнее действие последнего вложенного конструкта, из которого еще не вышли
+        var current: ConcreteAction = (findExtreme act [$act == last or $act=>isCloserToThan(last, $prev)] among TraceAct prev {
+            forAny TraceAct c {
+                $c->hasAction->belongsTo == $prev->hasAction->belongsTo 
+                and $c->hasAction->derivedFrom.role == "BEGIN"}
+            and not forAny TraceAct c {
+                $c->hasAction->belongsTo == $prev->hasAction->belongsTo 
+                and $c->hasAction->derivedFrom.role == "END"}
+        })->hasAction out true else {
+            conclude: error [exception = true; exceptionName = "UnclosedInterruption"];
+        };
+
+        var exit: ConcreteAction = find ConcreteAction a {
+            $a->derivedFrom.role == "END" and $a->belongsTo == current->belongsTo
+        };
+        var Prev: TraceAct = last;
+        conclude : null with ({
+            last = +obj : TraceAct (
+                {
+                    hasAction(exit);
+                    (exit=>hasValue()) ? hasValue(exit);
+                }
+            );
+            if (exit=>hasValue()) actionValue.used = true;
+
+            // так как перехода нет, выход вынужденный, то проверяем явно, устанавливает ли правило эффекты (для справки: в обычной ситуации ActionSpec->hasEffects уже встраивается в TransitionSpec, но здесь перехода нет явно)
+            if (exit->derivedFrom=>hasEffects()) applyInterruptionMode(exit->derivedFrom->hasEffects, S);
+            if (current->derivedFrom=>hasEffects()) applyInterruptionMode(current->derivedFrom->hasEffects, S);
+
+            if (exit=>hasEffects()) applyInterruptionMode(exit->hasEffects, S);
+            if (current=>hasEffects()) applyInterruptionMode(current->hasEffects, S);
+
+            Prev +=> directlyBeforeOf(last);
+        });
+        }
+        true, false, null -> out;
+    };
+
     // последнее вычисленное действие является END в его конструкте
     ask (last->hasAction->derivedFrom.role == "END") out false else {
         // ищем еще незавершенное действие конструкта, который ближе к P (но не сам конструкт из P)
@@ -76,6 +117,7 @@ fragment findLastTracedAction(last: TraceAct) {
                 }
             );
             if (callAction=>hasValue()) actionValue.used = true;
+            if (callAction->derivedFrom=>hasEffects()) applyInterruptionMode(callAction->derivedFrom->hasEffects, S);
             if (callAction=>hasEffects()) applyInterruptionMode(callAction->hasEffects, S);
             Prev +=> directlyBeforeOf(last);
         });
@@ -111,8 +153,8 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
             }
         );
         Prev +=> directlyBeforeOf(L);
-        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
+        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
     });
 }
 
@@ -140,8 +182,8 @@ fragment classifyAction(N: ConcreteAction) {
                             }
                         );
                         if (N=>hasValue()) actionValue.used = true;
-                        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
+                        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         Prev +=> directlyBeforeOf(P);
                         L = P
                     });
@@ -170,8 +212,8 @@ fragment classifyAction(N: ConcreteAction) {
                             }
                         );
                         if (N=>hasValue()) actionValue.used = true;
-                        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
+                        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         Prev +=> directlyBeforeOf(L);
                     });
                 }

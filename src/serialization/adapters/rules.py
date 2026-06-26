@@ -86,8 +86,12 @@ class ActionDeclarationAdapter:
 
     def describe(self, obj: ActionDeclaration, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
         relationships = []
+        if obj.effects is not None:
+            relationships.append(ctx.relationship("hasEffects", obj.effects))
         if obj.parent is not None:
             relationships.append(ctx.relationship("belongsTo", obj.parent))
+            if obj.role == "END" and obj.parent.effects is not None:
+                relationships.append(ctx.relationship("hasEffects", obj.parent.effects))
 
         properties = [
             ctx.property("role", obj.role),

@@ -83,7 +83,7 @@ class ActionSpec : AbstractSpec {
 	obj prop is_opaque: bool ;
 
 	rel belongsTo(ConstructSpec) : {* -> 1} ;
-	// rel hasEffects(Effect) : {* -> 1} ; заменено -> привязывается к переходу from из этого действия
+	rel hasEffects(Effect) : {* -> 1} ; // нужен только для отслеживания завершения прерываний (но в переходы также встраивается, поэтому применяется только в прерываниях!!)
 } [
 	RU.localizedName = "спецификация действия" ;
 	EN.localizedName = "action specification" ;
@@ -123,7 +123,7 @@ class ConstructSpec : AbstractSpec {
 
 	rel hasActions(ActionSpec) : {1 -> *} ;
 	rel hasTransitions(TransitionSpec) : {1 -> *};
-	// rel hasEffect(Effect): {* -> 1} ; заменено -> привязывается к переходу после BEGIN, а не ко всей конструкции
+	// rel hasEffects(Effect): {* -> 1} ; не нужно т.к. этот эффект автоматически привязывается к ActionSpec этого конструкта с ролью END (см. ActionSpec->hasEffects)
 } [
 	RU.localizedName = "спецификация конструкции" ;
 	EN.localizedName = "construct specification" ;

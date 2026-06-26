@@ -83,6 +83,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         name="if_statement",
         kind="branch",
         ast_node="IfStatement",
+        effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
         actions=[
             ActionDeclaration(
                 role="BEGIN",
@@ -130,13 +131,14 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             kind = "marker";
             is_opaque = false;
             belongsTo(construct_if_statement);
+            hasEffects(effect_break);
         }
 
         obj transition_if_statement_BEGIN_to_END : TransitionSpec {
             from_(action_BEGIN);
             to_(action_END);
             hasConstraints(constraint_true_none);
-            hasEffects(effect_add_frame);
+            hasEffects(effect_break_add_frame);
             belongsTo(construct_if_statement);
         }
 
@@ -145,9 +147,15 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             interruption_mode = InterruptionType:none;
         }
 
-        obj effect_add_frame : Effect {
+        obj effect_break : Effect {
             interruption_start = InterruptionType:none;
-            interruption_stop = InterruptionType:none;
+            interruption_stop = InterruptionType:break;
+            call_stack = CallStackAction:none;
+        }
+
+        obj effect_break_add_frame : Effect {
+            interruption_start = InterruptionType:none;
+            interruption_stop = InterruptionType:break;
             call_stack = CallStackAction:add_frame;
         }
         """
@@ -260,6 +268,7 @@ def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_gene
     assert "hasTransitions(transition_sequence_END_to_BEGIN);" in rendered
     assert "from_(action_item)" not in rendered
     assert "obj transition_sequence_END_to_BEGIN : TransitionSpec" in rendered
+    assert "obj action_END : ActionSpec {" in rendered
     assert "hasEffects(effect_break);" in rendered
 
 

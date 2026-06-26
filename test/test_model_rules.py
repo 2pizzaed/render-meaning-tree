@@ -219,7 +219,7 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
         interruption_stop=InterruptionType.CONTINUE,
     )
     action_effect = EffectDeclaration(
-        interruption_start=InterruptionType.RETURN,
+        interruption_stop=InterruptionType.RETURN,
         call_stack=CallStackAction.ADD_FRAME,
     )
     transition_effect = EffectDeclaration(interruption_start=InterruptionType.NONE)
@@ -233,7 +233,7 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
             ActionDeclaration(role="body", kind="inline"),
         ],
         transitions=[
-            TransitionDeclaration(from_role="BEGIN", to_role="body", effects=transition_effect),
+            TransitionDeclaration(from_role="BEGIN", to_role="END", effects=transition_effect),
             TransitionDeclaration(from_role="END", to_role="BEGIN", effects=transition_effect),
         ],
     )
@@ -242,12 +242,12 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
 
     assert begin_transition.effects is not None
     assert begin_transition.effects.interruption_start is InterruptionType.NONE
-    assert begin_transition.effects.interruption_stop is None
+    assert begin_transition.effects.interruption_stop is InterruptionType.RETURN
     assert begin_transition.effects.call_stack is CallStackAction.ADD_FRAME
 
     assert end_transition.effects is not None
     assert end_transition.effects.interruption_start is InterruptionType.NONE
-    assert end_transition.effects.interruption_stop is InterruptionType.CONTINUE
+    assert end_transition.effects.interruption_stop is None
     assert end_transition.effects.call_stack is None
 
 

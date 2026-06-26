@@ -306,9 +306,9 @@ class ConstructDeclaration:
             from_roles = expanded_from_roles if expanded_from_roles is not None else [transition.from_role]
             for from_role in from_roles:
                 compiled = _copy_transition(transition, from_role=from_role)
-                if from_role == "END":
-                    compiled.effects = _merge_effects(compiled.effects, self.effects)
                 compiled.effects = _merge_effects(compiled.effects, effects_by_role.get(from_role))
+                if compiled.to_role == "END":
+                    compiled.effects = _merge_effects(compiled.effects, self.effects)
                 result.append(compiled)
         return result
 

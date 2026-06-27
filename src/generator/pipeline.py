@@ -360,7 +360,11 @@ class DomainDataGeneratorPipeline(Pipeline):
         if ast_id in self.registry.constructs:
             return self.registry.constructs[ast_id]
         node_type: str = cast(str, node.get("type"))
-        construct_decl = locate_construct_declaration_by_ast_node(node, self.rules)
+        construct_decl = locate_construct_declaration_by_ast_node(
+            node,
+            self.rules,
+            type_matcher=self._matches_ast_node_type,
+        )
         if not construct_decl:
             if node_type != "condition_branch" and self.manager.ast.instanceof(
                 ast_id, "statement"
@@ -394,6 +398,12 @@ class DomainDataGeneratorPipeline(Pipeline):
                 return parent
             par_node = self.code.ast.get_parent_of(par_node_id)
         return None
+
+    def _matches_ast_node_type(self, node: Node, node_type: str) -> bool:
+        ast_id = cast(int | None, node.get("id"))
+        if ast_id is None:
+            return False
+        return self.manager.ast.instanceof(ast_id, node_type)
 
     @pipeline_stage(2)
     def _generate_constructs(self):
@@ -446,7 +456,11 @@ class DomainDataGeneratorPipeline(Pipeline):
         return action
 
     def _inline_effects_for_node(self, node: Node) -> EffectDeclaration | None:
-        inline_rule = locate_construct_declaration_by_ast_node(node, self.rules)
+        inline_rule = locate_construct_declaration_by_ast_node(
+            node,
+            self.rules,
+            type_matcher=self._matches_ast_node_type,
+        )
         if inline_rule is None or not inline_rule.is_atomic_inline:
             return None
         return inline_rule.effects
@@ -595,7 +609,11 @@ class DomainDataGeneratorPipeline(Pipeline):
                 )
 
     def _is_noop_node(self, node: Node, construct: Construct) -> bool:
-        matched_rule = locate_construct_declaration_by_ast_node(node, self.rules)
+        matched_rule = locate_construct_declaration_by_ast_node(
+            node,
+            self.rules,
+            type_matcher=self._matches_ast_node_type,
+        )
         if matched_rule is None or "noop" not in matched_rule.kind_classes:
             return False
         if "external" in matched_rule.kind_classes:

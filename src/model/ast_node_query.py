@@ -42,7 +42,7 @@ project. A query matches when the provided `Node` satisfies the expression tree.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
@@ -50,6 +50,7 @@ from src.json_property_path import get_json_by_property_path
 from src.types import Node
 
 type AstNodeQuerySource = str | list[str] | dict[str, Any] | AstNodeQuery
+type AstNodeTypeMatcher = Callable[[Node, str], bool]
 
 _CHECK_OPERATORS = frozenset({"exists", "equals", "length", "contains", "contains_any"})
 _LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
@@ -66,24 +67,47 @@ class AstNodeQuery:
         if isinstance(data, AstNodeQuery):
             return data
         if isinstance(data, str):
-            return cls(AstNodeExpression.atom((data,)))
+            return cls(AstNodeExpression.atom(NodeTypePredicate.exact((data,))))
         if isinstance(data, list):
             if not data:
                 raise ValueError("ast_node list must not be empty")
             return cls(
                 AstNodeExpression.logical(
                     "or",
-                    tuple(AstNodeExpression.atom((_ensure_string(item, "ast_node item"),)) for item in data),
+                    tuple(
+                        AstNodeExpression.atom(
+                            NodeTypePredicate.exact(
+                                (_ensure_string(item, "ast_node item"),)
+                            )
+                        )
+                        for item in data
+                    ),
                 )
             )
         if isinstance(data, dict):
+            if set(data) == {"instanceof"}:
+                return cls(
+                    AstNodeExpression.atom(
+                        NodeTypePredicate.instanceof(
+                            _parse_type_list(data["instanceof"], "ast_node instanceof")
+                        )
+                    )
+                )
             if set(data) != {"query"}:
-                raise ValueError("ast_node query object must contain only the 'query' property")
-            return cls(AstNodeExpression.logical("and", _parse_expression_list(data["query"], operation="query")))
+                raise ValueError(
+                    "ast_node query object must contain only the 'query' or 'instanceof' property"
+                )
+            return cls(
+                AstNodeExpression.logical(
+                    "and", _parse_expression_list(data["query"], operation="query")
+                )
+            )
         raise TypeError(f"Unsupported ast_node query {data!r}")
 
-    def matches(self, node: Node) -> bool:
-        return self.expression.matches(node)
+    def matches(
+        self, node: Node, type_matcher: AstNodeTypeMatcher | None = None
+    ) -> bool:
+        return self.expression.matches(node, type_matcher=type_matcher)
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
         return self.expression.duplicate_keys()
@@ -95,15 +119,17 @@ class AstNodeQuery:
 @dataclass(frozen=True, slots=True)
 class AstNodeExpression:
     kind: Literal["atom", "and", "or", "not"]
-    types: tuple[str, ...] = ()
+    type_predicate: NodeTypePredicate | None = None
     condition: AstNodeCondition | None = None
     children: tuple[AstNodeExpression, ...] = ()
 
     @classmethod
-    def atom(cls, types: tuple[str, ...], condition: AstNodeCondition | None = None) -> AstNodeExpression:
-        if not types:
-            raise ValueError("ast_node query type list must not be empty")
-        return cls(kind="atom", types=types, condition=condition)
+    def atom(
+        cls,
+        type_predicate: NodeTypePredicate,
+        condition: AstNodeCondition | None = None,
+    ) -> AstNodeExpression:
+        return cls(kind="atom", type_predicate=type_predicate, condition=condition)
 
     @classmethod
     def logical(
@@ -125,58 +151,92 @@ class AstNodeExpression:
         logical_keys = [key for key in _LOGICAL_OPERATORS if key in data]
         if logical_keys:
             if len(logical_keys) != 1 or len(data) != 1:
-                raise ValueError("ast_node logical query item must contain exactly one logical operator")
+                raise ValueError(
+                    "ast_node logical query item must contain exactly one logical operator"
+                )
             operator = logical_keys[0]
             if operator == "not":
                 payload = data[operator]
                 if not isinstance(payload, dict):
-                    raise ValueError("ast_node query 'not' requires an object predicate")
+                    raise ValueError(
+                        "ast_node query 'not' requires an object predicate"
+                    )
                 return cls.logical("not", (cls.from_raw(payload),))
             binary_operator = cast(Literal["and", "or"], operator)
-            return cls.logical(binary_operator, _parse_expression_list(data[operator], operation=operator))
+            return cls.logical(
+                binary_operator,
+                _parse_expression_list(data[operator], operation=operator),
+            )
 
-        types = _parse_types(data.get("type"))
+        type_predicate = NodeTypePredicate.from_raw(data.get("type"))
         condition_keys = [key for key in _CHECK_OPERATORS if key in data]
         if len(condition_keys) > 1:
-            raise ValueError("ast_node query item can contain at most one check operator")
+            raise ValueError(
+                "ast_node query item can contain at most one check operator"
+            )
 
         allowed_keys = {"type", *condition_keys}
         extra_keys = set(data) - allowed_keys
         if extra_keys:
-            raise ValueError(f"Unsupported ast_node query item keys: {sorted(extra_keys)!r}")
+            raise ValueError(
+                f"Unsupported ast_node query item keys: {sorted(extra_keys)!r}"
+            )
 
-        condition = AstNodeCondition.from_raw(condition_keys[0], data[condition_keys[0]]) if condition_keys else None
-        return cls.atom(types, condition)
+        condition = (
+            AstNodeCondition.from_raw(condition_keys[0], data[condition_keys[0]])
+            if condition_keys
+            else None
+        )
+        return cls.atom(type_predicate, condition)
 
-    def matches(self, node: Node) -> bool:
+    def matches(
+        self, node: Node, *, type_matcher: AstNodeTypeMatcher | None = None
+    ) -> bool:
         if self.kind == "atom":
-            node_type = node.get("type")
-            if not isinstance(node_type, str) or node_type not in self.types:
+            if self.type_predicate is None:
+                raise ValueError("ast_node atom expression has no type predicate")
+            if not self.type_predicate.matches(node, type_matcher=type_matcher):
                 return False
             return self.condition is None or self.condition.matches(node)
         if self.kind == "and":
-            return all(child.matches(node) for child in self.children)
+            return all(
+                child.matches(node, type_matcher=type_matcher)
+                for child in self.children
+            )
         if self.kind == "or":
-            return any(child.matches(node) for child in self.children)
+            return any(
+                child.matches(node, type_matcher=type_matcher)
+                for child in self.children
+            )
         if self.kind == "not":
-            return not self.children[0].matches(node)
+            return not self.children[0].matches(node, type_matcher=type_matcher)
         raise ValueError(f"Unsupported ast_node expression kind {self.kind!r}")
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
         if self.kind == "atom":
             condition_key = self.condition.key() if self.condition else None
-            return tuple(("atom", node_type, condition_key) for node_type in self.types)
+            if self.type_predicate is None:
+                raise ValueError("ast_node atom expression has no type predicate")
+            return tuple(
+                ("atom", self.type_predicate.mode, node_type, condition_key)
+                for node_type in self.type_predicate.types
+            )
         if len(self.children) == 1:
             return self.children[0].duplicate_keys()
         if self.kind == "or":
-            return tuple(key for child in self.children for key in child.duplicate_keys())
+            return tuple(
+                key for child in self.children for key in child.duplicate_keys()
+            )
         return (("expression", self.key()),)
 
     def key(self) -> tuple[Any, ...]:
         if self.kind == "atom":
+            if self.type_predicate is None:
+                raise ValueError("ast_node atom expression has no type predicate")
             return (
                 self.kind,
-                self.types,
+                self.type_predicate.mode,
+                self.type_predicate.types,
                 self.condition.key() if self.condition else None,
             )
         child_keys = tuple(sorted((child.key() for child in self.children), key=repr))
@@ -184,7 +244,11 @@ class AstNodeExpression:
 
     def specificity(self) -> int:
         if self.kind == "atom":
-            return 1 + (10 + self.condition.specificity() if self.condition else 0)
+            if self.type_predicate is None:
+                raise ValueError("ast_node atom expression has no type predicate")
+            return self.type_predicate.specificity() + (
+                10 + self.condition.specificity() if self.condition else 0
+            )
         if self.kind == "and":
             return sum(child.specificity() for child in self.children)
         if self.kind == "or":
@@ -192,6 +256,50 @@ class AstNodeExpression:
         if self.kind == "not":
             return 1 + self.children[0].specificity()
         raise ValueError(f"Unsupported ast_node expression kind {self.kind!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class NodeTypePredicate:
+    mode: Literal["exact", "instanceof"]
+    types: tuple[str, ...]
+
+    @classmethod
+    def exact(cls, types: tuple[str, ...]) -> NodeTypePredicate:
+        return cls("exact", _ensure_non_empty_types(types))
+
+    @classmethod
+    def instanceof(cls, types: tuple[str, ...]) -> NodeTypePredicate:
+        return cls("instanceof", _ensure_non_empty_types(types))
+
+    @classmethod
+    def from_raw(cls, value: Any) -> NodeTypePredicate:
+        if isinstance(value, dict):
+            if set(value) != {"instanceof"}:
+                raise ValueError(
+                    "ast_node query type object must contain only the 'instanceof' property"
+                )
+            return cls.instanceof(
+                _parse_type_list(value["instanceof"], "ast_node query type instanceof")
+            )
+        return cls.exact(_parse_type_list(value, "ast_node query type"))
+
+    def matches(
+        self,
+        node: Node,
+        *,
+        type_matcher: AstNodeTypeMatcher | None = None,
+    ) -> bool:
+        node_type = node.get("type")
+        if not isinstance(node_type, str):
+            return False
+        if self.mode == "exact":
+            return node_type in self.types
+        if type_matcher is None:
+            return False
+        return any(type_matcher(node, node_type) for node_type in self.types)
+
+    def specificity(self) -> int:
+        return 2 if self.mode == "exact" else 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,12 +313,16 @@ class ContainsAnyPredicate:
         data = _ensure_dict(payload, operation="contains_any item")
         extra_keys = set(data) - {"key", "value", "value_in"}
         if extra_keys:
-            raise ValueError(f"Unsupported contains_any item keys: {sorted(extra_keys)!r}")
+            raise ValueError(
+                f"Unsupported contains_any item keys: {sorted(extra_keys)!r}"
+            )
         key = _ensure_string(data.get("key"), "contains_any item key")
         has_value = "value" in data
         has_value_in = "value_in" in data
         if has_value and has_value_in:
-            raise ValueError("contains_any item can contain either value or value_in, not both")
+            raise ValueError(
+                "contains_any item can contain either value or value_in, not both"
+            )
         if has_value_in:
             value_in = data["value_in"]
             if not isinstance(value_in, list) or not value_in:
@@ -246,7 +358,9 @@ class ContainsAnyExpression:
         logical_keys = [key for key in _CONTAINS_ANY_LOGICAL_OPERATORS if key in data]
         if logical_keys:
             if len(logical_keys) != 1 or len(data) != 1:
-                raise ValueError("contains_any logical item must contain exactly one logical operator")
+                raise ValueError(
+                    "contains_any logical item must contain exactly one logical operator"
+                )
             operator = logical_keys[0]
             if operator == "not":
                 not_payload = data[operator]
@@ -255,7 +369,9 @@ class ContainsAnyExpression:
                 return cls(kind="not", children=(cls.from_raw(not_payload),))
             return cls(
                 kind=cast(Literal["and", "or"], operator),
-                children=_parse_contains_any_expression_list(data[operator], operation=operator),
+                children=_parse_contains_any_expression_list(
+                    data[operator], operation=operator
+                ),
             )
         return cls(kind="predicate", predicate=ContainsAnyPredicate.from_raw(data))
 
@@ -277,7 +393,9 @@ class ContainsAnyExpression:
             if self.predicate is None:
                 raise ValueError("contains_any predicate expression has no predicate")
             return ("predicate", self.predicate.key_data())
-        child_keys = tuple(sorted((child.key_data() for child in self.children), key=repr))
+        child_keys = tuple(
+            sorted((child.key_data() for child in self.children), key=repr)
+        )
         return (self.kind, child_keys)
 
     def specificity(self) -> int:
@@ -305,7 +423,9 @@ class AstNodeCondition:
     @classmethod
     def from_raw(cls, kind: str, payload: Any) -> AstNodeCondition:
         if kind == "exists":
-            return cls(kind="exists", path=_parse_path_value(payload, operation="exists"))
+            return cls(
+                kind="exists", path=_parse_path_value(payload, operation="exists")
+            )
         if kind == "equals":
             data = _ensure_dict(payload, operation="equals")
             return cls(
@@ -322,7 +442,11 @@ class AstNodeCondition:
                 min=_optional_int(data.get("min"), field_name="length.min"),
                 max=_optional_int(data.get("max"), field_name="length.max"),
             )
-            if condition.equals is None and condition.min is None and condition.max is None:
+            if (
+                condition.equals is None
+                and condition.min is None
+                and condition.max is None
+            ):
                 raise ValueError("ast_node query 'length' requires equals, min, or max")
             return condition
         if kind == "contains":
@@ -372,7 +496,9 @@ class AstNodeCondition:
 
     def specificity(self) -> int:
         if self.kind == "contains_any":
-            return self.contains_any.specificity() if self.contains_any is not None else 0
+            return (
+                self.contains_any.specificity() if self.contains_any is not None else 0
+            )
         return 1
 
     def _matches_length(self, value: int) -> bool:
@@ -383,7 +509,9 @@ class AstNodeCondition:
         return not (self.max is not None and value > self.max)
 
 
-def _parse_expression_list(value: Any, *, operation: str) -> tuple[AstNodeExpression, ...]:
+def _parse_expression_list(
+    value: Any, *, operation: str
+) -> tuple[AstNodeExpression, ...]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"ast_node query {operation!r} requires a non-empty list")
     return tuple(AstNodeExpression.from_raw(item) for item in value)
@@ -397,14 +525,20 @@ def _parse_contains_any_expression_list(
     return tuple(ContainsAnyExpression.from_raw(item) for item in value)
 
 
-def _parse_types(value: Any) -> tuple[str, ...]:
+def _parse_type_list(value: Any, operation: str) -> tuple[str, ...]:
     if isinstance(value, str):
         return (value,)
     if isinstance(value, list):
         if not value:
-            raise ValueError("ast_node query type list must not be empty")
-        return tuple(_ensure_string(item, "ast_node query type item") for item in value)
-    raise ValueError("ast_node query item must contain type as a string or a non-empty list of strings")
+            raise ValueError(f"{operation} list must not be empty")
+        return tuple(_ensure_string(item, f"{operation} item") for item in value)
+    raise ValueError(f"{operation} must be a string or a non-empty list of strings")
+
+
+def _ensure_non_empty_types(types: tuple[str, ...]) -> tuple[str, ...]:
+    if not types:
+        raise ValueError("ast_node query type list must not be empty")
+    return types
 
 
 def _parse_path_value(value: Any, *, operation: str) -> str:
@@ -425,7 +559,9 @@ def _ensure_string(value: Any, field_name: str) -> str:
     return value
 
 
-def _iter_descendant_objects(value: Any, *, include_self: bool = True) -> Iterable[dict[str, Any]]:
+def _iter_descendant_objects(
+    value: Any, *, include_self: bool = True
+) -> Iterable[dict[str, Any]]:
     if isinstance(value, dict):
         for child in value.values():
             yield from _iter_descendant_objects(child)

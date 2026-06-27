@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -11,6 +12,8 @@ from src.json_property_path import ResolvedJSONPath, resolve_json_property_path
 from src.json_search import JSONPath, get_node_by_path
 from src.model.ast_node_query import AstNodeQuery, AstNodeQuerySource
 from src.types import JSON, Node
+
+type AstNodeTypeMatcher = Callable[[Node, str], bool]
 
 
 class InterruptionType(StrEnum):
@@ -161,7 +164,9 @@ class EffectDeclaration:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EffectDeclaration:
         return cls(
-            interruption_start=_coerce_interruption_type(data.get("interruption_start")),
+            interruption_start=_coerce_interruption_type(
+                data.get("interruption_start")
+            ),
             interruption_stop=_coerce_interruption_type(data.get("interruption_stop")),
             call_stack=_coerce_call_stack_action(data.get("call_stack")),
         )
@@ -195,7 +200,9 @@ class ActionDeclaration:
     generalization: str | None = None
     behaviour: Behaviour | None = None
     effects: EffectDeclaration | None = None
-    parent: ConstructDeclaration | None = field(default=None, init=False, repr=False, compare=False)
+    parent: ConstructDeclaration | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     @property
     def is_opaque(self):
@@ -228,7 +235,9 @@ class TransitionDeclaration:
     to_when_absent: str | list[str] | None = None
     constraints: ConstraintsDeclaration | None = None
     effects: EffectDeclaration | None = None
-    parent: ConstructDeclaration | None = field(default=None, init=False, repr=False, compare=False)
+    parent: ConstructDeclaration | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TransitionDeclaration:
@@ -275,18 +284,26 @@ class ConstructDeclaration:
         self.actions = _ensure_boundary_actions(self.actions)
         for action in self.actions:
             if action.parent is not None:
-                raise ValueError(f"Action {action.role!r} in construct {self.name!r} has multiple parents: {action.parent.name!r} and {self.name!r}")
+                raise ValueError(
+                    f"Action {action.role!r} in construct {self.name!r} has multiple parents: {action.parent.name!r} and {self.name!r}"
+                )
             action.parent = self
         for transition in self.transitions:
             if transition.parent is not None:
-                raise ValueError(f"Transition {transition.from_role!r}->{transition.to_role!r} in construct {self.name!r} has multiple parents: {transition.parent.name!r} and {self.name!r}")
+                raise ValueError(
+                    f"Transition {transition.from_role!r}->{transition.to_role!r} in construct {self.name!r} has multiple parents: {transition.parent.name!r} and {self.name!r}"
+                )
             transition.parent = self
 
     def applicable_to_language(self, language: str) -> bool:
         return not self.applicable_languages or language in self.applicable_languages
 
-    def matches_ast_node(self, node: Node) -> bool:
-        return self.ast_node_query.matches(node)
+    def matches_ast_node(
+        self,
+        node: Node,
+        type_matcher: AstNodeTypeMatcher | None = None,
+    ) -> bool:
+        return self.ast_node_query.matches(node, type_matcher=type_matcher)
 
     @property
     def ast_node_query(self) -> AstNodeQuery:
@@ -303,10 +320,16 @@ class ConstructDeclaration:
 
         for transition in self.transitions:
             expanded_from_roles = actions_by_generalization.get(transition.from_role)
-            from_roles = expanded_from_roles if expanded_from_roles is not None else [transition.from_role]
+            from_roles = (
+                expanded_from_roles
+                if expanded_from_roles is not None
+                else [transition.from_role]
+            )
             for from_role in from_roles:
                 compiled = _copy_transition(transition, from_role=from_role)
-                compiled.effects = _merge_effects(compiled.effects, effects_by_role.get(from_role))
+                compiled.effects = _merge_effects(
+                    compiled.effects, effects_by_role.get(from_role)
+                )
                 if compiled.to_role == "END":
                     compiled.effects = _merge_effects(compiled.effects, self.effects)
                 result.append(compiled)
@@ -317,9 +340,7 @@ class ConstructDeclaration:
         roles = {role}
         if action is None:
             roles.update(
-                action.role
-                for action in self.actions
-                if action.generalization == role
+                action.role for action in self.actions if action.generalization == role
             )
         return [
             transition
@@ -327,7 +348,9 @@ class ConstructDeclaration:
             if transition.from_role in roles
         ]
 
-    def compiled_transitions_for_action(self, action: ActionDeclaration) -> list[TransitionDeclaration]:
+    def compiled_transitions_for_action(
+        self, action: ActionDeclaration
+    ) -> list[TransitionDeclaration]:
         return [
             transition
             for transition in self.compiled_transitions()
@@ -354,8 +377,13 @@ class ConstructDeclaration:
             applicable_languages=list(data.get("applicable_languages", [])),
             metadata=Metadata.from_dict(data.get("metadata")),
             effects=_load_effect(data.get("effects")),
-            actions=[ActionDeclaration.from_dict(item) for item in data.get("actions", [])],
-            transitions=[TransitionDeclaration.from_dict(item) for item in data.get("transitions", [])],
+            actions=[
+                ActionDeclaration.from_dict(item) for item in data.get("actions", [])
+            ],
+            transitions=[
+                TransitionDeclaration.from_dict(item)
+                for item in data.get("transitions", [])
+            ],
         )
 
 
@@ -365,7 +393,9 @@ def load_construct_declarations(path: str | Path) -> list[ConstructDeclaration]:
     return load_construct_declarations_from_dict(raw_data)
 
 
-def load_construct_declarations_from_dict(data: dict[str, Any]) -> list[ConstructDeclaration]:
+def load_construct_declarations_from_dict(
+    data: dict[str, Any],
+) -> list[ConstructDeclaration]:
     declarations: list[ConstructDeclaration] = []
     for name, rule_data in data.items():
         if not _is_construct_rule_data(name, rule_data):
@@ -378,12 +408,15 @@ def load_construct_declarations_from_dict(data: dict[str, Any]) -> list[Construc
 
 
 def locate_construct_declaration_by_ast_node(
-    ast_data: str | Node, declarations: list[ConstructDeclaration], safe_mode: bool = True
+    ast_data: str | Node,
+    declarations: list[ConstructDeclaration],
+    safe_mode: bool = True,
+    type_matcher: AstNodeTypeMatcher | None = None,
 ) -> ConstructDeclaration | None:
     node: Node = {"type": ast_data} if isinstance(ast_data, str) else ast_data
     matches: list[ConstructDeclaration] = []
     for declaration in declarations:
-        if declaration.matches_ast_node(node):
+        if declaration.matches_ast_node(node, type_matcher=type_matcher):
             matches.append(declaration)
         if matches and not safe_mode:
             break
@@ -418,7 +451,9 @@ def _is_construct_rule_data(name: str, data: Any) -> bool:
     raise ValueError(f"Construct declaration {name!r} must contain {missing_key!r}")
 
 
-def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDeclaration | None:
+def _load_effect(
+    data: dict[str, Any] | list[dict[str, Any]] | None,
+) -> EffectDeclaration | None:
     if not data:
         return None
     if isinstance(data, dict):
@@ -428,12 +463,16 @@ def _load_effect(data: dict[str, Any] | list[dict[str, Any]] | None) -> EffectDe
     for item in data:
         for key, value in item.items():
             if key in merged and merged[key] != value:
-                raise ValueError(f"Conflicting effect value for {key!r}: {merged[key]!r} != {value!r}")
+                raise ValueError(
+                    f"Conflicting effect value for {key!r}: {merged[key]!r} != {value!r}"
+                )
             merged[key] = value
     return EffectDeclaration.from_dict(merged)
 
 
-def _ensure_boundary_actions(actions: list[ActionDeclaration]) -> list[ActionDeclaration]:
+def _ensure_boundary_actions(
+    actions: list[ActionDeclaration],
+) -> list[ActionDeclaration]:
     existing_roles = {action.role for action in actions}
     result: list[ActionDeclaration] = []
     if "BEGIN" not in existing_roles:
@@ -444,8 +483,14 @@ def _ensure_boundary_actions(actions: list[ActionDeclaration]) -> list[ActionDec
     return result
 
 
-def _copy_transition(transition: TransitionDeclaration, *, from_role: str) -> TransitionDeclaration:
-    to_when_absent = transition.to_when_absent.copy() if isinstance(transition.to_when_absent, list) else transition.to_when_absent
+def _copy_transition(
+    transition: TransitionDeclaration, *, from_role: str
+) -> TransitionDeclaration:
+    to_when_absent = (
+        transition.to_when_absent.copy()
+        if isinstance(transition.to_when_absent, list)
+        else transition.to_when_absent
+    )
     result = TransitionDeclaration(
         from_role=from_role,
         to_role=transition.to_role,
@@ -467,14 +512,20 @@ def _copy_effect(effect: EffectDeclaration | None) -> EffectDeclaration | None:
     )
 
 
-def _merge_effects(base: EffectDeclaration | None, added: EffectDeclaration | None) -> EffectDeclaration | None:
+def _merge_effects(
+    base: EffectDeclaration | None, added: EffectDeclaration | None
+) -> EffectDeclaration | None:
     if added is None:
         return base
     if base is None:
         return _copy_effect(added)
     return EffectDeclaration(
-        interruption_start=base.interruption_start if base.interruption_start is not None else added.interruption_start,
-        interruption_stop=base.interruption_stop if base.interruption_stop is not None else added.interruption_stop,
+        interruption_start=base.interruption_start
+        if base.interruption_start is not None
+        else added.interruption_start,
+        interruption_stop=base.interruption_stop
+        if base.interruption_stop is not None
+        else added.interruption_stop,
         call_stack=base.call_stack if base.call_stack is not None else added.call_stack,
     )
 
@@ -571,21 +622,30 @@ def _resolve_property_base_path(
     return current_path
 
 
-def _resolve_next_list_index(container_path: JSONPath, previous_path: JSONPath) -> int | None:
-    if len(previous_path) == len(container_path) + 1 and previous_path[: len(container_path)] == container_path:
+def _resolve_next_list_index(
+    container_path: JSONPath, previous_path: JSONPath
+) -> int | None:
+    if (
+        len(previous_path) == len(container_path) + 1
+        and previous_path[: len(container_path)] == container_path
+    ):
         last_step = previous_path[-1]
         if isinstance(last_step, int):
             return last_step + 1
     return None
 
 
-def _coerce_interruption_type(value: InterruptionType | str | None) -> InterruptionType | None:
+def _coerce_interruption_type(
+    value: InterruptionType | str | None,
+) -> InterruptionType | None:
     if value is None or isinstance(value, InterruptionType):
         return value
     return InterruptionType(value)
 
 
-def _coerce_call_stack_action(value: CallStackAction | str | None) -> CallStackAction | None:
+def _coerce_call_stack_action(
+    value: CallStackAction | str | None,
+) -> CallStackAction | None:
     if value is None or isinstance(value, CallStackAction):
         return value
     return CallStackAction(value)

@@ -26,7 +26,10 @@ def test_identification_resolve_json_ignores_parent_origin_for_property_path():
 
     resolved = identification.resolve_json(data, current_path=("root",))
 
-    assert resolved == ResolvedJSONPath(path=("root", "body", 0), value=data["root"]["body"][0]) # type: ignore
+    assert resolved == ResolvedJSONPath(
+        path=("root", "body", 0),
+        value={"type": "first"},
+    )
 
 
 def test_identification_resolve_json_supports_previous_origin_with_next_navigation():
@@ -36,19 +39,22 @@ def test_identification_resolve_json_supports_previous_origin_with_next_navigati
             {"condition": {"name": "b"}},
         ]
     }
-    identification = Identification(origin="previous", property_path="^ / [next] / condition")
+    identification = Identification(
+        origin="previous", property_path="^ / [next] / condition"
+    )
 
-    resolved = identification.resolve_json(data, previous_path=("branches", 0, "condition"))
+    resolved = identification.resolve_json(
+        data, previous_path=("branches", 0, "condition")
+    )
 
-    assert resolved == ResolvedJSONPath(path=("branches", 1, "condition"), value=data["branches"][1]["condition"]) # type: ignore
+    assert resolved == ResolvedJSONPath(
+        path=("branches", 1, "condition"),
+        value={"name": "b"},
+    )
 
 
 def test_identification_get_from_json_supports_direct_property_lookup():
-    data: JSON = {
-        "program": {
-            "elseBranch": {"type": "compound_statement"}
-        }
-    }
+    data: JSON = {"program": {"elseBranch": {"type": "compound_statement"}}}
     identification = Identification(origin="parent", property="elseBranch")
 
     value = identification.get_from_json(data, current_path=("program", "condition"))
@@ -67,7 +73,7 @@ def test_identification_resolve_json_supports_role_in_list_from_parent():
 
     resolved = identification.resolve_json(data, current_path=("branches", 1))
 
-    assert resolved == ResolvedJSONPath(path=("branches", 0), value=data["branches"][0]) # type: ignore
+    assert resolved == ResolvedJSONPath(path=("branches", 0), value=data["branches"][0])  # type: ignore
 
 
 def test_identification_resolve_json_supports_role_in_list_next_from_previous():
@@ -85,7 +91,7 @@ def test_identification_resolve_json_supports_role_in_list_next_from_previous():
         previous_path=("branches", 0),
     )
 
-    assert resolved == ResolvedJSONPath(path=("branches", 1), value=data["branches"][1]) # type: ignore
+    assert resolved == ResolvedJSONPath(path=("branches", 1), value=data["branches"][1])  # type: ignore
 
 
 def test_transition_declaration_loads_single_effect_from_legacy_list():
@@ -180,7 +186,9 @@ def test_construct_declaration_compiled_transitions_expand_generalization():
         ],
         transitions=[
             TransitionDeclaration(from_role="BEGIN", to_role="first"),
-            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+            TransitionDeclaration(
+                from_role="item", to_role="next", to_when_absent="END"
+            ),
         ],
     )
 
@@ -233,8 +241,12 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
             ActionDeclaration(role="body", kind="inline"),
         ],
         transitions=[
-            TransitionDeclaration(from_role="BEGIN", to_role="END", effects=transition_effect),
-            TransitionDeclaration(from_role="END", to_role="BEGIN", effects=transition_effect),
+            TransitionDeclaration(
+                from_role="BEGIN", to_role="END", effects=transition_effect
+            ),
+            TransitionDeclaration(
+                from_role="END", to_role="BEGIN", effects=transition_effect
+            ),
         ],
     )
 
@@ -271,7 +283,11 @@ def test_construct_declaration_compiled_transitions_merge_action_effect_into_all
 
     assert len(compiled) == 2
     assert all(transition.effects is not None for transition in compiled)
-    assert all(transition.effects.interruption_stop is InterruptionType.RETURN for transition in compiled if transition.effects)
+    assert all(
+        transition.effects.interruption_stop is InterruptionType.RETURN
+        for transition in compiled
+        if transition.effects
+    )
 
 
 def test_construct_declaration_compiled_transitions_do_not_mutate_original_declarations():
@@ -281,11 +297,18 @@ def test_construct_declaration_compiled_transitions_do_not_mutate_original_decla
         kind="compound",
         ast_node="sequence_node",
         actions=[
-            ActionDeclaration(role="first", kind="inline", generalization="item", effects=action_effect),
+            ActionDeclaration(
+                role="first",
+                kind="inline",
+                generalization="item",
+                effects=action_effect,
+            ),
             ActionDeclaration(role="next", kind="inline", generalization="item"),
         ],
         transitions=[
-            TransitionDeclaration(from_role="item", to_role="next", to_when_absent=["END"]),
+            TransitionDeclaration(
+                from_role="item", to_role="next", to_when_absent=["END"]
+            ),
         ],
     )
 
@@ -310,8 +333,14 @@ def test_construct_declaration_ast_node_query_matches_node_conditions():
                     "type": "program_entry_point",
                     "equals": {"path": "body / [0] / type", "value": "int_literal"},
                 },
-                {"type": "program_entry_point", "length": {"path": "body", "equals": 1}},
-                {"type": "program_entry_point", "contains": {"path": "tags", "value": "entry"}},
+                {
+                    "type": "program_entry_point",
+                    "length": {"path": "body", "equals": 1},
+                },
+                {
+                    "type": "program_entry_point",
+                    "contains": {"path": "tags", "value": "entry"},
+                },
             ],
         },
     )
@@ -340,7 +369,10 @@ def test_construct_declaration_ast_node_query_supports_contains_any():
             "query": [
                 {
                     "type": ["assignment_statement", "expression_statement"],
-                    "contains_any": {"key": "type", "value_in": ["function_call", "method_call"]},
+                    "contains_any": {
+                        "key": "type",
+                        "value_in": ["function_call", "method_call"],
+                    },
                 }
             ],
         },
@@ -401,7 +433,12 @@ def test_locate_construct_declaration_supports_ast_node_query():
             "empty_program": {
                 "kind": "compound.sequence.program",
                 "ast_node": {
-                    "query": [{"type": "program_entry_point", "length": {"path": "body", "equals": 0}}],
+                    "query": [
+                        {
+                            "type": "program_entry_point",
+                            "length": {"path": "body", "equals": 0},
+                        }
+                    ],
                 },
             },
         }
@@ -414,7 +451,90 @@ def test_locate_construct_declaration_supports_ast_node_query():
 
     assert matched is not None
     assert matched.name == "program"
-    assert locate_construct_declaration_by_ast_node("program_entry_point", declarations) is None
+    assert (
+        locate_construct_declaration_by_ast_node("program_entry_point", declarations)
+        is None
+    )
+
+
+def test_locate_construct_declaration_supports_top_level_instanceof():
+    declarations = load_construct_declarations_from_dict(
+        {
+            "statement": {
+                "kind": "inline",
+                "ast_node": {"instanceof": ["statement"]},
+            },
+        }
+    )
+    node = {"id": 1, "type": "assignment_statement"}
+
+    assert locate_construct_declaration_by_ast_node(node, declarations) is None
+
+    matched = locate_construct_declaration_by_ast_node(
+        node,
+        declarations,
+        type_matcher=lambda node, match_type: (
+            match_type == "statement" and node["type"] == "assignment_statement"
+        ),
+    )
+
+    assert matched is not None
+    assert matched.name == "statement"
+
+
+def test_locate_construct_declaration_supports_query_type_instanceof():
+    declarations = load_construct_declarations_from_dict(
+        {
+            "loop_with_body": {
+                "kind": "compound.loop",
+                "ast_node": {
+                    "query": [
+                        {
+                            "type": {"instanceof": "loop"},
+                            "exists": "body",
+                        }
+                    ]
+                },
+            },
+        }
+    )
+
+    matched = locate_construct_declaration_by_ast_node(
+        {"id": 1, "type": "while_loop", "body": {"id": 2, "type": "block"}},
+        declarations,
+        type_matcher=lambda node, match_type: (
+            match_type == "loop" and node["type"] == "while_loop"
+        ),
+    )
+
+    assert matched is not None
+    assert matched.name == "loop_with_body"
+
+
+def test_locate_construct_declaration_prefers_exact_type_over_instanceof():
+    declarations = load_construct_declarations_from_dict(
+        {
+            "statement": {
+                "kind": "inline",
+                "ast_node": {"instanceof": "statement"},
+            },
+            "assignment": {
+                "kind": "inline",
+                "ast_node": "assignment_statement",
+            },
+        }
+    )
+
+    matched = locate_construct_declaration_by_ast_node(
+        {"id": 1, "type": "assignment_statement"},
+        declarations,
+        type_matcher=lambda node, match_type: (
+            match_type == "statement" and node["type"] == "assignment_statement"
+        ),
+    )
+
+    assert matched is not None
+    assert matched.name == "assignment"
 
 
 def test_locate_construct_declaration_prefers_more_specific_ast_node_query():

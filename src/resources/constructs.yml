@@ -278,6 +278,8 @@ for_each_structure:
         locale_pronoun: "he"
     - role: cond
       kind: inline.condition
+      behaviour:
+        assumed_value: true
       metadata:
         locale_trace_name: "condition_for_each"
         locale_pronoun: "it"
@@ -560,6 +562,7 @@ inline_atom_ast_nodes: &inline_atom_ast_nodes
   - assignment_statement
   - expression_statement
   - int_literal
+  - bool_literal
   - add_operator
   - eq_operator
   - reference_eq_operator

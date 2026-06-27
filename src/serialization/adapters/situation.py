@@ -344,6 +344,8 @@ def _next_by_identity[T](chain: list[T], item: T) -> T | None:
 
 
 def _ast_type(obj: Action | Construct) -> str:
+    if isinstance(obj, Action) and obj.ast_type is not None:
+        return obj.ast_type
     node = obj.ast_node
     ast_type = node.get("type") if node else None
     return ast_type if isinstance(ast_type, str) else ""

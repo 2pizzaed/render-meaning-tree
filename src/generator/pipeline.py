@@ -466,9 +466,39 @@ class DomainDataGeneratorPipeline(Pipeline):
             construct.ast_node,
             previous_path=previous_path,
         )
-        child = cast(Node, resolved_path.value) if resolved_path else None
-        path = resolved_path.path if resolved_path else None
-        return child, path
+        if resolved_path is not None:
+            return cast(Node, resolved_path.value), resolved_path.path
+        if _has_assumed_value(action_decl):
+            return self._lookup_node_without_identification(
+                construct, action_decl, previous_path
+            )
+        return None, None
+
+    def _add_assumed_action(
+        self,
+        construct: Construct,
+        action_decl: ActionDeclaration,
+        assumed_value: bool,
+    ) -> Action:
+        for existing in self.get_related_actions(construct):
+            if (
+                existing.ast_id == 0
+                and existing.rule is action_decl
+                and existing.assumed_value == assumed_value
+            ):
+                return existing
+
+        action = Action(
+            ast_id=0,
+            values=[assumed_value],
+            rule=action_decl,
+            parent=construct,
+            owner=self,
+            ast_type="bool_literal",
+            assumed_value=assumed_value,
+        )
+        self.add(action)
+        return action
 
     @pipeline_stage(3)
     def _fill_actions(self):
@@ -494,10 +524,39 @@ class DomainDataGeneratorPipeline(Pipeline):
 
             resolve_decl = automaton.action_by_role(role)
             materialize_decl = automaton.action_by_role(materialize_role)
-            child, path = self._resolve_action_node(
-                construct, resolve_decl, previous_path
-            )
+            try:
+                child, path = self._resolve_action_node(
+                    construct, resolve_decl, previous_path
+                )
+            except ValueError:
+                if not _has_assumed_value(resolve_decl):
+                    raise
+                child, path = None, None
             if child is None:
+                assumed_value = _assumed_value(resolve_decl)
+                if assumed_value is not None:
+                    action_key = (materialize_role, 0)
+                    if action_key in visited:
+                        continue
+                    visited.add(action_key)
+
+                    self._add_assumed_action(
+                        construct,
+                        materialize_decl,
+                        assumed_value,
+                    )
+                    for transition in automaton.transitions_from(materialize_role):
+                        absent_roles = _transition_absent_roles(transition)
+                        queue.append(
+                            (
+                                transition.to_role,
+                                transition.to_role,
+                                previous_path,
+                                absent_roles,
+                            )
+                        )
+                    continue
+
                 # Если основной target отсутствует, идем по to_when_absent от
                 # того же предыдущего occurrence.
                 queue.extend(
@@ -638,9 +697,9 @@ class DomainDataGeneratorPipeline(Pipeline):
         for action in (
             action for actions in self.registry.actions.values() for action in actions
         ):
-            action.values = _bool_values_for_action(action.rule, action.parent.rule)
+            action.values = _values_for_action(action)
         for action in self.registry.anonymous_actions:
-            action.values = _bool_values_for_action(action.rule, action.parent.rule)
+            action.values = _values_for_action(action)
 
 
 def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:
@@ -670,6 +729,24 @@ def _format_lookup_conditions(
     elif construct_ast_id is not None:
         parts.append(f"construct_ast_id={construct_ast_id!r}")
     return ", ".join(parts) if parts else "no conditions"
+
+
+def _has_assumed_value(action_decl: ActionDeclaration) -> bool:
+    return _assumed_value(action_decl) is not None
+
+
+def _assumed_value(action_decl: ActionDeclaration) -> bool | None:
+    return (
+        action_decl.behaviour.assumed_value
+        if action_decl.behaviour is not None
+        else None
+    )
+
+
+def _values_for_action(action: Action) -> list[bool]:
+    if action.assumed_value is not None:
+        return [action.assumed_value]
+    return _bool_values_for_action(action.rule, action.parent.rule)
 
 
 def _bool_values_for_action(

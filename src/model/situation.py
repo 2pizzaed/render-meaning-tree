@@ -49,6 +49,8 @@ class Action:
     parent: Construct
     owner: SituationContext
     effects: EffectDeclaration | None = None
+    ast_type: str | None = None
+    assumed_value: bool | None = None
 
     @property
     def chain(self) -> list[Action]:

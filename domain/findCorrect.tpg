@@ -31,7 +31,10 @@ fragment findLastTracedAction(last: TraceAct) {
     // фрагмент поиска "реального" последнего действия, от которого будет происходить дальнейший поиск следующего корректного
 
     // было начато прерывание, нужно последовательно выходить из всех конструктов, пока не найдем остановку прерывания
-    while (S.interruption_mode != InterruptionType:none) {
+    while (
+        S.interruption_mode != InterruptionType:none 
+        and last->hasAction->belongsTo->derivedFrom.name != "global_statements_structure"
+    ) {
         body -> {
         // Найти последнее действие последнего вложенного конструкта, из которого еще не вышли
         var current: ConcreteAction = (findExtreme act [$act == last or $act=>isCloserToThan(last, $prev)] among TraceAct prev {

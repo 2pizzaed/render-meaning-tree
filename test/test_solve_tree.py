@@ -155,7 +155,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["body", "first"],
             3: ["next"],
         },
-        [(1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (3, 0)],
+        [(1, 1), (2, 1), (3, 0)],
         "python_break.loqi",
     ),
     (
@@ -170,7 +170,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["body", "first"],
             3: ["next"],
         },
-        [(1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (3, 0)],
+        [(1, 1), (2, 1), (1, 1), (3, 0)],
         "python_continue.loqi",
     ),
     (
@@ -190,7 +190,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             5: ["func"],
             6: ["func_body", "first"],
         },
-        [(6, 1), (2, 1)],
+        [(2, 1)],
         "python_sequential_function_calls.loqi",
     ),
     (
@@ -362,7 +362,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             4: ["first"],
             6: ["next"],
         },
-        [(1, 0), (2, 1), (4, 0), (2, 1), (4, 0), (2, 1), (6, 0)],
+        [(1, 0), (2, 1), (4, 0), (6, 0)],
         "cpp_break.loqi",
     ),
     (
@@ -381,7 +381,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             4: ["first"],
             6: ["next"],
         },
-        [(1, 0), (2, 1), (4, 0), (2, 1), (4, 0), (2, 1), (6, 0)],
+        [(1, 0), (2, 1), (4, 0), (2, 1), (6, 0)],
         "cpp_continue.loqi",
     ),
     (
@@ -409,7 +409,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             11: ["first"],
             12: ["next"],
         },
-        [(7, 0), (3, 0), (12, 0)],
+        [(3, 0), (12, 0)],
         "cpp_sequential_function_calls.loqi",
     ),
     (
@@ -606,7 +606,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 1), (3, 0), (2, 1), (3, 0), (2, 1), (5, 0)],
+        [(1, 0), (2, 1), (3, 0), (5, 0)],
         "java_break.loqi",
     ),
     (
@@ -628,7 +628,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 1), (3, 0), (2, 1), (3, 0), (2, 1), (5, 0)],
+        [(1, 0), (2, 1), (3, 0), (2, 1), (5, 0)],
         "java_continue.loqi",
     ),
     (
@@ -654,7 +654,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             9: ["func_body"],
             10: ["first"],
         },
-        [(6, 0), (2, 0)],
+        [(2, 0)],
         "java_sequential_function_calls.loqi",
     ),
     (
@@ -904,7 +904,7 @@ def test_plain_statements(tmp_path: Path):
         second_node.id,
         third_node.id,
     ]
-    trace_state_history: list[tuple[TraceAct, InterruptionType]] = []
+    trace_state_history: list[tuple[int, InterruptionType]] = []
 
     registry.variables["P"] = registry.trace_acts[0]
     pipeline_debug_json_artifacts(
@@ -1056,7 +1056,7 @@ def _assert_solve_sequence(
 ) -> None:
     pipeline, registry = _build_registry(code, language=language)
     _apply_action_value_patches(registry, value_patches)
-    trace_state_history: list[tuple[TraceAct, InterruptionType]] = []
+    trace_state_history: list[tuple[int, InterruptionType]] = []
     pipeline_debug_json_artifacts(
         tmp_path,
         pipeline,
@@ -1107,7 +1107,7 @@ def _write_final_loqi_trace_artifacts(
     pipeline: DomainDataGeneratorPipeline,
     *,
     loqi_filename: str,
-    trace_act_interruptions: list[tuple[TraceAct, InterruptionType]] | None = None,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
 ) -> Path:
     _serializer, loqi_file = pipeline_to_loqi_files(
         tmp_path,
@@ -1137,7 +1137,7 @@ def _advance_until_expected_action(
     expected_action: Action,
     *,
     loqi_filename: str,
-    trace_act_interruptions: list[tuple[TraceAct, InterruptionType]] | None = None,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
 ) -> ReasoningResult:
     serializer, _ = pipeline_to_loqi_files(
         tmp_path,
@@ -1197,7 +1197,7 @@ def _solve_once(
     pipeline: DomainDataGeneratorPipeline,
     *,
     loqi_filename: str,
-    trace_act_interruptions: list[tuple[TraceAct, InterruptionType]] | None = None,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
 ) -> ReasoningResult:
     _serializer, loqi_file = pipeline_to_loqi_files(
         tmp_path,
@@ -1242,7 +1242,7 @@ def _solve_once(
             and restored_trace_acts
         ):
             trace_act_interruptions.append(
-                (restored_trace_acts[-1], restored_trace_state.interruption_mode)
+                (len(restored_trace_acts) - 1, restored_trace_state.interruption_mode)
             )
         _write_trace_artifacts(
             tmp_path,
@@ -1260,7 +1260,7 @@ def _solve_once(
     assert trace_acts
     if trace_state.interruption_mode is not InterruptionType.NONE:
         if trace_act_interruptions is not None:
-            trace_act_interruptions.append((trace_acts[-1], trace_state.interruption_mode))
+            trace_act_interruptions.append((len(trace_acts) - 1, trace_state.interruption_mode))
 
     assert pipeline.registry.variables["P"] is trace_acts[-1]
     return solve_output
@@ -1279,7 +1279,7 @@ def _write_trace_artifacts(
     trace_acts: list[TraceAct],
     loqi_content: str,
     *,
-    trace_act_interruptions: list[tuple[TraceAct, InterruptionType]] | None = None,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
 ) -> None:
     render_trace_acts_artifacts(
         tmp_path,

@@ -10,7 +10,7 @@ pytest_plugins = ("test.helpers.fixtures",)
 
 load_project_env()
 
-MAX_PYTEST_RUN_DIRS = 3
+MAX_PYTEST_RUN_DIRS = 10
 
 
 def pytest_configure(config):

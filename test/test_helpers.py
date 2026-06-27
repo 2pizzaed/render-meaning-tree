@@ -162,6 +162,6 @@ def test_trace_acts_to_dot_labels_edges_for_non_none_interruption_mode() -> None
     trace_acts = pipeline.registry.trace_acts
     dot = trace_acts_to_dot(
         trace_acts,
-        trace_act_interruptions=[(trace_acts[0], InterruptionType.BREAK)],
+        trace_act_interruptions=[(0, InterruptionType.BREAK)],
     )
-    assert "interruption_mode: break" in dot
+    assert "break" in dot

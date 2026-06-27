@@ -17,14 +17,14 @@ from test.helpers.env import write_text_file
 def trace_acts_to_dot(
     trace_acts: Sequence[TraceAct],
     name: str = "trace_acts",
-    trace_act_interruptions: Sequence[tuple[TraceAct, InterruptionType]] | None = None,
+    trace_act_interruptions: Sequence[tuple[int, InterruptionType]] | None = None,
 ) -> str:
     """Построить DOT-граф цепочки TraceAct с группировкой по construct."""
     diagram = DotDiagram(name, palette=DEFAULT_DOT_PALETTE)
     construct_clusters: dict[int, str] = {}
-    interruption_modes_by_trace_key = {
-        _trace_act_key(trace_act): interruption_mode
-        for trace_act, interruption_mode in trace_act_interruptions or ()
+    interruption_modes_by_index: dict[int, InterruptionType] = {
+        trace_act_index: interruption_mode
+        for trace_act_index, interruption_mode in trace_act_interruptions or ()
     }
 
     for index, trace_act in enumerate(trace_acts):
@@ -66,16 +66,13 @@ def trace_acts_to_dot(
             **node_attrs,
         )
         if index > 0:
-            previous_trace_act = trace_acts[index - 1]
             edge_attrs: dict[str, str] = {}
-            interruption_mode = interruption_modes_by_trace_key.get(
-                _trace_act_key(previous_trace_act)
-            )
+            interruption_mode = interruption_modes_by_index.get(index - 1)
             if (
                 interruption_mode is not None
                 and interruption_mode is not InterruptionType.NONE
             ):
-                edge_attrs["label"] = f"interruption_mode: {interruption_mode.value}"
+                edge_attrs["label"] = interruption_mode.value
             diagram.add_edge(f"trace_act_{index - 1}", node_id, **edge_attrs)
 
     return diagram.to_string()
@@ -85,7 +82,7 @@ def render_trace_acts_artifacts(
     dir: Path,
     trace_acts: Sequence[TraceAct],
     filename_stem: str = "trace-acts",
-    trace_act_interruptions: Sequence[tuple[TraceAct, InterruptionType]] | None = None,
+    trace_act_interruptions: Sequence[tuple[int, InterruptionType]] | None = None,
 ) -> tuple[Path, Path]:
     """Сохранить DOT и PNG для цепочки TraceAct в указанную директорию."""
     dot_text = trace_acts_to_dot(
@@ -122,15 +119,6 @@ def _trim_code_snippet(
         clipped = clipped[:max_chars].rstrip()
         return f"{clipped}\n..."
     return clipped
-
-
-def _trace_act_key(trace_act: TraceAct) -> tuple[str, str, int, int | None]:
-    return (
-        trace_act.action.parent.rule.name,
-        trace_act.action.rule.role,
-        trace_act.chain_order,
-        trace_act.action.ast_id,
-    )
 
 
 def _trace_action_title(action: Action) -> str:

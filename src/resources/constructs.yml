@@ -225,7 +225,7 @@ for_structure:
     - interruption_stop: break
   actions:
     - role: init
-      kind: inline
+      kind: inline.optional
     - role: cond
       kind: inline.condition
       metadata:
@@ -238,7 +238,7 @@ for_structure:
       effects:
         - interruption_stop: continue
     - role: update
-      kind: inline
+      kind: inline.optional
   transitions:
     - from: BEGIN
       to: init

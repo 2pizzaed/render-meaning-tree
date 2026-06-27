@@ -281,6 +281,8 @@ class ConstructTransitionAutomaton:
                 f"Construct {self.construct.name!r} references unknown action roles: {', '.join(unknown_roles)}"
             )
 
+        self._validate_optional_removal_graph()
+
         infinite_loops = [loop for loop in self._loops if not loop.exit_roles]
         if infinite_loops:
             loop_roles = ", ".join(
@@ -376,6 +378,37 @@ class ConstructTransitionAutomaton:
             result.update(_absent_roles(transition))
         return result
 
+    def _validate_optional_removal_graph(self) -> None:
+        optional_roles = {
+            action.role
+            for action in self.actions_by_role.values()
+            if action.is_optional
+        }
+        if not optional_roles:
+            return
+
+        for transition in self.transitions:
+            if transition.to_role in optional_roles and not _absent_roles(transition):
+                raise ConstructAutomatonValidationError(
+                    f"Construct {self.construct.name!r} transition {transition.from_role!r}->{transition.to_role!r} "
+                    f"targets optional action without to_when_absent"
+                )
+
+        edges_without_optional = _remove_optional_roles_from_edges(
+            self.transitions,
+            optional_roles,
+        )
+        infinite_loops = [
+            loop for loop in _find_loops(edges_without_optional) if not loop.exit_roles
+        ]
+        if infinite_loops:
+            loop_roles = ", ".join(
+                "{" + ", ".join(sorted(loop.roles)) + "}" for loop in infinite_loops
+            )
+            raise ConstructAutomatonValidationError(
+                f"Construct {self.construct.name!r} has non-terminating transition loops after optional actions are removed: {loop_roles}"
+            )
+
 
 def _group_transitions_by_from(
     transitions: Iterable[TransitionDeclaration],
@@ -393,6 +426,22 @@ def _group_edges_by_from(
     for transition in transitions:
         grouped.setdefault(transition.from_role, set()).add(transition.to_role)
         grouped[transition.from_role].update(_absent_roles(transition))
+    return grouped
+
+
+def _remove_optional_roles_from_edges(
+    transitions: Iterable[TransitionDeclaration],
+    optional_roles: set[str],
+) -> dict[str, set[str]]:
+    grouped: dict[str, set[str]] = {}
+    for transition in transitions:
+        if transition.from_role in optional_roles:
+            continue
+        targets = set(_absent_roles(transition))
+        if transition.to_role not in optional_roles:
+            targets.add(transition.to_role)
+        if targets:
+            grouped.setdefault(transition.from_role, set()).update(targets)
     return grouped
 
 

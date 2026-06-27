@@ -214,6 +214,10 @@ class ActionDeclaration:
     def kind_classes(self) -> set[str]:
         return set(self.kind.split("."))
 
+    @property
+    def is_optional(self) -> bool:
+        return "optional" in self.kind_classes
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ActionDeclaration:
         return cls(
@@ -333,7 +337,7 @@ class ConstructDeclaration:
                 if compiled.to_role == "END":
                     compiled.effects = _merge_effects(compiled.effects, self.effects)
                 result.append(compiled)
-        return result
+        return _add_optional_absent_targets(result, self.actions)
 
     def compiled_transitions_from_role(self, role: str) -> list[TransitionDeclaration]:
         action = self.action_declaration_by_role(role)
@@ -500,6 +504,36 @@ def _copy_transition(
     )
     result.parent = transition.parent
     return result
+
+
+def _add_optional_absent_targets(
+    transitions: list[TransitionDeclaration],
+    actions: list[ActionDeclaration],
+) -> list[TransitionDeclaration]:
+    optional_roles = {action.role for action in actions if action.is_optional}
+    if not optional_roles:
+        return transitions
+
+    targets_by_optional_role: dict[str, list[str]] = {}
+    for transition in transitions:
+        if transition.from_role not in optional_roles:
+            continue
+        targets_by_optional_role.setdefault(transition.from_role, []).append(
+            transition.to_role
+        )
+
+    for transition in transitions:
+        if transition.to_when_absent is not None:
+            continue
+        if transition.to_role not in optional_roles:
+            continue
+        skip_targets = targets_by_optional_role.get(transition.to_role, [])
+        if not skip_targets:
+            continue
+        transition.to_when_absent = (
+            skip_targets[0] if len(skip_targets) == 1 else skip_targets.copy()
+        )
+    return transitions
 
 
 def _copy_effect(effect: EffectDeclaration | None) -> EffectDeclaration | None:

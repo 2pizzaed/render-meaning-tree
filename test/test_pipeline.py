@@ -669,6 +669,50 @@ def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
     assert cond_actions[0].values == [True]
 
 
+def test_domain_pipeline_fill_actions_skips_absent_optional_action():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "general_for_loop",
+            "condition": {"id": 11, "type": "identifier"},
+        },
+        11: {"id": 11, "type": "identifier"},
+    }.get(ast_id)
+    pipeline = DomainDataGeneratorPipeline(manager)
+    rule = ConstructDeclaration(
+        name="for_structure",
+        kind="compound.loop",
+        ast_node="for_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="init", kind="inline.optional"),
+            ActionDeclaration(
+                role="cond",
+                kind="inline.condition",
+                identification=Identification(property="condition"),
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="init"),
+            TransitionDeclaration(from_role="init", to_role="cond"),
+            TransitionDeclaration(from_role="cond", to_role="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline)
+    pipeline.add(construct)
+
+    pipeline._fill_actions()
+    pipeline._generate_bool_values()
+
+    assert pipeline.get_actions_for(0) == []
+    assert construct.action_by_role("init") == []
+    cond_actions = pipeline.get_actions_for(11)
+    assert len(cond_actions) == 1
+    assert cond_actions[0].rule.role == "cond"
+
+
 def test_domain_pipeline_fill_actions_creates_multiple_actions_for_self_loop_role():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {

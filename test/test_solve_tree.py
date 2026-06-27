@@ -189,8 +189,9 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["func_body", "first"],
             5: ["func"],
             6: ["func_body", "first"],
+            7: ["first"]
         },
-        [(2, 1)],
+        [(7, 0), (2, 1)],
         "python_sequential_function_calls.loqi",
     ),
     (

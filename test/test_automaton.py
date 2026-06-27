@@ -64,6 +64,54 @@ def test_construct_automaton_first_and_next_step_are_simple_to_use():
     assert done is None
 
 
+def test_construct_automaton_adds_absent_transition_for_optional_target():
+    construct = ConstructDeclaration(
+        name="for_loop",
+        kind="compound.loop",
+        ast_node="for_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="init", kind="inline.optional"),
+            ActionDeclaration(role="cond", kind="inline.condition"),
+            ActionDeclaration(role="body", kind="compound"),
+            ActionDeclaration(role="update", kind="inline.optional"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="init"),
+            TransitionDeclaration(from_role="init", to_role="cond"),
+            TransitionDeclaration(from_role="cond", to_role="body"),
+            TransitionDeclaration(from_role="body", to_role="update"),
+            TransitionDeclaration(from_role="update", to_role="cond"),
+            TransitionDeclaration(from_role="cond", to_role="END"),
+        ],
+    )
+
+    automaton = ConstructTransitionAutomaton(construct)
+
+    assert automaton.transitions_from("BEGIN")[0].to_when_absent == "cond"
+    assert automaton.transitions_from("body")[0].to_when_absent == "cond"
+
+
+def test_construct_automaton_rejects_optional_target_without_skip_path():
+    construct = ConstructDeclaration(
+        name="bad_optional",
+        kind="compound",
+        ast_node="bad_optional_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="maybe", kind="inline.optional"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="maybe"),
+        ],
+    )
+
+    with pytest.raises(ConstructAutomatonValidationError, match="optional action"):
+        ConstructTransitionAutomaton(construct)
+
+
 def test_construct_automaton_marks_self_loop_iterations_with_explicit_step():
     construct = ConstructDeclaration(
         name="sequence",

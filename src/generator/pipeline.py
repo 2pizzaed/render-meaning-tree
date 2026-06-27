@@ -526,7 +526,14 @@ class DomainDataGeneratorPipeline(Pipeline):
         # action occurrence для identification вида "next".
         queue: deque[tuple[str, str, JSONPath | None, tuple[str, ...]]] = deque()
         for transition in automaton.transitions_from("BEGIN"):
-            queue.append((transition.to_role, transition.to_role, None, ()))
+            queue.append(
+                (
+                    transition.to_role,
+                    transition.to_role,
+                    None,
+                    _transition_absent_roles(transition),
+                )
+            )
 
         # Одна роль может найтись в нескольких AST path (sequence next / elif),
         # но один и тот же (role, path) нельзя разворачивать бесконечно.
@@ -543,7 +550,9 @@ class DomainDataGeneratorPipeline(Pipeline):
                     construct, resolve_decl, previous_path
                 )
             except ValueError:
-                if not _has_assumed_value(resolve_decl):
+                if not _has_assumed_value(resolve_decl) and not _is_optional_action(
+                    resolve_decl
+                ):
                     raise
                 child, path = None, None
             if child is None:
@@ -751,6 +760,10 @@ def _format_lookup_conditions(
 
 def _has_assumed_value(action_decl: ActionDeclaration) -> bool:
     return _assumed_value(action_decl) is not None
+
+
+def _is_optional_action(action_decl: ActionDeclaration) -> bool:
+    return action_decl.is_optional
 
 
 def _assumed_value(action_decl: ActionDeclaration) -> bool | None:

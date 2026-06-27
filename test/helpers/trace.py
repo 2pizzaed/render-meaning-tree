@@ -14,7 +14,7 @@ from src.model.situation import Action, SemanticValue, TraceAct, TraceState
 from test.helpers.actions import _registry_for
 
 _TRACE_ACT_OBJECT_RE = re.compile(
-    r"(?:var\s+\w+\s*=\s*)?obj\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*TraceAct\s*\{(?P<body>.*?)\}",
+    r"(?:var\s+(?P<var_name>\w+)\s*=\s*)?obj\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*TraceAct\s*\{(?P<body>.*?)\}",
     re.DOTALL,
 )
 _TRACE_ACT_REF_RE = re.compile(
@@ -40,6 +40,7 @@ class _TraceActSpec:
     value_name: str | None
     next_name: str | None
     source_order: int
+    variable_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +156,7 @@ def _parse_trace_act_specs(loqi_text: str) -> list[_TraceActSpec]:
                 value_name=refs.get("hasValue"),
                 next_name=refs.get("directlyBeforeOf"),
                 source_order=index,
+                variable_name=match.group("var_name"),
             )
         )
     return trace_specs

@@ -18,6 +18,7 @@ def trace_acts_to_dot(
     trace_acts: Sequence[TraceAct],
     name: str = "trace_acts",
     trace_act_interruptions: Sequence[tuple[int, InterruptionType]] | None = None,
+    solver_stops: set[int] | None = None,
 ) -> str:
     """Построить DOT-граф цепочки TraceAct с группировкой по construct."""
     diagram = DotDiagram(name, palette=DEFAULT_DOT_PALETTE)
@@ -58,7 +59,8 @@ def trace_acts_to_dot(
             if action_snippet:
                 label_parts += ["", _trim_code_snippet(action_snippet)]
         label = multiline_label(*label_parts)
-        node_attrs = _trace_action_node_attrs(action)
+        is_solver_stop = solver_stops is not None and index in solver_stops
+        node_attrs = _trace_action_node_attrs(action, solver_stop=is_solver_stop)
         diagram.add_node(
             node_id,
             label=label,
@@ -83,12 +85,14 @@ def render_trace_acts_artifacts(
     trace_acts: Sequence[TraceAct],
     filename_stem: str = "trace-acts",
     trace_act_interruptions: Sequence[tuple[int, InterruptionType]] | None = None,
+    solver_stops: set[int] | None = None,
 ) -> tuple[Path, Path]:
     """Сохранить DOT и PNG для цепочки TraceAct в указанную директорию."""
     dot_text = trace_acts_to_dot(
         trace_acts,
         name=filename_stem,
         trace_act_interruptions=trace_act_interruptions,
+        solver_stops=solver_stops,
     )
     dot_path = write_text_file(dir, dot_text, f"{filename_stem}.dot")
     png_path = dir / f"{filename_stem}.png"
@@ -125,7 +129,16 @@ def _trace_action_title(action: Action) -> str:
     return f"{action.parent.rule.name}.{action.rule.role}"
 
 
-def _trace_action_node_attrs(action: Action) -> dict[str, str]:
+def _trace_action_node_attrs(
+    action: Action, *, solver_stop: bool = False,
+) -> dict[str, str]:
+    if solver_stop:
+        return {
+            "fillcolor": "#fef9c3",
+            "color": "#b45309",
+            "penwidth": "3.0",
+            "style": "rounded,filled,bold",
+        }
     if action.rule.role == "BEGIN":
         return {"fillcolor": "#e0f2fe", "color": "#0284c7"}
     if action.rule.role == "END":

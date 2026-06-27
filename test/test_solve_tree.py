@@ -1070,6 +1070,7 @@ def _assert_solve_sequence(
     ]
     actions.append(end_action)
 
+    solver_stops: set[int] = set()
     for expected_action in actions:
         solve_output = _advance_until_expected_action(
             tmp_path,
@@ -1080,12 +1081,16 @@ def _assert_solve_sequence(
         )
         if expected_action is not end_action:
             assert solve_output.variables["T"].startswith("object transition_")
+        p_act = pipeline.registry.variables.get("P")
+        if isinstance(p_act, TraceAct) and p_act in pipeline.registry.trace_acts:
+            solver_stops.add(pipeline.registry.trace_acts.index(p_act))
 
     _write_final_loqi_trace_artifacts(
         tmp_path,
         pipeline,
         loqi_filename=loqi_filename,
         trace_act_interruptions=trace_state_history,
+        solver_stops=solver_stops,
     )
 
 
@@ -1109,6 +1114,7 @@ def _write_final_loqi_trace_artifacts(
     *,
     loqi_filename: str,
     trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
+    solver_stops: set[int] | None = None,
 ) -> Path:
     _serializer, loqi_file = pipeline_to_loqi_files(
         tmp_path,
@@ -1123,6 +1129,7 @@ def _write_final_loqi_trace_artifacts(
         trace_acts,
         filename_stem=f"{Path(loqi_filename).stem}-trace-acts",
         trace_act_interruptions=trace_act_interruptions,
+        solver_stops=solver_stops,
     )
     pipeline_debug_json_artifacts(
         tmp_path,

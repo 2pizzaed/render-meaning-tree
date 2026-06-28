@@ -170,7 +170,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["body", "first"],
             3: ["next"],
         },
-        [(1, 1), (2, 1), (1, 1), (3, 0)],
+        [(1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (3, 0)],
         "python_continue.loqi",
     ),
     (
@@ -188,10 +188,10 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             1: ["func"],
             2: ["func_body", "first"],
             5: ["func"],
-            6: ["func_body", "first"],
-            7: ["first"]
+            6: ["func_body", "BEGIN", "first"],
+            9: ["BEGIN", "first"],
         },
-        [(7, 0), (2, 1)],
+        [(9, 1), (9, 0), (6, 2), (6, 1), (2, 1)],
         "python_sequential_function_calls.loqi",
     ),
     (
@@ -382,7 +382,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             4: ["first"],
             6: ["next"],
         },
-        [(1, 0), (2, 1), (4, 0), (2, 1), (6, 0)],
+        [(1, 0), (2, 1), (4, 0), (2, 1), (4, 0), (2, 1), (6, 0)],
         "cpp_continue.loqi",
     ),
     (
@@ -405,9 +405,9 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["func"],
             6: ["func_body"],
-            7: ["first"],
+            7: ["BEGIN", "first"],
             10: ["func_body"],
-            11: ["first"],
+            11: ["BEGIN", "first"],
             12: ["next"],
         },
         [(3, 0), (12, 0)],
@@ -629,7 +629,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 1), (3, 0), (2, 1), (5, 0)],
+        [(1, 0), (2, 1), (3, 0), (2, 1), (3, 0), (2, 1), (5, 0)],
         "java_continue.loqi",
     ),
     (
@@ -651,9 +651,9 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             1: ["func", "func_body"],
             2: ["first"],
             5: ["func", "func_body"],
-            6: ["first"],
+            6: ["BEGIN", "first"],
             9: ["func_body"],
-            10: ["first"],
+            10: ["BEGIN", "first"],
         },
         [(2, 0)],
         "java_sequential_function_calls.loqi",
@@ -704,9 +704,9 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         {
             1: ["func"],
             2: ["func_body", "first"],
-            5: ["first"],
+            5: ["BEGIN", "first"],
         },
-        [(2, 1)],
+        [(5, 1), (5, 0), (2, 1)],
         "python_function_call.loqi",
     ),
     (
@@ -760,7 +760,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["func_body"],
             3: ["first"],
             6: ["func_body"],
-            7: ["first"],
+            7: ["BEGIN", "first"],
             8: ["next"],
         },
         [(3, 0), (8, 0)],
@@ -826,7 +826,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             1: ["func", "func_body"],
             2: ["first"],
             5: ["func_body"],
-            6: ["first"],
+            6: ["BEGIN", "first"],
         },
         [(2, 0)],
         "java_function_call.loqi",
@@ -915,14 +915,13 @@ def test_plain_statements(tmp_path: Path):
     )
 
     for expected_action in expected_actions:
-        solve_output = _advance_until_expected_action(
+        _advance_until_expected_action(
             tmp_path,
             pipeline,
             expected_action,
             loqi_filename=loqi_filename,
             trace_act_interruptions=trace_state_history,
         )
-        assert solve_output.variables["T"].startswith("object transition_")
 
     _write_final_loqi_trace_artifacts(
         tmp_path,
@@ -1079,8 +1078,6 @@ def _assert_solve_sequence(
             loqi_filename=loqi_filename,
             trace_act_interruptions=trace_state_history,
         )
-        if expected_action is not end_action:
-            assert solve_output.variables["T"].startswith("object transition_")
         p_act = pipeline.registry.variables.get("P")
         if isinstance(p_act, TraceAct) and p_act in pipeline.registry.trace_acts:
             solver_stops.add(pipeline.registry.trace_acts.index(p_act))

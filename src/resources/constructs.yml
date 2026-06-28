@@ -483,10 +483,11 @@ return_compound_action:
       opaque: true
     - role: content
       opaque: false
-      kind: auto
+      kind: optional
   transitions:
     - from: BEGIN
       to: content
+      to_when_absent: END
     - from: content
       to: content
       to_when_absent: END
@@ -616,10 +617,11 @@ inline_compound_atom_structure:
       opaque: true
     - role: content
       opaque: false
-      kind: auto
+      kind: optional
   transitions:
     - from: BEGIN
       to: content
+      to_when_absent: END
     - from: content
       to: content
       to_when_absent: END

@@ -176,6 +176,23 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
             });
         };
         true -> {
+            ask (not N->derivedFrom.is_opaque) out false else {
+                conclude : null with ({
+                    // Т.к. действие до BEGIN прозрачное, то это не остановка
+                    L = +obj : TraceAct (
+                        {
+                            hasAction(N);
+                            hasTransition(T);
+                            (N=>hasValue()) ? hasValue(actionValue);
+                        }
+                    );
+                    Prev +=> directlyBeforeOf(L);
+                    Prev = L;
+                    if (N=>hasValue()) actionValue.used = true;
+                    if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
+                    if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+                });
+            };
             conclude : true with ({
                 // Только само действие
                 P = +obj : TraceAct (

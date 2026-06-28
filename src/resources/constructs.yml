@@ -423,11 +423,14 @@ func_def_structure:
 # --------------------------------
 func_call_structure:
   kind: inline.call
-  ast_node: ['function_call'] #TODO: add methods
+  ast_node: ['function_call', 'method_call']
   metadata:
     locale_trace_name: "function_call"
     locale_pronoun: "he"
   actions:
+    - role: BEGIN
+      kind: auto
+      opaque: true
     - role: name
       kind: identifier
       identification:
@@ -438,6 +441,7 @@ func_call_structure:
       effects:
         - interruption_stop: return
     - role: END
+      opaque: true
       kind: END
       effects:
         - interruption_stop: return
@@ -478,9 +482,6 @@ return_compound_action:
             'method_call' # могут быть другие вложенные конструкты
           ]
   actions:
-    - role: BEGIN
-      kind: auto
-      opaque: true
     - role: content
       opaque: false
       kind: optional
@@ -612,9 +613,6 @@ inline_compound_atom_structure:
             'method_call' # могут быть другие вложенные конструкты
           ]
   actions:
-    - role: BEGIN
-      kind: auto
-      opaque: true
     - role: content
       opaque: false
       kind: optional

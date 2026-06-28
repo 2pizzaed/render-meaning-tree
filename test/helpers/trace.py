@@ -4,6 +4,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from src.generator.helpers.actions import _registry_for
 from src.generator.pipeline import (
     DomainDataGeneratorPipeline,
     SituationDomainDataRegistry,
@@ -11,7 +12,6 @@ from src.generator.pipeline import (
 from src.generator.utilities import registry_to_loqi
 from src.model.rules import InterruptionType, TransitionDeclaration
 from src.model.situation import Action, SemanticValue, TraceAct, TraceState
-from test.helpers.actions import _registry_for
 
 _TRACE_ACT_OBJECT_RE = re.compile(
     r"(?:var\s+(?P<var_name>\w+)\s*=\s*)?obj\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*TraceAct\s*\{(?P<body>.*?)\}",

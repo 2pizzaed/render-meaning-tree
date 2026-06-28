@@ -1,4 +1,6 @@
-from test.helpers.actions import (
+from src.generator.helpers.actions import (
+    ActionLinePosition,
+    action_line_position,
     add_trace_act_for_action,
     add_trace_act_for_line,
     line_actions,
@@ -31,6 +33,8 @@ from test.helpers.trace import (
 __all__ = [
     "OPEN_TEST_ARTIFACTS_ENV_VAR",
     "TEST_OUTPUT_DIR_ENV_VAR",
+    "ActionLinePosition",
+    "action_line_position",
     "add_trace_act_for_action",
     "add_trace_act_for_line",
     "code_snippet_to_loqi_files",

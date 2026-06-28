@@ -1,6 +1,5 @@
 from src.generator.helpers.actions import (
     ActionLinePosition,
-    _registry_for,
     action_line_position,
     add_trace_act_for_action,
     add_trace_act_for_line,
@@ -10,7 +9,6 @@ from src.generator.helpers.actions import (
 
 __all__ = [
     "ActionLinePosition",
-    "_registry_for",
     "action_line_position",
     "add_trace_act_for_action",
     "add_trace_act_for_line",

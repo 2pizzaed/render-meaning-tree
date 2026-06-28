@@ -112,6 +112,31 @@ def test_construct_automaton_rejects_optional_target_without_skip_path():
         ConstructTransitionAutomaton(construct)
 
 
+def test_construct_automaton_does_not_guess_ambiguous_optional_skip_path():
+    construct = ConstructDeclaration(
+        name="ambiguous_optional",
+        kind="compound",
+        ast_node="ambiguous_optional_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="maybe", kind="inline.optional"),
+            ActionDeclaration(role="left", kind="inline"),
+            ActionDeclaration(role="right", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="maybe"),
+            TransitionDeclaration(from_role="maybe", to_role="left"),
+            TransitionDeclaration(from_role="maybe", to_role="right"),
+            TransitionDeclaration(from_role="left", to_role="END"),
+            TransitionDeclaration(from_role="right", to_role="END"),
+        ],
+    )
+
+    with pytest.raises(ConstructAutomatonValidationError, match="optional action"):
+        ConstructTransitionAutomaton(construct)
+
+
 def test_construct_automaton_marks_self_loop_iterations_with_explicit_step():
     construct = ConstructDeclaration(
         name="sequence",

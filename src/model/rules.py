@@ -515,6 +515,8 @@ def _copy_transition(
 def _add_optional_absent_targets(
     transitions: list[TransitionDeclaration],
     actions: list[ActionDeclaration],
+    *,
+    strict: bool = True,
 ) -> list[TransitionDeclaration]:
     optional_roles = {action.role for action in actions if action.is_optional}
     if not optional_roles:
@@ -535,6 +537,8 @@ def _add_optional_absent_targets(
             continue
         skip_targets = targets_by_optional_role.get(transition.to_role, [])
         if not skip_targets:
+            continue
+        if strict and len(skip_targets) != 1:
             continue
         transition.to_when_absent = (
             skip_targets[0] if len(skip_targets) == 1 else skip_targets.copy()

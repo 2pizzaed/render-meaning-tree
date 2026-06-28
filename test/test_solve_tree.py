@@ -410,7 +410,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             11: ["BEGIN", "first"],
             12: ["next"],
         },
-        [(3, 0), (12, 0)],
+        [(11, 1), (11, 0), (7, 1), (7, 0), (3, 0), (12, 0)],
         "cpp_sequential_function_calls.loqi",
     ),
     (
@@ -655,7 +655,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             9: ["func_body"],
             10: ["BEGIN", "first"],
         },
-        [(2, 0)],
+        [(10, 1), (10, 0), (6, 1), (6, 0), (2, 0)],
         "java_sequential_function_calls.loqi",
     ),
     (
@@ -763,7 +763,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             7: ["BEGIN", "first"],
             8: ["next"],
         },
-        [(3, 0), (8, 0)],
+        [(7, 1), (7, 0), (3, 0), (8, 0)],
         "cpp_function_call.loqi",
     ),
     (
@@ -828,7 +828,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             5: ["func_body"],
             6: ["BEGIN", "first"],
         },
-        [(2, 0)],
+        [(6, 1), (6, 0), (2, 0)],
         "java_function_call.loqi",
     ),
 ]

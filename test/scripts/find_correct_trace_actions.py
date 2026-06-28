@@ -139,7 +139,14 @@ def _is_root_end_action(
     action: Action,
 ) -> bool:
     entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
-    return action.ast_id == entry_point_id and action.rule.role == "END"
+    entry_point = pipeline.get_construct_for(entry_point_id)
+    if entry_point is None:
+        return False
+    return (
+        action.rule.role == "END"
+        and entry_point.rule.name == "global_statements_structure"
+        and action.ast_id == entry_point.ast_id
+    )
 
 
 def _read_code(args: argparse.Namespace) -> str:

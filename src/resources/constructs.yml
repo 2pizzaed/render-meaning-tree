@@ -191,10 +191,14 @@ do_while_structure:
   actions:
     - role: body
       kind: compound
+      identification:
+        property: body
       effects:
         - interruption_stop: continue
     - role: cond
       kind: inline.condition
+      identification:
+        property: condition
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -225,19 +229,27 @@ for_structure:
     - interruption_stop: break
   actions:
     - role: init
+      identification:
+        property: "initializer"
       kind: inline.optional
     - role: cond
       kind: inline.condition
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
+      identification:
+        property: "condition"
       behaviour:
         assumed_value: true
     - role: body
       kind: compound
+      identification:
+        property: body
       effects:
         - interruption_stop: continue
     - role: update
+      identification:
+        property: "update"
       kind: inline.optional
   transitions:
     - from: BEGIN

@@ -48,6 +48,17 @@ fragment findLastTracedAction(last: TraceAct) {
             conclude: error [exception = true; exceptionName = "UnclosedInterruption"];
         };
 
+        // Если эффекты текущего действия останавливают текущее прерывание — не выходим из конструкта
+        ask (current->derivedFrom=>hasEffects() and (
+            current->derivedFrom->hasEffects.interruption_stop == S.interruption_mode or
+            current->derivedFrom->hasEffects.interruption_stop == InterruptionType:any
+        )) out false else {
+            conclude: null with ({
+                applyInterruptionMode(current->derivedFrom->hasEffects, S);
+                if (current=>hasEffects()) applyInterruptionMode(current->hasEffects, S);
+            });
+        };
+
         var exit: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "END" and $a->belongsTo == current->belongsTo
         };
@@ -167,14 +178,15 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
         true -> {
             conclude : true with ({
                 // Только само действие
-                L = +obj : TraceAct (
+                P = +obj : TraceAct (
                     {
                         hasAction(N);
                         hasTransition(T);
                         (N=>hasValue()) ? hasValue(actionValue);
                     }
                 );
-                Prev +=> directlyBeforeOf(L);
+                Prev +=> directlyBeforeOf(P);
+                L = P;
                 Prev = L;
                 if (N=>hasValue()) actionValue.used = true;
                 if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
@@ -302,12 +314,13 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                 } out true else { conclude : error [exception = true;];};
                 var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
                 conclude: true with ({
-                    L = +obj : TraceAct (
+                    P = +obj : TraceAct (
                         {
                             hasAction(A);
                         }
                     );
-                    Prev +=> directlyBeforeOf(L);
+                    Prev +=> directlyBeforeOf(P);
+                    L = P;
                     if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
                     if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
                 });

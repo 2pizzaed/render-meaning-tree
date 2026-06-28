@@ -420,7 +420,7 @@ wheels = [
 [[package]]
 name = "render-meaning-tree"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "colorama" },

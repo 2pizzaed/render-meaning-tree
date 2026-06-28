@@ -11,7 +11,7 @@ from src.dot import (
 )
 from src.model.rules import InterruptionType
 from src.model.situation import Action, Construct, TraceAct
-from test.helpers.env import write_text_file
+from test.helpers.env import should_output_dot_png, write_text_file
 
 
 def trace_acts_to_dot(
@@ -96,7 +96,8 @@ def render_trace_acts_artifacts(
     )
     dot_path = write_text_file(dir, dot_text, f"{filename_stem}.dot")
     png_path = dir / f"{filename_stem}.png"
-    render_dot_png(dot_text, png_path)
+    if should_output_dot_png():
+        render_dot_png(dot_text, png_path)
     return dot_path, png_path
 
 

@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 import test.helpers.dot as helpers_dot_module
+import test.helpers.pipeline as helpers_pipeline_module
 from src.generator.utilities import code_snippet_to_pipeline, pipeline_to_loqi
 from src.model.rules import InterruptionType
 from test.helpers import (
@@ -149,6 +150,60 @@ y = 2
     assert "role:" in dot
     assert dot_path.exists()
     assert png_path.exists()
+
+
+def test_trace_acts_to_dot_skips_png_when_png_dot_output_disabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    code = """
+x = 1
+"""
+    pipeline = code_snippet_to_pipeline(code, language="python")
+    add_trace_act_for_line(pipeline, 1)
+
+    monkeypatch.setenv("PNG_DOT_OUTPUT", "0")
+
+    def fail_render_dot_png(_dot_text: str, _path: Path) -> Path:
+        raise AssertionError("render_dot_png should not be called when PNG is disabled")
+
+    monkeypatch.setattr(helpers_dot_module, "render_dot_png", fail_render_dot_png)
+
+    trace_acts = pipeline.registry.trace_acts
+    output_dir = resolve_test_output_dir(tmp_path)
+    dot_path, png_path = render_trace_acts_artifacts(
+        output_dir,
+        trace_acts,
+        filename_stem="trace-act-graph",
+    )
+
+    assert dot_path.exists()
+    assert not png_path.exists()
+
+
+def test_pipeline_debug_json_artifacts_skips_png_when_png_dot_output_disabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    code = """
+x = 1
+"""
+    pipeline = code_snippet_to_pipeline(code, language="python")
+    monkeypatch.setenv("PNG_DOT_OUTPUT", "false")
+
+    def fail_render_dot_png(_dot_text: str, _path: Path) -> Path:
+        raise AssertionError("render_dot_png should not be called when PNG is disabled")
+
+    monkeypatch.setattr(helpers_pipeline_module, "render_dot_png", fail_render_dot_png)
+
+    artifacts = helpers_pipeline_module.pipeline_debug_json_artifacts(
+        tmp_path,
+        pipeline,
+        filename_stem="pipeline",
+    )
+
+    assert "meaning_tree_dot" in artifacts
+    assert "meaning_tree_png" not in artifacts
 
 
 def test_trace_acts_to_dot_labels_edges_for_non_none_interruption_mode() -> None:

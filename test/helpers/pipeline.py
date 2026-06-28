@@ -20,7 +20,7 @@ from src.meaning_tree import to_dot
 from src.serialization.loqi import LoqiSerializer
 from src.tpg_domain import validate_domain_loqi
 from src.types import JSON
-from test.helpers.env import write_text_file
+from test.helpers.env import should_output_dot_png, write_text_file
 
 
 def code_snippet_to_loqi_files(
@@ -97,10 +97,11 @@ def pipeline_debug_json_artifacts(
             f"{filename_stem}-meaning-tree.dot",
         )
         paths["meaning_tree_dot"] = dot_path
-        paths["meaning_tree_png"] = render_dot_png(
-            meaning_tree_dot,
-            directory / f"{filename_stem}-meaning-tree.png",
-        )
+        if should_output_dot_png():
+            paths["meaning_tree_png"] = render_dot_png(
+                meaning_tree_dot,
+                directory / f"{filename_stem}-meaning-tree.png",
+            )
     return paths
 
 

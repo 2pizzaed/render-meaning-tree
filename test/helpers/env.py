@@ -8,6 +8,7 @@ from pathlib import Path
 
 TEST_OUTPUT_DIR_ENV_VAR = "DOMAIN_BUILD_OUTPUT_DIR"
 OPEN_TEST_ARTIFACTS_ENV_VAR = "OPEN_TEST_ARTIFACTS"
+PNG_DOT_OUTPUT_ENV_VAR = "PNG_DOT_OUTPUT"
 
 
 def resolve_project_root(start: str | Path | None = None) -> Path:
@@ -50,6 +51,14 @@ def write_text_file(
 def should_open_test_artifacts(default: bool = False) -> bool:
     """Нужно ли открывать тестовые артефакты во внешнем viewer."""
     configured = os.getenv(OPEN_TEST_ARTIFACTS_ENV_VAR)
+    if configured is None:
+        return default
+    return configured.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def should_output_dot_png(default: bool = True) -> bool:
+    """Нужно ли сохранять PNG-артефакты для dot-рендера."""
+    configured = os.getenv(PNG_DOT_OUTPUT_ENV_VAR)
     if configured is None:
         return default
     return configured.strip().lower() in {"1", "true", "yes", "on"}

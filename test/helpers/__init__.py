@@ -9,11 +9,13 @@ from src.generator.helpers.actions import (
 from test.helpers.dot import render_trace_acts_artifacts, trace_acts_to_dot
 from test.helpers.env import (
     OPEN_TEST_ARTIFACTS_ENV_VAR,
+    PNG_DOT_OUTPUT_ENV_VAR,
     TEST_OUTPUT_DIR_ENV_VAR,
     open_file_and_wait,
     resolve_project_root,
     resolve_test_output_dir,
     should_open_test_artifacts,
+    should_output_dot_png,
     write_text_file,
 )
 from test.helpers.pipeline import (
@@ -32,6 +34,7 @@ from test.helpers.trace import (
 
 __all__ = [
     "OPEN_TEST_ARTIFACTS_ENV_VAR",
+    "PNG_DOT_OUTPUT_ENV_VAR",
     "TEST_OUTPUT_DIR_ENV_VAR",
     "ActionLinePosition",
     "action_line_position",
@@ -49,6 +52,7 @@ __all__ = [
     "resolve_test_output_dir",
     "restore_trace_from_loqi",
     "should_open_test_artifacts",
+    "should_output_dot_png",
     "trace_acts_from_loqi",
     "trace_acts_to_dot",
     "trace_state_from_loqi",

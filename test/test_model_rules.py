@@ -132,6 +132,28 @@ def test_action_declaration_loads_explicit_opaque_flag():
     assert not action.is_opaque
 
 
+def test_action_declaration_allows_explicit_opaque_boundary_roles():
+    begin = ActionDeclaration.from_dict(
+        {"role": "BEGIN", "kind": "custom.begin", "opaque": True}
+    )
+    end = ActionDeclaration.from_dict(
+        {"role": "END", "kind": "custom.end", "opaque": True}
+    )
+
+    assert begin.is_opaque
+    assert end.is_opaque
+
+
+def test_action_declaration_defaults_to_transparent_boundary_roles():
+    begin = ActionDeclaration.from_dict({"role": "BEGIN", "kind": "custom.begin"})
+    end = ActionDeclaration.from_dict({"role": "END", "kind": "custom.end"})
+    body = ActionDeclaration.from_dict({"role": "body", "kind": "inline"})
+
+    assert not begin.is_opaque
+    assert not end.is_opaque
+    assert body.is_opaque
+
+
 def test_construct_declaration_from_dict_adds_missing_boundary_actions():
     construct = ConstructDeclaration.from_dict(
         "demo",
@@ -171,6 +193,23 @@ def test_construct_declaration_from_dict_keeps_explicit_boundary_actions():
         ("body", "inline"),
         ("END", "custom.end"),
     ]
+
+
+def test_construct_declaration_from_dict_keeps_boundary_actions_explicit_opaque():
+    construct = ConstructDeclaration.from_dict(
+        "demo",
+        {
+            "kind": "compound",
+            "ast_node": "demo_node",
+            "actions": [
+                {"role": "BEGIN", "kind": "custom.begin", "opaque": True},
+                {"role": "body", "kind": "inline"},
+                {"role": "END", "kind": "custom.end", "opaque": True},
+            ],
+        },
+    )
+
+    assert [action.is_opaque for action in construct.actions] == [True, True, True]
 
 
 def test_construct_declaration_compiled_transitions_expand_generalization():

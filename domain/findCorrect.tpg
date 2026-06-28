@@ -149,15 +149,19 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
         Prev +=> directlyBeforeOf(L);
         Prev = L;
         if (N=>hasValue()) actionValue.used = true;
-        // Затем то, во что оно разворачивается (BEGIN нового конструкта)
-        L = +obj : TraceAct (
-            {
-                hasAction(A);
-            }
-        );
-        Prev +=> directlyBeforeOf(L);
         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
         if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+        // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное
+        if (not A->derivedFrom.is_opaque) {
+            L = +obj : TraceAct (
+                {
+                    hasAction(A);
+                }
+            );
+            Prev +=> directlyBeforeOf(L);
+            if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
+            if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
+        }
     });
 }
 
@@ -256,6 +260,38 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                 conclude: true with (P = L) [
                     // все вычислено
                 ];
+            };
+
+            var C: ConcreteConstruct = find ConcreteConstruct c {
+                forAny ConcreteAction a {$a=>belongsTo($c) and $a->derivedFrom.role == "BEGIN" and $a->derivedFrom.is_opaque} and // только для непрозрачных BEGIN
+                last->hasAction->derivedFrom.role != "BEGIN" and
+                last->hasAction->derivedFrom.role != "END" and
+                $c.ast_id == last->hasAction.ast_id and
+                // если только он уже не развернут (нет BEGIN без парного END) (не сработает для рекурсии!)
+                not forAny TraceAct t {
+                    $t->hasAction->belongsTo == $c
+                    and $t->hasAction->derivedFrom.role == "BEGIN"
+                    and not forAny TraceAct e {
+                        $e->hasAction->belongsTo == $c
+                        and $e->hasAction->derivedFrom.role == "END"
+                        and $e=>afterOf($t)
+                    }
+                }
+            } out false else {
+                var A: ConcreteAction = find ConcreteAction c {
+                    $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
+                } out true else { conclude : error [exception = true;];};
+                var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
+                conclude: true with ({
+                    L = +obj : TraceAct (
+                        {
+                            hasAction(A);
+                        }
+                    );
+                    Prev +=> directlyBeforeOf(L);
+                    if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
+                    if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
+                });
             };
 
             `fragment`:findLastTracedAction(L) out true, null; // присоединяем выходы true, null из фрагмента в этот поток

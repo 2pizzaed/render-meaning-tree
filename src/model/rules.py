@@ -15,6 +15,8 @@ from src.types import JSON, Node
 
 type AstNodeTypeMatcher = Callable[[Node, str], bool]
 
+_BOUNDARY_ACTION_ROLES = {"BEGIN", "END"}
+
 
 class InterruptionType(StrEnum):
     BREAK = "break"
@@ -205,10 +207,10 @@ class ActionDeclaration:
     )
 
     @property
-    def is_opaque(self):
+    def is_opaque(self) -> bool:
         if self.opaque is not None:
             return self.opaque
-        return self.role != "BEGIN" and self.role != "END"
+        return _default_action_opaque(self.role)
 
     @property
     def kind_classes(self) -> set[str]:
@@ -485,6 +487,10 @@ def _ensure_boundary_actions(
     if "END" not in existing_roles:
         result.append(ActionDeclaration(role="END", kind="END"))
     return result
+
+
+def _default_action_opaque(role: str) -> bool:
+    return role not in _BOUNDARY_ACTION_ROLES
 
 
 def _copy_transition(

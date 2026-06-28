@@ -137,32 +137,51 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
     var actionValue: SemanticValue = findUnusedValue(N) {
         true, false -> out;
     };
-    conclude : null with ({
-        // Сначала само действие
-        L = +obj : TraceAct (
-            {
-                hasAction(N);
-                hasTransition(T);
-                (N=>hasValue()) ? hasValue(actionValue);
-            }
-        );
-        Prev +=> directlyBeforeOf(L);
-        Prev = L;
-        if (N=>hasValue()) actionValue.used = true;
-        if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
-        if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
-        // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное
-        if (not A->derivedFrom.is_opaque) {
-            L = +obj : TraceAct (
-                {
-                    hasAction(A);
-                }
-            );
-            Prev +=> directlyBeforeOf(L);
-            if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
-            if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
-        }
-    });
+    ask (A->derivedFrom.is_opaque) {
+        false -> {
+            conclude : null with ({
+                // Сначала само действие
+                L = +obj : TraceAct (
+                    {
+                        hasAction(N);
+                        hasTransition(T);
+                        (N=>hasValue()) ? hasValue(actionValue);
+                    }
+                );
+                Prev +=> directlyBeforeOf(L);
+                Prev = L;
+                if (N=>hasValue()) actionValue.used = true;
+                if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
+                if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+                // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное
+                L = +obj : TraceAct (
+                    {
+                        hasAction(A);
+                    }
+                );
+                Prev +=> directlyBeforeOf(L);
+                if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
+                if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
+            });
+        };
+        true -> {
+            conclude : true with ({
+                // Только само действие
+                L = +obj : TraceAct (
+                    {
+                        hasAction(N);
+                        hasTransition(T);
+                        (N=>hasValue()) ? hasValue(actionValue);
+                    }
+                );
+                Prev +=> directlyBeforeOf(L);
+                Prev = L;
+                if (N=>hasValue()) actionValue.used = true;
+                if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
+                if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
+            });
+        };
+    }
 }
 
 fragment classifyAction(N: ConcreteAction) {

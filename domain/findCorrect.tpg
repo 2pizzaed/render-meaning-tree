@@ -264,9 +264,9 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
 
             var C: ConcreteConstruct = find ConcreteConstruct c {
                 forAny ConcreteAction a {$a=>belongsTo($c) and $a->derivedFrom.role == "BEGIN" and $a->derivedFrom.is_opaque} and // только для непрозрачных BEGIN
-                last->hasAction->derivedFrom.role != "BEGIN" and
-                last->hasAction->derivedFrom.role != "END" and
-                $c.ast_id == last->hasAction.ast_id and
+                L->hasAction->derivedFrom.role != "BEGIN" and
+                L->hasAction->derivedFrom.role != "END" and
+                $c.ast_id == L->hasAction.ast_id and
                 // если только он уже не развернут (нет BEGIN без парного END) (не сработает для рекурсии!)
                 not forAny TraceAct t {
                     $t->hasAction->belongsTo == $c

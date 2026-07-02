@@ -574,38 +574,26 @@ try_except_structure:
 inline_atom_ast_nodes: &inline_atom_ast_nodes
   - identifier
   - variable_declaration
-  - not_eq_operator
-  - not_operator
+  - expression
   - assignment_statement
   - expression_statement
-  - int_literal
-  - bool_literal
-  - add_operator
-  - eq_operator
-  - reference_eq_operator
-  - lt_operator
-  - gt_operator
-  - le_operator
-  - ge_operator
-  - contains_operator
-  - short_circuit_and_operator
-  - short_circuit_or_operator
   - multiple_assignment_statement
   - range
-  - compound_comparison
-  - parenthesized_expression
   # TODO: add new here
 
 
 inline_atom_structure:
   kind: inline
-  ast_node: *inline_atom_ast_nodes
+  ast_node: 
+    instanceof:
+      *inline_atom_ast_nodes
 
 inline_compound_atom_structure:
   kind: inline.compound
   ast_node:
     query:
-      - type: *inline_atom_ast_nodes
+      - type:
+          instanceof: *inline_atom_ast_nodes
         contains_any:
           key: "type"
           value_in: [

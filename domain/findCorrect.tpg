@@ -346,16 +346,57 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
             `fragment`:findLastTracedAction(L) out true, null; // присоединяем выходы true, null из фрагмента в этот поток
         
             // Ищем переход внутри конструкта последнего действия, который соответствует условиям прерывания, значения условия
+            // Фаза 1: максимально специфичный — и interruption_mode, и condition_value совпадают
             var T: TransitionSpec = find TransitionSpec t {
                 $t->from_ == L->hasAction->derivedFrom and
                 $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
-                (not $t=>hasConstraints() or (
-                    S.interruption_mode == $t->hasConstraints.interruption_mode 
-                    or $t->hasConstraints.interruption_mode == InterruptionType:any
-                )) and (not L=>hasValue() or 
-                    findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
-                )
-            } out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
+                $t=>hasConstraints() and
+                S.interruption_mode == $t->hasConstraints.interruption_mode and
+                $t->hasConstraints.interruption_mode != InterruptionType:any and
+                L=>hasValue() and
+                findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
+            } out true else {
+                // Фаза 2: частично специфичный — interruption_mode ИЛИ condition_value
+                var T: TransitionSpec = find TransitionSpec t {
+                    $t->from_ == L->hasAction->derivedFrom and
+                    $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
+                    $t=>hasConstraints() and (
+                        S.interruption_mode == $t->hasConstraints.interruption_mode
+                        and $t->hasConstraints.interruption_mode != InterruptionType:any
+                    ) and (
+                        not L=>hasValue() or
+                        findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
+                    )
+                } out true else {
+                    // Фаза 2b: только condition_value специфичен
+                    var T: TransitionSpec = find TransitionSpec t {
+                        $t->from_ == L->hasAction->derivedFrom and
+                        $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
+                        $t=>hasConstraints() and (
+                            S.interruption_mode == $t->hasConstraints.interruption_mode
+                            or $t->hasConstraints.interruption_mode == InterruptionType:any
+                        ) and (
+                            L=>hasValue() and
+                            findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
+                        )
+                    } out true else {
+                        // Фаза 3: fallback — без constraints или any
+                        var T: TransitionSpec = find TransitionSpec t {
+                            $t->from_ == L->hasAction->derivedFrom and
+                            $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
+                            (not $t=>hasConstraints() or (
+                                S.interruption_mode == $t->hasConstraints.interruption_mode 
+                                or $t->hasConstraints.interruption_mode == InterruptionType:any
+                            )) and (not L=>hasValue() or 
+                                findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
+                            )
+                        } out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
+                        merge;
+                    };
+                    merge;
+                };
+                merge;
+            };
 
             // По найденному переходу ищем конкретное действие
             var N: ConcreteAction = find ConcreteAction a {

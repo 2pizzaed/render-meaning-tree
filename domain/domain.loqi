@@ -211,3 +211,14 @@ class TraceState {
 	RU.localizedName = "состояние трассировки" ;
 	EN.localizedName = "trace state" ;
 ]
+
+class TraceConfigSpec {
+	obj prop stopOnOpaque: bool ; // остановить поиск следующего действия перед первым непрозрачным действием (т.е. пройти только прозрачные действия)
+} [
+	RU.localizedName = "конфигурация трассировки" ;
+	EN.localizedName = "trace configuration" ;
+]
+
+obj TraceConfig : TraceConfigSpec {
+	stopOnOpaque = true ;
+}

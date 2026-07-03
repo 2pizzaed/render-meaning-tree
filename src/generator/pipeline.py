@@ -355,6 +355,18 @@ class DomainDataGeneratorPipeline(Pipeline):
             for construct in self.registry.rules
             if construct.applicable_to_language(self.manager.language)
         ]
+        self._patch_rules_for_language()
+
+    def _patch_rules_for_language(self) -> None:
+        if self.manager.language == "python":
+            return
+
+        for construct in self.registry.rules:
+            if "block" not in construct.kind_classes:
+                continue
+            for action in construct.actions:
+                if action.role in {"BEGIN", "END"}:
+                    action.opaque = True
 
     def _build_construct(self, ast_id: int, node: Node) -> Construct | None:
         if ast_id in self.registry.constructs:

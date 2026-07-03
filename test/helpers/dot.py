@@ -133,21 +133,29 @@ def _trace_action_title(action: Action) -> str:
 def _trace_action_node_attrs(
     action: Action, *, solver_stop: bool = False,
 ) -> dict[str, str]:
-    if solver_stop:
-        return {
-            "fillcolor": "#fef9c3",
-            "color": "#b45309",
-            "penwidth": "3.0",
-            "style": "rounded,filled,bold",
-        }
+    attrs: dict[str, str] = {}
+    style_parts = ["rounded", "filled"]
     if action.rule.role == "BEGIN":
-        return {"fillcolor": "#e0f2fe", "color": "#0284c7"}
-    if action.rule.role == "END":
-        return {"fillcolor": "#fee2e2", "color": "#dc2626"}
+        attrs.update({"fillcolor": "#e0f2fe", "color": "#0284c7"})
+    elif action.rule.role == "END":
+        attrs.update({"fillcolor": "#fee2e2", "color": "#dc2626"})
+    elif solver_stop:
+        attrs["fillcolor"] = "#fef9c3"
+
     if not action.is_opaque:
-        return {
-            "fillcolor": DEFAULT_DOT_PALETTE.transparent_node_fill,
-            "color": "#9ca3af",
-            "style": "rounded,filled,dashed",
-        }
-    return {}
+        if "fillcolor" not in attrs:
+            attrs["fillcolor"] = DEFAULT_DOT_PALETTE.transparent_node_fill
+        style_parts.append("diagonals")
+
+    if solver_stop:
+        attrs.update(
+            {
+                "color": "#b45309",
+                "penwidth": "3.0",
+            }
+        )
+        style_parts.append("bold")
+
+    if style_parts != ["rounded", "filled"]:
+        attrs["style"] = ",".join(style_parts)
+    return attrs

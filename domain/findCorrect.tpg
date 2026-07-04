@@ -217,6 +217,10 @@ fragment classifyAction(N: ConcreteAction) {
     // если действие является непрозрачным
     ask (N->derivedFrom.is_opaque) {
         true -> {
+            // если нужно не захватывать непрозрачные действия в трассу, то останавливаемся
+            ask (obj:TraceConfig.stop_on_opaque) out false else {
+                conclude : true with (P = L); 
+            };
             var C: ConcreteConstruct = find ConcreteConstruct c {$c.ast_id == N.ast_id} {
                 true -> {
                     // если действие разворачивается в новый конструкт, то его первое прозрачное действие и есть следующее действие

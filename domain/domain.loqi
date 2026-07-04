@@ -162,7 +162,8 @@ class ConcreteConstruct : ASTEntity {
 
     rel derivedFrom(ConstructSpec): {* -> 1};
 	
-	rel hasParent(ConcreteConstruct) : {* -> 1};
+	rel hasParent(ConcreteConstruct) : partial ; // прямой родитель (many-to-one -> лес конструктов)
+	rel hasAncestor(ConcreteConstruct) : transitive to hasParent ; // все конструкты-предки (транзитивное замыкание hasParent)
 } [
 	RU.localizedName = "конструкция" ;
 	EN.localizedName = "construct" ;

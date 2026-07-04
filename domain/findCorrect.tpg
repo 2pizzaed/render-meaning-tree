@@ -9,7 +9,7 @@ lambda applyInterruptionMode(E: EffectDeclaration, S: TraceState) =
                 S.interruption_mode == E.interruption_stop
             )
                 ? S.interruption_mode = InterruptionType:none // остановить прерывание
-                : S.interruption_mode // ничего не делать
+                : (S.interruption_mode = S.interruption_mode) // ничего не делать (self-assign в скобках: ветви ternary одного типа bool; скобки обязательны из-за приоритета =)
     );
 
 lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
@@ -20,10 +20,10 @@ lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
 
 // чтобы поддерживать порядок из нескольких to_when_absent
 lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_absent()) (findExtreme present [
-    $present=>isCloserToThan(T->to_when_absent, $a) or $present == T->to_when_absent
-] among ActionSpecChainPlaceholder a {
-    ($a=>afterOf(T->to_when_absent) or $a == T->to_when_absent) and 
-    forAny ConcreteAction aa {C=>hasActions($aa) and $aa=>derivedFrom($a->contains)}
+    $present=>isCloserToThan(T->to_when_absent, $ap) or $present == T->to_when_absent
+] among ActionSpecChainPlaceholder ap {
+    ($ap=>afterOf(T->to_when_absent) or $ap == T->to_when_absent) and 
+    forAny ConcreteAction aa {C=>hasActions($aa) and $aa=>derivedFrom($ap->contains)}
 })->contains else T->to_;
 
 
@@ -62,7 +62,7 @@ fragment findLastTracedAction(last: TraceAct) {
         var exit: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "END" and $a->belongsTo == current->belongsTo
         };
-        var Prev: TraceAct = last;
+        var exitPrev: TraceAct = last;
         conclude : null with ({
             last = +obj : TraceAct (
                 {
@@ -70,7 +70,7 @@ fragment findLastTracedAction(last: TraceAct) {
                     (exit=>hasValue()) ? hasValue(exit);
                 }
             );
-            if (exit=>hasValue()) actionValue.used = true;
+            if (exit=>hasValue()) findUnusedValue(exit).used = true;
 
             // так как перехода нет, выход вынужденный, то проверяем явно, устанавливает ли правило эффекты (для справки: в обычной ситуации ActionSpec->hasEffects уже встраивается в TransitionSpec, но здесь перехода нет явно)
             if (exit->derivedFrom=>hasEffects()) applyInterruptionMode(exit->derivedFrom->hasEffects, S);
@@ -79,7 +79,7 @@ fragment findLastTracedAction(last: TraceAct) {
             if (exit=>hasEffects()) applyInterruptionMode(exit->hasEffects, S);
             if (current=>hasEffects()) applyInterruptionMode(current->hasEffects, S);
 
-            Prev +=> directlyBeforeOf(last);
+            exitPrev +=> directlyBeforeOf(last);
         });
         }
         true, false, null -> out;
@@ -105,10 +105,10 @@ fragment findLastTracedAction(last: TraceAct) {
         // Рекурсия временно запрещена
         ask (forAny TraceAct act {
             $act->hasAction.ast_id == last->hasAction.ast_id and 
-            $act->derivedFrom.role == "BEGIN" and
+            $act->hasAction->derivedFrom.role == "BEGIN" and
             not forAny TraceAct mid {
                 $mid->hasAction.ast_id == last->hasAction.ast_id and
-                $mid->derivedFrom.role == "END" and
+                $mid->hasAction->derivedFrom.role == "END" and
                 $mid=>isBetween($act, last)
             }
         }) out false else {
@@ -119,21 +119,19 @@ fragment findLastTracedAction(last: TraceAct) {
             $a->derivedFrom.role == "BEGIN" and
             $a.ast_id == last->hasAction.ast_id
         } out true else {conclude : error [exception = true;];};
-        var actionValue: SemanticValue = findUnusedValue(callAction) {
-            true, false -> out;
-        };
-        var Prev: TraceAct = last;
+
+        var callPrev: TraceAct = last;
         conclude : true with ({
             last = +obj : TraceAct (
                 {
                     hasAction(callAction);
-                    (callAction=>hasValue()) ? hasValue(actionValue);
+                    (callAction=>hasValue()) ? hasValue(findUnusedValue(callAction));
                 }
             );
-            if (callAction=>hasValue()) actionValue.used = true;
+            if (callAction=>hasValue()) findUnusedValue(callAction).used = true;
             if (callAction->derivedFrom=>hasEffects()) applyInterruptionMode(callAction->derivedFrom->hasEffects, S);
             if (callAction=>hasEffects()) applyInterruptionMode(callAction->hasEffects, S);
-            Prev +=> directlyBeforeOf(last);
+            callPrev +=> directlyBeforeOf(last);
         });
     };
     // Иначе, P и есть последнее корректное действие для поиска следующего
@@ -144,10 +142,7 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
     var A: ConcreteAction = find ConcreteAction c {
         $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
     } out true else { conclude : error [exception = true;];};
-    var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
-    var actionValue: SemanticValue = findUnusedValue(N) {
-        true, false -> out;
-    };
+    var unwindPrev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
     ask (A->derivedFrom.is_opaque) {
         false -> {
             conclude : null with ({
@@ -156,12 +151,12 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                     {
                         hasAction(N);
                         hasTransition(T);
-                        (N=>hasValue()) ? hasValue(actionValue);
+                        (N=>hasValue()) ? hasValue(findUnusedValue(N));
                     }
                 );
-                Prev +=> directlyBeforeOf(L);
-                Prev = L;
-                if (N=>hasValue()) actionValue.used = true;
+                unwindPrev +=> directlyBeforeOf(L);
+                unwindPrev = L;
+                if (N=>hasValue()) findUnusedValue(N).used = true;
                 if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                 if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                 // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное
@@ -170,7 +165,7 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                         hasAction(A);
                     }
                 );
-                Prev +=> directlyBeforeOf(L);
+                unwindPrev +=> directlyBeforeOf(L);
                 if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
                 if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
             });
@@ -183,12 +178,12 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                         {
                             hasAction(N);
                             hasTransition(T);
-                            (N=>hasValue()) ? hasValue(actionValue);
+                            (N=>hasValue()) ? hasValue(findUnusedValue(N));
                         }
                     );
-                    Prev +=> directlyBeforeOf(L);
-                    Prev = L;
-                    if (N=>hasValue()) actionValue.used = true;
+                    unwindPrev +=> directlyBeforeOf(L);
+                    unwindPrev = L;
+                    if (N=>hasValue()) findUnusedValue(N).used = true;
                     if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                     if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                 });
@@ -199,13 +194,13 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                     {
                         hasAction(N);
                         hasTransition(T);
-                        (N=>hasValue()) ? hasValue(actionValue);
+                        (N=>hasValue()) ? hasValue(findUnusedValue(N));
                     }
                 );
-                Prev +=> directlyBeforeOf(P);
+                unwindPrev +=> directlyBeforeOf(P);
                 L = P;
-                Prev = L;
-                if (N=>hasValue()) actionValue.used = true;
+                unwindPrev = L;
+                if (N=>hasValue()) findUnusedValue(N).used = true;
                 if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                 if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
             });
@@ -218,7 +213,7 @@ fragment classifyAction(N: ConcreteAction) {
     ask (N->derivedFrom.is_opaque) {
         true -> {
             // если нужно не захватывать непрозрачные действия в трассу, то останавливаемся
-            ask (obj:TraceConfig.stop_on_opaque) out false else {
+            ask (not obj:TraceConfig.stop_on_opaque) out false else {
                 conclude : true with (P = L); 
             };
             var C: ConcreteConstruct = find ConcreteConstruct c {$c.ast_id == N.ast_id} {
@@ -228,22 +223,19 @@ fragment classifyAction(N: ConcreteAction) {
                 }
                 false -> {
                     // иначе, следующее действие - это само действие N, без раскрытия в конструкт
-                    var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
-                    var actionValue: SemanticValue = findUnusedValue(N) {
-                        true, false -> out;
-                    };
+                    var opaquePrev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
                     conclude : true with ({
                         P = +obj : TraceAct (
                             {
                                 hasAction(N);
-                                (N=>hasValue()) ? hasValue(actionValue);
+                                (N=>hasValue()) ? hasValue(findUnusedValue(N));
                                 hasTransition(T);
                             }
                         );
-                        if (N=>hasValue()) actionValue.used = true;
+                        if (N=>hasValue()) findUnusedValue(N).used = true;
                         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                         if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
-                        Prev +=> directlyBeforeOf(P);
+                        opaquePrev +=> directlyBeforeOf(P);
                         L = P
                     });
                 }
@@ -259,18 +251,15 @@ fragment classifyAction(N: ConcreteAction) {
                 false -> {
                     // если не новый конструкт, то просто оставляем действие
                     var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
-                    var actionValue: SemanticValue = findUnusedValue(N) {
-                        true, false -> out;
-                    };
                     conclude: null with ({
                         L = +obj : TraceAct (
                             {
                                 hasAction(N);
-                                (N=>hasValue()) ? hasValue(actionValue);
+                                (N=>hasValue()) ? hasValue(findUnusedValue(N));
                                 hasTransition(T);
                             }
                         );
-                        if (N=>hasValue()) actionValue.used = true;
+                        if (N=>hasValue()) findUnusedValue(N).used = true;
                         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                         if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         Prev +=> directlyBeforeOf(L);

@@ -31,6 +31,7 @@ dev = [
 find-correct-trace-actions = "test.scripts.find_correct_trace_actions:main"
 render-construct-automaton = "test.scripts.render_construct_automaton:main"
 tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
+validate-dsm = "src.validate_dsm:main"
 
 [tool.pytest.ini_options]
 addopts = "-q -s --tb=short --disable-warnings"

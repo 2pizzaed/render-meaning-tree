@@ -67,10 +67,10 @@ fragment findLastTracedAction(last: TraceAct) {
             last = +obj : TraceAct (
                 {
                     hasAction(exit);
-                    (exit=>hasValue()) ? hasValue(exit);
+                    (exit=>hasValue()) ? hasValue(findUnusedValue(exit));
                 }
             );
-            if (exit=>hasValue()) findUnusedValue(exit).used = true;
+            if (exit=>hasValue()) last->hasValue.used = true;
 
             // так как перехода нет, выход вынужденный, то проверяем явно, устанавливает ли правило эффекты (для справки: в обычной ситуации ActionSpec->hasEffects уже встраивается в TransitionSpec, но здесь перехода нет явно)
             if (exit->derivedFrom=>hasEffects()) applyInterruptionMode(exit->derivedFrom->hasEffects, S);
@@ -128,7 +128,7 @@ fragment findLastTracedAction(last: TraceAct) {
                     (callAction=>hasValue()) ? hasValue(findUnusedValue(callAction));
                 }
             );
-            if (callAction=>hasValue()) findUnusedValue(callAction).used = true;
+            if (callAction=>hasValue()) last->hasValue.used = true;
             if (callAction->derivedFrom=>hasEffects()) applyInterruptionMode(callAction->derivedFrom->hasEffects, S);
             if (callAction=>hasEffects()) applyInterruptionMode(callAction->hasEffects, S);
             callPrev +=> directlyBeforeOf(last);
@@ -156,7 +156,7 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                 );
                 unwindPrev +=> directlyBeforeOf(L);
                 unwindPrev = L;
-                if (N=>hasValue()) findUnusedValue(N).used = true;
+                if (N=>hasValue()) L->hasValue.used = true;
                 if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                 if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                 // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное
@@ -183,7 +183,7 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                     );
                     unwindPrev +=> directlyBeforeOf(L);
                     unwindPrev = L;
-                    if (N=>hasValue()) findUnusedValue(N).used = true;
+                    if (N=>hasValue()) L->hasValue.used = true;
                     if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                     if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                 });
@@ -200,7 +200,7 @@ fragment unwindNewConstruct(C: ConcreteConstruct) {
                 unwindPrev +=> directlyBeforeOf(P);
                 L = P;
                 unwindPrev = L;
-                if (N=>hasValue()) findUnusedValue(N).used = true;
+                if (N=>hasValue()) P->hasValue.used = true;
                 if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                 if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
             });
@@ -232,7 +232,7 @@ fragment classifyAction(N: ConcreteAction) {
                                 hasTransition(T);
                             }
                         );
-                        if (N=>hasValue()) findUnusedValue(N).used = true;
+                        if (N=>hasValue()) P->hasValue.used = true;
                         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                         if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         opaquePrev +=> directlyBeforeOf(P);
@@ -259,7 +259,7 @@ fragment classifyAction(N: ConcreteAction) {
                                 hasTransition(T);
                             }
                         );
-                        if (N=>hasValue()) findUnusedValue(N).used = true;
+                        if (N=>hasValue()) L->hasValue.used = true;
                         if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                         if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
                         Prev +=> directlyBeforeOf(L);

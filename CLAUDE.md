@@ -28,6 +28,14 @@ Run only the checks that are required by the task and the risk of the change. Fo
 
 When changing Python code, run `ruff` and `pyright` when feasible, especially for non-trivial edits. When changing reasoning/domain behavior, also run the narrow script or validator that exercises the affected graph, LOQI file, or construct.
 
+## Toolchain MCP
+
+The project registers the CompPrehension toolchain MCP server.
+If that MCP is unavailable, check the local RPC server first:
+
+- `bash rpc_server.sh status`
+- If it is not running, start it with `bash rpc_server.sh start`
+
 ## Code Hygiene
 
 - Keep Python changes typed and consistent with existing module patterns.

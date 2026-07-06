@@ -483,7 +483,6 @@ return_compound_action:
           ]
   actions:
     - role: content
-      opaque: false
       kind: optional
   transitions:
     - from: BEGIN
@@ -602,7 +601,6 @@ inline_compound_atom_structure:
           ]
   actions:
     - role: content
-      opaque: false
       kind: optional
   transitions:
     - from: BEGIN

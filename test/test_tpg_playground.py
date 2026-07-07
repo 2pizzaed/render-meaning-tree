@@ -66,6 +66,10 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
         **kwargs,
     ):  # type: ignore[no-untyped-def]
         captured["selected_trace"] = list(selected_trace)
+        serializer, _ = registry_to_loqi(pipeline.registry)
+        captured["selected_trace_names"] = [
+            serializer.object_name(action) for action in selected_trace
+        ]
         captured["kwargs"] = kwargs
         return SimpleNamespace(
             result=SimpleNamespace(
@@ -99,4 +103,5 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["trace"] == trace
     assert payload["reasoning"]["status"] == "correct"
-    assert captured["selected_trace"] == trace
+    assert all(isinstance(action, Action) for action in captured["selected_trace"])
+    assert captured["selected_trace_names"] == trace

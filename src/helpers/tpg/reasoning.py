@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TextIO
 
 from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import pipeline_to_loqi, registry_to_loqi
+from src.generator.utilities import pipeline_to_loqi
 from src.helpers.tpg.trace import restore_trace_from_loqi
 from src.model.situation import Action, TraceAct, TraceState
 from src.serialization.loqi import LoqiSerializer
@@ -121,7 +121,7 @@ def solve_graph_full_reasoning(
 def check_graph_stepwise_reasoning(
     directory: Path,
     pipeline: DomainDataGeneratorPipeline,
-    selected_trace: Sequence[str],
+    selected_trace: Sequence[Action],
     *,
     model_dir: str | Path,
     filename: str = "generated-domain.loqi",
@@ -138,8 +138,7 @@ def check_graph_stepwise_reasoning(
         raise ValueError("selected_trace must not be empty")
 
     last_output: PipelineReasoningOutput | None = None
-    for index, action_name in enumerate(selected_trace):
-        action = _resolve_action_by_name(pipeline, action_name)
+    for index, action in enumerate(selected_trace):
         _ensure_trace_tail_as_p(pipeline)
         pipeline.registry.variables["A"] = action
         last_output = _solve_pipeline_reasoning_once(
@@ -239,19 +238,6 @@ def _solve_pipeline_reasoning_once(
         trace_acts=trace_acts,
         trace_state=trace_state,
     )
-
-
-def _resolve_action_by_name(
-    pipeline: DomainDataGeneratorPipeline,
-    action_name: str,
-) -> Action:
-    serializer, _ = registry_to_loqi(pipeline.registry)
-    action = serializer.object_by_name(action_name)
-    if not isinstance(action, Action):
-        raise LookupError(
-            f"Expected Action for {action_name!r}, found {type(action).__name__}"
-        )
-    return action
 
 
 def _ensure_trace_tail_as_p(pipeline: DomainDataGeneratorPipeline) -> None:

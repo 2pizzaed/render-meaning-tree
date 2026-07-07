@@ -10,6 +10,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.dot import render_dot_png
+from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import registry_to_loqi
@@ -128,11 +129,13 @@ def reason_trace():
         )
         pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
         pipeline.process()
+        serializer, _ = registry_to_loqi(pipeline.registry)
+        selected_actions = resolve_actions_from_trace(serializer, selected_trace)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
         reasoning = check_graph_stepwise_reasoning(
             reasoning_tmp,
             pipeline,
-            selected_trace,
+            selected_actions,
             model_dir=PLAYGROUND_REASON_MODEL_DIR,
             filename="playground-trace.loqi",
             tree=PLAYGROUND_REASON_TREE,

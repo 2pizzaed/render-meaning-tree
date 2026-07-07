@@ -8,6 +8,7 @@ from src.generator.pipeline import (
 )
 from src.model.rules import TransitionDeclaration
 from src.model.situation import Action, TraceAct
+from src.serialization.loqi import LoqiSerializer
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +137,22 @@ def add_trace_act_for_action(
     if variable_name is not None:
         registry.variables[variable_name] = trace_act
     return trace_act
+
+
+def resolve_actions_from_trace(
+    serializer: LoqiSerializer,
+    selected_trace: list[str],
+) -> list[Action]:
+    """Разрешить последовательность имён actions из loqi-трассы в объекты Action."""
+    resolved_actions: list[Action] = []
+    for action_name in selected_trace:
+        action = serializer.object_by_name(action_name)
+        if not isinstance(action, Action):
+            raise LookupError(
+                f"Expected Action for {action_name!r}, found {type(action).__name__}"
+            )
+        resolved_actions.append(action)
+    return resolved_actions
 
 
 def _registry_for(

@@ -1,10 +1,11 @@
+import argparse
 import traceback
 from pathlib import Path
 from typing import Literal
 
 from flask import Flask, render_template, request
 
-from src.ast_managers import prepare_code
+from src.ast_managers import CodeManager, prepare_code
 from src.coderenderer.html import prepare_html_context
 from src.types import SupportedProgrammingLanguage
 
@@ -34,7 +35,14 @@ def index():
     code = ""
     language: SupportedProgrammingLanguage = "java"
     target_language: SupportedProgrammingLanguage | Literal[""] = ""
-    context = {"lines": [], "nodes_json": "{}", "enable_trace": False}
+    enable_trace = True
+    context = {
+        "lines": [],
+        "nodes_json": "{}",
+        "enable_trace": enable_trace,
+        "answer_objects": None,
+        "answer_objects_json": "",
+    }
     error = None
 
     if request.method == "POST":
@@ -47,10 +55,12 @@ def index():
         else:
             try:
                 manager = prepare_code(code, language, target_language=target_language or None)
-                context = prepare_html_context(manager)
+                answer_objects = build_answer_objects(manager, enable_trace=enable_trace)
+                context = prepare_html_context(manager, answer_objects=answer_objects)
                 context["code"] = code
                 context["language"] = language
                 context["target_language"] = target_language
+                context["enable_trace"] = enable_trace
 
             except Exception as e:
                 traceback.print_exc()
@@ -59,10 +69,12 @@ def index():
                 context["code"] = code
                 context["language"] = language
                 context["target_language"] = target_language
+                context["enable_trace"] = enable_trace
 
     context.setdefault("code", code)
     context.setdefault("language", language)
     context.setdefault("target_language", target_language)
+    context.setdefault("enable_trace", enable_trace)
     context["language_options"] = LANGUAGE_OPTIONS
 
     return render_template(
@@ -72,5 +84,40 @@ def index():
     )
 
 
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    app.run(host=args.host, port=args.port, debug=args.debug)
+    return 0
+
+
+def build_answer_objects(manager: CodeManager, *, enable_trace: bool) -> dict[str, str] | None:
+    """Temporary hook for answer-trace payload generation."""
+    if not enable_trace:
+        return None
+    return None
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the playground Flask app.")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host interface to bind to.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Port to listen on.",
+    )
+    parser.add_argument(
+        "--debug",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable Flask debug mode.",
+    )
+    return parser.parse_args(argv)
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    raise SystemExit(main())

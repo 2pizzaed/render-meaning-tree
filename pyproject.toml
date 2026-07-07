@@ -30,6 +30,7 @@ dev = [
 [project.scripts]
 find-correct-trace-actions = "test.scripts.find_correct_trace_actions:main"
 render-construct-automaton = "test.scripts.render_construct_automaton:main"
+playground = "test.playground.app:main"
 tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
 validate-dsm = "src.validate_dsm:main"
 

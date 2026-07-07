@@ -127,7 +127,7 @@
         <div class="bottom-panel">
             <div class="tabs">
                 <button class="tab active" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
-                {% if answer_objects %}<button class="tab" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
+                {% if enable_trace and answer_objects %}<button class="tab" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
             </div>
             
             <div id="tab-inspector" class="tab-content active">
@@ -139,7 +139,7 @@
                 </div>
             </div>
             
-            {% if answer_objects %}
+            {% if enable_trace and answer_objects %}
             <div id="tab-trace" class="tab-content">
                 <div class="trace-container">
                     <div class="trace-controls">
@@ -157,9 +157,11 @@
         const AST_DATA = {{ nodes_json | safe }};
     </script>
 
+    {% if enable_trace and answer_objects %}
     <script type="application/json" id="answer_objects">
         {{ answer_objects_json | safe }}
     </script>
+    {% endif %}
 
     <script>
         // --- Tabs Logic ---

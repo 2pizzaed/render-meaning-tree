@@ -212,9 +212,24 @@ fragment classifyAction(N: ConcreteAction) {
     // если действие является непрозрачным
     ask (N->derivedFrom.is_opaque) {
         true -> {
-            // если нужно не захватывать непрозрачные действия в трассу, то останавливаемся
-            ask (not obj:TraceConfig.stop_on_opaque) out false else {
-                conclude : true with (P = L); 
+            // если нужно не захватывать непрозрачные действия в трассу, то останавливаемся.
+            // Пре-ран (stop_on_opaque = false) останавливается только перед «настоящим»
+            // шагом студента: непрозрачное действие, раскрывающее конструкт с ПРОЗРАЧНЫМ
+            // BEGIN (func, if_branch/body в Python), в обычном режиме добавляется проходом
+            // (см. unwindNewConstruct), поэтому и пре-ран должен пройти его насквозь
+            ask (
+                not obj:TraceConfig.stop_on_opaque and
+                not forAny ConcreteConstruct cc {
+                    $cc != N->belongsTo and
+                    $cc.ast_id == N.ast_id and
+                    forAny ConcreteAction b {
+                        $b->belongsTo == $cc and
+                        $b->derivedFrom.role == "BEGIN" and
+                        not $b->derivedFrom.is_opaque
+                    }
+                }
+            ) out false else {
+                conclude : true with (P = L);
             };
             var C: ConcreteConstruct = find ConcreteConstruct c {$c.ast_id == N.ast_id} {
                 true -> {
@@ -319,6 +334,11 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                     }
                 }
             } out false else {
+                // Пре-ран (stop_on_opaque = false): остановиться ПЕРЕД непрозрачным
+                // BEGIN, не добавляя его — этот шаг должен выбрать студент
+                ask (obj:TraceConfig.stop_on_opaque) out true else {
+                    conclude : true;
+                };
                 var A: ConcreteAction = find ConcreteAction c {
                     $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
                 } out true else { conclude : error [exception = true;];};

@@ -1,0 +1,691 @@
+// ============================================================================
+//  main.tpg — Граф проверок (проверка выбора студента при трассировке).
+//
+//  Имя дерева при загрузке из каталога domain/: "" (файл `main` -> дерево
+//  по умолчанию, точка входа тренажёра). См. DomainSolvingModel.normalizeTreeName.
+//
+//  СТАТУС: реализован полный алгоритм docs/check_graph_idea.md:
+//    шаг 1     — предпрогонка findCorrect по прозрачным действиям (subcall_mut);
+//    шаг 2     — everything_evaluated / action_cannot_repeat;
+//    шаг 3.1   — действие внутри функции, в которую не входили / из которой вышли;
+//    шаг 3.2   — активное прерывание требует выхода из текущего конструкта;
+//    шаги 4-5  — цикл агрегации AND по конструктам от общего (LCA) до конструкта A,
+//                на каждом уровне checkLevel классифицирует переход D_p -> D_a
+//                по критериям (вход в конструкт, пропуск непрозрачного действия,
+//                наличие перехода, порядок в цепочке, прерывание, значение условия,
+//                завершённость раскрытого из D_p конструкта);
+//    шаг 6     — фиксация A актом трассы (+переход, +значение, +эффекты,
+//                +прозрачный BEGIN раскрываемого конструкта, зеркально
+//                unwindNewConstruct из findCorrect).
+//
+//  Связь «действие -> раскрываемый им конструкт» повсюду по равенству ast_id
+//  (как в findCorrect и src/model/situation.py: Action.expands_to), БЕЗ hasParent:
+//  так работает и граница вызова функции (действие func несёт ast_id узла
+//  определения функции). BEGIN/END конкретного конструкта имеют ast_id самого
+//  конструкта, поэтому в поисках раскрытия конструкт C исключается ($cc != C).
+//
+//  Известные ограничения (задокументированные, для доводки тестами):
+//    - выход из функции: роль P на уровнях ВНЕ тела функции ищется по статической
+//      иерархии (через конструкт определения функции); ослабляющий критерий
+//      «D_a уже есть в трассе позже последнего акта D_p» покрывает типовые случаи;
+//    - рекурсия не поддерживается (как и в findCorrect — RecursionDenied);
+//    - предпрогонка findCorrect может сама добавить непрозрачный BEGIN конструкта,
+//      на который указывает последнее действие (поведение findCorrect).
+//
+//  Термины (из docs/check_graph_idea.md):
+//    Ошибка студента       -> conclude: error [ skill = ...; RU.explanation = ...; EN.explanation = ... ]
+//    Внутреннее исключение -> conclude: error [ exception = true; exceptionName = ... ]
+// ============================================================================
+
+
+// ---------------------------------------------------------------------------
+//  Переиспользуемые лямбды из findCorrect (у каждого .tpg — своя копия,
+//  treeDeclHelpers привязаны к одному объявлению tpg).
+// ---------------------------------------------------------------------------
+
+// Применить эффект перехода/действия к глобальному состоянию трассировки.
+lambda applyInterruptionMode(E: Effect, S: TraceState) =
+    E.interruption_start != InterruptionType:none ?
+            S.interruption_mode = E.interruption_start                // начинается новое прерывание
+        : (
+            E.interruption_stop != InterruptionType:none and (
+                E.interruption_stop == InterruptionType:any or
+                S.interruption_mode == E.interruption_stop
+            )
+                ? S.interruption_mode = InterruptionType:none         // остановить текущее прерывание
+                : (S.interruption_mode = S.interruption_mode)         // ничего не делать (self-assign)
+    );
+
+// Ближайшее ещё не использованное семантическое значение действия A.
+lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
+    $unused == A->hasValue or $unused=>isCloserToThan(A->hasValue, $v)
+] among SemanticValue v {
+    A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
+};
+
+// Fallback-цель перехода: первый реально присутствующий в C элемент цепочки
+// to_when_absent, либо основная цель to_, если fallback не задан.
+lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_absent()) (findExtreme present [
+    $present=>isCloserToThan(T->to_when_absent, $ap) or $present == T->to_when_absent
+] among ActionSpecChainPlaceholder ap {
+    ($ap=>afterOf(T->to_when_absent) or $ap == T->to_when_absent) and
+    forAny ConcreteAction aa {C=>hasActions($aa) and $aa=>derivedFrom($ap->contains)}
+})->contains else T->to_;
+
+
+// ---------------------------------------------------------------------------
+//  Помощники графа проверок (декомпозиция из docs/check_graph_idea.md).
+// ---------------------------------------------------------------------------
+
+// Является ли `node` тем же конструктом, что `ancestor`, или его потомком.
+lambda isAncestorOrSelf(node: ConcreteConstruct, ancestor: ConcreteConstruct) =
+    node == ancestor or node=>hasAncestor(ancestor);
+
+// 1. Наиболее вложенный общий конструкт (LCA) двух действий.
+// Общий предок C такой, что нет более глубокого общего предка `deeper`,
+// который сам является потомком C.
+lambda commonConstruct(actionA: ConcreteAction, actionP: ConcreteAction) = find ConcreteConstruct c {
+    isAncestorOrSelf(actionA->belongsTo, $c) and
+    isAncestorOrSelf(actionP->belongsTo, $c) and
+    not forAny ConcreteConstruct deeper {
+        $deeper != $c and
+        isAncestorOrSelf(actionA->belongsTo, $deeper) and
+        isAncestorOrSelf(actionP->belongsTo, $deeper) and
+        $deeper=>hasAncestor($c)
+    }
+};
+
+// Действие с ролью BEGIN в конструкте C (правило).
+lambda beginActionOf(C: ConcreteConstruct) = find ConcreteAction d {
+    $d->belongsTo == C and $d->derivedFrom.role == "BEGIN"
+};
+
+// 2. Действие уровня C, «внутри» которого находится `target» —
+// либо это само `target`, либо действие C, чей раскрываемый конструкт
+// (связь по ast_id, кроме самого C — BEGIN/END носят ast_id конструкта)
+// является предком (или самим) конструкта `target`.
+lambda containingAction(target: ConcreteAction, C: ConcreteConstruct) = find ConcreteAction d {
+    $d->belongsTo == C and (
+        $d == target or
+        forAny ConcreteConstruct cc {
+            $cc != C and
+            $cc.ast_id == $d.ast_id and
+            isAncestorOrSelf(target->belongsTo, $cc)
+        }
+    )
+};
+
+// Существует ли такое действие уровня C (для безопасного fallback на BEGIN).
+lambda hasContainingAction(target: ConcreteAction, C: ConcreteConstruct) = forAny ConcreteAction d {
+    $d->belongsTo == C and (
+        $d == target or
+        forAny ConcreteConstruct cc {
+            $cc != C and
+            $cc.ast_id == $d.ast_id and
+            isAncestorOrSelf(target->belongsTo, $cc)
+        }
+    )
+};
+
+// Если действие уровня C не находится (target вне C), берём BEGIN конструкта C.
+lambda roleActionOf(target: ConcreteAction, C: ConcreteConstruct) =
+    hasContainingAction(target, C) ? containingAction(target, C) : beginActionOf(C);
+
+// Последний акт трассы для конкретного действия D (текущая активация:
+// при повторных входах в конструкты/функции интересен именно последний акт).
+lambda lastActOf(D: ConcreteAction) = findExtreme latest [
+    not $latest=>beforeOf($t)
+] among TraceAct t {
+    $t->hasAction == D
+};
+
+// Открыт ли конструкт C в трассе: есть BEGIN-акт без последующего END-акта.
+// (При повторных входах закрытые активации отфильтровываются автоматически.)
+lambda isConstructOpen(C: ConcreteConstruct) = forAny TraceAct b {
+    $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
+    not forAny TraceAct e {
+        $e->hasAction->belongsTo == C and $e->hasAction->derivedFrom.role == "END" and
+        $e=>afterOf($b)
+    }
+};
+
+// 3+4. Закрыт ли конструкт C «в рамках текущего контекста», заданного актом E
+// (акт действия, из которого C раскрывается): после E есть END-акт C, за которым
+// уже не следует новый BEGIN-акт C. Поскольку проверка всегда ведётся о конце
+// трассы, правая граница области (END охватывающего конструкта) не нужна —
+// текущая активация тянется до конца трассы. Повторные входы (циклы, повторные
+// вызовы функций) отсекаются требованием «после E» и «нет BEGIN после END».
+lambda isClosedAfter(C: ConcreteConstruct, E: TraceAct) = forAny TraceAct e {
+    $e->hasAction->belongsTo == C and $e->hasAction->derivedFrom.role == "END" and
+    $e=>afterOf(E) and
+    not forAny TraceAct b {
+        $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
+        $b=>afterOf($e)
+    }
+};
+
+// Акт D_a уже есть в трассе в текущем контексте: есть акт D_a, после которого
+// не было нового акта D_p (т.е. D_a исполнялось после последнего исполнения D_p).
+// Ослабляет критерии порядка/пропуска для действий, уже пройденных на этом
+// уровне (например, оператор с вызовом функции при проверке выхода из вызова).
+lambda actAlreadyCurrent(Da: ConcreteAction, Dp: ConcreteAction) = forAny TraceAct t {
+    $t->hasAction == Da and
+    not forAny TraceAct u {
+        $u->hasAction == Dp and
+        $u=>afterOf($t)
+    }
+};
+
+// Переход t уровня C ведёт из fromA в toA. Fallback to_when_absent учитывается
+// только когда основная цель to_ отсутствует среди конкретных действий C
+// (зеркало поиска N / N_absent в findCorrect).
+lambda transitionLeads(t: TransitionSpec, fromA: ConcreteAction, toA: ConcreteAction, C: ConcreteConstruct) =
+    t->belongsTo == C->derivedFrom and
+    t->from_ == fromA->derivedFrom and
+    (
+        t->to_ == toA->derivedFrom or (
+            (not forAny ConcreteAction primary {
+                $primary->belongsTo == C and $primary->derivedFrom == t->to_
+            }) and
+            toWhenAbsent(t, C) == toA->derivedFrom
+        )
+    );
+
+// Ограничение перехода по режиму прерывания выполняется.
+lambda interruptionOk(t: TransitionSpec, S: TraceState) =
+    not t=>hasConstraints() or
+    t->hasConstraints.interruption_mode == S.interruption_mode or
+    t->hasConstraints.interruption_mode == InterruptionType:any;
+
+// Ограничение перехода по значению условия выполняется
+// (зеркало фазового поиска перехода в findCorrect).
+lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction) =
+    not t=>hasConstraints() or
+    not fromA=>hasValue() or
+    findUnusedValue(fromA).bool_value == t->hasConstraints.condition_value;
+
+
+// ---------------------------------------------------------------------------
+//  Фрагменты.
+// ---------------------------------------------------------------------------
+
+// Шаг 6: зафиксировать выбранное действие A как корректное — добавить акт трассы,
+// присоединить его к последнему акту, израсходовать значение, применить эффекты
+// действия и перехода (если переход в A существует — он прикладывается к акту:
+// по hasTransition с эффектом call_stack следующая предпрогонка входит в функцию).
+// Если A раскрывает конструкт с прозрачным BEGIN, BEGIN достраивается сразу
+// (зеркало unwindNewConstruct из findCorrect). Завершает граф успехом.
+fragment commitCorrectAction() {
+    var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
+    // роль P на уровне конструкта выбранного действия — источник перехода в A
+    var DpFin: ConcreteAction = roleActionOf(P->hasAction, A->belongsTo);
+    var Tin: TransitionSpec = find TransitionSpec t {
+        transitionLeads($t, DpFin, A, A->belongsTo) and
+        interruptionOk($t, S) and
+        conditionOk($t, DpFin)
+    } out true else {
+        // === Перехода нет (вход по BEGIN или вынужденный выход при прерывании) —
+        // эффекты правила действия применяем явно, как в findLastTracedAction.
+        var ExpandsNT: ConcreteConstruct = find ConcreteConstruct cc {
+            A->derivedFrom.role != "BEGIN" and
+            A->derivedFrom.role != "END" and
+            $cc != A->belongsTo and
+            $cc.ast_id == A.ast_id and
+            not beginActionOf($cc)->derivedFrom.is_opaque
+        } out false else {
+            // A раскрывает конструкт с прозрачным BEGIN — фиксируем оба акта сразу
+            conclude: correct with ({
+                P = +obj : TraceAct (
+                    {
+                        hasAction(A);
+                        (A=>hasValue()) ? hasValue(findUnusedValue(A));
+                    }
+                );
+                Prev +=> directlyBeforeOf(P);
+                if (A=>hasValue()) P->hasValue.used = true;
+                if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
+                if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
+                Prev = P;
+                P = +obj : TraceAct (
+                    {
+                        hasAction(beginActionOf(ExpandsNT));
+                    }
+                );
+                Prev +=> directlyBeforeOf(P);
+                if (beginActionOf(ExpandsNT)->derivedFrom=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->derivedFrom->hasEffects, S);
+                if (beginActionOf(ExpandsNT)=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->hasEffects, S)
+            }) [
+                skill = "correct_answer";
+                RU.explanation = "Действие может быть выполнено следующим и добавлено в трассу." ;
+                EN.explanation = "The action can be performed next and is appended to the trace." ;
+            ];
+        };
+        conclude: correct with ({
+            P = +obj : TraceAct (
+                {
+                    hasAction(A);
+                    (A=>hasValue()) ? hasValue(findUnusedValue(A));
+                }
+            );
+            Prev +=> directlyBeforeOf(P);
+            if (A=>hasValue()) P->hasValue.used = true;
+            if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
+            if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S)
+        }) [
+            skill = "correct_answer";
+            RU.explanation = "Действие может быть выполнено следующим и добавлено в трассу." ;
+            EN.explanation = "The action can be performed next and is appended to the trace." ;
+        ];
+    };
+    // === Переход найден: он прикладывается к акту (по hasTransition с эффектом
+    // call_stack следующая предпрогонка findCorrect входит в тело функции).
+    var Expands: ConcreteConstruct = find ConcreteConstruct cc {
+        A->derivedFrom.role != "BEGIN" and
+        A->derivedFrom.role != "END" and
+        $cc != A->belongsTo and
+        $cc.ast_id == A.ast_id and
+        not beginActionOf($cc)->derivedFrom.is_opaque
+    } out false else {
+        // A раскрывает конструкт с прозрачным BEGIN — фиксируем оба акта сразу
+        // (зеркало unwindNewConstruct из findCorrect); непрозрачный BEGIN добавит
+        // следующая предпрогонка findCorrect либо выберет студент.
+        conclude: correct with ({
+            P = +obj : TraceAct (
+                {
+                    hasAction(A);
+                    hasTransition(Tin);
+                    (A=>hasValue()) ? hasValue(findUnusedValue(A));
+                }
+            );
+            Prev +=> directlyBeforeOf(P);
+            if (A=>hasValue()) P->hasValue.used = true;
+            if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
+            if (Tin=>hasEffects()) applyInterruptionMode(Tin->hasEffects, S);
+            Prev = P;
+            P = +obj : TraceAct (
+                {
+                    hasAction(beginActionOf(Expands));
+                }
+            );
+            Prev +=> directlyBeforeOf(P);
+            if (beginActionOf(Expands)->derivedFrom=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->derivedFrom->hasEffects, S);
+            if (beginActionOf(Expands)=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->hasEffects, S)
+        }) [
+            skill = "correct_answer";
+            RU.explanation = "Действие может быть выполнено следующим и добавлено в трассу." ;
+            EN.explanation = "The action can be performed next and is appended to the trace." ;
+        ];
+    };
+    conclude: correct with ({
+        P = +obj : TraceAct (
+            {
+                hasAction(A);
+                hasTransition(Tin);
+                (A=>hasValue()) ? hasValue(findUnusedValue(A));
+            }
+        );
+        Prev +=> directlyBeforeOf(P);
+        if (A=>hasValue()) P->hasValue.used = true;
+        if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
+        if (Tin=>hasEffects()) applyInterruptionMode(Tin->hasEffects, S)
+    }) [
+        skill = "correct_answer";
+        RU.explanation = "Действие может быть выполнено следующим и добавлено в трассу." ;
+        EN.explanation = "The action can be performed next and is appended to the trace." ;
+    ];
+}
+
+// Уточнение ошибок после предпрогонки: выполнение могло АВТОМАТИЧЕСКИ уйти
+// вперёд от последнего шага студента (P0) — выйти из конструкции, содержащей A,
+// либо войти в другую её ветвь. Тогда вместо генерических ошибок порядка или
+// отсутствия перехода возвращаем ошибку по первопричине. Вынужденные выходы
+// при прерывании findCorrect добавляет БЕЗ перехода (нет hasTransition) — это
+// отличает их от выходов по значению условия.
+fragment autoPassedRefinement() {
+    // после P0 конструкция с A была принудительно закрыта (акт END без перехода)
+    ask (forAny TraceAct t {
+        $t=>afterOf(P0) and
+        $t->hasAction->derivedFrom.role == "END" and
+        isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo) and
+        not $t=>hasTransition()
+    }) out false else {
+        conclude: error [
+            skill = "interruption_not_considered" ;
+            RU.explanation = "Нельзя выполнить это действие: сработавшее прерывание уже вывело выполнение из этой конструкции." ;
+            EN.explanation = "This action cannot be performed: the triggered interruption has already taken execution out of this construct." ;
+        ];
+    };
+    // после P0 конструкция с A была закрыта по переходу либо выполнение вошло
+    // в другую её ветвь — значение условия уже определило дальнейший путь
+    ask (forAny TraceAct t {
+        $t=>afterOf(P0) and (
+            (
+                $t->hasAction->derivedFrom.role == "END" and
+                isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo)
+            ) or (
+                $t->hasAction->derivedFrom.role == "BEGIN" and
+                $t->hasAction.ast_id != A.ast_id and
+                $t->hasAction->belongsTo=>hasParent(A->belongsTo)
+            )
+        )
+    }) out false else {
+        conclude: error [
+            skill = "condition_value_not_considered" ;
+            RU.explanation = "Нельзя выполнить это действие: не учтено вычисленное значение условия — выполнение уже пошло по другому пути." ;
+            EN.explanation = "This action cannot be performed: the evaluated condition value is not taken into account — execution has already taken a different path." ;
+        ];
+    };
+    conclude: null;
+}
+
+// Проверка одного уровня иерархии конструктов (переменная цикла — конструкт C).
+// Шаги 5.1-5.3: резолвим роли D_p и D_a и классифицируем переход D_p -> D_a.
+// Каждый непройденный критерий — отдельная локализованная ошибка;
+// если все критерии пройдены — conclude: correct для этого уровня.
+fragment checkLevel(C: ConcreteConstruct) {
+    // 5.1.1: роль выбранного студентом действия A на уровне C
+    var Da: ConcreteAction = roleActionOf(A, C);
+    // 5.1.2: роль предыдущего корректного действия P на уровне C (или BEGIN, если P вне C)
+    var Dp: ConcreteAction = roleActionOf(P->hasAction, C);
+
+    // --- Вырожденный случай: роли совпали ---
+    ask (Dp == Da) out false else {
+        // Вход в сам конструкт C: A и есть его BEGIN, а P ещё вне C — корректный шаг уровня
+        ask (A == Dp and A->derivedFrom.role == "BEGIN" and not hasContainingAction(P->hasAction, C)) out false else {
+            conclude: correct;
+        };
+        ask (A == Dp) out false else {
+            // Студент повторно выбирает действие, на котором стоит трасса (или внутри
+            // конструкта которого она находится). Авто-уход вперёд уже исключён
+            // ранним вызовом autoPassedRefinement в теле дерева.
+            var DccSame: ConcreteConstruct = find ConcreteConstruct cc {
+                $cc != C and
+                $cc.ast_id == Dp.ast_id
+            } {
+                false -> {
+                    conclude: error [
+                        skill = "actions_order_violated" ;
+                        RU.explanation = "Нельзя выполнить это действие сейчас: оно только что выполнялось, и сначала должны выполниться другие действия." ;
+                        EN.explanation = "This action cannot be performed now: it has just been performed, and other actions must run first." ;
+                    ];
+                }
+                true -> {
+                    conclude: error [
+                        skill = "construct_not_closed" ;
+                        RU.explanation = "Нельзя выполнить это действие: раскрытая им конструкция ещё выполняется и не завершена." ;
+                        EN.explanation = "This action cannot be performed: the construct it unfolds into is still executing and is not finished." ;
+                    ];
+                }
+            };
+        };
+        // Обе роли — одно действие, но A глубже (внутри раскрываемого конструкта):
+        // этот уровень ограничений не накладывает, решают более глубокие уровни
+        conclude: correct;
+    };
+
+    // --- Критерий: вход в конструкт C ещё не совершён ---
+    // Если P вне C, вход достроится автоматически только при прозрачном BEGIN.
+    ask (
+        hasContainingAction(P->hasAction, C) or
+        not beginActionOf(C)->derivedFrom.is_opaque
+    ) out true else {
+        conclude: error [
+            skill = "construct_not_entered" ;
+            RU.explanation = "Нельзя выполнить это действие: сначала нужно войти в конструкцию, в которой оно находится." ;
+            EN.explanation = "This action cannot be performed: the construct that contains it must be entered first." ;
+        ];
+    };
+
+    // --- Критерий: пропуск непрозрачного промежуточного действия уровня C ---
+    // Если D_a — не само A, оно достроится автоматически, только будучи прозрачным
+    // либо уже выполненным в текущем контексте (после последнего акта D_p).
+    ask (
+        Da == A or
+        not Da->derivedFrom.is_opaque or
+        actAlreadyCurrent(Da, Dp)
+    ) out true else {
+        conclude: error [
+            skill = "intermediate_action_skipped" ;
+            RU.explanation = "Нельзя выполнить это действие: пропущено действие, которое должно быть выполнено перед ним." ;
+            EN.explanation = "This action cannot be performed: an action that must be performed before it was skipped." ;
+        ];
+    };
+
+    // --- Критерий 5.2/5.3.1: наличие перехода D_p -> D_a (без учёта ограничений) ---
+    ask (forAny TransitionSpec t {
+        transitionLeads($t, Dp, Da, C)
+    }) out true else {
+        // классифицируем по порядку конкретных действий в цепочке (авто-уход
+        // вперёд уже исключён ранним вызовом autoPassedRefinement)
+        ask (Da=>beforeOf(Dp) and not actAlreadyCurrent(Da, Dp)) out false else {
+            conclude: error [
+                skill = "action_already_passed" ;
+                RU.explanation = "Нельзя выполнить это действие: оно уже позади по ходу выполнения, вернуться к нему нельзя." ;
+                EN.explanation = "This action cannot be performed: execution has already passed it, and it cannot be returned to." ;
+            ];
+        };
+        ask (Da=>afterOf(Dp)) out false else {
+            conclude: error [
+                skill = "actions_skipped" ;
+                RU.explanation = "Нельзя выполнить это действие: перед ним есть невыполненные действия, которые нельзя пропустить." ;
+                EN.explanation = "This action cannot be performed: there are earlier actions that have not been performed and cannot be skipped." ;
+            ];
+        };
+        conclude: error [
+            skill = "no_transition" ;
+            RU.explanation = "Нельзя выполнить это действие: переход к нему из текущей точки выполнения не предусмотрен." ;
+            EN.explanation = "This action cannot be performed: there is no transition to it from the current point of execution." ;
+        ];
+    };
+
+    // --- Критерий 5.2: порядок конкретных действий (переходы «в себя» и цепочки) ---
+    // Если целевая роль повторяется в цепочке однотипных действий, D_a должно быть
+    // ближайшим подходящим после D_p (зеркало поиска N в findCorrect); назад — только
+    // если впереди подходящих действий нет либо D_a уже пройдено в текущем контексте.
+    ask (
+        not Dp=>directlyBeforeOf() or
+        actAlreadyCurrent(Da, Dp) or
+        (
+            Da=>afterOf(Dp) and
+            not forAny ConcreteAction mid {
+                $mid != Da and
+                $mid->derivedFrom == Da->derivedFrom and
+                $mid->belongsTo == C and
+                $mid=>afterOf(Dp) and
+                Da=>afterOf($mid)
+            }
+        ) or
+        (
+            not forAny ConcreteAction fwd {
+                $fwd->derivedFrom == Da->derivedFrom and
+                $fwd->belongsTo == C and
+                $fwd=>afterOf(Dp)
+            }
+        )
+    ) out true else {
+        conclude: error [
+            skill = "actions_order_violated" ;
+            RU.explanation = "Нельзя выполнить это действие: нарушен порядок — должно быть выполнено более близкое действие той же роли." ;
+            EN.explanation = "This action cannot be performed: the order is violated — a closer action of the same role must be performed instead." ;
+        ];
+    };
+
+    // --- Критерий 5.2: ограничение режима прерывания ---
+    ask (forAny TransitionSpec t {
+        transitionLeads($t, Dp, Da, C) and
+        interruptionOk($t, S)
+    }) out true else {
+        conclude: error [
+            skill = "interruption_not_considered" ;
+            RU.explanation = "Нельзя выполнить это действие: не учтено текущее прерывание, меняющее обычный порядок выполнения." ;
+            EN.explanation = "This action cannot be performed: the active interruption that changes the usual execution order is not taken into account." ;
+        ];
+    };
+
+    // --- Критерий 5.2: ограничение значения условия ---
+    ask (forAny TransitionSpec t {
+        transitionLeads($t, Dp, Da, C) and
+        interruptionOk($t, S) and
+        conditionOk($t, Dp)
+    }) out true else {
+        conclude: error [
+            skill = "condition_value_not_considered" ;
+            RU.explanation = "Нельзя выполнить это действие: не учтено вычисленное значение условия." ;
+            EN.explanation = "This action cannot be performed: the evaluated value of the condition is not taken into account." ;
+        ];
+    };
+
+    // --- Критерий 5.3.2.1: конструкт, раскрытый из D_p, должен быть завершён ---
+    var Dcc: ConcreteConstruct = find ConcreteConstruct cc {
+        $cc != C and
+        $cc.ast_id == Dp.ast_id
+    } {
+        false -> {
+            // D_p атомарно — все критерии уровня пройдены
+            conclude: correct;
+        }
+        true -> {
+            var DpAct: TraceAct = lastActOf(Dp) out true else {
+                conclude: error [ exception = true; exceptionName = "NoActForRoleAction"; ];
+            };
+            ask (isClosedAfter(Dcc, DpAct)) {
+                true -> { conclude: correct; }
+                false -> {
+                    conclude: error [
+                        skill = "construct_not_closed" ;
+                        RU.explanation = "Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." ;
+                        EN.explanation = "This action cannot be performed: the previous construct is not finished yet (or has not started)." ;
+                    ];
+                }
+            };
+        }
+    };
+}
+
+
+// ---------------------------------------------------------------------------
+//  Дерево проверок.
+//    S — состояние трассировки, P — последний корректный акт частичной трассы,
+//    A — выбранное студентом конкретное действие.
+// ---------------------------------------------------------------------------
+tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
+    // Последний акт ДО предпрогонки: всё, что появится в трассе после него,
+    // добавлено автоматически (нужно фрагменту autoPassedRefinement).
+    var P0: TraceAct = P;
+    // Шаг 1 (предпрогонка): достроить прозрачные действия от P и обновить P/S.
+    // subcall_mut персистит изменения трассы в общий домен; stop_on_opaque = false
+    // останавливает подынтерпретатор ПЕРЕД первым непрозрачным действием.
+    // Переменные не восстанавливаем (restoreVars = false): P ищем по последнему
+    // акту трассы, а S — синглтон, меняются только его свойства.
+    eval(obj:TraceConfig.stop_on_opaque = false);
+    subcall_mut("findCorrect", false, S, P);
+    eval(obj:TraceConfig.stop_on_opaque = true);
+    eval(P = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true});
+
+    // Шаг 2а: программа уже полностью вычислена.
+    ask (
+        P->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" and
+        P->hasAction->derivedFrom.role == "END"
+    ) out false else {
+        conclude: error [
+            skill = "everything_evaluated" ;
+            RU.explanation = "Нельзя выполнить это действие: программа уже полностью вычислена." ;
+            EN.explanation = "This action cannot be performed: the program is already fully evaluated." ;
+        ];
+    };
+    // Уточнение до проверки повторяемости: если выполнение после P0 уже
+    // автоматически покинуло конструкцию с A (прерывание/значение условия),
+    // причина ошибки — не исчерпание значений. Скоуп по P0 отличает этот
+    // случай от честного исчерпания (конструкция закрыта до P0).
+    `fragment`:autoPassedRefinement() out null;
+    // Шаг 2б: действие уже выполнялось и не может повториться — в его цепочке
+    // не осталось неиспользованных значений (пример: условие цикла while).
+    ask (
+        forAny TraceAct t {$t->hasAction == A} and
+        A=>hasValue() and not forAny SemanticValue v {
+            ($v == A->hasValue or $v=>afterOf(A->hasValue)) and not $v.used
+        }
+    ) out false else {
+        conclude: error [
+            skill = "action_cannot_repeat" ;
+            RU.explanation = "Нельзя повторить это действие: для него не осталось свободных значений." ;
+            EN.explanation = "This action cannot be repeated: it has no unused values left." ;
+        ];
+    };
+
+    // Шаг 3.1: действие внутри функции, в которую не входили или из которой вышли.
+    // Конструкт тела функции открывается по эффекту call_stack = add_frame
+    // (переход BEGIN -> func вызова, см. func_call_structure в constructs.yml),
+    // поэтому корректный выбор внутри функции возможен только при открытом теле.
+    ask (forAny ConcreteConstruct fd {
+        $fd->derivedFrom.name == "func_def_structure" and
+        isAncestorOrSelf(A->belongsTo, $fd) and
+        not isConstructOpen($fd)
+    }) out false else {
+        ask (forAny ConcreteConstruct fd {
+            $fd->derivedFrom.name == "func_def_structure" and
+            isAncestorOrSelf(A->belongsTo, $fd) and
+            not forAny TraceAct b {
+                $b->hasAction->belongsTo == $fd and
+                $b->hasAction->derivedFrom.role == "BEGIN"
+            }
+        }) {
+            true -> {
+                conclude: error [
+                    skill = "function_not_entered" ;
+                    RU.explanation = "Нельзя выполнить это действие: оно находится внутри функции, в которую ещё не входили (вызов не выполнен)." ;
+                    EN.explanation = "This action cannot be performed: it is inside a function that has not been entered yet (the call has not happened)." ;
+                ];
+            }
+            false -> {
+                conclude: error [
+                    skill = "function_already_exited" ;
+                    RU.explanation = "Нельзя выполнить это действие: выполнение функции, в которой оно находится, уже завершилось." ;
+                    EN.explanation = "This action cannot be performed: the function that contains it has already finished executing." ;
+                ];
+            }
+        };
+    };
+
+    // Шаг 3.2: активное прерывание. Если режим прерывания не none, единственный
+    // допустимый шаг — выход (END) из ещё не закрытого конструкта, содержащего P
+    // (см. принудительный выход в findLastTracedAction из findCorrect).
+    ask (
+        S.interruption_mode != InterruptionType:none and
+        not (
+            A->derivedFrom.role == "END" and
+            isConstructOpen(A->belongsTo) and
+            isAncestorOrSelf(P->hasAction->belongsTo, A->belongsTo)
+        )
+    ) out false else {
+        conclude: error [
+            skill = "interruption_not_considered" ;
+            RU.explanation = "Нельзя выполнить это действие: действует прерывание, и сначала нужно выйти из текущей конструкции." ;
+            EN.explanation = "This action cannot be performed: an interruption is active, and the current construct must be exited first." ;
+        ];
+    };
+
+    // Шаг 4: наиболее вложенный общий конструкт выбранного и предыдущего действий.
+    var Common: ConcreteConstruct = commonConstruct(A, P->hasAction) out true else {
+        conclude: error [ exception = true; exceptionName = "NoCommonConstruct"; ];
+    };
+
+    // Шаг 5: цикл агрегации по AND по конструктам от Common вниз до конструкта A.
+    // Каждая итерация проверяет один уровень; ошибка любого уровня — ошибка ответа
+    // (объяснение даёт conclude: error внутри checkLevel). Если все уровни пройдены,
+    // шаг 6 фиксирует A в трассе и завершает граф успехом.
+    cycle and (
+        isAncestorOrSelf(A->belongsTo, $C) and
+        isAncestorOrSelf($C, Common)
+    ) with ConcreteConstruct C {
+        body -> {
+            `fragment`:checkLevel(C);
+        };
+        correct -> {
+            `fragment`:commitCorrectAction();
+        };
+        error -> {
+            conclude: error;
+        };
+    };
+}

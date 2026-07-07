@@ -8,6 +8,7 @@ payloads; file arguments are read and sent inline.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -15,12 +16,16 @@ from src.toolchain_rpc import RpcError, dir_source, file_source
 from src.toolchain_rpc import call as _rpc_call
 
 from .models import (
+    DiscoverTreeResult,
     DomainBuildMethod,
     ExpressionQueryResult,
     ReasoningResult,
+    TreeNode,
     _format_human_value,
+    _parse_objects_loqi,
     _parse_reasoning_exception,
     _parse_reasoning_result_value,
+    _parse_tree_node,
 )
 
 DOMAIN_ROUTE = "/rpc/domain"
@@ -75,6 +80,35 @@ def tree_loqi_to_xml(
     _put(params, "tag", tag)
     result = _safe_call(DOMAIN_ROUTE, "tree-loqi-to-xml", params)
     return _text_or_bool(result, "xml", output)
+
+
+def discover_tree(
+    tree_file: str | Path,
+    meta: Sequence[tuple[str, str]],
+    *,
+    union: bool = False,
+    limit: int | None = None,
+    debug_enabled: bool = False,
+    children: bool = False,
+) -> DiscoverTreeResult | None:
+    tree_path = Path(tree_file)
+    params: dict[str, Any] = {
+        "meta": [{"name": name, "value": value} for name, value in meta],
+        "union": union,
+        "debug": debug_enabled,
+        "children": children,
+    }
+    if tree_path.suffix.lower() == ".xml":
+        params["treeXml"] = file_source(tree_path)
+    else:
+        params["treeLoqi"] = file_source(tree_path)
+    if limit is not None:
+        params["limit"] = limit
+
+    result = _safe_call(DOMAIN_ROUTE, "discover-tree", params)
+    if not isinstance(result, dict):
+        return None
+    return _to_discover_tree_result(result)
 
 
 def domain_to_rdf(
@@ -198,6 +232,7 @@ def query_expression(
     verbose: bool = False,
     json_trace: bool = False,
     limit: int | None = None,
+    loqi: bool = False,
     time_measure: bool = False,
     reasoner_output_stream: TextIO | None = None,
 ) -> ExpressionQueryResult | None:
@@ -208,6 +243,7 @@ def query_expression(
         "trace": trace,
         "verbose": verbose,
         "jsonTrace": json_trace,
+        "loqi": loqi,
         "timeMeasure": time_measure,
     }
     if model_dir is not None:
@@ -251,6 +287,7 @@ def _to_reasoning_result(result: dict[str, Any], stream: TextIO | None) -> Reaso
 
     return ReasoningResult(
         result=_parse_reasoning_result_value(result.get("branchResult")),
+        final_node=_parse_tree_node(result.get("finalNode")),
         trace=_as_trace(result.get("trace")),
         variables=variables,
         exceptions=exceptions,
@@ -260,10 +297,23 @@ def _to_reasoning_result(result: dict[str, Any], stream: TextIO | None) -> Reaso
     )
 
 
+def _to_discover_tree_result(result: dict[str, Any]) -> DiscoverTreeResult:
+    nodes_raw = result.get("nodes")
+    nodes: list[TreeNode] = []
+    if isinstance(nodes_raw, list):
+        nodes = [node for node in map(_parse_tree_node, nodes_raw) if node is not None]
+    return DiscoverTreeResult(
+        found=int(result.get("found") or 0),
+        shown=int(result.get("shown") or 0),
+        nodes=nodes,
+    )
+
+
 def _to_query_result(result: dict[str, Any]) -> ExpressionQueryResult:
     objects = [str(item) for item in (result.get("objects") or [])]
     return ExpressionQueryResult(
         objects=objects,
+        objects_loqi=_parse_objects_loqi(result.get("objectsLoqi")),
         trace=_as_trace(result.get("trace")),
         metrics=_as_metrics(result.get("metrics")),
     )

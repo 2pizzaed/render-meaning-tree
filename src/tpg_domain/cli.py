@@ -4,17 +4,20 @@ import json
 import logging
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
 from src.env import TPG_CLI_DEBUG_ENV_VAR, env_flag
 
 from .models import (
+    DiscoverTreeResult,
     DomainBuildMethod,
     ExpressionQueryResult,
     ReasoningResult,
     TpgProject,
     _format_human_value,
+    parse_discover_tree_jsonl,
     parse_expression_query_jsonl,
     parse_reasoning_jsonl,
 )
@@ -107,6 +110,41 @@ def tree_loqi_to_xml(
         *(["--cdata-expressions"] if cdata_expressions else []),
         *(_path_option("-o", output)),
     )
+
+
+def discover_tree(
+    tree_file: str | Path,
+    meta: Sequence[tuple[str, str]],
+    *,
+    union: bool = False,
+    limit: int | None = None,
+    debug_enabled: bool = False,
+    children: bool = False,
+) -> DiscoverTreeResult | None:
+    """Search decision tree nodes by metadata through its_DomainModel CLI.
+
+    ``tree_file`` is LOQI/TPG or XML, auto-detected by extension. ``meta`` is a
+    sequence of (name, value) criteria; combined with AND unless ``union`` is set.
+    If a "line" criterion is present, debug metadata is built automatically even
+    without ``debug_enabled``. If ``children`` is set, each matched node's
+    :attr:`TreeNode.children` reports its immediate (depth-1) child nodes.
+    """
+    args = [
+        "discover-tree",
+        str(tree_file),
+        *[arg for name, value in meta for arg in ("--meta", f"{name}={value}")],
+        *(["--union"] if union else []),
+        *([] if limit is None else ["--limit", str(limit)]),
+        *(["--debug"] if debug_enabled else []),
+        *(["--children"] if children else []),
+        "--format",
+        "jsonl",
+    ]
+
+    raw_result = _run_domain_cli(*args)
+    if raw_result is None:
+        return None
+    return parse_discover_tree_jsonl(raw_result)
 
 
 def domain_to_rdf(
@@ -262,10 +300,16 @@ def query_expression(
     verbose: bool = False,
     json_trace: bool = False,
     limit: int | None = None,
+    loqi: bool = False,
     time_measure: bool = False,
     reasoner_output_stream: TextIO | None = None,
 ) -> ExpressionQueryResult | None:
-    """Run its_Reasoner expression-query against a specific LOQI domain."""
+    """Run its_Reasoner expression-query against a specific LOQI domain.
+
+    If ``loqi`` is set, each found object is additionally serialized into LOQI
+    text (via DomainModel's LOQI writer) and reported in the result's
+    ``objects_loqi`` mapping.
+    """
     args = [
         "expression-query",
         *([str(model_dir)] if model_dir is not None else []),
@@ -277,6 +321,7 @@ def query_expression(
         *(["--verbose"] if verbose else []),
         *(["--json-trace"] if json_trace else []),
         *([] if limit is None else ["--limit", str(limit)]),
+        *(["--loqi"] if loqi else []),
         *(["--time-measure"] if time_measure else []),
         "--format",
         "jsonl",

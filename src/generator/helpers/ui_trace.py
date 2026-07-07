@@ -4,7 +4,7 @@ from typing import Any
 
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import registry_to_loqi
-from src.model.situation import Action, TraceAct
+from src.model.situation import Action
 from src.serialization.loqi import LoqiSerializer
 
 
@@ -45,44 +45,6 @@ def resolve_button_action(
     return actions[0]
 
 
-def apply_trace_action_names(
-    pipeline: DomainDataGeneratorPipeline,
-    selected_trace: list[str],
-) -> list[TraceAct]:
-    registry = pipeline.registry
-    registry.trace_acts = registry.trace_acts[:1]
-    serializer = _serializer_for_pipeline(pipeline)
-
-    for action_name in selected_trace:
-        action = _resolve_action_by_name(
-            serializer,
-            action_name,
-        )
-        trace_act = TraceAct(
-            action=action,
-            used_transition=_default_transition(action),
-            situation=pipeline,
-        )
-        registry.add(trace_act)
-        registry.variables["P"] = trace_act
-
-    if registry.trace_acts and "P" not in registry.variables:
-        registry.variables["P"] = registry.trace_acts[-1]
-    return registry.trace_acts
-
-
-def _resolve_action_by_name(
-    serializer: LoqiSerializer,
-    action_name: str,
-) -> Action:
-    action = serializer.object_by_name(action_name)
-    if not isinstance(action, Action):
-        raise LookupError(
-            f"Expected Action for {action_name!r}, found {type(action).__name__}"
-        )
-    return action
-
-
 def _serializer_for_pipeline(pipeline: DomainDataGeneratorPipeline) -> LoqiSerializer:
     serializer, _ = registry_to_loqi(pipeline.registry)
     return serializer
@@ -120,8 +82,3 @@ def _str_or_none(value: Any) -> str | None:
     if value is None:
         return None
     return str(value)
-
-
-def _default_transition(action: Action):
-    transitions = action.possible_transitions()
-    return transitions[0] if len(transitions) == 1 else None

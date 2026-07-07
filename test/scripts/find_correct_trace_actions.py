@@ -9,8 +9,7 @@ from pathlib import Path
 from src.generator.helpers import action_line_position
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import code_snippet_to_pipeline
-from src.helpers.tpg import PipelineReasoningOutput, solve_pipeline_reasoning
-from src.model.situation import Action, TraceAct
+from src.helpers.tpg import solve_graph_full_reasoning
 from test.helpers.env import resolve_project_root
 
 TREE_NAME = "findCorrect"
@@ -76,75 +75,20 @@ def build_correct_trace_pipeline(
 
     with tempfile.TemporaryDirectory(prefix="find-correct-trace-") as tmp:
         tmp_path = Path(tmp)
-        previous_trace_length = len(registry.trace_acts)
-
-        for _iteration in range(max_iterations):
-            reasoning = _solve_once(
+        with (tmp_path / "reasoner_output.jsonl").open("a", encoding="utf-8") as output:
+            solve_graph_full_reasoning(
                 tmp_path,
                 pipeline,
+                model_dir=resolve_project_root() / "domain",
+                filename=DEFAULT_LOQI_FILENAME,
+                tree=TREE_NAME,
+                export_domain=True,
+                debug_enabled=True,
                 time_limit_seconds=time_limit_seconds,
+                reasoner_output_stream=output,
+                max_iterations=max_iterations,
             )
-
-            if len(reasoning.trace_acts) <= previous_trace_length:
-                raise RuntimeError(
-                    "findCorrect solve did not append a trace action before reaching END"
-                )
-            previous_trace_length = len(reasoning.trace_acts)
-
-            current_trace_act = registry.variables.get("P")
-            current_action = (
-                current_trace_act.action
-                if isinstance(current_trace_act, TraceAct)
-                else reasoning.trace_acts[-1].action
-            )
-            if _is_root_end_action(pipeline, current_action):
-                break
-        else:
-            raise RuntimeError(
-                f"findCorrect did not finish after {max_iterations} iteration(s)"
-            )
-
     return pipeline
-
-
-def _solve_once(
-    tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
-    *,
-    time_limit_seconds: int,
-) -> PipelineReasoningOutput:
-    with (tmp_path / "reasoner_output.jsonl").open("a", encoding="utf-8") as output:
-        reasoning = solve_pipeline_reasoning(
-            tmp_path,
-            pipeline,
-            model_dir=resolve_project_root() / "domain",
-            filename=DEFAULT_LOQI_FILENAME,
-            tree=TREE_NAME,
-            export_domain=True,
-            debug_enabled=True,
-            time_limit_seconds=time_limit_seconds,
-            reasoner_output_stream=output,
-        )
-    if reasoning.result.result is not True or reasoning.result.exceptions:
-        raise RuntimeError(f"findCorrect solve failed: {reasoning.result}")
-    if reasoning.exported_loqi is None:
-        raise RuntimeError("findCorrect solve did not export specificDomain")
-    return reasoning
-
-
-def _is_root_end_action(
-    pipeline: DomainDataGeneratorPipeline,
-    action: Action,
-) -> bool:
-    entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
-    entry_point = pipeline.get_construct_for(entry_point_id)
-    if entry_point is None:
-        return False
-    return (
-        action.rule.role == "END"
-        and entry_point.rule.name == "global_statements_structure"
-        and action.ast_id == entry_point.ast_id
-    )
 
 
 def _read_code(args: argparse.Namespace) -> str:

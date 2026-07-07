@@ -59,12 +59,13 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
 
     captured: dict[str, Any] = {}
 
-    def fake_solve_pipeline_reasoning(directory, pipeline, **kwargs):  # type: ignore[no-untyped-def]
-        serializer, _ = registry_to_loqi(pipeline.registry)
-        captured["trace_names"] = [
-            serializer.object_name(trace_act.action)
-            for trace_act in pipeline.registry.trace_acts[1:]
-        ]
+    def fake_check_graph_stepwise_reasoning(
+        directory,
+        pipeline,
+        selected_trace,
+        **kwargs,
+    ):  # type: ignore[no-untyped-def]
+        captured["selected_trace"] = list(selected_trace)
         captured["kwargs"] = kwargs
         return SimpleNamespace(
             result=SimpleNamespace(
@@ -75,7 +76,11 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
             )
         )
 
-    monkeypatch.setattr(playground_app, "solve_pipeline_reasoning", fake_solve_pipeline_reasoning)
+    monkeypatch.setattr(
+        playground_app,
+        "check_graph_stepwise_reasoning",
+        fake_check_graph_stepwise_reasoning,
+    )
 
     client = playground_app.app.test_client()
     response = client.post(
@@ -94,4 +99,4 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["trace"] == trace
     assert payload["reasoning"]["status"] == "correct"
-    assert captured["trace_names"] == trace
+    assert captured["selected_trace"] == trace

@@ -10,13 +10,10 @@ from flask import Flask, jsonify, render_template, request, send_file
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.dot import render_dot_png
-from src.generator.helpers.ui_trace import (
-    apply_trace_action_names,
-    resolve_button_action_name,
-)
+from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import registry_to_loqi
-from src.helpers.tpg.reasoning import solve_pipeline_reasoning
+from src.helpers.tpg import check_graph_stepwise_reasoning
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
@@ -131,18 +128,17 @@ def reason_trace():
         )
         pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
         pipeline.process()
-        apply_trace_action_names(pipeline, selected_trace)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
-        reasoning = solve_pipeline_reasoning(
+        reasoning = check_graph_stepwise_reasoning(
             reasoning_tmp,
             pipeline,
+            selected_trace,
             model_dir=PLAYGROUND_REASON_MODEL_DIR,
             filename="playground-trace.loqi",
             tree=PLAYGROUND_REASON_TREE,
             export_domain=True,
             debug_enabled=True,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
-            restore_exported_trace=False,
         )
     except Exception as e:
         traceback.print_exc()

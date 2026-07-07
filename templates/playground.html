@@ -203,18 +203,12 @@
         let traceData = [];
 
         function updateTraceView() {
-            let str = "List.of(\n";
-            traceData.forEach((item, index) => {
-                str += `\tPair.of(${item.actionId}, "${item.type}")`;
-                if (index < traceData.length - 1) str += ",\n";
-            });
-            str += "\n);";
-            document.getElementById('trace-output').value = str;
+            document.getElementById('trace-output').value = JSON.stringify(traceData, null, 2);
         }
 
         function clearTrace() {
             traceData = [];
-            document.getElementById('trace-output').value = "";
+            document.getElementById('trace-output').value = "[]";
             renderReasoningResult(null);
         }
 
@@ -289,22 +283,6 @@
             container.innerHTML = html;
         }
 
-        function printAnswers() {
-            let str = "List.of(\n";
-            for (let i = 0; i < traceData.length; i++) {
-                // Если данные есть в answer_objects, выводим их
-                // Иначе выводим просто action_id для отладки
-                const [key, value] = traceData[i];
-                const renderedValue = typeof value === 'string' ? value : JSON.stringify(value);
-                str += `\tPair.of(${key}, "${renderedValue.replaceAll('"', '\\"')}")`;
-                if (i < traceData.length - 1) {
-                    str += ",\n";
-                }
-            }
-            str += "\n);";
-            document.getElementById('trace-output').value = str;
-        }
-
         function handleButtonClick(btn) {
             const actionId = btn.getAttribute('data-action-id');
             const astId = btn.getAttribute('data-node-id');
@@ -321,10 +299,10 @@
                 console.error("Error parsing answer_objects:", e);
             }
 
-            // Если для этой кнопки есть данные в answer_objects -> записываем в трейс
-            if (ansData[actionId]) {
-                traceData.push([actionId, ansData[actionId]]);
-                printAnswers();
+            // Если для этой кнопки есть данные в answer_objects -> записываем action name в трейс
+            if (typeof ansData[actionId] === 'string' && ansData[actionId]) {
+                traceData.push(ansData[actionId]);
+                updateTraceView();
                 renderReasoningResult(null);
             } else {
                 console.warn(`No domain info found for action_id: ${actionId}`);

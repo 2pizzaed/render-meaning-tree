@@ -10,8 +10,12 @@ from flask import Flask, jsonify, render_template, request, send_file
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.dot import render_dot_png
-from src.generator.helpers.ui_trace import apply_ui_trace_buttons
+from src.generator.helpers.ui_trace import (
+    apply_trace_action_names,
+    resolve_button_action_name,
+)
 from src.generator.pipeline import DomainDataGeneratorPipeline
+from src.generator.utilities import registry_to_loqi
 from src.helpers.tpg.reasoning import solve_pipeline_reasoning
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
@@ -69,7 +73,11 @@ def index():
             try:
                 manager = prepare_code(code, language, target_language=target_language or None)
                 context = prepare_html_context(manager, answer_objects={})
-                answer_objects = build_answer_objects(context, enable_trace=enable_trace)
+                answer_objects = build_answer_objects(
+                    manager,
+                    context,
+                    enable_trace=enable_trace,
+                )
                 context["answer_objects"] = answer_objects
                 context["answer_objects_json"] = (
                     app.json.dumps(answer_objects, ensure_ascii=False, indent=4)
@@ -110,8 +118,10 @@ def reason_trace():
     language = read_language(payload.get("language"), "java")
     target_language = read_target_language(payload.get("target_language"))
     selected_trace = payload.get("trace")
-    if not isinstance(selected_trace, list):
-        return jsonify({"ok": False, "error": "Trace payload must be a list."}), 400
+    if not isinstance(selected_trace, list) or not all(
+        isinstance(step, str) for step in selected_trace
+    ):
+        return jsonify({"ok": False, "error": "Trace payload must be a list of strings."}), 400
 
     try:
         manager = prepare_code(
@@ -121,19 +131,19 @@ def reason_trace():
         )
         pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
         pipeline.process()
-        ui_trace_buttons = apply_ui_trace_buttons(pipeline, selected_trace)
-        with tempfile.TemporaryDirectory(prefix="playground-reason-") as tmp:
-            reasoning = solve_pipeline_reasoning(
-                Path(tmp),
-                pipeline,
-                model_dir=PLAYGROUND_REASON_MODEL_DIR,
-                filename="playground-trace.loqi",
-                tree=PLAYGROUND_REASON_TREE,
-                export_domain=True,
-                debug_enabled=True,
-                time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
-                restore_exported_trace=False,
-            )
+        apply_trace_action_names(pipeline, selected_trace)
+        reasoning_tmp = _playground_temp_dir("playground-reason-")
+        reasoning = solve_pipeline_reasoning(
+            reasoning_tmp,
+            pipeline,
+            model_dir=PLAYGROUND_REASON_MODEL_DIR,
+            filename="playground-trace.loqi",
+            tree=PLAYGROUND_REASON_TREE,
+            export_domain=True,
+            debug_enabled=True,
+            time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+            restore_exported_trace=False,
+        )
     except Exception as e:
         traceback.print_exc()
         return jsonify({"ok": False, "error": f"{type(e).__name__}: {e!s}"}), 500
@@ -141,18 +151,7 @@ def reason_trace():
     return jsonify(
         {
             "ok": True,
-            "trace": [
-                {
-                    "actionId": button.action_id,
-                    "nodeId": button.node_id,
-                    "nodeType": button.node_type,
-                    "buttonType": button.button_type,
-                    "position": button.position,
-                    "lineIndex": button.line_index,
-                    "columnIndex": button.column_index,
-                }
-                for button in ui_trace_buttons
-            ],
+            "trace": selected_trace,
             "reasoning": serialize_reasoning_result(reasoning.result),
         }
     )
@@ -173,9 +172,9 @@ def trace_png():
             pipeline.registry.trace_acts,
             name="playground_correct_trace",
         )
-        with tempfile.TemporaryDirectory(prefix="playground-trace-png-") as tmp:
-            png_path = render_dot_png(dot_text, Path(tmp) / "correct-trace.png")
-            png_bytes = png_path.read_bytes()
+        png_tmp = _playground_temp_dir("playground-trace-png-")
+        png_path = render_dot_png(dot_text, png_tmp / "correct-trace.png")
+        png_bytes = png_path.read_bytes()
     except Exception as e:
         traceback.print_exc()
         return f"{type(e).__name__}: {e!s}", 500, {"Content-Type": "text/plain; charset=utf-8"}
@@ -193,20 +192,24 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def build_answer_objects(context: dict[str, object], *, enable_trace: bool) -> dict[str, object] | None:
+def build_answer_objects(
+    manager,
+    context: dict[str, object],
+    *,
+    enable_trace: bool,
+) -> dict[str, object] | None:
     """Temporary hook for answer-trace payload generation."""
     if not enable_trace:
         return None
+    pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
+    pipeline.process()
+    serializer, _ = registry_to_loqi(pipeline.registry)
     return {
-        str(button["action_id"]): {
-            "actionId": button["action_id"],
-            "nodeId": button["node_id"],
-            "nodeType": button["node_type"],
-            "buttonType": button["type"],
-            "position": button["position"],
-            "lineIndex": button["line_index"],
-            "columnIndex": button["column_index"],
-        }
+        str(button["action_id"]): resolve_button_action_name(
+            pipeline,
+            button,
+            serializer=serializer,
+        )
         for button in extract_buttons_from_context(context)
         if button.get("action_id") is not None
     }
@@ -278,6 +281,16 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Enable or disable Flask debug mode.",
     )
     return parser.parse_args(argv)
+
+
+def _playground_temp_root() -> Path:
+    tmp_root = PROJECT_ROOT / ".tmp"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    return tmp_root
+
+
+def _playground_temp_dir(prefix: str) -> Path:
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=_playground_temp_root()))
 
 
 if __name__ == "__main__":

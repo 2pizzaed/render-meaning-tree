@@ -1,16 +1,25 @@
 import argparse
+import tempfile
 import traceback
 from pathlib import Path
 from typing import Literal
 
-from flask import Flask, render_template, request
+from flask import Flask, jsonify, render_template, request
 
-from src.ast_managers import CodeManager, prepare_code
-from src.coderenderer.html import prepare_html_context
+from src.ast_managers import prepare_code
+from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
+from src.generator.pipeline import DomainDataGeneratorPipeline
+from src.helpers.tpg.reasoning import solve_pipeline_reasoning
+from src.helpers.tpg.ui_trace import apply_ui_trace_buttons
+from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 
 template_dir = (Path(__file__).parent / "../../templates").absolute()
 app = Flask(__name__, template_folder=template_dir)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"
+PLAYGROUND_REASON_TREE: str | None = None
+PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
 
 LANGUAGE_OPTIONS: tuple[tuple[SupportedProgrammingLanguage, str], ...] = (
     ("java", "Java"),
@@ -55,8 +64,14 @@ def index():
         else:
             try:
                 manager = prepare_code(code, language, target_language=target_language or None)
-                answer_objects = build_answer_objects(manager, enable_trace=enable_trace)
-                context = prepare_html_context(manager, answer_objects=answer_objects)
+                context = prepare_html_context(manager, answer_objects={})
+                answer_objects = build_answer_objects(context, enable_trace=enable_trace)
+                context["answer_objects"] = answer_objects
+                context["answer_objects_json"] = (
+                    app.json.dumps(answer_objects, ensure_ascii=False, indent=4)
+                    if answer_objects
+                    else ""
+                )
                 context["code"] = code
                 context["language"] = language
                 context["target_language"] = target_language
@@ -84,17 +99,130 @@ def index():
     )
 
 
+@app.post("/reason-trace")
+def reason_trace():
+    payload = request.get_json(silent=True) or {}
+    code = str(payload.get("code") or "")
+    language = read_language(payload.get("language"), "java")
+    target_language = read_target_language(payload.get("target_language"))
+    selected_trace = payload.get("trace")
+    if not isinstance(selected_trace, list):
+        return jsonify({"ok": False, "error": "Trace payload must be a list."}), 400
+
+    try:
+        manager = prepare_code(
+            code,
+            language,
+            target_language=target_language or None,
+        )
+        pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
+        pipeline.process()
+        ui_trace_buttons = apply_ui_trace_buttons(pipeline, selected_trace)
+        with tempfile.TemporaryDirectory(prefix="playground-reason-") as tmp:
+            reasoning = solve_pipeline_reasoning(
+                Path(tmp),
+                pipeline,
+                model_dir=PLAYGROUND_REASON_MODEL_DIR,
+                filename="playground-trace.loqi",
+                tree=PLAYGROUND_REASON_TREE,
+                export_domain=True,
+                debug_enabled=True,
+                time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+                restore_exported_trace=False,
+            )
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e!s}"}), 500
+
+    return jsonify(
+        {
+            "ok": True,
+            "trace": [
+                {
+                    "actionId": button.action_id,
+                    "nodeId": button.node_id,
+                    "nodeType": button.node_type,
+                    "buttonType": button.button_type,
+                    "position": button.position,
+                    "lineIndex": button.line_index,
+                    "columnIndex": button.column_index,
+                }
+                for button in ui_trace_buttons
+            ],
+            "reasoning": serialize_reasoning_result(reasoning.result),
+        }
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     app.run(host=args.host, port=args.port, debug=args.debug)
     return 0
 
 
-def build_answer_objects(manager: CodeManager, *, enable_trace: bool) -> dict[str, str] | None:
+def build_answer_objects(context: dict[str, object], *, enable_trace: bool) -> dict[str, object] | None:
     """Temporary hook for answer-trace payload generation."""
     if not enable_trace:
         return None
-    return None
+    return {
+        str(button["action_id"]): {
+            "actionId": button["action_id"],
+            "nodeId": button["node_id"],
+            "nodeType": button["node_type"],
+            "buttonType": button["type"],
+            "position": button["position"],
+            "lineIndex": button["line_index"],
+            "columnIndex": button["column_index"],
+        }
+        for button in extract_buttons_from_context(context)
+        if button.get("action_id") is not None
+    }
+
+
+def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
+    final_node = result.final_node
+    exception_names = [
+        exception.exception_name
+        for exception in result.exceptions
+        if exception.exception_name
+    ]
+    final_exception_name = _first_metadata_value(final_node, "exceptionName")
+    if final_exception_name:
+        exception_names.append(final_exception_name)
+
+    has_exception = _has_metadata(final_node, "exception") or bool(result.exceptions)
+    status = "correct" if result.result is True else "error" if result.result is False else "unknown"
+
+    return {
+        "result": result.result,
+        "status": status,
+        "hasException": has_exception,
+        "exceptionNames": exception_names,
+        "explanations": _metadata_values(final_node, "explanation"),
+        "skills": _metadata_values(final_node, "skill"),
+        "variables": result.variables,
+    }
+
+
+def _metadata_values(node: TreeNode | None, name: str) -> list[str]:
+    if node is None:
+        return []
+    grouped: dict[str | None, list[str]] = {}
+    for entry in node.metadata:
+        if entry.name == name and entry.value is not None:
+            grouped.setdefault(entry.loc_code, []).append(str(entry.value))
+    return grouped.get("EN") or grouped.get("en") or grouped.get(None) or [
+        value for values in grouped.values() for value in values
+    ]
+
+
+def _first_metadata_value(node: TreeNode | None, name: str) -> str | None:
+    values = _metadata_values(node, name)
+    return values[0] if values else None
+
+
+def _has_metadata(node: TreeNode | None, name: str) -> bool:
+    return bool(_metadata_values(node, name))
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:

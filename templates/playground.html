@@ -72,8 +72,20 @@
 
         /* Trace Styles */
         .trace-container { display: flex; flex-direction: column; height: 100%; }
-        .trace-controls { margin-bottom: 10px; }
+        .trace-controls { margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
         #trace-output { flex: 1; width: 100%; font-family: 'Consolas', monospace; font-size: 12px; padding: 10px; border: 1px solid #ddd; resize: none; background: #fcfcfc; }
+        .reason-alert { padding: 10px 12px; border: 1px solid; border-radius: 4px; margin-bottom: 10px; font-size: 13px; }
+        .reason-alert.hidden, .reason-variables.hidden { display: none; }
+        .reason-alert.correct { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
+        .reason-alert.error { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
+        .reason-alert.unknown { background: #fff8e1; color: #795548; border-color: #ffe082; }
+        .reason-alert .reason-line { margin-top: 4px; }
+        .reason-alert .reason-skill { display: inline-block; margin-top: 6px; padding: 3px 6px; background: rgba(255,255,255,0.65); border: 1px solid currentColor; border-radius: 4px; font-family: 'Consolas', monospace; }
+        .reason-variables { margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; font-size: 12px; }
+        .reason-variables table { width: 100%; border-collapse: collapse; }
+        .reason-variables th, .reason-variables td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; font-family: 'Consolas', monospace; }
+        .reason-variables th { background: #f7f7f7; font-family: inherit; }
+        .reason-variables tr:last-child td { border-bottom: none; }
 
         .error-box { background: #ffebee; color: #c62828; padding: 15px; border: 1px solid #ffcdd2; margin-bottom: 20px; white-space: pre-wrap; font-family: monospace; font-size: 12px; }
     </style>
@@ -144,7 +156,10 @@
                 <div class="trace-container">
                     <div class="trace-controls">
                         <button onclick="clearTrace()" style="padding: 4px 8px;">Clear Trace</button>
+                        {% if not static_used %}<button id="reason-button" onclick="reasonTrace()" style="padding: 4px 8px;">Reason</button>{% endif %}
                     </div>
+                    <div id="reason-status" class="reason-alert hidden"></div>
+                    <div id="reason-variables" class="reason-variables hidden"></div>
                     <textarea id="trace-output" readonly></textarea>
                 </div>
             </div>
@@ -197,6 +212,7 @@
         function clearTrace() {
             traceData = [];
             document.getElementById('trace-output').value = "";
+            renderReasoningResult(null);
         }
 
         // --- Inspector Logic ---
@@ -276,7 +292,8 @@
                 // Если данные есть в answer_objects, выводим их
                 // Иначе выводим просто action_id для отладки
                 const [key, value] = traceData[i];
-                str += `\tPair.of(${key}, "${value}")`;
+                const renderedValue = typeof value === 'string' ? value : JSON.stringify(value);
+                str += `\tPair.of(${key}, "${renderedValue.replaceAll('"', '\\"')}")`;
                 if (i < traceData.length - 1) {
                     str += ",\n";
                 }
@@ -286,7 +303,7 @@
         }
 
         function handleButtonClick(btn) {
-            const actionId = btn.getAttribute('data-action_id');
+            const actionId = btn.getAttribute('data-action-id');
             const astId = btn.getAttribute('data-node-id');
             const astNodeType = btn.getAttribute('data-node-type');
             
@@ -305,10 +322,93 @@
             if (ansData[actionId]) {
                 traceData.push([actionId, ansData[actionId]]);
                 printAnswers();
+                renderReasoningResult(null);
             } else {
                 console.warn(`No domain info found for action_id: ${actionId}`);
-                alert(`AST Node Id: ${astId}\nAST Type: ${astNodeType}\nAction id (buttons before): ${action_id}`);
+                alert(`AST Node Id: ${astId}\nAST Type: ${astNodeType}\nAction id (buttons before): ${actionId}`);
             }
+        }
+
+        async function reasonTrace() {
+            const button = document.getElementById('reason-button');
+            if (!button || traceData.length === 0) {
+                renderReasoningResult({ok: false, error: 'Select at least one trace action before running Reason.'});
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Reasoning...';
+            try {
+                const response = await fetch('/reason-trace', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        code: document.querySelector('textarea[name="code"]')?.value || '',
+                        language: document.querySelector('select[name="language"]')?.value || 'java',
+                        target_language: document.querySelector('select[name="target_language"]')?.value || '',
+                        trace: traceData,
+                    }),
+                });
+                const payload = await response.json();
+                renderReasoningResult(payload);
+            } catch (error) {
+                renderReasoningResult({ok: false, error: String(error)});
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Reason';
+            }
+        }
+
+        function renderReasoningResult(payload) {
+            const statusBox = document.getElementById('reason-status');
+            const variablesBox = document.getElementById('reason-variables');
+            if (!statusBox || !variablesBox) return;
+            statusBox.className = 'reason-alert hidden';
+            statusBox.innerHTML = '';
+            variablesBox.className = 'reason-variables hidden';
+            variablesBox.innerHTML = '';
+            if (!payload) return;
+
+            if (!payload.ok) {
+                statusBox.className = 'reason-alert error';
+                statusBox.textContent = payload.error || 'Reasoning failed.';
+                return;
+            }
+
+            const reasoning = payload.reasoning || {};
+            const status = reasoning.status || 'unknown';
+            statusBox.className = `reason-alert ${status}`;
+            const lines = [`<strong>${status === 'correct' ? 'Correct' : status === 'error' ? 'Incorrect' : 'Unknown result'}</strong>`];
+            if (reasoning.hasException) {
+                const names = (reasoning.exceptionNames || []).filter(Boolean).join(', ');
+                lines.push(`<div class="reason-line">An exception occurred${names ? `: ${escapeHtml(names)}` : '.'}</div>`);
+            }
+            (reasoning.explanations || []).forEach((text) => {
+                lines.push(`<div class="reason-line">${escapeHtml(text)}</div>`);
+            });
+            (reasoning.skills || []).forEach((text) => {
+                lines.push(`<div class="reason-skill">${escapeHtml(text)}</div>`);
+            });
+            statusBox.innerHTML = lines.join('');
+
+            const variables = reasoning.variables || {};
+            const entries = Object.entries(variables);
+            if (entries.length > 0) {
+                variablesBox.className = 'reason-variables';
+                variablesBox.innerHTML = `<table><thead><tr><th>Variable</th><th>Value</th></tr></thead><tbody>${
+                    entries.map(([name, value]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(String(value))}</td></tr>`).join('')
+                }</tbody></table>`;
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;',
+            }[char]));
         }
     </script>
 </body>

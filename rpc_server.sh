@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 PID_FILE="${SCRIPT_DIR}/.rpc_pid"
 LOG_FILE="${SCRIPT_DIR}/.rpc_server.log"
+RUNNING_PID=""
+RUNNING_SOURCE=""
 
 usage() {
   cat <<'EOF'
@@ -16,7 +18,7 @@ Usage:
 Commands:
   start         Build (optional) and launch the RPC server as a background daemon.
   stop          Stop the running daemon (using the PID saved in .rpc_pid).
-  status        Check whether the daemon is running.
+  status        Check whether the daemon is running or listening on the configured port.
   -h, --help    Show this help.
 
 Start options:
@@ -61,16 +63,113 @@ find_jar() {
   printf '%s\n' "${jar}"
 }
 
-is_running() {
-  if [[ ! -f "${PID_FILE}" ]]; then
+server_port() {
+  printf '%s\n' "${JSON_RPC_TOOLCHAIN_PORT:-8080}"
+}
+
+process_running() {
+  local pid="$1"
+  if [[ -z "${pid}" ]]; then
     return 1
   fi
-  local pid
-  pid="$(cat "${PID_FILE}")"
   if kill -0 "${pid}" 2>/dev/null; then
     return 0
   fi
-  rm -f "${PID_FILE}"
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "if (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" \
+      >/dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
+
+listener_pid_for_port() {
+  local port="$1"
+  local pid=""
+
+  if command -v ss >/dev/null 2>&1; then
+    pid="$(ss -H -ltnp "sport = :${port}" 2>/dev/null \
+      | sed -nE 's/.*pid=([0-9]+).*/\1/p' \
+      | head -n 1)"
+    if [[ -n "${pid}" ]]; then
+      printf '%s\n' "${pid}"
+      return 0
+    fi
+  fi
+
+  if command -v lsof >/dev/null 2>&1; then
+    pid="$(lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | head -n 1)"
+    if [[ -n "${pid}" ]]; then
+      printf '%s\n' "${pid}"
+      return 0
+    fi
+  fi
+
+  if command -v powershell.exe >/dev/null 2>&1; then
+    pid="$(powershell.exe -NoProfile -Command \
+      "(Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)" \
+      2>/dev/null | tr -d '\r' | head -n 1)"
+    if [[ -n "${pid}" ]]; then
+      printf '%s\n' "${pid}"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+stop_process() {
+  local pid="$1"
+  kill "${pid}" 2>/dev/null || true
+
+  local waited=0
+  while process_running "${pid}" && (( waited < 5 )); do
+    sleep 1
+    (( waited++ )) || true
+  done
+
+  if process_running "${pid}"; then
+    if ! kill -9 "${pid}" 2>/dev/null; then
+      if command -v powershell.exe >/dev/null 2>&1; then
+        powershell.exe -NoProfile -Command \
+          "Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue" \
+          >/dev/null 2>&1 || true
+      fi
+    fi
+  fi
+}
+
+is_running() {
+  RUNNING_PID=""
+  RUNNING_SOURCE=""
+
+  local port
+  port="$(server_port)"
+  local listener_pid=""
+  listener_pid="$(listener_pid_for_port "${port}" || true)"
+  if [[ -n "${listener_pid}" ]]; then
+    RUNNING_PID="${listener_pid}"
+    RUNNING_SOURCE="port-listener"
+    if [[ -f "${PID_FILE}" ]] && [[ "$(cat "${PID_FILE}")" == "${listener_pid}" ]]; then
+      RUNNING_SOURCE="pid-file"
+    else
+      echo "${listener_pid}" > "${PID_FILE}"
+    fi
+    return 0
+  fi
+
+  if [[ -f "${PID_FILE}" ]]; then
+    local pid
+    pid="$(cat "${PID_FILE}")"
+    if process_running "${pid}"; then
+      RUNNING_PID="${pid}"
+      RUNNING_SOURCE="pid-file-no-listener"
+      return 0
+    fi
+    rm -f "${PID_FILE}"
+  fi
+
   return 1
 }
 
@@ -78,9 +177,7 @@ is_running() {
 
 cmd_start() {
   if is_running; then
-    local pid
-    pid="$(cat "${PID_FILE}")"
-    echo "RPC server is already running (PID ${pid})."
+    echo "RPC server is already running (PID ${RUNNING_PID}, ${RUNNING_SOURCE}, port $(server_port))."
     echo "Stop it first with: ./rpc_server.sh stop"
     exit 1
   fi
@@ -154,32 +251,20 @@ cmd_start() {
 }
 
 cmd_stop() {
-  if [[ ! -f "${PID_FILE}" ]]; then
-    echo "No .rpc_pid file found — server is not running (or was not started by this script)."
-    exit 0
-  fi
-
-  local pid
-  pid="$(cat "${PID_FILE}")"
-
-  if ! kill -0 "${pid}" 2>/dev/null; then
-    echo "PID ${pid} is not running (stale .rpc_pid). Cleaning up."
+  if ! is_running; then
+    echo "RPC server is not running."
     rm -f "${PID_FILE}"
     exit 0
   fi
 
-  echo "==> Stopping toolchain server (PID ${pid})"
-  kill "${pid}" 2>/dev/null || true
+  local pid
+  pid="${RUNNING_PID}"
 
-  local waited=0
-  while kill -0 "${pid}" 2>/dev/null && (( waited < 5 )); do
-    sleep 1
-    (( waited++ )) || true
-  done
-
-  if kill -0 "${pid}" 2>/dev/null; then
+  echo "==> Stopping toolchain server (PID ${pid}, ${RUNNING_SOURCE}, port $(server_port))"
+  stop_process "${pid}"
+  if process_running "${pid}"; then
     echo "    Forcing kill..."
-    kill -9 "${pid}" 2>/dev/null || true
+    stop_process "${pid}"
   fi
 
   rm -f "${PID_FILE}"
@@ -188,9 +273,7 @@ cmd_stop() {
 
 cmd_status() {
   if is_running; then
-    local pid
-    pid="$(cat "${PID_FILE}")"
-    echo "RPC server is running (PID ${pid})."
+    echo "RPC server is running (PID ${RUNNING_PID}, ${RUNNING_SOURCE}, port $(server_port))."
   else
     echo "RPC server is not running."
   fi

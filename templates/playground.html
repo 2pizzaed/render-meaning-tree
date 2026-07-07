@@ -156,7 +156,10 @@
                 <div class="trace-container">
                     <div class="trace-controls">
                         <button onclick="clearTrace()" style="padding: 4px 8px;">Clear Trace</button>
-                        {% if not static_used %}<button id="reason-button" onclick="reasonTrace()" style="padding: 4px 8px;">Reason</button>{% endif %}
+                        {% if not static_used %}
+                        <button id="reason-button" onclick="reasonTrace()" style="padding: 4px 8px;">Reason</button>
+                        <button id="tracing-button" onclick="openCorrectTrace()" style="padding: 4px 8px;">Tracing</button>
+                        {% endif %}
                     </div>
                     <div id="reason-status" class="reason-alert hidden"></div>
                     <div id="reason-variables" class="reason-variables hidden"></div>
@@ -357,6 +360,27 @@
                 button.disabled = false;
                 button.textContent = 'Reason';
             }
+        }
+
+        function openCorrectTrace() {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/trace-png';
+            form.target = '_blank';
+            form.style.display = 'none';
+            appendHiddenInput(form, 'code', document.querySelector('textarea[name="code"]')?.value || '');
+            appendHiddenInput(form, 'language', document.querySelector('select[name="language"]')?.value || 'java');
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
+        }
+
+        function appendHiddenInput(form, name, value) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
         }
 
         function renderReasoningResult(payload) {

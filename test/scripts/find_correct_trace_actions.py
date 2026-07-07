@@ -40,6 +40,34 @@ def trace_action_rows(
     time_limit_seconds: int = 30,
     include_transparent: bool = False,
 ) -> list[tuple[int, int, int]]:
+    pipeline = build_correct_trace_pipeline(
+        code,
+        language=language,
+        max_iterations=max_iterations,
+        time_limit_seconds=time_limit_seconds,
+    )
+    registry = pipeline.flatten_results()[0]
+
+    rows: list[tuple[int, int, int]] = []
+    for trace_act in registry.trace_acts:
+        position = action_line_position(
+            registry,
+            trace_act.action,
+            include_transparent=include_transparent,
+        )
+        if position is None:
+            continue
+        rows.append((position.line_number, position.action_index, position.ast_id))
+    return rows
+
+
+def build_correct_trace_pipeline(
+    code: str,
+    *,
+    language: str = "python",
+    max_iterations: int = 100,
+    time_limit_seconds: int = 30,
+) -> DomainDataGeneratorPipeline:
     pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
     pipeline.fork_enabled = False
     registry = pipeline.flatten_results()[0]
@@ -76,17 +104,7 @@ def trace_action_rows(
                 f"findCorrect did not finish after {max_iterations} iteration(s)"
             )
 
-    rows: list[tuple[int, int, int]] = []
-    for trace_act in registry.trace_acts:
-        position = action_line_position(
-            registry,
-            trace_act.action,
-            include_transparent=include_transparent,
-        )
-        if position is None:
-            continue
-        rows.append((position.line_number, position.action_index, position.ast_id))
-    return rows
+    return pipeline
 
 
 def _solve_once(

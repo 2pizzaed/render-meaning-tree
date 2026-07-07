@@ -1,18 +1,22 @@
 import argparse
 import tempfile
 import traceback
+from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
+from src.dot import render_dot_png
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.helpers.tpg.reasoning import solve_pipeline_reasoning
 from src.helpers.tpg.ui_trace import apply_ui_trace_buttons
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
+from test.helpers.dot import trace_acts_to_dot
+from test.scripts.find_correct_trace_actions import build_correct_trace_pipeline
 
 template_dir = (Path(__file__).parent / "../../templates").absolute()
 app = Flask(__name__, template_folder=template_dir)
@@ -151,6 +155,35 @@ def reason_trace():
             ],
             "reasoning": serialize_reasoning_result(reasoning.result),
         }
+    )
+
+
+@app.post("/trace-png")
+def trace_png():
+    code = request.form.get("code", "")
+    language = read_language(request.form.get("language"), "java")
+
+    try:
+        pipeline = build_correct_trace_pipeline(
+            code,
+            language=language,
+            time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+        )
+        dot_text = trace_acts_to_dot(
+            pipeline.registry.trace_acts,
+            name="playground_correct_trace",
+        )
+        with tempfile.TemporaryDirectory(prefix="playground-trace-png-") as tmp:
+            png_path = render_dot_png(dot_text, Path(tmp) / "correct-trace.png")
+            png_bytes = png_path.read_bytes()
+    except Exception as e:
+        traceback.print_exc()
+        return f"{type(e).__name__}: {e!s}", 500, {"Content-Type": "text/plain; charset=utf-8"}
+
+    return send_file(
+        BytesIO(png_bytes),
+        mimetype="image/png",
+        download_name="correct-trace.png",
     )
 
 

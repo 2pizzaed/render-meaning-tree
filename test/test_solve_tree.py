@@ -4,23 +4,25 @@ from typing import cast
 
 import pytest
 
+from src.generator.helpers import (
+    line_actions,
+    require_line_action,
+)
 from src.generator.pipeline import (
     DomainDataGeneratorPipeline,
     SituationDomainDataRegistry,
 )
 from src.generator.utilities import code_snippet_to_pipeline
+from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.rules import InterruptionType
 from src.model.situation import Action, TraceAct
-from src.tpg_domain import ReasoningResult, solve_reasoning
+from src.tpg_domain import ReasoningResult
 from test.helpers import (
-    line_actions,
     open_file_and_wait,
     pipeline_debug_json_artifacts,
     pipeline_to_loqi_files,
     render_trace_acts_artifacts,
-    require_line_action,
     resolve_project_root,
-    restore_trace_from_loqi,
     should_open_test_artifacts,
 )
 
@@ -409,7 +411,20 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             4: ["first"],
             6: ["next"],
         },
-        [(1, 0), (2, 1), (3, 2), (3, 0), (4, 0), (2, 1), (3, 2), (3, 0), (4, 0), (3, 1), (2, 1), (6, 0)],
+        [
+            (1, 0),
+            (2, 1),
+            (3, 2),
+            (3, 0),
+            (4, 0),
+            (2, 1),
+            (3, 2),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+            (6, 0),
+        ],
         "cpp_continue.loqi",
     ),
     (
@@ -697,7 +712,20 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 1), (2, 4), (2, 2), (3, 0), (2, 1), (2, 4), (2, 2), (3, 0), (2, 3), (2, 1), (5, 0)],
+        [
+            (1, 0),
+            (2, 1),
+            (2, 4),
+            (2, 2),
+            (3, 0),
+            (2, 1),
+            (2, 4),
+            (2, 2),
+            (3, 0),
+            (2, 3),
+            (2, 1),
+            (5, 0),
+        ],
         "java_continue.loqi",
     ),
     (
@@ -822,7 +850,20 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["next", "cond"],
             3: ["BEGIN", "END", "body"],
         },
-        [(1, 0), (2, 1), (3, 2), (3, 0), (4, 0), (3, 1), (2, 1), (3, 2), (3, 0), (4, 0), (3, 1), (2, 1)],
+        [
+            (1, 0),
+            (2, 1),
+            (3, 2),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+            (3, 2),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+        ],
         "cpp_while.loqi",
     ),
     (
@@ -888,7 +929,21 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["next"],
         },
-        [(1, 0), (2, 1), (2, 4), (2, 2), (3, 0), (2, 3), (2, 1), (2, 4), (2, 2), (3, 0), (2, 3), (2, 1), (5, 0)],
+        [
+            (1, 0),
+            (2, 1),
+            (2, 4),
+            (2, 2),
+            (3, 0),
+            (2, 3),
+            (2, 1),
+            (2, 4),
+            (2, 2),
+            (3, 0),
+            (2, 3),
+            (2, 1),
+            (5, 0),
+        ],
         "java_while.loqi",
     ),
     (
@@ -1285,41 +1340,30 @@ def _solve_once(
     loqi_filename: str,
     trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
 ) -> ReasoningResult:
-    _serializer, loqi_file = pipeline_to_loqi_files(
-        tmp_path,
-        pipeline,
-        filename=loqi_filename,
-    )[0]
-    loqi_text = loqi_file.read_text(encoding="utf-8")
     reasoner_output_file = tmp_path / "reasoner_output.txt"
     with reasoner_output_file.open("a", encoding="utf-8") as reasoner_out:
-        solve_output = solve_reasoning(
-            resolve_project_root() / "domain",
-            loqi_file,
+        reasoning = solve_pipeline_reasoning(
+            tmp_path,
+            pipeline,
+            model_dir=resolve_project_root() / "domain",
+            filename=loqi_filename,
             tree=TREE_NAME,
             export_domain=True,
             debug_enabled=True,
             time_limit_seconds=30,
             reasoner_output_stream=reasoner_out,
+            restore_exported_trace=False,
         )
 
-    if solve_output is None:
-        _write_trace_artifacts(
-            tmp_path,
-            f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
-            pipeline.registry.trace_acts,
-            loqi_text,
-            trace_act_interruptions=trace_act_interruptions,
-        )
-    assert solve_output is not None
+    solve_output = reasoning.result
     if solve_output.trace is not None:
-        loqi_file.with_suffix(".trace.txt").write_text(
+        reasoning.loqi_file.with_suffix(".trace.txt").write_text(
             str(solve_output.trace), encoding="utf-8"
         )
-    exported_loqi = solve_output.artifacts.get("specificDomain")
+    exported_loqi = reasoning.exported_loqi
     if solve_output.result is not True or solve_output.exceptions:
         restored_trace_acts, restored_trace_state = restore_trace_from_loqi(
-            exported_loqi or loqi_text, pipeline, replace_existing=False
+            exported_loqi or reasoning.loqi_text, pipeline, replace_existing=False
         )
         if (
             trace_act_interruptions is not None
@@ -1334,7 +1378,7 @@ def _solve_once(
             tmp_path,
             f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
             restored_trace_acts,
-            exported_loqi if isinstance(exported_loqi, str) else loqi_text,
+            exported_loqi if isinstance(exported_loqi, str) else reasoning.loqi_text,
             trace_act_interruptions=trace_act_interruptions,
         )
     assert solve_output.result is True
@@ -1346,7 +1390,9 @@ def _solve_once(
     assert trace_acts
     if trace_state.interruption_mode is not InterruptionType.NONE:
         if trace_act_interruptions is not None:
-            trace_act_interruptions.append((len(trace_acts) - 1, trace_state.interruption_mode))
+            trace_act_interruptions.append(
+                (len(trace_acts) - 1, trace_state.interruption_mode)
+            )
 
     assert pipeline.registry.variables["P"] is trace_acts[-1]
     return solve_output

@@ -3,16 +3,18 @@ from pathlib import Path
 
 import test.helpers.dot as helpers_dot_module
 import test.helpers.pipeline as helpers_pipeline_module
+from src.generator.helpers import add_trace_act_for_line
 from src.generator.utilities import code_snippet_to_pipeline, pipeline_to_loqi
-from src.model.rules import InterruptionType
-from test.helpers import (
-    add_trace_act_for_line,
-    render_trace_acts_artifacts,
-    resolve_test_output_dir,
+from src.helpers.tpg import (
     restore_trace_from_loqi,
     trace_acts_from_loqi,
-    trace_acts_to_dot,
     trace_state_from_loqi,
+)
+from src.model.rules import InterruptionType
+from test.helpers import (
+    render_trace_acts_artifacts,
+    resolve_test_output_dir,
+    trace_acts_to_dot,
 )
 
 
@@ -153,7 +155,9 @@ y = 2
     assert png_path.exists()
 
 
-def test_trace_acts_to_dot_marks_transparency_without_replacing_role_or_stop_color() -> None:
+def test_trace_acts_to_dot_marks_transparency_without_replacing_role_or_stop_color() -> (
+    None
+):
     pipeline = code_snippet_to_pipeline("x = 1", language="python")
     trace_acts = pipeline.registry.trace_acts
 

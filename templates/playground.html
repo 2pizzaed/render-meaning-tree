@@ -72,28 +72,6 @@
         .node-item .type { font-weight: bold; color: #d63384; }
         .node-item .meta { font-size: 0.9em; color: #666; display: flex; gap: 10px; }
 
-        /* Trace Styles */
-        .trace-container { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-        .trace-controls { margin-bottom: 10px; display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
-        .trace-scroll { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
-        #trace-output { flex: 1; width: 100%; min-height: 180px; font-family: 'Consolas', monospace; font-size: 12px; padding: 10px; border: 1px solid #ddd; resize: none; background: #fcfcfc; overflow: auto; }
-        .reason-alert { padding: 10px 12px; border: 1px solid; border-radius: 4px; margin-bottom: 10px; font-size: 13px; }
-        .reason-alert.hidden, .reason-variables.hidden { display: none; }
-        .reason-alert.correct { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
-        .reason-alert.error { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
-        .reason-alert.unknown { background: #fff8e1; color: #795548; border-color: #ffe082; }
-        .reason-alert-header { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
-        .reason-alert-title { min-width: 0; }
-        .reason-alert-badges { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; flex: 0 0 auto; margin-left: auto; }
-        .reason-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border: 1px solid currentColor; border-radius: 999px; font-family: 'Consolas', monospace; font-size: 11px; white-space: nowrap; background: rgba(255,255,255,0.65); }
-        .reason-badge strong { font-family: inherit; font-weight: 700; }
-        .reason-alert .reason-line { margin-top: 4px; }
-        .reason-variables { margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; font-size: 12px; flex: 0 0 auto; }
-        .reason-variables table { width: 100%; border-collapse: collapse; }
-        .reason-variables th, .reason-variables td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; font-family: 'Consolas', monospace; }
-        .reason-variables th { background: #f7f7f7; font-family: inherit; }
-        .reason-variables tr:last-child td { border-bottom: none; }
-
         .error-box { background: #ffebee; color: #c62828; padding: 15px; border: 1px solid #ffcdd2; margin-bottom: 20px; white-space: pre-wrap; font-family: monospace; font-size: 12px; }
     </style>
 </head>
@@ -160,20 +138,7 @@
             
             {% if enable_trace and answer_objects %}
             <div id="tab-trace" class="tab-content">
-                <div class="trace-container">
-                    <div class="trace-controls">
-                        <button onclick="clearTrace()" style="padding: 4px 8px;">Clear Trace</button>
-                        {% if not static_used %}
-                        <button id="reason-button" onclick="reasonTrace()" style="padding: 4px 8px;">Reason</button>
-                        <button id="tracing-button" onclick="openCorrectTrace()" style="padding: 4px 8px;">Tracing</button>
-                        {% endif %}
-                    </div>
-                    <div class="trace-scroll">
-                        <div id="reason-status" class="reason-alert hidden"></div>
-                        <div id="reason-variables" class="reason-variables hidden"></div>
-                        <textarea id="trace-output" readonly></textarea>
-                    </div>
-                </div>
+                {% include 'playground_trace.html' %}
             </div>
             {% endif %}
         </div>
@@ -206,19 +171,6 @@
             document.getElementById(tabName).style.display = "block";
             document.getElementById(tabName).classList.add("active");
             evt.currentTarget.classList.add("active");
-        }
-
-        // --- Trace Logic ---
-        let traceData = [];
-
-        function updateTraceView() {
-            document.getElementById('trace-output').value = JSON.stringify(traceData, null, 2);
-        }
-
-        function clearTrace() {
-            traceData = [];
-            document.getElementById('trace-output').value = "[]";
-            renderReasoningResult(null);
         }
 
         // --- Inspector Logic ---
@@ -316,115 +268,6 @@
             } else {
                 console.warn(`No domain info found for action_id: ${actionId}`);
                 alert(`AST Node Id: ${astId}\nAST Type: ${astNodeType}\nAction id (buttons before): ${actionId}`);
-            }
-        }
-
-        async function reasonTrace() {
-            const button = document.getElementById('reason-button');
-            if (!button || traceData.length === 0) {
-                renderReasoningResult({ok: false, error: 'Select at least one trace action before running Reason.'});
-                return;
-            }
-
-            button.disabled = true;
-            button.textContent = 'Reasoning...';
-            try {
-                const response = await fetch('/reason-trace', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        code: document.querySelector('textarea[name="code"]')?.value || '',
-                        language: document.querySelector('select[name="language"]')?.value || 'java',
-                        target_language: document.querySelector('select[name="target_language"]')?.value || '',
-                        trace: traceData,
-                    }),
-                });
-                const payload = await response.json();
-                renderReasoningResult(payload);
-            } catch (error) {
-                renderReasoningResult({ok: false, error: String(error)});
-            } finally {
-                button.disabled = false;
-                button.textContent = 'Reason';
-            }
-        }
-
-        function openCorrectTrace() {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/tracing';
-            form.target = '_blank';
-            form.style.display = 'none';
-            appendHiddenInput(form, 'code', document.querySelector('textarea[name="code"]')?.value || '');
-            appendHiddenInput(form, 'language', document.querySelector('select[name="language"]')?.value || 'java');
-            document.body.appendChild(form);
-            form.submit();
-            form.remove();
-        }
-
-        function appendHiddenInput(form, name, value) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value;
-            form.appendChild(input);
-        }
-
-        function renderReasoningResult(payload) {
-            const statusBox = document.getElementById('reason-status');
-            const variablesBox = document.getElementById('reason-variables');
-            if (!statusBox || !variablesBox) return;
-            statusBox.className = 'reason-alert hidden';
-            statusBox.innerHTML = '';
-            variablesBox.className = 'reason-variables hidden';
-            variablesBox.innerHTML = '';
-            if (!payload) return;
-
-            if (!payload.ok) {
-                statusBox.className = 'reason-alert error';
-                statusBox.textContent = payload.error || 'Reasoning failed.';
-                return;
-            }
-
-            const reasoning = payload.reasoning || {};
-            const status = reasoning.status || 'unknown';
-            statusBox.className = `reason-alert ${status}`;
-            const headerLines = [
-                `<div class="reason-alert-title"><strong>${status === 'correct' ? 'Correct' : status === 'error' ? 'Incorrect' : 'Unknown result'}</strong>`,
-            ];
-            if (reasoning.hasException) {
-                const names = (reasoning.exceptionNames || []).filter(Boolean).join(', ');
-                headerLines.push(`<div class="reason-line">An exception occurred${names ? `: ${escapeHtml(names)}` : '.'}</div>`);
-            }
-            headerLines.push(`</div>`);
-
-            const badgeParts = [];
-            if (reasoning.finalNodeId) {
-                badgeParts.push(`<span class="reason-badge"><strong>id</strong> ${escapeHtml(reasoning.finalNodeId)}</span>`);
-            }
-            const lineText = Array.isArray(reasoning.finalNodeLine) ? reasoning.finalNodeLine.join(', ') : '';
-            if (lineText) {
-                badgeParts.push(`<span class="reason-badge"><strong>line</strong> ${escapeHtml(lineText)}</span>`);
-            }
-            const skillText = (reasoning.skills || []).filter(Boolean).join(', ');
-            if (skillText) {
-                badgeParts.push(`<span class="reason-badge"><strong>skill</strong> ${escapeHtml(skillText)}</span>`);
-            }
-            statusBox.innerHTML = [
-                `<div class="reason-alert-header">`,
-                headerLines.join(''),
-                badgeParts.length > 0 ? `<div class="reason-alert-badges">${badgeParts.join('')}</div>` : '',
-                `</div>`,
-                ...(reasoning.explanations || []).map((text) => `<div class="reason-line">Explanation: ${escapeHtml(text)}</div>`),
-            ].join('');
-
-            const variables = reasoning.variables || {};
-            const entries = Object.entries(variables);
-            if (entries.length > 0) {
-                variablesBox.className = 'reason-variables';
-                variablesBox.innerHTML = `<table><thead><tr><th>Variable</th><th>Value</th></tr></thead><tbody>${
-                    entries.map(([name, value]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(String(value))}</td></tr>`).join('')
-                }</tbody></table>`;
             }
         }
 

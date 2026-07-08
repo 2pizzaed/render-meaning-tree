@@ -226,7 +226,7 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     if final_exception_name:
         exception_names.append(final_exception_name)
 
-    has_exception = _has_metadata(final_node, "exception") or bool(result.exceptions)
+    has_exception = _has_exception_node(final_node) or bool(result.exceptions)
     status = "correct" if result.result is True else "error" if result.result is False else "unknown"
 
     return {
@@ -234,9 +234,46 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
         "status": status,
         "hasException": has_exception,
         "exceptionNames": exception_names,
+        "finalNode": _serialize_tree_node(final_node),
+        "finalNodeId": _first_metadata_value(final_node, "id"),
+        "finalNodeType": final_node.node_type if final_node is not None else None,
+        "finalNodeLine": _metadata_values(final_node, "line"),
         "explanations": _metadata_values(final_node, "explanation"),
         "skills": _metadata_values(final_node, "skill"),
         "variables": result.variables,
+    }
+
+
+def _serialize_tree_node(node: TreeNode | None) -> dict[str, object] | None:
+    if node is None:
+        return None
+    payload: dict[str, object] = {
+        "nodeType": node.node_type,
+        "metadata": [
+            _serialize_tree_node_metadata_entry(entry)
+            for entry in node.metadata
+        ],
+    }
+    if node.children is not None:
+        payload["children"] = {
+            "total": node.children.total,
+            "descriptors": [
+                {
+                    "id": descriptor.id,
+                    "line": descriptor.line,
+                    "skill": descriptor.skill,
+                }
+                for descriptor in node.children.descriptors
+            ],
+        }
+    return payload
+
+
+def _serialize_tree_node_metadata_entry(entry) -> dict[str, object]:
+    return {
+        "name": entry.name,
+        "locCode": entry.loc_code,
+        "value": entry.value,
     }
 
 
@@ -259,6 +296,15 @@ def _first_metadata_value(node: TreeNode | None, name: str) -> str | None:
 
 def _has_metadata(node: TreeNode | None, name: str) -> bool:
     return bool(_metadata_values(node, name))
+
+
+def _has_exception_node(node: TreeNode | None) -> bool:
+    if node is None:
+        return False
+    node_type = node.node_type.lower()
+    if "exception" in node_type or "error" in node_type:
+        return True
+    return _has_metadata(node, "exception") or _has_metadata(node, "exceptionName")
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:

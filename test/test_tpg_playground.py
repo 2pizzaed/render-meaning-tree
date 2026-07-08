@@ -73,9 +73,26 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
         captured["kwargs"] = kwargs
         return SimpleNamespace(
             result=SimpleNamespace(
-                result=True,
+                result=False,
                 exceptions=[],
-                final_node=SimpleNamespace(metadata=[]),
+                final_node=SimpleNamespace(
+                    node_type="ExceptionNode",
+                    metadata=[
+                        SimpleNamespace(name="id", loc_code=None, value="n-42"),
+                        SimpleNamespace(name="line", loc_code=None, value="12"),
+                        SimpleNamespace(
+                            name="exceptionName",
+                            loc_code=None,
+                            value="IllegalStateException",
+                        ),
+                        SimpleNamespace(name="skill", loc_code="EN", value="Branching"),
+                        SimpleNamespace(
+                            name="explanation",
+                            loc_code="EN",
+                            value="Condition matched the selected branch.",
+                        ),
+                    ],
+                ),
                 variables={"answer": 42},
             )
         )
@@ -102,6 +119,15 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload is not None
     assert payload["ok"] is True
     assert payload["trace"] == trace
-    assert payload["reasoning"]["status"] == "correct"
+    assert payload["reasoning"]["status"] == "error"
+    assert payload["reasoning"]["hasException"] is True
+    assert payload["reasoning"]["finalNodeId"] == "n-42"
+    assert payload["reasoning"]["finalNodeType"] == "ExceptionNode"
+    assert payload["reasoning"]["finalNode"]["metadata"][0]["name"] == "line"
+    assert payload["reasoning"]["finalNodeLine"] == ["12"]
+    assert payload["reasoning"]["skills"] == ["Branching"]
+    assert payload["reasoning"]["explanations"] == [
+        "Condition matched the selected branch."
+    ]
     assert all(isinstance(action, Action) for action in captured["selected_trace"])
     assert captured["selected_trace_names"] == trace

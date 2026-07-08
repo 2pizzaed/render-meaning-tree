@@ -84,7 +84,7 @@ class ControlFlowButtons(InjectionPool):
             return True
 
         node_source = target.get(cursor.manager.ast)
-        name = node_source.get("function", {}).get("name")  # type: ignore
+        name = node_source.get("function", {}).get("repr_name")  # type: ignore
         return node_source and \
             name in cursor.manager.user_defined_function_names # type: ignore
 

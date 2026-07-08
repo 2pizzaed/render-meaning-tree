@@ -20,12 +20,13 @@ from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
 from test.scripts.find_correct_trace_actions import build_correct_trace_pipeline
 
-template_dir = (Path(__file__).parent / "../../templates").absolute()
-app = Flask(__name__, template_folder=template_dir)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"
 PLAYGROUND_REASON_TREE: str | None = None
 PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
+
+template_dir = (Path(__file__).parent / "../../templates").absolute()
+app = Flask(__name__, template_folder=template_dir)
 
 LANGUAGE_OPTIONS: tuple[tuple[SupportedProgrammingLanguage, str], ...] = (
     ("java", "Java"),

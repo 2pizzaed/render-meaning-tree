@@ -1,5 +1,4 @@
 import argparse
-import tempfile
 import traceback
 from io import BytesIO
 from pathlib import Path
@@ -18,6 +17,7 @@ from src.helpers.tpg import check_graph_stepwise_reasoning
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
+from test.helpers.env import make_project_temp_dir
 from test.scripts.find_correct_trace_actions import build_correct_trace_pipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -167,6 +167,7 @@ def tracing():
             code,
             language=language,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+            temp_root=_playground_temp_root(),
         )
         dot_text = trace_acts_to_dot(
             pipeline.registry.trace_acts,
@@ -336,7 +337,7 @@ def _playground_temp_root() -> Path:
 
 
 def _playground_temp_dir(prefix: str) -> Path:
-    return Path(tempfile.mkdtemp(prefix=prefix, dir=_playground_temp_root()))
+    return make_project_temp_dir(prefix, _playground_temp_root())
 
 
 if __name__ == "__main__":

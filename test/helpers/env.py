@@ -4,6 +4,7 @@ import os
 import platform
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 
 TEST_OUTPUT_DIR_ENV_VAR = "DOMAIN_BUILD_OUTPUT_DIR"
@@ -34,6 +35,15 @@ def resolve_test_output_dir(default: Path) -> Path:
         return default
     path = Path(configured).expanduser()
     path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def make_project_temp_dir(prefix: str, root: Path | None = None) -> Path:
+    """Create a writable project-local temporary directory under .tmp by default."""
+    temp_root = root or resolve_project_root() / ".tmp"
+    temp_root.mkdir(parents=True, exist_ok=True)
+    path = temp_root / f"{prefix}{uuid.uuid4().hex}"
+    path.mkdir()
     return path
 
 

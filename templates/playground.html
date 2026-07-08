@@ -352,7 +352,7 @@
         function openCorrectTrace() {
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = '/trace-png';
+            form.action = '/tracing';
             form.target = '_blank';
             form.style.display = 'none';
             appendHiddenInput(form, 'code', document.querySelector('textarea[name="code"]')?.value || '');

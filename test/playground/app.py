@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
-from src.dot import render_dot_png
+from src.dot import render_dot_svg
 from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import DomainDataGeneratorPipeline
@@ -157,8 +157,8 @@ def reason_trace():
     )
 
 
-@app.post("/trace-png")
-def trace_png():
+@app.post("/tracing")
+def tracing():
     code = request.form.get("code", "")
     language = read_language(request.form.get("language"), "java")
 
@@ -172,17 +172,17 @@ def trace_png():
             pipeline.registry.trace_acts,
             name="playground_correct_trace",
         )
-        png_tmp = _playground_temp_dir("playground-trace-png-")
-        png_path = render_dot_png(dot_text, png_tmp / "correct-trace.png")
-        png_bytes = png_path.read_bytes()
+        svg_tmp = _playground_temp_dir("playground-tracing-")
+        svg_path = render_dot_svg(dot_text, svg_tmp / "correct-trace.svg")
+        svg_bytes = svg_path.read_bytes()
     except Exception as e:
         traceback.print_exc()
         return f"{type(e).__name__}: {e!s}", 500, {"Content-Type": "text/plain; charset=utf-8"}
 
     return send_file(
-        BytesIO(png_bytes),
-        mimetype="image/png",
-        download_name="correct-trace.png",
+        BytesIO(svg_bytes),
+        mimetype="image/svg+xml",
+        download_name="correct-trace.svg",
     )
 
 

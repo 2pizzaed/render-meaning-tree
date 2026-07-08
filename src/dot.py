@@ -62,6 +62,16 @@ def render_dot_png(dot_text: str, path: str | Path) -> Path:
     return output_path
 
 
+def render_dot_svg(dot_text: str, path: str | Path) -> Path:
+    graphs = pydot.graph_from_dot_data(dot_text)
+    if not graphs:
+        raise ValueError("Could not render DOT graph")
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    graphs[0].write_svg(str(output_path))  # type: ignore[attr-defined]
+    return output_path
+
+
 class DotDiagram:
     def __init__(
         self,
@@ -198,6 +208,9 @@ class DotDiagram:
 
     def write_png(self, path: str | Path) -> Path:
         return render_dot_png(self.to_string(), path)
+
+    def write_svg(self, path: str | Path) -> Path:
+        return render_dot_svg(self.to_string(), path)
 
 
 def multiline_label(*lines: Any) -> str:

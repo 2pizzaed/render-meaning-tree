@@ -40,4 +40,5 @@ If that MCP is unavailable, check the local RPC server first:
 
 - Keep Python changes typed and consistent with existing module patterns.
 - Prefer small, focused edits over broad refactors.
+- When adding new code, reuse existing helper modules instead of re-implementing the same utility logic; in tests, prefer `test/helpers` utilities over new local helpers.
 - Preserve generated/domain artifacts unless the developer explicitly asks to regenerate or update them.

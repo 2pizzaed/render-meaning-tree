@@ -11,6 +11,7 @@ from src.ast_managers import CodeManager, NodePathElement
 from src.generator.automaton import ConstructTransitionAutomaton
 from src.generator.lookup import (
     lookup_function_call_definition,
+    lookup_function_call_definition_by_ast_id,
     lookup_next_inline_compound_call_node,
 )
 from src.json_search import JSONPath
@@ -389,6 +390,8 @@ class DomainDataGeneratorPipeline(Pipeline):
         if not construct_decl.should_build_construct:
             # конструкты для этих AST структур либо атомарные actions, либо не нужны рассуждателю
             return
+        if "call" in construct_decl.kind_classes and lookup_function_call_definition_by_ast_id(self.code, ast_id) is None:
+                return
         parent = self._build_parent_construct(ast_id)
         if parent is None and construct_decl is not self.root_rule:
             raise ValueError(

@@ -9,6 +9,7 @@ from src.generator.pipeline import (
     pipeline_stage,
 )
 from src.generator.utilities import (
+    code_snippet_to_pipeline,
     collect_registry_objects,
     pipeline_to_loqi,
     registry_to_loqi,
@@ -1026,6 +1027,19 @@ def test_domain_pipeline_function_call_lookup_returns_definition_node_for_declar
 
     assert found is nodes[15]
     assert path is None
+
+
+def test_domain_pipeline_skips_call_construct_for_non_user_defined_function():
+    pipeline = code_snippet_to_pipeline(
+        """
+        result = len([1, 2, 3])
+        """,
+        language="python",
+    )
+
+    call_nodes = pipeline.code.ast.find_paths_by_type("function_call")
+    assert len(call_nodes) == 1
+    assert pipeline.get_construct_for(call_nodes[0].id) is None
 
 
 def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program_or_block():

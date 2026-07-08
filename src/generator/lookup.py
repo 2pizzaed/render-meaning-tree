@@ -33,7 +33,14 @@ def lookup_next_inline_compound_call_node(
 def lookup_function_call_definition(
     code: CodeManager, construct: Construct
 ) -> Node | None:
-    node = code.ast.get_path(construct.ast_id)
+    return lookup_function_call_definition_by_ast_id(code, construct.ast_id)
+
+
+def lookup_function_call_definition_by_ast_id(
+    code: CodeManager,
+    ast_id: int,
+) -> Node | None:
+    node = code.ast.get_path(ast_id)
     if node is None or not node.instanceof("function_call"):
         return None
 
@@ -41,10 +48,7 @@ def lookup_function_call_definition(
     if not node_content:
         return None
 
-    name = cast(
-        str | None,
-        cast(dict[str, str], node_content.get("function", {})).get("repr_name"),
-    )
+    name = _call_target_name(node_content)
     if name is None:
         return None
 
@@ -67,6 +71,22 @@ def _function_definition_node_for(code: CodeManager, ast_id: int) -> Node | None
             return None
         parent = code.ast.get_parent_of(current_id)
         current = cast(Node | None, parent) if isinstance(parent, dict) else None
+    return None
+
+
+def _call_target_name(node_content: Node) -> str | None:
+    function = node_content.get("function", {})
+    if not isinstance(function, dict):
+        return None
+
+    name = function.get("name")
+    if isinstance(name, str) and name:
+        return name
+
+    repr_name = function.get("repr_name")
+    if isinstance(repr_name, str) and repr_name:
+        return repr_name
+
     return None
 
 

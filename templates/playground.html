@@ -156,6 +156,30 @@
     {% endif %}
 
     <script>
+        // --- Render Form State ---
+        const RENDER_CODE_STORAGE_KEY = 'playground.render.code';
+        const renderForm = document.querySelector('form[action="/"]');
+        const renderCodeTextarea = renderForm?.querySelector('textarea[name="code"]');
+
+        try {
+            const savedRenderCode = localStorage.getItem(RENDER_CODE_STORAGE_KEY);
+            if (renderCodeTextarea && savedRenderCode !== null && renderCodeTextarea.value === '') {
+                renderCodeTextarea.value = savedRenderCode;
+            }
+        } catch (error) {
+            console.warn('Unable to restore render code from localStorage:', error);
+        }
+
+        if (renderForm && renderCodeTextarea) {
+            renderForm.addEventListener('submit', () => {
+                try {
+                    localStorage.setItem(RENDER_CODE_STORAGE_KEY, renderCodeTextarea.value);
+                } catch (error) {
+                    console.warn('Unable to save render code to localStorage:', error);
+                }
+            });
+        }
+
         // --- Tabs Logic ---
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from src.ast_managers import NodePathElement
@@ -9,9 +9,12 @@ class RendererEntity:
     pass
 
 
+ButtonType = Literal["play", "step-into", "step-out", "question", "stop"]
+
+
 @dataclass
 class Button(RendererEntity):
-    type: str
+    type: ButtonType
     style: str
     attrs: dict[str, Any] = field(default_factory=dict)
     tooltip: str = ""

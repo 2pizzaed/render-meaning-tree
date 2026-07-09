@@ -123,8 +123,8 @@
 
         <div class="bottom-panel">
             <div class="tabs">
-                <button class="tab active" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
-                {% if enable_trace and answer_objects %}<button class="tab" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
+                <button class="tab active" data-tab-name="tab-inspector" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
+                {% if enable_trace and answer_objects %}<button class="tab" data-tab-name="tab-trace" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
             </div>
             
             <div id="tab-inspector" class="tab-content active">
@@ -158,25 +158,71 @@
     <script>
         // --- Render Form State ---
         const RENDER_CODE_STORAGE_KEY = 'playground.render.code';
+        const RENDER_LANGUAGE_STORAGE_KEY = 'playground.render.language';
+        const RENDER_TARGET_LANGUAGE_STORAGE_KEY = 'playground.render.targetLanguage';
+        const ACTIVE_TAB_STORAGE_KEY = 'playground.activeTabIndex';
         const renderForm = document.querySelector('form[action="/"]');
         const renderCodeTextarea = renderForm?.querySelector('textarea[name="code"]');
+        const renderLanguageSelect = renderForm?.querySelector('select[name="language"]');
+        const renderTargetLanguageSelect = renderForm?.querySelector('select[name="target_language"]');
 
-        try {
-            const savedRenderCode = localStorage.getItem(RENDER_CODE_STORAGE_KEY);
-            if (renderCodeTextarea && savedRenderCode !== null && renderCodeTextarea.value === '') {
-                renderCodeTextarea.value = savedRenderCode;
+        function readStoredValue(key) {
+            try {
+                return localStorage.getItem(key);
+            } catch (error) {
+                console.warn(`Unable to read ${key} from localStorage:`, error);
+                return null;
             }
-        } catch (error) {
-            console.warn('Unable to restore render code from localStorage:', error);
         }
+
+        function storeValue(key, value) {
+            try {
+                localStorage.setItem(key, value);
+            } catch (error) {
+                console.warn(`Unable to save ${key} to localStorage:`, error);
+            }
+        }
+
+        function restoreSelectValue(selectElement, storageKey) {
+            const savedValue = readStoredValue(storageKey);
+            if (
+                selectElement &&
+                savedValue !== null &&
+                Array.from(selectElement.options).some((option) => option.value === savedValue)
+            ) {
+                selectElement.value = savedValue;
+            }
+        }
+
+        const savedRenderCode = readStoredValue(RENDER_CODE_STORAGE_KEY);
+        if (renderCodeTextarea && savedRenderCode !== null && renderCodeTextarea.value === '') {
+            renderCodeTextarea.value = savedRenderCode;
+        }
+
+        restoreSelectValue(renderLanguageSelect, RENDER_LANGUAGE_STORAGE_KEY);
+        restoreSelectValue(renderTargetLanguageSelect, RENDER_TARGET_LANGUAGE_STORAGE_KEY);
 
         if (renderForm && renderCodeTextarea) {
             renderForm.addEventListener('submit', () => {
-                try {
-                    localStorage.setItem(RENDER_CODE_STORAGE_KEY, renderCodeTextarea.value);
-                } catch (error) {
-                    console.warn('Unable to save render code to localStorage:', error);
+                storeValue(RENDER_CODE_STORAGE_KEY, renderCodeTextarea.value);
+                if (renderLanguageSelect) {
+                    storeValue(RENDER_LANGUAGE_STORAGE_KEY, renderLanguageSelect.value);
                 }
+                if (renderTargetLanguageSelect) {
+                    storeValue(RENDER_TARGET_LANGUAGE_STORAGE_KEY, renderTargetLanguageSelect.value);
+                }
+            });
+        }
+
+        if (renderLanguageSelect) {
+            renderLanguageSelect.addEventListener('change', () => {
+                storeValue(RENDER_LANGUAGE_STORAGE_KEY, renderLanguageSelect.value);
+            });
+        }
+
+        if (renderTargetLanguageSelect) {
+            renderTargetLanguageSelect.addEventListener('change', () => {
+                storeValue(RENDER_TARGET_LANGUAGE_STORAGE_KEY, renderTargetLanguageSelect.value);
             });
         }
 
@@ -195,7 +241,24 @@
             document.getElementById(tabName).style.display = "block";
             document.getElementById(tabName).classList.add("active");
             evt.currentTarget.classList.add("active");
+
+            const activeTabIndex = Array.prototype.indexOf.call(tablinks, evt.currentTarget);
+            if (activeTabIndex >= 0) {
+                storeValue(ACTIVE_TAB_STORAGE_KEY, String(activeTabIndex));
+            }
         }
+
+        function restoreActiveTab() {
+            const savedTabIndex = Number.parseInt(readStoredValue(ACTIVE_TAB_STORAGE_KEY), 10);
+            const tablinks = document.getElementsByClassName("tab");
+            const tabButton = Number.isInteger(savedTabIndex) ? tablinks[savedTabIndex] : null;
+            const tabName = tabButton?.dataset.tabName;
+            if (tabButton && tabName && document.getElementById(tabName)) {
+                openTab({currentTarget: tabButton}, tabName);
+            }
+        }
+
+        restoreActiveTab();
 
         // --- Inspector Logic ---
         function handleTokenClick(element) {

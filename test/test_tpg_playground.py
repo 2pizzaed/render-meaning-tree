@@ -75,8 +75,10 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
             result=SimpleNamespace(
                 result=False,
                 exceptions=[],
+                trace=None,
                 final_node=SimpleNamespace(
                     node_type="ExceptionNode",
+                    children=None,
                     metadata=[
                         SimpleNamespace(name="id", loc_code=None, value="n-42"),
                         SimpleNamespace(name="line", loc_code=None, value="12"),
@@ -123,7 +125,11 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload["reasoning"]["hasException"] is True
     assert payload["reasoning"]["finalNodeId"] == "n-42"
     assert payload["reasoning"]["finalNodeType"] == "ExceptionNode"
-    assert payload["reasoning"]["finalNode"]["metadata"][0]["name"] == "line"
+    final_node_metadata_names = [
+        entry["name"] for entry in payload["reasoning"]["finalNode"]["metadata"]
+    ]
+    assert "id" in final_node_metadata_names
+    assert "line" in final_node_metadata_names
     assert payload["reasoning"]["finalNodeLine"] == ["12"]
     assert payload["reasoning"]["skills"] == ["Branching"]
     assert payload["reasoning"]["explanations"] == [

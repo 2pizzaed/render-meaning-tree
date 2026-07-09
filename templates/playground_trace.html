@@ -143,6 +143,54 @@
         margin-top: 4px;
     }
 
+    .reason-expl {
+        list-style: none;
+        margin: 6px 0 0;
+        padding-left: 0;
+    }
+
+    .reason-expl .reason-expl {
+        margin-top: 4px;
+        padding-left: 16px;
+        border-left: 2px solid rgba(0,0,0,0.12);
+    }
+
+    .reason-expl li {
+        margin-top: 4px;
+        line-height: 1.35;
+    }
+
+    .reason-expl-leaf {
+        display: flex;
+        gap: 6px;
+        align-items: baseline;
+        flex-wrap: wrap;
+    }
+
+    .reason-expl-skill {
+        font-family: 'Consolas', monospace;
+        font-size: 11px;
+        padding: 1px 6px;
+        border: 1px solid currentColor;
+        border-radius: 999px;
+        opacity: 0.75;
+    }
+
+    .reason-expl-group-label {
+        font-weight: 600;
+        opacity: 0.8;
+    }
+
+    .reason-expl-more {
+        font-style: italic;
+        opacity: 0.7;
+    }
+
+    .reason-expl .muted {
+        opacity: 0.45;
+        text-decoration: line-through;
+    }
+
     .reason-variables {
         border: 1px solid #ddd;
         border-radius: 4px;
@@ -287,6 +335,33 @@
 <script>
     var traceData = [];
     var draggedTraceIndex = null;
+
+    function renderExplanationNodes(nodes) {
+        if (!Array.isArray(nodes) || nodes.length === 0) return '';
+        const items = nodes.map((node) => {
+            if (!node) return '';
+            const mutedClass = node.muted ? ' muted' : '';
+            if (node.kind === 'group') {
+                const inner = renderExplanationNodes(node.children || []);
+                if (!inner) return '';
+                const label = node.skill
+                    ? `<div class="reason-expl-group-label">${escapeHtml(node.skill)}</div>`
+                    : '';
+                return `<li class="reason-expl-group${mutedClass}">${label}${inner}</li>`;
+            }
+            if (node.kind === 'more') {
+                if (!node.text) return '';
+                return `<li class="reason-expl-more${mutedClass}">${escapeHtml(node.text)}</li>`;
+            }
+            if (!node.text) return '';
+            const skill = node.skill
+                ? `<span class="reason-expl-skill">${escapeHtml(node.skill)}</span>`
+                : '';
+            return `<li class="reason-expl-leaf${mutedClass}">${escapeHtml(node.text)}${skill}</li>`;
+        }).filter(Boolean);
+        if (items.length === 0) return '';
+        return `<ul class="reason-expl">${items.join('')}</ul>`;
+    }
 
     function updateTraceView() {
         const list = document.getElementById('trace-list');
@@ -515,12 +590,17 @@
         if (skillText) {
             badgeParts.push(`<span class="reason-badge"><strong>skill</strong> ${escapeHtml(skillText)}</span>`);
         }
+        const explanationHtml = reasoning.explanationView
+            ? renderExplanationNodes(reasoning.explanationView.children || [])
+            : (reasoning.explanations || [])
+                .map((text) => `<div class="reason-line">Explanation: ${escapeHtml(text)}</div>`)
+                .join('');
         statusBox.innerHTML = [
             `<div class="reason-alert-header">`,
             headerLines.join(''),
             badgeParts.length > 0 ? `<div class="reason-alert-badges">${badgeParts.join('')}</div>` : '',
             `</div>`,
-            ...(reasoning.explanations || []).map((text) => `<div class="reason-line">Explanation: ${escapeHtml(text)}</div>`),
+            explanationHtml,
         ].join('');
 
         const variables = reasoning.variables || {};

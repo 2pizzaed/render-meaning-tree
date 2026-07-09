@@ -14,6 +14,14 @@ from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import registry_to_loqi
 from src.helpers.tpg import check_graph_stepwise_reasoning
+from src.helpers.tpg.explanations import (
+    ExplanationType,
+    collect_explanations_from_trace,
+    collect_unique_skills,
+    explanation_texts_by_node_id,
+    explanation_view,
+    flatten_explanation_texts,
+)
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
@@ -142,6 +150,7 @@ def reason_trace():
             tree=PLAYGROUND_REASON_TREE,
             export_domain=True,
             debug_enabled=True,
+            json_trace=True,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
         )
     except Exception as e:
@@ -221,6 +230,8 @@ def build_answer_objects(
 
 def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     final_node = result.final_node
+    trace = result.trace if isinstance(result.trace, dict) else None
+
     exception_names = [
         exception.exception_name
         for exception in result.exceptions
@@ -233,6 +244,22 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     has_exception = _has_exception_node(final_node) or bool(result.exceptions)
     status = "correct" if result.result is True else "error" if result.result is False else "unknown"
 
+    # Объяснения и навыки берём из агрегации по всей трассе, а не только из finalNode.
+    # Требуется структурная (JSON) трасса — иначе откатываемся на метаданные finalNode.
+    explanation_type = (
+        ExplanationType.HINT if result.result is True else ExplanationType.ERROR
+    )
+    if trace is not None:
+        explanation_tree = collect_explanations_from_trace(explanation_type, trace)
+        texts_by_node_id = explanation_texts_by_node_id(trace)
+        explanations = flatten_explanation_texts(explanation_tree, texts_by_node_id)
+        explanation_view_dict = explanation_view(explanation_tree, texts_by_node_id)
+        skills = collect_unique_skills(trace)
+    else:
+        explanations = _metadata_values(final_node, "explanation")
+        explanation_view_dict = None
+        skills = _metadata_values(final_node, "skill")
+
     return {
         "result": result.result,
         "status": status,
@@ -242,8 +269,9 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
         "finalNodeId": _first_metadata_value(final_node, "id"),
         "finalNodeType": final_node.node_type if final_node is not None else None,
         "finalNodeLine": _metadata_values(final_node, "line"),
-        "explanations": _metadata_values(final_node, "explanation"),
-        "skills": _metadata_values(final_node, "skill"),
+        "explanations": explanations,
+        "explanationView": explanation_view_dict,
+        "skills": skills,
         "variables": result.variables,
     }
 

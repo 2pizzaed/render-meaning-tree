@@ -36,6 +36,8 @@ If that MCP is unavailable, check the local RPC server first:
 - `bash rpc_server.sh status`
 - If it is not running, start it with `bash rpc_server.sh start`
 
+Tip: Use Git Bash in Windows
+
 ## Code Hygiene
 
 - Keep Python changes typed and consistent with existing module patterns.

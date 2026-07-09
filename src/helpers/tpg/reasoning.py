@@ -72,6 +72,7 @@ def solve_graph_full_reasoning(
     time_limit_seconds: int | None = None,
     reasoner_output_stream: TextIO | None = None,
     max_iterations: int = 100,
+    solver_stops: set[int] | None = None,
 ) -> PipelineReasoningOutput:
     if max_iterations < 1:
         raise ValueError("max_iterations must be at least 1")
@@ -107,6 +108,12 @@ def solve_graph_full_reasoning(
         previous_trace_length = len(last_output.trace_acts)
 
         current_trace_act = registry.variables.get("P")
+        if (
+            solver_stops is not None
+            and isinstance(current_trace_act, TraceAct)
+            and current_trace_act in registry.trace_acts
+        ):
+            solver_stops.add(registry.trace_acts.index(current_trace_act))
         current_action = (
             current_trace_act.action
             if isinstance(current_trace_act, TraceAct)

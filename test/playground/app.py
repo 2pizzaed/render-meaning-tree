@@ -163,15 +163,18 @@ def tracing():
     language = read_language(request.form.get("language"), "java")
 
     try:
+        solver_stops: set[int] = set()
         pipeline = build_correct_trace_pipeline(
             code,
             language=language,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
             temp_root=_playground_temp_root(),
+            solver_stops=solver_stops,
         )
         dot_text = trace_acts_to_dot(
             pipeline.registry.trace_acts,
             name="playground_correct_trace",
+            solver_stops=solver_stops,
         )
         svg_tmp = _playground_temp_dir("playground-tracing-")
         svg_path = render_dot_svg(dot_text, svg_tmp / "correct-trace.svg")

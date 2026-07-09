@@ -68,6 +68,7 @@ def build_correct_trace_pipeline(
     max_iterations: int = 100,
     time_limit_seconds: int = 30,
     temp_root: Path | None = None,
+    solver_stops: set[int] | None = None,
 ) -> DomainDataGeneratorPipeline:
     pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
     pipeline.fork_enabled = False
@@ -88,6 +89,7 @@ def build_correct_trace_pipeline(
             time_limit_seconds=time_limit_seconds,
             reasoner_output_stream=output,
             max_iterations=max_iterations,
+            solver_stops=solver_stops,
         )
     return pipeline
 

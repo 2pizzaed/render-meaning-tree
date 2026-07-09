@@ -13,6 +13,14 @@ from test.playground import app as playground_app
 from test.playground.app import build_answer_objects
 
 
+def test_playground_serves_template_static_assets() -> None:
+    client = playground_app.app.test_client()
+    response = client.get("/static/playground.css")
+
+    assert response.status_code == 200
+    assert b".trace-container" in response.data
+
+
 def test_build_answer_objects_exports_action_names_only() -> None:
     code = textwrap.dedent(
         """

@@ -33,7 +33,12 @@ PLAYGROUND_REASON_TREE: str | None = None
 PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
 
 template_dir = (Path(__file__).parent / "../../templates").absolute()
-app = Flask(__name__, template_folder=template_dir)
+app = Flask(
+    __name__,
+    template_folder=template_dir,
+    static_folder=template_dir / "static",
+    static_url_path="/static",
+)
 
 LANGUAGE_OPTIONS: tuple[tuple[SupportedProgrammingLanguage, str], ...] = (
     ("java", "Java"),

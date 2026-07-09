@@ -336,6 +336,13 @@
     var traceData = [];
     var draggedTraceIndex = null;
 
+    function finalNodeMetaValues(finalNode, name) {
+        if (!finalNode || !Array.isArray(finalNode.metadata)) return [];
+        return finalNode.metadata
+            .filter((entry) => entry && entry.name === name && entry.value != null)
+            .map((entry) => String(entry.value));
+    }
+
     function renderExplanationNodes(nodes) {
         if (!Array.isArray(nodes) || nodes.length === 0) return '';
         const items = nodes.map((node) => {
@@ -579,10 +586,11 @@
         headerLines.push(`</div>`);
 
         const badgeParts = [];
-        if (reasoning.finalNodeId) {
-            badgeParts.push(`<span class="reason-badge"><strong>id</strong> ${escapeHtml(reasoning.finalNodeId)}</span>`);
+        const finalNodeId = finalNodeMetaValues(reasoning.finalNode, 'id')[0] || '';
+        if (finalNodeId) {
+            badgeParts.push(`<span class="reason-badge"><strong>id</strong> ${escapeHtml(finalNodeId)}</span>`);
         }
-        const lineText = Array.isArray(reasoning.finalNodeLine) ? reasoning.finalNodeLine.join(', ') : '';
+        const lineText = finalNodeMetaValues(reasoning.finalNode, 'line').join(', ');
         if (lineText) {
             badgeParts.push(`<span class="reason-badge"><strong>line</strong> ${escapeHtml(lineText)}</span>`);
         }

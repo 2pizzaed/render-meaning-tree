@@ -69,8 +69,11 @@ class Explanation:
 
     Aggregation preserves the tree shape and skill/mute bookkeeping of the Java
     original but drops all rendered text. ``node_id`` records the source
-    ``BranchResultNode`` (its ``id`` metadata) for leaves; ``skill`` is the Java
-    ``currentDomainLawName``.
+    ``BranchResultNode`` (its ``id`` metadata, often absent) for leaves; ``skill``
+    is the Java ``currentDomainLawName``. ``source_element`` keeps a back-reference
+    to the raw trace element a leaf was extracted from, so rendering can resolve
+    the explanation text (which lives in that element's metadata) even when the
+    node carries no ``id`` — it is excluded from equality and :meth:`to_dict`.
     """
 
     type: ExplanationType
@@ -80,6 +83,7 @@ class Explanation:
     muted: bool = False
     similar_skipped: int = 0
     children: list[Explanation] = field(default_factory=list)
+    source_element: dict[str, Any] | None = field(default=None, compare=False, repr=False)
 
     def is_empty(self) -> bool:
         """A ``GROUP`` with no children is empty; leaves and markers never are."""
@@ -87,13 +91,13 @@ class Explanation:
             return False
         return not self.children
 
-    def domain_law_names(self) -> set[str]:
+    def skill_names(self) -> set[str]:
         """Own skill plus every descendant skill (Java ``getDomainLawNames``)."""
         names: set[str] = set()
         if self.skill is not None:
             names.add(self.skill)
         for child in self.children:
-            names |= child.domain_law_names()
+            names |= child.skill_names()
         return names
 
     def remove_all_mute(self) -> None:
@@ -133,7 +137,10 @@ class Explanation:
         """Structural identity used for ``LinkedHashSet``-style de-duplication.
 
         Stands in for Java ``Explanation.equals`` (which keyed on the rendered
-        message); ``muted`` is excluded, matching the Java definition.
+        message); ``muted`` is excluded, matching the Java definition. The source
+        element's explanation text is folded in so that leaves with distinct text
+        stay distinct even when they share a skill and lack an ``id`` (Java
+        distinguished them by message).
         """
         return (
             self.kind,
@@ -141,6 +148,7 @@ class Explanation:
             self.skill,
             self.node_id,
             self.similar_skipped,
+            _explanation_signature(self.source_element),
             tuple(child._key() for child in self.children),
         )
 
@@ -173,19 +181,18 @@ def nested_trace_elements(trace: dict[str, Any]) -> list[dict[str, Any]]:
     return elements
 
 
-def collect_skills_and_laws(trace: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """Collect ``skill`` and ``law`` metadata across the whole trace.
+def collect_skills(trace: dict[str, Any]) -> list[str]:
+    """Collect ``skill`` metadata across the whole trace.
 
-    Port of the ``domainSkills`` / ``domainNegativeLaws`` gathering in
-    ``Interface.interpretJudgeOutput``: each unlocalized value is split on ``;``.
-    Order is preserved and duplicates are kept, matching ``Collections.addAll``.
+    Port of the ``domainSkills`` gathering in ``Interface.interpretJudgeOutput``:
+    each unlocalized value is split on ``;``. Order is preserved and duplicates
+    are kept, matching ``Collections.addAll``. (This project keys only on
+    ``skill``; ``law`` metadata is intentionally ignored.)
     """
     skills: list[str] = []
-    laws: list[str] = []
     for element in nested_trace_elements(trace):
         skills.extend(_split_metadata(element, "skill"))
-        laws.extend(_split_metadata(element, "law"))
-    return skills, laws
+    return skills
 
 
 def collect_explanations_from_trace(
@@ -207,11 +214,11 @@ def collect_explanations_from_trace(
         ),
     )
     # Если в ветви все объяснения принадлежат одному навыку, то у всей ветви этот навык.
-    if len({frozenset(child.domain_law_names()) for child in result.children}) == 1:
+    if len({frozenset(child.skill_names()) for child in result.children}) == 1:
         result.skill = result.children[0].skill
     _reduce_similar_explanations(result.children, explanation_type)
-    law_names = result.domain_law_names()
-    if law_names <= denied:
+    skill_names = result.skill_names()
+    if skill_names <= denied:
         result.remove_all_mute()
     return result
 
@@ -238,9 +245,9 @@ def collect_unique_skills(trace: dict[str, Any]) -> list[str]:
     """Every ``skill`` declared anywhere in the trace, de-duplicated in first-seen order.
 
     Unlike reading a single node's metadata, this spans the whole trace (via
-    :func:`collect_skills_and_laws`), trimming blanks.
+    :func:`collect_skills`), trimming blanks.
     """
-    skills, _laws = collect_skills_and_laws(trace)
+    skills = collect_skills(trace)
     ordered: dict[str, None] = {}
     for skill in skills:
         cleaned = skill.strip()
@@ -249,69 +256,45 @@ def collect_unique_skills(trace: dict[str, Any]) -> list[str]:
     return list(ordered)
 
 
-def explanation_texts_by_node_id(
-    trace: dict[str, Any],
-    *,
-    loc_code: str = "EN",
-) -> dict[str, str]:
-    """Map each trace node's id to its ``explanation`` text.
-
-    Localization preference: ``loc_code`` (case-insensitively), then the
-    unlocalized entry, then any available value.
-    """
-    mapping: dict[str, str] = {}
-    for element in nested_trace_elements(trace):
-        node_id = element.get("nodeId")
-        if node_id is None:
-            continue
-        text = _element_localized_text(element, "explanation", loc_code)
-        if text is not None:
-            mapping[str(node_id)] = text
-    return mapping
-
-
 def flatten_explanation_texts(
     tree: Explanation,
-    text_by_node_id: dict[str, str],
     *,
+    loc_code: str = "EN",
     more_label: str = DEFAULT_MORE_LABEL,
 ) -> list[str]:
     """Flat, display-ready explanation lines from an aggregation ``tree``.
 
-    Walks in aggregation order, skips muted nodes, resolves leaf text by node id
-    and expands ``MORE`` markers via ``more_label`` (formatted with ``count``).
+    Walks in aggregation order, skips muted nodes, resolves each leaf's text from
+    its :attr:`Explanation.source_element` (in ``loc_code``) and expands ``MORE``
+    markers via ``more_label`` (formatted with ``count``).
     """
     lines: list[str] = []
-    _collect_explanation_texts(tree, text_by_node_id, more_label, lines)
+    _collect_explanation_texts(tree, loc_code, more_label, lines)
     return lines
 
 
 def explanation_view(
     tree: Explanation,
-    text_by_node_id: dict[str, str],
     *,
+    loc_code: str = "EN",
     more_label: str = DEFAULT_MORE_LABEL,
 ) -> dict[str, Any]:
     """Renderable nested dict for an aggregation ``tree``.
 
     Same shape as :meth:`Explanation.to_dict` but with each leaf's resolved
-    ``text`` attached and ``MORE`` markers pre-rendered into ``text``, so a
-    template can render the grouped structure directly.
+    ``text`` attached (from its source element, in ``loc_code``) and ``MORE``
+    markers pre-rendered into ``text``, so a template can render the grouped
+    structure directly.
     """
-    text = None
-    if tree.kind is ExplanationKind.LEAF:
-        text = text_by_node_id.get(tree.node_id) if tree.node_id else None
-    elif tree.kind is ExplanationKind.MORE:
-        text = more_label.format(count=tree.similar_skipped)
     return {
         "kind": tree.kind.value,
         "type": tree.type.value,
-        "text": text,
+        "text": _node_text(tree, loc_code, more_label),
         "skill": tree.skill,
         "muted": tree.muted,
         "similarSkipped": tree.similar_skipped,
         "children": [
-            explanation_view(child, text_by_node_id, more_label=more_label)
+            explanation_view(child, loc_code=loc_code, more_label=more_label)
             for child in tree.children
         ],
     }
@@ -319,28 +302,57 @@ def explanation_view(
 
 def _collect_explanation_texts(
     node: Explanation,
-    text_by_node_id: dict[str, str],
+    loc_code: str,
     more_label: str,
     out: list[str],
 ) -> None:
     for child in node.children:
         if child.muted:
             continue
-        if child.kind is ExplanationKind.LEAF:
-            text = text_by_node_id.get(child.node_id) if child.node_id else None
-            if text:
-                out.append(text)
-        elif child.kind is ExplanationKind.MORE:
-            out.append(more_label.format(count=child.similar_skipped))
-        else:
-            _collect_explanation_texts(child, text_by_node_id, more_label, out)
+        if child.kind is ExplanationKind.GROUP:
+            _collect_explanation_texts(child, loc_code, more_label, out)
+            continue
+        text = _node_text(child, loc_code, more_label)
+        if text:
+            out.append(text)
+
+
+def _node_text(node: Explanation, loc_code: str, more_label: str) -> str | None:
+    """Human text for a single explanation node (``None`` for groups)."""
+    if node.kind is ExplanationKind.MORE:
+        return more_label.format(count=node.similar_skipped)
+    if node.kind is ExplanationKind.LEAF:
+        return _element_localized_text(node.source_element, "explanation", loc_code)
+    return None
+
+
+def _explanation_signature(
+    element: dict[str, Any] | None,
+) -> tuple[tuple[str | None, str], ...]:
+    """Stable, hashable digest of an element's ``explanation`` localizations.
+
+    Used as the message stand-in in :meth:`Explanation._key` so distinct
+    explanation texts do not collapse during de-duplication.
+    """
+    if element is None:
+        return ()
+    entries = [
+        (entry.get("locCode"), str(entry.get("value")))
+        for entry in _metadata_entries(element)
+        if isinstance(entry, dict)
+        and entry.get("name") == "explanation"
+        and entry.get("value") is not None
+    ]
+    return tuple(sorted(entries, key=lambda item: (item[0] or "", item[1])))
 
 
 def _element_localized_text(
-    element: dict[str, Any],
+    element: dict[str, Any] | None,
     name: str,
     loc_code: str,
 ) -> str | None:
+    if element is None:
+        return None
     grouped: dict[str | None, list[str]] = {}
     for entry in _metadata_entries(element):
         if (
@@ -384,7 +396,7 @@ def _collect_explanations(
         if is_leaf:
             # Одиночное объяснение по заданному типу объяснения.
             explanation = _extract_explanation(element)
-            if explanation.domain_law_names() & denied:
+            if explanation.skill_names() & denied:
                 explanation.muted = True
             trace_explanations.append(explanation)
             continue
@@ -426,7 +438,7 @@ def _collect_explanations(
 
     parent._add_all_unique(non_empty)
     _reduce_similar_explanations(parent.children, explanation_type)
-    if len({frozenset(child.domain_law_names()) for child in parent.children}) == 1:
+    if len({frozenset(child.skill_names()) for child in parent.children}) == 1:
         parent.skill = parent.children[0].skill
     return []
 
@@ -480,6 +492,7 @@ def _extract_explanation(element: dict[str, Any]) -> Explanation:
         type=explanation_type,
         kind=ExplanationKind.LEAF,
         node_id=_element_node_id(element),
+        source_element=element,
     )
     if _metadata_contains(element, "skill"):
         explanation.skill = _metadata_unlocalized(element, "skill")

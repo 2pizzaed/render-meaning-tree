@@ -18,7 +18,6 @@ from src.helpers.tpg.explanations import (
     ExplanationType,
     collect_explanations_from_trace,
     collect_unique_skills,
-    explanation_texts_by_node_id,
     explanation_view,
     flatten_explanation_texts,
 )
@@ -251,9 +250,8 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     )
     if trace is not None:
         explanation_tree = collect_explanations_from_trace(explanation_type, trace)
-        texts_by_node_id = explanation_texts_by_node_id(trace)
-        explanations = flatten_explanation_texts(explanation_tree, texts_by_node_id)
-        explanation_view_dict = explanation_view(explanation_tree, texts_by_node_id)
+        explanations = flatten_explanation_texts(explanation_tree)
+        explanation_view_dict = explanation_view(explanation_tree)
         skills = collect_unique_skills(trace)
     else:
         explanations = _metadata_values(final_node, "explanation")
@@ -266,9 +264,6 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
         "hasException": has_exception,
         "exceptionNames": exception_names,
         "finalNode": _serialize_tree_node(final_node),
-        "finalNodeId": _first_metadata_value(final_node, "id"),
-        "finalNodeType": final_node.node_type if final_node is not None else None,
-        "finalNodeLine": _metadata_values(final_node, "line"),
         "explanations": explanations,
         "explanationView": explanation_view_dict,
         "skills": skills,

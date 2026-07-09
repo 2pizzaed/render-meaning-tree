@@ -123,14 +123,17 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload["trace"] == trace
     assert payload["reasoning"]["status"] == "error"
     assert payload["reasoning"]["hasException"] is True
-    assert payload["reasoning"]["finalNodeId"] == "n-42"
-    assert payload["reasoning"]["finalNodeType"] == "ExceptionNode"
-    final_node_metadata_names = [
-        entry["name"] for entry in payload["reasoning"]["finalNode"]["metadata"]
-    ]
-    assert "id" in final_node_metadata_names
-    assert "line" in final_node_metadata_names
-    assert payload["reasoning"]["finalNodeLine"] == ["12"]
+    # finalNode несёт полную информацию; отдельных finalNodeId/Type/Line больше нет.
+    final_node = payload["reasoning"]["finalNode"]
+    assert final_node["nodeType"] == "ExceptionNode"
+    final_node_metadata = {
+        entry["name"]: entry["value"] for entry in final_node["metadata"]
+    }
+    assert final_node_metadata["id"] == "n-42"
+    assert final_node_metadata["line"] == "12"
+    assert "finalNodeId" not in payload["reasoning"]
+    assert "finalNodeType" not in payload["reasoning"]
+    assert "finalNodeLine" not in payload["reasoning"]
     assert payload["reasoning"]["skills"] == ["Branching"]
     assert payload["reasoning"]["explanations"] == [
         "Condition matched the selected branch."

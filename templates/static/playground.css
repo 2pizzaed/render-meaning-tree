@@ -287,11 +287,12 @@ button.submit-btn:hover {
 }
 
 .trace-workspace {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     flex: 1;
     min-height: 0;
+    overflow-y: auto;
 }
 
 .reason-alert {
@@ -418,7 +419,6 @@ button.submit-btn:hover {
 .reason-variables {
     border: 1px solid #ddd;
     border-radius: 4px;
-    overflow: hidden;
     font-size: 12px;
     flex: 0 0 auto;
 }
@@ -450,7 +450,7 @@ button.submit-btn:hover {
     flex-direction: column;
     gap: 6px;
     min-height: 120px;
-    overflow-y: auto;
+    flex: 0 0 auto;
     padding: 8px;
     border: 1px dashed #b8c2d0;
     border-radius: 6px;

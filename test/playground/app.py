@@ -255,8 +255,12 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     )
     if trace is not None:
         explanation_tree = collect_explanations_from_trace(explanation_type, trace)
-        explanations = flatten_explanation_texts(explanation_tree)
-        explanation_view_dict = explanation_view(explanation_tree)
+        explanations = flatten_explanation_texts(
+            explanation_tree, variables=result.variable_objects
+        )
+        explanation_view_dict = explanation_view(
+            explanation_tree, variables=result.variable_objects
+        )
         skills = collect_unique_skills(trace)
     else:
         explanations = _metadata_values(final_node, "explanation")

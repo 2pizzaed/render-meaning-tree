@@ -24,6 +24,7 @@ from .models import (
     parse_discover_tree_jsonl,
     parse_expression_query_jsonl,
     parse_reasoning_jsonl,
+    variable_localized_name,
 )
 
 _backend = select_backend(TPG_BACKEND_ENV_VAR)
@@ -68,6 +69,7 @@ __all__ = [
     "solve_reasoning",
     "solve_reasoning_result",
     "tree_loqi_to_xml",
+    "variable_localized_name",
     "validate_domain_loqi",
     "validate_domain_solving_model",
 ]

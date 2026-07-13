@@ -26,6 +26,7 @@ from .models import (
     _parse_reasoning_exception,
     _parse_reasoning_result_value,
     _parse_tree_node,
+    _variable_value_to_str,
 )
 
 DOMAIN_ROUTE = "/rpc/domain"
@@ -269,9 +270,10 @@ def _to_reasoning_result(result: dict[str, Any], stream: TextIO | None) -> Reaso
         for item in (items or [])
         if isinstance(item, dict)
     ]
+    raw_variables = (result.get("variables") or {}).items()
+    variable_objects = {str(key): value for key, value in raw_variables}
     variables = {
-        str(key): str(value)
-        for key, value in (result.get("variables") or {}).items()
+        str(key): _variable_value_to_str(value) for key, value in raw_variables
     }
     artifacts: dict[str, Any] = {}
     specific_domain = result.get("specificDomain")
@@ -290,6 +292,7 @@ def _to_reasoning_result(result: dict[str, Any], stream: TextIO | None) -> Reaso
         final_node=_parse_tree_node(result.get("finalNode")),
         trace=_as_trace(result.get("trace")),
         variables=variables,
+        variable_objects=variable_objects,
         exceptions=exceptions,
         reasoner_output=reasoner_output,
         metrics=_as_metrics(result.get("metrics")),

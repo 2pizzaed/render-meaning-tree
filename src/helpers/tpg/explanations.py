@@ -21,12 +21,13 @@ distinguished.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from src.tpg_domain import ReasoningResult
+from src.helpers.tpg.templating import interpolate
+from src.tpg_domain import ReasoningResult, variable_localized_name
 
 MAX_SIMILAR_EXPLANATION_COUNT = 3
 
@@ -261,15 +262,21 @@ def flatten_explanation_texts(
     *,
     loc_code: str = "EN",
     more_label: str = DEFAULT_MORE_LABEL,
+    variables: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Flat, display-ready explanation lines from an aggregation ``tree``.
 
     Walks in aggregation order, skips muted nodes, resolves each leaf's text from
     its :attr:`Explanation.source_element` (in ``loc_code``) and expands ``MORE``
-    markers via ``more_label`` (formatted with ``count``).
+    markers via ``more_label`` (formatted with ``count``). When ``variables`` is
+    given (the reasoner's structured ``variable_objects``), each leaf's text is run
+    through :func:`~src.helpers.tpg.templating.interpolate`, substituting ``$name``
+    / ``${name}`` with the variable's localized name for ``loc_code`` (see
+    :func:`_resolve_variables`).
     """
     lines: list[str] = []
-    _collect_explanation_texts(tree, loc_code, more_label, lines)
+    resolved = _resolve_variables(variables, loc_code)
+    _collect_explanation_texts(tree, loc_code, more_label, resolved, lines)
     return lines
 
 
@@ -278,23 +285,57 @@ def explanation_view(
     *,
     loc_code: str = "EN",
     more_label: str = DEFAULT_MORE_LABEL,
+    variables: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Renderable nested dict for an aggregation ``tree``.
 
     Same shape as :meth:`Explanation.to_dict` but with each leaf's resolved
     ``text`` attached (from its source element, in ``loc_code``) and ``MORE``
     markers pre-rendered into ``text``, so a template can render the grouped
-    structure directly.
+    structure directly. When ``variables`` is given (the reasoner's structured
+    ``variable_objects``), leaf texts have their ``$name`` / ``${name}``
+    interpolations substituted with each variable's localized name for ``loc_code``.
     """
+    return _explanation_view(
+        tree, loc_code, more_label, _resolve_variables(variables, loc_code)
+    )
+
+
+def _resolve_variables(
+    variables: Mapping[str, Any] | None,
+    loc_code: str,
+) -> dict[str, str] | None:
+    """Map each variable to the localized name interpolation should substitute.
+
+    Returns ``None`` (interpolation disabled) when ``variables`` is ``None``.
+    Otherwise each structured value is reduced to its ``localizedName`` for
+    ``loc_code`` — falling back to ``object_name`` then ``repr_name`` — via
+    :func:`~src.tpg_domain.variable_localized_name`, matching how its_QuestionGen
+    renders ``Obj`` variables in templates.
+    """
+    if variables is None:
+        return None
+    return {
+        name: variable_localized_name(value, loc_code)
+        for name, value in variables.items()
+    }
+
+
+def _explanation_view(
+    tree: Explanation,
+    loc_code: str,
+    more_label: str,
+    variables: Mapping[str, str] | None,
+) -> dict[str, Any]:
     return {
         "kind": tree.kind.value,
         "type": tree.type.value,
-        "text": _node_text(tree, loc_code, more_label),
+        "text": _node_text(tree, loc_code, more_label, variables),
         "skill": tree.skill,
         "muted": tree.muted,
         "similarSkipped": tree.similar_skipped,
         "children": [
-            explanation_view(child, loc_code=loc_code, more_label=more_label)
+            _explanation_view(child, loc_code, more_label, variables)
             for child in tree.children
         ],
     }
@@ -304,25 +345,34 @@ def _collect_explanation_texts(
     node: Explanation,
     loc_code: str,
     more_label: str,
+    variables: Mapping[str, str] | None,
     out: list[str],
 ) -> None:
     for child in node.children:
         if child.muted:
             continue
         if child.kind is ExplanationKind.GROUP:
-            _collect_explanation_texts(child, loc_code, more_label, out)
+            _collect_explanation_texts(child, loc_code, more_label, variables, out)
             continue
-        text = _node_text(child, loc_code, more_label)
+        text = _node_text(child, loc_code, more_label, variables)
         if text:
             out.append(text)
 
 
-def _node_text(node: Explanation, loc_code: str, more_label: str) -> str | None:
+def _node_text(
+    node: Explanation,
+    loc_code: str,
+    more_label: str,
+    variables: Mapping[str, str] | None,
+) -> str | None:
     """Human text for a single explanation node (``None`` for groups)."""
     if node.kind is ExplanationKind.MORE:
         return more_label.format(count=node.similar_skipped)
     if node.kind is ExplanationKind.LEAF:
-        return _element_localized_text(node.source_element, "explanation", loc_code)
+        text = _element_localized_text(node.source_element, "explanation", loc_code)
+        if text is not None and variables is not None:
+            return interpolate(text, variables)
+        return text
     return None
 
 

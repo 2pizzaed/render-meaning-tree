@@ -92,6 +92,7 @@ class ReasoningResult:
     result: bool | None
     trace: ReasoningTrace | None = None
     variables: dict[str, str] = field(default_factory=dict)
+    variable_objects: dict[str, Any] = field(default_factory=dict)
     exceptions: list[ReasoningException] = field(default_factory=list)
     reasoner_output: list[str] = field(default_factory=list)
     metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -172,6 +173,7 @@ def parse_reasoning_jsonl(
     trace: ReasoningTrace | None = None
     reasoner_output: list[str] = []
     variables: dict[str, str] = {}
+    variable_objects: dict[str, Any] = {}
     exceptions: list[ReasoningException] = []
     metrics: dict[str, dict[str, Any]] = {}
     artifacts: dict[str, Any] = {}
@@ -205,8 +207,12 @@ def parse_reasoning_jsonl(
         elif event_type == "variables":
             event_variables = event.get("value")
             if isinstance(event_variables, dict):
+                variable_objects = {
+                    str(key): value for key, value in event_variables.items()
+                }
                 variables = {
-                    str(key): str(value) for key, value in event_variables.items()
+                    str(key): _variable_value_to_str(value)
+                    for key, value in event_variables.items()
                 }
         elif event_type == "exceptions":
             event_exceptions = event.get("value")
@@ -238,6 +244,7 @@ def parse_reasoning_jsonl(
         final_node=final_node,
         trace=trace,
         variables=variables,
+        variable_objects=variable_objects,
         exceptions=exceptions,
         reasoner_output=reasoner_output,
         metrics=metrics,
@@ -299,6 +306,47 @@ def parse_expression_query_jsonl(
         reasoner_output=reasoner_output,
         metrics=metrics,
     )
+
+
+def _variable_value_to_str(value: Any) -> str:
+    if isinstance(value, dict) and isinstance(value.get("repr_name"), str):
+        return value["repr_name"]
+    return str(value)
+
+
+def variable_localized_name(value: Any, loc_code: str) -> str:
+    if not isinstance(value, dict):
+        return str(value)
+    localized = _metadata_localized_value(value.get("metadata"), "localizedName", loc_code)
+    if localized is not None:
+        return localized
+    object_name = value.get("object_name")
+    if object_name is not None:
+        return str(object_name)
+    repr_name = value.get("repr_name")
+    if repr_name is not None:
+        return str(repr_name)
+    return str(value)
+
+
+def _metadata_localized_value(metadata: Any, name: str, loc_code: str) -> str | None:
+    if not isinstance(metadata, list):
+        return None
+    grouped: dict[str | None, list[str]] = {}
+    for entry in metadata:
+        if (
+            isinstance(entry, dict)
+            and entry.get("name") == name
+            and entry.get("value") is not None
+        ):
+            grouped.setdefault(entry.get("locCode"), []).append(str(entry.get("value")))
+    values = (
+        grouped.get(loc_code)
+        or grouped.get(loc_code.lower())
+        or grouped.get(None)
+        or [value for entries in grouped.values() for value in entries]
+    )
+    return values[0] if values else None
 
 
 def _parse_objects_loqi(value: Any) -> dict[str, str]:

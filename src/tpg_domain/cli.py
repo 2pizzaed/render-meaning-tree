@@ -23,8 +23,8 @@ from .models import (
 )
 
 VERSION: dict[TpgProject, str] = {
-    "its_DomainModel": "3.0.0-alpha.7",
-    "its_Reasoner": "3.0.0-alpha.3",
+    "its_DomainModel": "3.0.0-rc.1",
+    "its_Reasoner": "3.0.0-rc.1",
 }
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,9 @@
 """meaning_tree facade.
 
-Re-exports the public API bound to the active backend (``cli`` by default, ``rpc`` when configured
-via ``TOOLCHAIN_BACKEND``/``MEANING_TREE_BACKEND``). The CLI and JSON-RPC implementations live in
-:mod:`src.meaning_tree.cli` and :mod:`src.meaning_tree.rpc` and stay importable directly.
+Re-exports the public API bound to the active backend (``cli`` by default; ``rpc`` when explicitly
+configured or selected by ``auto`` mode via ``TOOLCHAIN_BACKEND``/``MEANING_TREE_BACKEND``). The
+CLI and JSON-RPC implementations live in :mod:`src.meaning_tree.cli` and
+:mod:`src.meaning_tree.rpc` and stay importable directly.
 """
 
 from src.env import MEANING_TREE_BACKEND_ENV_VAR, select_backend
@@ -10,7 +11,7 @@ from src.env import MEANING_TREE_BACKEND_ENV_VAR, select_backend
 from . import cli
 from .cli import DeserializationFormat, SerializationFormat
 
-_backend = select_backend(MEANING_TREE_BACKEND_ENV_VAR)
+_backend = select_backend(MEANING_TREE_BACKEND_ENV_VAR, required_rpc_tools=("meaning_tree",))
 if _backend == "rpc":
     from . import rpc as _impl
 else:

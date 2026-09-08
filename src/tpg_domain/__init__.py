@@ -1,9 +1,9 @@
 """tpg_domain facade.
 
-Re-exports the public API bound to the active backend (``cli`` by default, ``rpc`` when configured
-via ``TOOLCHAIN_BACKEND``/``TPG_BACKEND``). The CLI and JSON-RPC implementations live in
-:mod:`src.tpg_domain.cli` and :mod:`src.tpg_domain.rpc`; the shared data model lives in
-:mod:`src.tpg_domain.models`. All three stay importable directly.
+Re-exports the public API bound to the active backend (``cli`` by default; ``rpc`` when explicitly
+configured or selected by ``auto`` mode via ``TOOLCHAIN_BACKEND``/``TPG_BACKEND``). The CLI and
+JSON-RPC implementations live in :mod:`src.tpg_domain.cli` and :mod:`src.tpg_domain.rpc`; the
+shared data model lives in :mod:`src.tpg_domain.models`. All three stay importable directly.
 """
 
 from src.env import TPG_BACKEND_ENV_VAR, select_backend
@@ -27,7 +27,10 @@ from .models import (
     variable_localized_name,
 )
 
-_backend = select_backend(TPG_BACKEND_ENV_VAR)
+_backend = select_backend(
+    TPG_BACKEND_ENV_VAR,
+    required_rpc_tools=("its_DomainModel", "its_Reasoner"),
+)
 if _backend == "rpc":
     from . import rpc as _impl
 else:
@@ -69,7 +72,7 @@ __all__ = [
     "solve_reasoning",
     "solve_reasoning_result",
     "tree_loqi_to_xml",
-    "variable_localized_name",
     "validate_domain_loqi",
     "validate_domain_solving_model",
+    "variable_localized_name",
 ]

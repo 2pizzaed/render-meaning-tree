@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playground : CtrlFlow Domain / Meaning Tree</title>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.9.0/fonts/remixicon.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/jsoneditor@10.4.3/dist/jsoneditor.min.css" rel="stylesheet">
     <link href="/static/playground.css" rel="stylesheet">
 </head>
 <body>
@@ -56,6 +57,7 @@
         <div class="bottom-panel">
             <div class="tabs">
                 <button class="tab active" data-tab-name="tab-inspector" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
+                {% if source_map %}<button class="tab" data-tab-name="tab-source-map" onclick="openTab(event, 'tab-source-map')">Source Map</button>{% endif %}
                 {% if enable_trace and answer_objects %}<button class="tab" data-tab-name="tab-trace" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
             </div>
             
@@ -67,6 +69,12 @@
                     <span class="muted-text">Select a token to view hierarchy...</span>
                 </div>
             </div>
+
+            {% if source_map %}
+            <div id="tab-source-map" class="tab-content source-map-tab">
+                <div id="source-map-editor" aria-label="Source map JSON"></div>
+            </div>
+            {% endif %}
             
             {% if enable_trace and answer_objects %}
             <div id="tab-trace" class="tab-content">
@@ -79,6 +87,7 @@
     <!-- Data Injection -->
     <script>
         const AST_DATA = {{ nodes_json | safe }};
+        const SOURCE_MAP_DATA = {{ source_map | tojson }};
     </script>
 
     {% if enable_trace and answer_objects %}
@@ -87,6 +96,7 @@
     </script>
     {% endif %}
 
+    <script src="https://cdn.jsdelivr.net/npm/jsoneditor@10.4.3/dist/jsoneditor.min.js"></script>
     <script src="/static/playground.js"></script>
     {% if enable_trace and answer_objects %}
     <script src="/static/playground_trace.js"></script>

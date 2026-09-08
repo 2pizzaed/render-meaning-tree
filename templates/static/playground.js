@@ -102,6 +102,25 @@ function restoreActiveTab() {
 
 restoreActiveTab();
 
+// --- Source Map Viewer ---
+function initializeSourceMapEditor() {
+    const container = document.getElementById("source-map-editor");
+    if (!container || typeof JSONEditor !== "function" || typeof SOURCE_MAP_DATA === "undefined") {
+        return;
+    }
+
+    const editor = new JSONEditor(container, {
+        mode: "view",
+        modes: ["view"],
+        mainMenuBar: false,
+        navigationBar: false,
+        statusBar: false,
+    });
+    editor.set(SOURCE_MAP_DATA);
+}
+
+initializeSourceMapEditor();
+
 // --- Inspector Logic ---
 function handleTokenClick(element) {
     const nodeId = element.getAttribute("data-node-id");

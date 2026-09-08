@@ -67,6 +67,7 @@ def index():
     context = {
         "lines": [],
         "nodes_json": "{}",
+        "source_map": None,
         "enable_trace": enable_trace,
         "answer_objects": None,
         "answer_objects_json": "",

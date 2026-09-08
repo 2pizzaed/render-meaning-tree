@@ -134,6 +134,14 @@ button.submit-btn:hover {
     display: block;
 }
 
+.source-map-tab {
+    padding: 0;
+}
+
+#source-map-editor {
+    height: 100%;
+}
+
 .node-path {
     font-family: "Consolas", monospace;
     font-size: 12px;

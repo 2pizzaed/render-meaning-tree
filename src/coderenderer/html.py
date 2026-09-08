@@ -212,6 +212,9 @@ def prepare_html_context(manager: CodeManager,
     return {
         "code": manager.code,
         "language": manager.language,
+        # The exact map used to locate tokens and render this code.  The
+        # playground exposes it as diagnostic data in a read-only JSON viewer.
+        "source_map": manager.source_map,
         "lines": lines,
         "total_lines": len(lines),
         "nodes_json": json.dumps(nodes_data, ensure_ascii=False),

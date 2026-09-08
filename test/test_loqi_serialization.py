@@ -123,7 +123,14 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             kind = "marker";
             is_opaque = false;
             generalization = "entry";
+            hasEffects(effect_add_frame);
             belongsTo(construct_if_statement);
+        }
+
+        obj effect_add_frame : Effect {
+            interruption_start = InterruptionType:none;
+            interruption_stop = InterruptionType:none;
+            call_stack = CallStackAction:add_frame;
         }
 
         obj action_END : ActionSpec {
@@ -132,6 +139,12 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             is_opaque = false;
             belongsTo(construct_if_statement);
             hasEffects(effect_break);
+        }
+
+        obj effect_break : Effect {
+            interruption_start = InterruptionType:none;
+            interruption_stop = InterruptionType:break;
+            call_stack = CallStackAction:none;
         }
 
         obj transition_if_statement_BEGIN_to_END : TransitionSpec {
@@ -145,12 +158,6 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         obj constraint_true_none : Constraint {
             condition_value = OptionalBool:`true`;
             interruption_mode = InterruptionType:none;
-        }
-
-        obj effect_break : Effect {
-            interruption_start = InterruptionType:none;
-            interruption_stop = InterruptionType:break;
-            call_stack = CallStackAction:none;
         }
 
         obj effect_break_add_frame : Effect {

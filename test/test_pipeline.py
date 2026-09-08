@@ -153,7 +153,13 @@ def test_domain_pipeline_build_construct_keeps_external_noop_rule():
     assert construct.rule.name == "external"
 
 
-def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions():
+def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "src.generator.pipeline.lookup_function_call_definition_by_ast_id",
+        lambda code, ast_id: {"id": 1, "type": "function_definition"},
+    )
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.return_value = None

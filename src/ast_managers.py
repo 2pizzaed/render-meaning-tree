@@ -28,7 +28,7 @@ type DeclarationContainer = dict[TopLevelKey, list[DeclarationElement]]
 
 node_type_hierarchy: JSON | None = None
 
-_PROGRAM_ENTRY_POINT_REFERENCE_FIELDS = frozenset(
+_LEGACY_PROGRAM_ENTRY_POINT_REFERENCE_FIELDS = frozenset(
     {"entry_point_node", "main_class"}
 )
 
@@ -246,14 +246,16 @@ class ASTNodeManager:
                     # remaining serializer-specific fields stay open.
                     self._cache[node_id] = (path_element, cast(Node, node))
                     for key, value in node.items():
-                        # ProgramEntryPoint stores these as references, not as
-                        # @TreeNode children. The JSON serializer may include
-                        # full payloads for round-trip deserialization, but
-                        # indexing them would turn the AST into a graph and
-                        # visit nodes already reachable through `body` again.
+                        # `_ref` marks a non-structural NodeReference payload.
+                        # The explicit ProgramEntryPoint names keep source maps
+                        # produced by older MeaningTree versions compatible.
                         if (
-                            node["type"] == "program_entry_point"
-                            and key in _PROGRAM_ENTRY_POINT_REFERENCE_FIELDS
+                            key.endswith("_ref")
+                            or (
+                                node["type"] == "program_entry_point"
+                                and key
+                                in _LEGACY_PROGRAM_ENTRY_POINT_REFERENCE_FIELDS
+                            )
                         ):
                             continue
                         if isinstance(value, (list, dict)):

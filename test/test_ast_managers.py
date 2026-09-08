@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import cast
 
+import pytest
+
 from src.ast_managers import ASTNodeManager, CodeManager, NodePathElement
 from src.coderenderer.entities import Token
 from src.types import Node, SourceMap
@@ -58,7 +60,17 @@ def _token(index: int, value: str, ast_node: NodePathElement | None) -> Token:
     return Token(index, value, "unknown", "unknown", index, ast_node)
 
 
-def test_program_entry_point_reference_payloads_are_not_indexed() -> None:
+@pytest.mark.parametrize(
+    ("main_class_field", "entry_point_field"),
+    [
+        ("main_class_ref", "entry_point_node_ref"),
+        ("main_class", "entry_point_node"),
+    ],
+)
+def test_program_entry_point_reference_payloads_are_not_indexed(
+    main_class_field: str,
+    entry_point_field: str,
+) -> None:
     repeated_statement = {"id": 2, "type": "return_statement"}
     root = cast(
         Node,
@@ -67,7 +79,7 @@ def test_program_entry_point_reference_payloads_are_not_indexed() -> None:
             "type": "program_entry_point",
             "body": [repeated_statement],
             "main_class_id": 3,
-            "main_class": {
+            main_class_field: {
                 "id": 3,
                 "type": "class_definition",
                 "body": {
@@ -77,7 +89,7 @@ def test_program_entry_point_reference_payloads_are_not_indexed() -> None:
                 },
             },
             "entry_point_node_id": 5,
-            "entry_point_node": {
+            entry_point_field: {
                 "id": 5,
                 "type": "function_definition",
                 "body": {
@@ -102,6 +114,23 @@ def test_program_entry_point_reference_payloads_are_not_indexed() -> None:
     )
     assert manager.get_path(3) is None
     assert manager.get_path(5) is None
+
+
+def test_ref_suffix_is_not_indexed_on_other_node_types() -> None:
+    root = cast(
+        Node,
+        {
+            "id": 1,
+            "type": "method_declaration",
+            "owner_ref": {"id": 2, "type": "user_type"},
+            "name": {"id": 3, "type": "identifier"},
+        },
+    )
+
+    manager = _processed_ast_manager(root)
+
+    assert set(manager._cache) == {1, 3}
+    assert manager.get_path(2) is None
 
 
 def test_line_number_to_ast_node_returns_least_nested_node_starting_on_line() -> None:

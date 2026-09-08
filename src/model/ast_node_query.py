@@ -47,10 +47,10 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
 from src.json_property_path import get_json_by_property_path
-from src.types import Node
+from src.types import NodeQueryFormat
 
 type AstNodeQuerySource = str | list[str] | dict[str, Any] | AstNodeQuery
-type AstNodeTypeMatcher = Callable[[Node, str], bool]
+type AstNodeTypeMatcher = Callable[[NodeQueryFormat, str], bool]
 
 _CHECK_OPERATORS = frozenset({"exists", "equals", "length", "contains", "contains_any"})
 _LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
@@ -105,7 +105,7 @@ class AstNodeQuery:
         raise TypeError(f"Unsupported ast_node query {data!r}")
 
     def matches(
-        self, node: Node, type_matcher: AstNodeTypeMatcher | None = None
+        self, node: NodeQueryFormat, type_matcher: AstNodeTypeMatcher | None = None
     ) -> bool:
         return self.expression.matches(node, type_matcher=type_matcher)
 
@@ -190,7 +190,10 @@ class AstNodeExpression:
         return cls.atom(type_predicate, condition)
 
     def matches(
-        self, node: Node, *, type_matcher: AstNodeTypeMatcher | None = None
+        self,
+        node: NodeQueryFormat,
+        *,
+        type_matcher: AstNodeTypeMatcher | None = None,
     ) -> bool:
         if self.kind == "atom":
             if self.type_predicate is None:
@@ -285,7 +288,7 @@ class NodeTypePredicate:
 
     def matches(
         self,
-        node: Node,
+        node: NodeQueryFormat,
         *,
         type_matcher: AstNodeTypeMatcher | None = None,
     ) -> bool:
@@ -464,7 +467,7 @@ class AstNodeCondition:
             )
         raise ValueError(f"Unsupported ast_node query condition {kind!r}")
 
-    def matches(self, node: Node) -> bool:
+    def matches(self, node: NodeQueryFormat) -> bool:
         if self.kind == "contains_any":
             if self.contains_any is None:
                 raise ValueError("ast_node contains_any condition has no expression")

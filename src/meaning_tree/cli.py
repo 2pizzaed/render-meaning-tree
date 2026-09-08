@@ -165,8 +165,8 @@ def convert(
         to_language: The target programming language
         source_map: If True, return a JSON-serializable dict describing
             the source map of code transformations instead of converted code.
-            The returned map includes `scope_table` and `metrics` in modern
-            Meaning Tree builds.
+            The returned map includes `render_scope_table`, optional
+            `origin_scope_table`, and `metrics`.
 
     Returns:
         Converted code as a string if source_map is False,
@@ -207,8 +207,8 @@ def generate(
         to: The target programming language
         source_map: If True, return a JSON-serializable dict describing
             the source map of code transformations instead of converted code.
-            The returned map includes `scope_table` and `metrics` in modern
-            Meaning Tree builds.
+            The returned map includes `render_scope_table`, optional
+            `origin_scope_table`, and `metrics`.
 
     Returns:
         Converted code as a string if source_map is False,
@@ -440,13 +440,17 @@ def _parse_source_map(json_data: str) -> SourceMap | None:
     parsed = _parse_json(json_data)
     if not isinstance(parsed, dict):
         return None
-    return _normalize_source_map(parsed)
-
-
-def _normalize_source_map(data: JSON) -> SourceMap:
-    source_map = dict(data)
-    if not isinstance(source_map.get("scope_table"), dict):
-        source_map["scope_table"] = {}
-    if not isinstance(source_map.get("metrics"), dict):
-        source_map["metrics"] = {}
-    return source_map  # type: ignore[return-value]
+    if (
+        parsed.get("type") != "source_map"
+        or not isinstance(parsed.get("origin"), dict)
+        or not isinstance(parsed.get("source_code"), str)
+        or parsed.get("language") not in {"java", "python", "c++"}
+        or not isinstance(parsed.get("byte_positions"), dict)
+        or not isinstance(parsed.get("render_scope_table"), dict)
+        or not isinstance(parsed.get("metrics"), dict)
+    ):
+        return None
+    origin_scope_table = parsed.get("origin_scope_table")
+    if origin_scope_table is not None and not isinstance(origin_scope_table, dict):
+        return None
+    return cast(SourceMap, parsed)

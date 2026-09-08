@@ -9,9 +9,9 @@ from src.coderenderer.entities import RendererEntity, Token
 from src.meaning_tree import convert, node_hierarchy, to_tokens
 from src.types import (
     JSON,
-    JsonObject,
     MeaningTree,
     Node,
+    ScopeTable,
     SourceMap,
     SupportedProgrammingLanguage,
     TokenList,
@@ -27,6 +27,10 @@ type DeclarationElement = (
 type DeclarationContainer = dict[TopLevelKey, list[DeclarationElement]]
 
 node_type_hierarchy: JSON | None = None
+
+_PROGRAM_ENTRY_POINT_REFERENCE_FIELDS = frozenset(
+    {"entry_point_node", "main_class"}
+)
 
 
 @runtime_checkable
@@ -238,8 +242,20 @@ class ASTNodeManager:
                         field_type=field_type,
                         container_field_id=f_id,
                     )
-                    self._cache[node_id] = (path_element, node)
+                    # The guards above establish the required Node keys; the
+                    # remaining serializer-specific fields stay open.
+                    self._cache[node_id] = (path_element, cast(Node, node))
                     for key, value in node.items():
+                        # ProgramEntryPoint stores these as references, not as
+                        # @TreeNode children. The JSON serializer may include
+                        # full payloads for round-trip deserialization, but
+                        # indexing them would turn the AST into a graph and
+                        # visit nodes already reachable through `body` again.
+                        if (
+                            node["type"] == "program_entry_point"
+                            and key in _PROGRAM_ENTRY_POINT_REFERENCE_FIELDS
+                        ):
+                            continue
                         if isinstance(value, (list, dict)):
                             traverse(value, path_element, key)
                     return path_element
@@ -281,7 +297,7 @@ class ASTNodeManager:
             ]
         return [path for path, _node in self._cache.values() if path.type == node_type]
 
-    def get_parent_of(self, node: int | NodePathElement) -> JSON | None:
+    def get_parent_of(self, node: int | NodePathElement) -> Node | None:
         if isinstance(node, int):
             if path := self.get_path(node):
                 return path.parent.get(self) if path.parent else None
@@ -670,34 +686,6 @@ class CodeManager:
         if trange:
             return token_index == (trange[-1] - 1)
 
-    def _process_class_def(
-        self,
-        node: Node,
-        decl: JsonObject,
-        parent: list[DeclarationElement] | None = None,
-    ):
-        content = {"methods": [], "fields": [], "classes": []}
-        if parent is None:
-            parent = self._declarations["classes"]
-
-        parent.append(
-            (
-                (str(decl["name"]), int(decl["definitionNodeId"])),  # type: ignore
-                content,
-            )
-        )
-        for child in node.get("body", {}).get("statements", []):  # type: ignore
-            if child["type"] == "method_declaration":
-                content["methods"].append((child["name"], child["definitionNodeId"]))
-            elif child["type"] == "field_declaration":
-                content["fields"].append((child["name"], child["declarationNodeId"]))
-            elif child["type"] == "class_declaration":
-                self._process_class_def(
-                    child,
-                    {"name": child["name"], "definitionNodeId": child["id"]},
-                    content["classes"],
-                )
-
     @staticmethod
     def _scope_node_ast_id(node: Any) -> int | None:
         if not isinstance(node, dict):
@@ -747,7 +735,7 @@ class CodeManager:
             (entry, {"methods": [], "fields": [], "classes": []})
         )
 
-    def _process_scope_table_declarations(self, scope_table: JsonObject) -> None:
+    def _process_scope_table_declarations(self, scope_table: ScopeTable) -> None:
         definitions_by_decl_id: dict[int, int] = {}
         symbols = scope_table.get("symbols")
         if isinstance(symbols, dict):
@@ -826,30 +814,10 @@ class CodeManager:
                         name, definitions_by_decl_id.get(decl_id, decl_id)
                     )
 
-    def _process_declarations(self):
-        scope_table = self._source_map.get("scope_table")
-        if isinstance(scope_table, dict):
-            self._process_scope_table_declarations(scope_table)
-            if any(self._declarations.values()):
-                return
-
-        for decl in self._source_map.get("declarations", []):  # type: ignore
-            if decl["type"] == "function_declaration":
-                self._declarations["functions"].append(
-                    (str(decl["name"]), int(decl["definitionNodeId"]))
-                )
-            elif decl["type"] == "class_declaration":
-                node = self._ast.get(decl["definitionNodeId"])
-                if node:
-                    self._process_class_def(node, decl)
-                else:
-                    raise ValueError(
-                        f"Class declaration {decl['name']} node not found in AST"
-                    )
-            elif decl["type"] == "variable_declaration":
-                self._declarations["globals"].append(
-                    (decl["name"], decl["declarationNodeId"])
-                )
+    def _process_declarations(self) -> None:
+        self._process_scope_table_declarations(
+            self._source_map["render_scope_table"]
+        )
 
     def __getattr__(self, name):
         # Проксирование к ASTNodeAnalyzer

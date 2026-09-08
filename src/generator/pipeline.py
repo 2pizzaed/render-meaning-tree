@@ -25,7 +25,7 @@ from src.model.rules import (
     locate_construct_declaration_by_ast_node,
 )
 from src.model.situation import Action, Construct, TraceAct, TraceState
-from src.types import Node
+from src.types import Node, NodeQueryFormat
 
 
 class PipelineRegistry(Protocol):
@@ -414,7 +414,7 @@ class DomainDataGeneratorPipeline(Pipeline):
             par_node = self.code.ast.get_parent_of(par_node_id)
         return None
 
-    def _matches_ast_node_type(self, node: Node, node_type: str) -> bool:
+    def _matches_ast_node_type(self, node: NodeQueryFormat, node_type: str) -> bool:
         ast_id = cast(int | None, node.get("id"))
         if ast_id is None:
             return False

@@ -197,14 +197,17 @@ def _project(
     return {"root": str(Path(project_root)), "currentFile": str(Path(project_file))}
 
 
-def _call(method: str, params: dict[str, Any]) -> Any | None:
+def _call(method: str, params: dict[str, Any]) -> Any:
     try:
         return _rpc_call(ROUTE, method, params)
     except RpcError as exc:
         logger.error("meaning_tree.%s via JSON-RPC failed: %s", method, exc)
         if exc.data:
             logger.debug("Error data: %s", exc.data)
-        return None
+        # Preserve the diagnostic returned by the toolchain server.  The
+        # playground can then show a parsing or connection error rather than
+        # only reporting that the backend returned no result.
+        raise
 
 
 def _result_string(result: Any | None) -> str | None:

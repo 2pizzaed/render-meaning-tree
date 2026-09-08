@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from src.meaning_tree import rpc as meaning_tree_rpc
 from src.meaning_tree.cli import _parse_source_map, convert, generate, to_tokens
+from src.toolchain_rpc import RpcError
 
 
 def test_convert_supports_skip_errors_and_project_context(monkeypatch) -> None:
@@ -50,6 +52,16 @@ def test_to_tokens_supports_skip_errors_without_conversion(monkeypatch) -> None:
     assert args[:3] == ("translate", "--from", "python")
     assert "--tokenize-noconvert" in args
     assert "--skip-errors" in args
+
+
+def test_rpc_tokenization_preserves_server_error(monkeypatch) -> None:
+    def fail_rpc_call(*_args, **_kwargs):
+        raise RpcError("translate failed: Given code has syntax errors: [def (]")
+
+    monkeypatch.setattr(meaning_tree_rpc, "_rpc_call", fail_rpc_call)
+
+    with pytest.raises(RpcError, match="Given code has syntax errors"):
+        meaning_tree_rpc.to_tokens("python", "def (", "python")
 
 
 def test_generate_supports_skip_errors(monkeypatch) -> None:

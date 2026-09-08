@@ -25,6 +25,7 @@ from src.model.rules import (
     TransitionDeclaration,
 )
 from src.model.situation import Action, Construct, TraceAct, TraceState
+from src.types import Node
 
 
 class ListRegistry(PipelineRegistry):
@@ -156,7 +157,10 @@ def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_ac
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.return_value = None
-    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "call_node"}
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        "id": ast_id,
+        "type": "call_node",
+    }
     pipeline = DomainDataGeneratorPipeline(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(
@@ -180,7 +184,10 @@ def test_domain_pipeline_first_construct_declaration_is_root_rule_without_parent
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.return_value = None
-    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "root_node"}
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        "id": ast_id,
+        "type": "root_node",
+    }
     pipeline = DomainDataGeneratorPipeline(manager)
     pipeline.registry.rules = [
         _construct_rule("root", "compound", "root_node"),
@@ -209,7 +216,7 @@ def test_domain_pipeline_non_root_construct_requires_construct_parent():
 
 
 def test_domain_pipeline_uses_nearest_constructable_ancestor_as_parent():
-    nodes = {
+    nodes: dict[int, Node] = {
         1: {"id": 1, "type": "root_node"},
         2: {"id": 2, "type": "atom_node"},
         3: {"id": 3, "type": "child_node"},

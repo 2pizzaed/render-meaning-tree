@@ -1,9 +1,10 @@
+import json
 import os
 from pathlib import Path
 
 import pytest
 
-from src.meaning_tree.cli import convert, generate, to_tokens
+from src.meaning_tree.cli import _parse_source_map, convert, generate, to_tokens
 
 
 def test_convert_supports_skip_errors_and_project_context(monkeypatch) -> None:
@@ -74,3 +75,51 @@ def test_convert_requires_both_project_root_and_project_file() -> None:
         ValueError, match="project_root and project_file must be provided together"
     ):
         convert("print(1)", "python", "python", project_root="/repo")
+
+
+def test_parse_source_map_accepts_current_scope_table_format() -> None:
+    render_scope_table = {
+        "type": "scope_table",
+        "current_scope_id": 0,
+        "assignment_binding": "LOCAL",
+        "symbols": {
+            "declarations": [],
+            "definitions": [],
+            "overload_groups": [],
+        },
+        "types": {
+            "declared_types": [],
+            "type_declarations": [],
+            "hierarchy": [],
+        },
+        "imports": {"items": []},
+        "scopes": [],
+    }
+    source_map = {
+        "type": "source_map",
+        "origin": {"id": 1, "type": "program_entry_point"},
+        "source_code": "",
+        "language": "python",
+        "byte_positions": {},
+        "render_scope_table": render_scope_table,
+        "metrics": {},
+    }
+
+    parsed = _parse_source_map(json.dumps(source_map))
+
+    assert parsed is not None
+    assert parsed["render_scope_table"] == render_scope_table
+
+
+def test_parse_source_map_rejects_legacy_scope_table_format() -> None:
+    source_map = {
+        "type": "source_map",
+        "origin": {"id": 1, "type": "program_entry_point"},
+        "source_code": "",
+        "language": "python",
+        "byte_positions": {},
+        "scope_table": {},
+        "metrics": {},
+    }
+
+    assert _parse_source_map(json.dumps(source_map)) is None

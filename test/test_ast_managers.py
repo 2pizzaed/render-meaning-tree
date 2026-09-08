@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import cast
+
 from src.ast_managers import ASTNodeManager, CodeManager, NodePathElement
 from src.coderenderer.entities import Token
+from src.types import Node, SourceMap
 
 
 def _path(
@@ -24,10 +27,18 @@ def _manager(
     tokens: list[Token],
 ) -> CodeManager:
     ast = object.__new__(ASTNodeManager)
-    ast._cache = {path.id: (path, {"id": path.id, "type": path.type}) for path in paths}
+    ast._cache = {
+        path.id: (
+            path,
+            cast(Node, {"id": path.id, "type": path.type}),
+        )
+        for path in paths
+    }
     manager = object.__new__(CodeManager)
     manager._ast = ast
-    manager._source_map = {}
+    # These tests construct a deliberately partial manager without invoking its
+    # source-map-dependent methods.
+    manager._source_map = cast(SourceMap, {})
     manager._tokens = tokens
     manager._code = ""
     manager._declarations = {"functions": [], "classes": [], "globals": []}
@@ -35,8 +46,62 @@ def _manager(
     return manager
 
 
+def _processed_ast_manager(root: Node) -> ASTNodeManager:
+    manager = object.__new__(ASTNodeManager)
+    manager._root = root
+    manager._cache = {}
+    manager._process()
+    return manager
+
+
 def _token(index: int, value: str, ast_node: NodePathElement | None) -> Token:
     return Token(index, value, "unknown", "unknown", index, ast_node)
+
+
+def test_program_entry_point_reference_payloads_are_not_indexed() -> None:
+    repeated_statement = {"id": 2, "type": "return_statement"}
+    root = cast(
+        Node,
+        {
+            "id": 1,
+            "type": "program_entry_point",
+            "body": [repeated_statement],
+            "main_class_id": 3,
+            "main_class": {
+                "id": 3,
+                "type": "class_definition",
+                "body": {
+                    "id": 4,
+                    "type": "compound_statement",
+                    "statements": [repeated_statement],
+                },
+            },
+            "entry_point_node_id": 5,
+            "entry_point_node": {
+                "id": 5,
+                "type": "function_definition",
+                "body": {
+                    "id": 6,
+                    "type": "compound_statement",
+                    "statements": [repeated_statement],
+                },
+            },
+        },
+    )
+
+    manager = _processed_ast_manager(root)
+
+    assert set(manager._cache) == {1, 2}
+    assert manager.get_path(2) == NodePathElement(
+        parent=manager.get_path(1),
+        id=2,
+        type="return_statement",
+        field_name="body",
+        field_type="collection",
+        container_field_id=0,
+    )
+    assert manager.get_path(3) is None
+    assert manager.get_path(5) is None
 
 
 def test_line_number_to_ast_node_returns_least_nested_node_starting_on_line() -> None:

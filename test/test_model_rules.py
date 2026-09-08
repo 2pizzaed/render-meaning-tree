@@ -10,7 +10,7 @@ from src.model.rules import (
     load_construct_declarations_from_dict,
     locate_construct_declaration_by_ast_node,
 )
-from src.types import JSON
+from src.types import JSON, Node
 
 
 def test_identification_resolve_json_ignores_parent_origin_for_property_path():
@@ -505,7 +505,7 @@ def test_locate_construct_declaration_supports_top_level_instanceof():
             },
         }
     )
-    node = {"id": 1, "type": "assignment_statement"}
+    node: Node = {"id": 1, "type": "assignment_statement"}
 
     assert locate_construct_declaration_by_ast_node(node, declarations) is None
 

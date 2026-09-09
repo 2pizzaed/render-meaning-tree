@@ -112,9 +112,12 @@ function initializeSourceMapEditor() {
     const editor = new JSONEditor(container, {
         mode: "view",
         modes: ["view"],
-        mainMenuBar: false,
-        navigationBar: false,
+        search: true,
+        mainMenuBar: true,
+        navigationBar: true,
         statusBar: false,
+        enableSort: false,
+        enableTransform: false,
     });
     editor.set(SOURCE_MAP_DATA);
 }

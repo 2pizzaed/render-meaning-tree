@@ -1,8 +1,6 @@
 // ============================================================================
 //  main.tpg — Граф проверок (проверка выбора студента при трассировке).
 //
-//  Имя дерева при загрузке из каталога domain/: "" (файл `main` -> дерево
-//  по умолчанию, точка входа тренажёра). См. DomainSolvingModel.normalizeTreeName.
 //
 //  СТАТУС: реализован полный алгоритм docs/check_graph_idea.md:
 //    шаг 1     — предпрогонка findCorrect по прозрачным действиям (subcall_mut);
@@ -337,7 +335,7 @@ fragment commitCorrectAction() {
 
 // Уточнение ошибок после предпрогонки: выполнение могло АВТОМАТИЧЕСКИ уйти
 // вперёд от последнего шага студента (P0) — выйти из конструкции, содержащей A,
-// либо войти в другую её ветвь. Тогда вместо генерических ошибок порядка или
+// либо войти в другую её ветвь. Тогда вместо общих ошибок порядка или
 // отсутствия перехода возвращаем ошибку по первопричине. Вынужденные выходы
 // при прерывании findCorrect добавляет БЕЗ перехода (нет hasTransition) — это
 // отличает их от выходов по значению условия.
@@ -587,7 +585,7 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
         P->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" and
         P->hasAction->derivedFrom.role == "END"
     ) out false else {
-        conclude: error [
+        conclude: true [
             skill = "everything_evaluated" ;
             RU.explanation = "Нельзя выполнить это действие: программа уже полностью вычислена." ;
             EN.explanation = "This action cannot be performed: the program is already fully evaluated." ;

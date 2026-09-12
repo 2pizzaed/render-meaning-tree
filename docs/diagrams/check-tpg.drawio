@@ -1,0 +1,881 @@
+<mxfile host="Electron" agent="visualize-thought-process-graph">
+  <diagram id="check" name="Граф проверок выбранного действия">
+    <mxGraphModel dx="2570" dy="1523" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <object label="&lt;b&gt;Уточнение: &lt;/b&gt;поиск ошибки после прохождения прозрачных узлов, где конструкт с действием A внезапно был завершен&amp;nbsp;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size: 16px;&quot;&gt;autoPassedRefinement&lt;/font&gt;" tpgKind="Fragment" tpgProcedure="fragment autoPassedRefinement()" tpgSource="domain/main.tpg :: fragment autoPassedRefinement()" tpgNote="вызывается как `fragment`:autoPassedRefinement() out null; исход null продолжает основной поток, correct/error терминальны" id="g_auto">
+          <mxCell parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;container=1;pointerEvents=0;collapsible=0;movable=1;resizable=1;fontSize=20;" vertex="1">
+            <mxGeometry height="597" width="1500" x="703" y="2525" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Вывело ли&lt;/font&gt; сработавшее &lt;font color=&quot;#009900&quot;&gt;прерывание&lt;/font&gt; выполнение из &lt;font color=&quot;#CC0066&quot;&gt;конструкции&lt;/font&gt; с выбранным &lt;font color=&quot;#CC0066&quot;&gt;действием&lt;/font&gt; уже после шага студента?" tpgKind="QuestionNode" tpgExpr="forAny TraceAct t {&#xa;    $t=&gt;afterOf(P0) and&#xa;    $t-&gt;hasAction-&gt;derivedFrom.role == &quot;END&quot; and&#xa;    isAncestorOrSelf(A-&gt;belongsTo, $t-&gt;hasAction-&gt;belongsTo) and&#xa;    not $t=&gt;hasTransition()&#xa;}" tpgSource="domain/main.tpg :: fragment autoPassedRefinement()" tpgNote="вынужденный выход findCorrect добавляет БЕЗ перехода — это отличает его от выхода по значению условия" id="ck_q_forced">
+          <mxCell parent="g_auto" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="440" x="340" y="52" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Прерывание не было учтено студентом&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size: 16px;&quot;&gt;interruption_not_considered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="interruption_not_considered" tpgRuExplanation="Нельзя выполнить это действие: сработавшее прерывание уже вывело выполнение из этой конструкции." tpgEnExplanation="This action cannot be performed: the triggered interruption has already taken execution out of this construct." tpgSource="domain/main.tpg :: fragment autoPassedRefinement()" id="ck_e_forced">
+          <mxCell parent="g_auto" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="300" x="1170" y="82" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Покинуло ли&lt;/font&gt; выполнение эту &lt;font color=&quot;#CC0066&quot;&gt;конструкцию&lt;/font&gt; или ушло в другую её ветвь уже после шага студента?" tpgKind="QuestionNode" tpgExpr="forAny TraceAct t {&#xa;    $t=&gt;afterOf(P0) and (&#xa;        (&#xa;            $t-&gt;hasAction-&gt;derivedFrom.role == &quot;END&quot; and&#xa;            isAncestorOrSelf(A-&gt;belongsTo, $t-&gt;hasAction-&gt;belongsTo)&#xa;        ) or (&#xa;            $t-&gt;hasAction-&gt;derivedFrom.role == &quot;BEGIN&quot; and&#xa;            $t-&gt;hasAction.ast_id != A.ast_id and&#xa;            $t-&gt;hasAction-&gt;belongsTo=&gt;hasParent(A-&gt;belongsTo)&#xa;        )&#xa;    )&#xa;}" tpgSource="domain/main.tpg :: fragment autoPassedRefinement()" id="ck_q_other">
+          <mxCell parent="g_auto" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="380" x="370" y="357" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Выполнение уже пошло по другому пути ветвления&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size: 16px;&quot;&gt;condition_value_not_considered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="condition_value_not_considered" tpgRuExplanation="Нельзя выполнить это действие: не учтено вычисленное значение условия — выполнение уже пошло по другому пути." tpgEnExplanation="This action cannot be performed: the evaluated condition value is not taken into account — execution has already taken a different path." tpgSource="domain/main.tpg :: fragment autoPassedRefinement()" id="ck_e_other">
+          <mxCell parent="g_auto" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="1190" y="402" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Засчитать действие: добавить его в трассу&lt;/b&gt;&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;commitCorrectAction&lt;/font&gt;" tpgKind="Fragment" tpgProcedure="fragment commitCorrectAction()" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" tpgAdaptation="служебный узел var Prev: TraceAct = findExtreme lastAct … (последний акт трассы) не показан отдельным узлом; он используется в выражениях эффектов результатов" id="g_commit">
+          <mxCell parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;container=1;pointerEvents=0;collapsible=0;movable=1;resizable=1;fontSize=20;" vertex="1">
+            <mxGeometry height="1032" width="1820" x="2990" y="4258" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; роль &lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt; на уровне &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt; выбранного &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; — источник &lt;font color=&quot;#CC0066&quot;&gt;перехода&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;DpFin&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="DpFin: ConcreteAction" tpgExpr="roleActionOf(P-&gt;hasAction, A-&gt;belongsTo)" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_dpfin">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="280" x="570" y="52" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; в выбранное &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, удовлетворяющий &lt;font color=&quot;#009900&quot;&gt;режиму прерывания&lt;/font&gt; и &lt;font color=&quot;#009900&quot;&gt;значению условия&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;Tin&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="Tin: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    transitionLeads($t, DpFin, A, A-&gt;belongsTo) and&#xa;    interruptionOk($t, S) and&#xa;    conditionOk($t, DpFin)&#xa;}&#xa;&#xa;// lambda transitionLeads(t, fromA, toA, C) =&#xa;//     t-&gt;belongsTo == C-&gt;derivedFrom and t-&gt;from_ == fromA-&gt;derivedFrom and&#xa;//     ( t-&gt;to_ == toA-&gt;derivedFrom or (&#xa;//         (not forAny ConcreteAction primary {&#xa;//             $primary-&gt;belongsTo == C and $primary-&gt;derivedFrom == t-&gt;to_ }) and&#xa;//         toWhenAbsent(t, C) == toA-&gt;derivedFrom ) );&#xa;// lambda interruptionOk(t, S) = not t=&gt;hasConstraints() or&#xa;//     t-&gt;hasConstraints.interruption_mode == S.interruption_mode or&#xa;//     t-&gt;hasConstraints.interruption_mode == InterruptionType:any;&#xa;// lambda conditionOk(t, fromA) = not t=&gt;hasConstraints() or not fromA=&gt;hasValue() or&#xa;//     findUnusedValue(fromA).bool_value == t-&gt;hasConstraints.condition_value;" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_tin">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="300" x="560" y="302" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt; с &lt;font color=&quot;#009900&quot;&gt;прозрачным&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;, который раскрывается выбранным &lt;font color=&quot;#CC0066&quot;&gt;действием&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;ExpandsNT&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="ExpandsNT: ConcreteConstruct" tpgExpr="find ConcreteConstruct cc {&#xa;    A-&gt;derivedFrom.role != &quot;BEGIN&quot; and&#xa;    A-&gt;derivedFrom.role != &quot;END&quot; and&#xa;    $cc != A-&gt;belongsTo and&#xa;    $cc.ast_id == A.ast_id and&#xa;    not beginActionOf($cc)-&gt;derivedFrom.is_opaque&#xa;}" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_expands_nt">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="280" x="120" y="552" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt; с &lt;font color=&quot;#009900&quot;&gt;прозрачным&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;, который раскрывается выбранным &lt;font color=&quot;#CC0066&quot;&gt;действием&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;Expands&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="Expands: ConcreteConstruct" tpgExpr="find ConcreteConstruct cc {&#xa;    A-&gt;derivedFrom.role != &quot;BEGIN&quot; and&#xa;    A-&gt;derivedFrom.role != &quot;END&quot; and&#xa;    $cc != A-&gt;belongsTo and&#xa;    $cc.ast_id == A.ast_id and&#xa;    not beginActionOf($cc)-&gt;derivedFrom.is_opaque&#xa;}" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_expands">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="280" x="1020" y="552" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие засчитано&lt;/b&gt;&lt;br&gt;в трассу добавлены действие и &lt;font color=&quot;#009900&quot;&gt;прозрачный&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt; раскрываемого &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;применены&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;эффекты&lt;/font&gt; правила действия&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;correct_answer&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgSkill="correct_answer" tpgRuExplanation="Действие может быть выполнено следующим и добавлено в трассу." tpgEnExplanation="The action can be performed next and is appended to the trace." tpgEffect="P = +obj : TraceAct ({&#xa;    hasAction(A);&#xa;    (A=&gt;hasValue()) ? hasValue(findUnusedValue(A));&#xa;});&#xa;Prev +=&gt; directlyBeforeOf(P);&#xa;if (A=&gt;hasValue()) P-&gt;hasValue.used = true;&#xa;if (A-&gt;derivedFrom=&gt;hasEffects()) applyInterruptionMode(A-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (A=&gt;hasEffects()) applyInterruptionMode(A-&gt;hasEffects, S);&#xa;Prev = P;&#xa;P = +obj : TraceAct ({ hasAction(beginActionOf(ExpandsNT)); });&#xa;Prev +=&gt; directlyBeforeOf(P);&#xa;if (beginActionOf(ExpandsNT)-&gt;derivedFrom=&gt;hasEffects())&#xa;    applyInterruptionMode(beginActionOf(ExpandsNT)-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (beginActionOf(ExpandsNT)=&gt;hasEffects())&#xa;    applyInterruptionMode(beginActionOf(ExpandsNT)-&gt;hasEffects, S)" tpgExpr="conclude: correct with ({ … });" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_r_nt_both">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;" vertex="1">
+            <mxGeometry height="200" width="380" x="30" y="802" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие засчитано&lt;/b&gt;&lt;br&gt;в трассу добавлено только действие &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(перехода к нему нет — вход по &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;&lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt; или выход при прерывании)&lt;/font&gt;;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;применены&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;эффекты&lt;/font&gt; правила действия&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;correct_answer&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgSkill="correct_answer" tpgRuExplanation="Действие может быть выполнено следующим и добавлено в трассу." tpgEnExplanation="The action can be performed next and is appended to the trace." tpgEffect="P = +obj : TraceAct ({&#xa;    hasAction(A);&#xa;    (A=&gt;hasValue()) ? hasValue(findUnusedValue(A));&#xa;});&#xa;Prev +=&gt; directlyBeforeOf(P);&#xa;if (A=&gt;hasValue()) P-&gt;hasValue.used = true;&#xa;if (A-&gt;derivedFrom=&gt;hasEffects()) applyInterruptionMode(A-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (A=&gt;hasEffects()) applyInterruptionMode(A-&gt;hasEffects, S)" tpgExpr="conclude: correct with ({ … });" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_r_nt_plain">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;" vertex="1">
+            <mxGeometry height="200" width="380" x="490" y="802" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие засчитано&lt;/b&gt;&lt;br&gt;в трассу добавлены действие с &lt;font color=&quot;#CC0066&quot;&gt;переходом&lt;/font&gt; и &lt;font color=&quot;#009900&quot;&gt;прозрачный&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt; раскрываемого &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;correct_answer&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgSkill="correct_answer" tpgRuExplanation="Действие может быть выполнено следующим и добавлено в трассу." tpgEnExplanation="The action can be performed next and is appended to the trace." tpgEffect="P = +obj : TraceAct ({&#xa;    hasAction(A);&#xa;    hasTransition(Tin);&#xa;    (A=&gt;hasValue()) ? hasValue(findUnusedValue(A));&#xa;});&#xa;Prev +=&gt; directlyBeforeOf(P);&#xa;if (A=&gt;hasValue()) P-&gt;hasValue.used = true;&#xa;if (A=&gt;hasEffects()) applyInterruptionMode(A-&gt;hasEffects, S);&#xa;if (Tin=&gt;hasEffects()) applyInterruptionMode(Tin-&gt;hasEffects, S);&#xa;Prev = P;&#xa;P = +obj : TraceAct ({ hasAction(beginActionOf(Expands)); });&#xa;Prev +=&gt; directlyBeforeOf(P);&#xa;if (beginActionOf(Expands)-&gt;derivedFrom=&gt;hasEffects())&#xa;    applyInterruptionMode(beginActionOf(Expands)-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (beginActionOf(Expands)=&gt;hasEffects())&#xa;    applyInterruptionMode(beginActionOf(Expands)-&gt;hasEffects, S)" tpgExpr="conclude: correct with ({ … });" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_r_t_both">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="320" x="980" y="802" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие засчитано&lt;/b&gt;&lt;br&gt;в трассу добавлено действие с &lt;font color=&quot;#CC0066&quot;&gt;переходом&lt;/font&gt;;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;по эффекту стека вызовов следующий пред-прогон войдёт в тело функции&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;correct_answer&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgSkill="correct_answer" tpgRuExplanation="Действие может быть выполнено следующим и добавлено в трассу." tpgEnExplanation="The action can be performed next and is appended to the trace." tpgEffect="P = +obj : TraceAct ({&#xa;    hasAction(A);&#xa;    hasTransition(Tin);&#xa;    (A=&gt;hasValue()) ? hasValue(findUnusedValue(A));&#xa;});&#xa;Prev +=&gt; directlyBeforeOf(P);&#xa;if (A=&gt;hasValue()) P-&gt;hasValue.used = true;&#xa;if (A=&gt;hasEffects()) applyInterruptionMode(A-&gt;hasEffects, S);&#xa;if (Tin=&gt;hasEffects()) applyInterruptionMode(Tin-&gt;hasEffects, S)" tpgExpr="conclude: correct with ({ … });" tpgSource="domain/main.tpg :: fragment commitCorrectAction()" id="cm_r_t_plain">
+          <mxCell parent="g_commit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;" vertex="1">
+            <mxGeometry height="200" width="380" x="1410" y="802" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Проверка одного уровня иерархии конструктов&lt;/b&gt;&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;checkLevel(C — конструкт этого уровня)&lt;/font&gt;" tpgKind="Fragment" tpgProcedure="fragment checkLevel(C: ConcreteConstruct)" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" tpgNote="тело цикла агрегации AND; результат итерации — correct или error с диагнозом" id="g_level">
+          <mxCell parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;container=1;pointerEvents=0;collapsible=0;movable=1;resizable=1;fontSize=20;" vertex="1">
+            <mxGeometry height="4097" width="2460" x="120" y="4558" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; роль &lt;b&gt;выбранного&lt;/b&gt; &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; на уровне &lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt; — само &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; или то, внутри чего оно раскрыто&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;если такого нет — &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;&lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt; конструкта&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="Da: ConcreteAction" tpgExpr="roleActionOf(A, C)&#xa;&#xa;// lambda roleActionOf(target, C) =&#xa;//     hasContainingAction(target, C) ? containingAction(target, C) : beginActionOf(C);&#xa;// lambda containingAction(target, C) = find ConcreteAction d {&#xa;//     $d-&gt;belongsTo == C and ( $d == target or&#xa;//         forAny ConcreteConstruct cc { $cc != C and $cc.ast_id == $d.ast_id and&#xa;//             isAncestorOrSelf(target-&gt;belongsTo, $cc) } ) };&#xa;// lambda beginActionOf(C) = find ConcreteAction d {&#xa;//     $d-&gt;belongsTo == C and $d-&gt;derivedFrom.role == &quot;BEGIN&quot; };" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_da">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="960" y="52" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; роль &lt;b&gt;предыдущего&lt;/b&gt; &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; на уровне &lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;если &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;&lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt;&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt; вне этого конструкта — &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;&lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt; конструкта&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="Dp: ConcreteAction" tpgExpr="roleActionOf(P-&gt;hasAction, C)" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_dp">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="300" x="990" y="327" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Совпадают ли&lt;/font&gt; роли &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt; и &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt; — это одно и то же &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="Dp == Da" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_same">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="320" x="980" y="572" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Является ли&lt;/font&gt; это входом в сам &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;: выбран его &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;, а предыдущее &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; ещё вне &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="A == Dp and A-&gt;derivedFrom.role == &quot;BEGIN&quot; and not hasContainingAction(P-&gt;hasAction, C)" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_enter">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="400" x="1550" y="557" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Уровень пройден&lt;/b&gt;&lt;br&gt;это корректный вход в &lt;font color=&quot;#CC0066&quot;&gt;конструкцию&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgExpr="conclude: correct;" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_r_enter">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="200" x="2180" y="602" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Выбрано ли&lt;/font&gt; ровно то &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, на котором сейчас стоит трасса?" tpgKind="QuestionNode" tpgExpr="A == Dp" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_sameact">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="340" x="1580" y="877" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Уровень ограничений не накладывает&lt;/b&gt;&lt;br&gt;выбранное &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; лежит глубже — решают вложенные уровни" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgExpr="conclude: correct;" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_r_deeper">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="150" width="300" x="2130" y="892" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;, который раскрывается этим &lt;font color=&quot;#CC0066&quot;&gt;действием&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;D_cc&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="DccSame: ConcreteConstruct" tpgExpr="find ConcreteConstruct cc { $cc != C and $cc.ast_id == Dp.ast_id }" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_find_dccsame">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="1620" y="1152" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие только что выполнялось&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;actions_order_violated&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="actions_order_violated" tpgRuExplanation="Нельзя выполнить это действие сейчас: оно только что выполнялось, и сначала должны выполниться другие действия." tpgEnExplanation="This action cannot be performed now: it has just been performed, and other actions must run first." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_order_same">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="250" x="1610" y="1367" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Раскрытая им конструкция ещё выполняется&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;construct_not_closed&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="construct_not_closed" tpgRuExplanation="Нельзя выполнить это действие: раскрытая им конструкция ещё выполняется и не завершена." tpgEnExplanation="This action cannot be performed: the construct it unfolds into is still executing and is not finished." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_notclosed_same">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="150" width="230" x="2140" y="1367" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Вошли ли&lt;/font&gt; уже в &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt; — или вход достроится сам, потому что его &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;прозрачный&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="hasContainingAction(P-&gt;hasAction, C) or not beginActionOf(C)-&gt;derivedFrom.is_opaque" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_entered">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="960" y="847" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;В конструкцию ещё не вошли&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;construct_not_entered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="construct_not_entered" tpgRuExplanation="Нельзя выполнить это действие: сначала нужно войти в конструкцию, в которой оно находится." tpgEnExplanation="This action cannot be performed: the construct that contains it must be entered first." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_entered">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="240" x="500" y="877" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Является ли&lt;/font&gt; роль &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt; самим выбранным &lt;font color=&quot;#CC0066&quot;&gt;действием&lt;/font&gt;, либо &lt;font color=&quot;#009900&quot;&gt;прозрачной&lt;/font&gt;, либо уже выполненной в текущем контексте?" tpgKind="QuestionNode" tpgExpr="Da == A or not Da-&gt;derivedFrom.is_opaque or actAlreadyCurrent(Da, Dp)" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_skipped">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="440" x="920" y="1122" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Пропущено промежуточное действие&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;intermediate_action_skipped&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="intermediate_action_skipped" tpgRuExplanation="Нельзя выполнить это действие: пропущено действие, которое должно быть выполнено перед ним." tpgEnExplanation="This action cannot be performed: an action that must be performed before it was skipped." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_skipped">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="260" x="490" y="1167" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Есть ли&lt;/font&gt; на этом уровне &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; из роли &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt; в роль &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="forAny TransitionSpec t { transitionLeads($t, Dp, Da, C) }" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" tpgNote="без учёта ограничений: сначала проверяется само наличие перехода" id="lv_q_trans">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="300" x="990" y="1427" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Стоит ли&lt;/font&gt; роль &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt; &lt;font color=&quot;#0099A8&quot;&gt;раньше&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt; по порядку и в текущем контексте не выполнялась?" tpgKind="QuestionNode" tpgExpr="Da=&gt;beforeOf(Dp) and not actAlreadyCurrent(Da, Dp)" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_passed">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="440" y="1702" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие уже позади&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;action_already_passed&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="action_already_passed" tpgRuExplanation="Нельзя выполнить это действие: оно уже позади по ходу выполнения, вернуться к нему нельзя." tpgEnExplanation="This action cannot be performed: execution has already passed it, and it cannot be returned to." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_passed">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="220" x="30" y="1732" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Стоит ли&lt;/font&gt; роль &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt; &lt;font color=&quot;#0099A8&quot;&gt;позже&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt; по порядку?" tpgKind="QuestionNode" tpgExpr="Da=&gt;afterOf(Dp)" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_after">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="140" width="280" x="480" y="1967" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Впереди есть невыполненные действия&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;actions_skipped&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="actions_skipped" tpgRuExplanation="Нельзя выполнить это действие: перед ним есть невыполненные действия, которые нельзя пропустить." tpgEnExplanation="This action cannot be performed: there are earlier actions that have not been performed and cannot be skipped." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_skippedacts">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="200" x="40" y="1977" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Перехода к этому действию нет&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;no_transition&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="no_transition" tpgRuExplanation="Нельзя выполнить это действие: переход к нему из текущей точки выполнения не предусмотрен." tpgEnExplanation="This action cannot be performed: there is no transition to it from the current point of execution." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_notrans">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="100" width="200" x="520" y="2192" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Соблюдён ли&lt;/font&gt; порядок в цепочке однотипных &lt;font color=&quot;#CC0066&quot;&gt;действий&lt;/font&gt;: &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt; — ближайшая подходящая роль &lt;font color=&quot;#0099A8&quot;&gt;после&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="not Dp=&gt;directlyBeforeOf() or&#xa;actAlreadyCurrent(Da, Dp) or&#xa;(&#xa;    Da=&gt;afterOf(Dp) and&#xa;    not forAny ConcreteAction mid {&#xa;        $mid != Da and&#xa;        $mid-&gt;derivedFrom == Da-&gt;derivedFrom and&#xa;        $mid-&gt;belongsTo == C and&#xa;        $mid=&gt;afterOf(Dp) and&#xa;        Da=&gt;afterOf($mid)&#xa;    }&#xa;) or&#xa;(&#xa;    not forAny ConcreteAction fwd {&#xa;        $fwd-&gt;derivedFrom == Da-&gt;derivedFrom and&#xa;        $fwd-&gt;belongsTo == C and&#xa;        $fwd=&gt;afterOf(Dp)&#xa;    }&#xa;)&#xa;&#xa;// lambda actAlreadyCurrent(Da, Dp) = forAny TraceAct t {&#xa;//     $t-&gt;hasAction == Da and&#xa;//     not forAny TraceAct u { $u-&gt;hasAction == Dp and $u=&gt;afterOf($t) } };" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" tpgNote="зеркало поиска ближайшего подходящего действия N в findCorrect" id="lv_q_order">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="380" x="950" y="2387" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Нарушен порядок: нужно более близкое действие той же роли&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;actions_order_violated&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="actions_order_violated" tpgRuExplanation="Нельзя выполнить это действие: нарушен порядок — должно быть выполнено более близкое действие той же роли." tpgEnExplanation="This action cannot be performed: the order is violated — a closer action of the same role must be performed instead." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_order">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="150" width="260" x="490" y="2417" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Есть ли&lt;/font&gt; такой &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, у которого выполнено &lt;font color=&quot;#CC0066&quot;&gt;ограничение&lt;/font&gt; по &lt;font color=&quot;#009900&quot;&gt;режиму прерывания&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="forAny TransitionSpec t { transitionLeads($t, Dp, Da, C) and interruptionOk($t, S) }" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_intr">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="960" y="2692" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Не учтено активное прерывание&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;interruption_not_considered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="interruption_not_considered" tpgRuExplanation="Нельзя выполнить это действие: не учтено текущее прерывание, меняющее обычный порядок выполнения." tpgEnExplanation="This action cannot be performed: the active interruption that changes the usual execution order is not taken into account." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_intr">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="260" x="490" y="2722" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Есть ли&lt;/font&gt; такой &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, у которого выполнено ещё и &lt;font color=&quot;#CC0066&quot;&gt;ограничение&lt;/font&gt; по &lt;font color=&quot;#009900&quot;&gt;значению условия&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="forAny TransitionSpec t { transitionLeads($t, Dp, Da, C) and interruptionOk($t, S) and conditionOk($t, Dp) }" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_cond">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="960" y="2967" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Не учтено значение условия&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;condition_value_not_considered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="condition_value_not_considered" tpgRuExplanation="Нельзя выполнить это действие: не учтено вычисленное значение условия." tpgEnExplanation="This action cannot be performed: the evaluated value of the condition is not taken into account." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_cond">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="260" x="490" y="2997" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;, который раскрывается ролью &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;D_cc&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="Dcc: ConcreteConstruct" tpgExpr="find ConcreteConstruct cc { $cc != C and $cc.ast_id == Dp.ast_id }" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_find_dcc">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="1010" y="3242" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Уровень пройден&lt;/b&gt;&lt;br&gt;предыдущая роль атомарна — завершать нечего" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgExpr="conclude: correct;" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_r_atomic">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="240" x="500" y="3242" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; последний &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; для роли &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;D_pAct&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="DpAct: TraceAct" tpgExpr="lastActOf(Dp)   // findExtreme latest [not $latest=&gt;beforeOf($t)] among TraceAct t { $t-&gt;hasAction == D }" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_find_dpact">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="220" x="1030" y="3457" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Нет акта трассы для роли&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;внутреннее исключение рассуждателя&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgException="true" tpgExceptionName="NoActForRoleAction" tpgExpr="conclude: error [ exception = true; exceptionName = &quot;NoActForRoleAction&quot;; ];" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_exc_noact">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="490" y="3457" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Завершена ли&lt;/font&gt; эта &lt;font color=&quot;#CC0066&quot;&gt;конструкция&lt;/font&gt; после того &lt;font color=&quot;#CC0066&quot;&gt;акта трассы&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="isClosedAfter(Dcc, DpAct)&#xa;&#xa;// lambda isClosedAfter(C, E) = forAny TraceAct e {&#xa;//     $e-&gt;hasAction-&gt;belongsTo == C and $e-&gt;hasAction-&gt;derivedFrom.role == &quot;END&quot; and&#xa;//     $e=&gt;afterOf(E) and&#xa;//     not forAny TraceAct b { $b-&gt;hasAction-&gt;belongsTo == C and&#xa;//         $b-&gt;hasAction-&gt;derivedFrom.role == &quot;BEGIN&quot; and $b=&gt;afterOf($e) } };" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_q_closed">
+          <mxCell parent="g_level" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="300" x="990" y="3672" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Предыдущая конструкция ещё не завершена&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;construct_not_closed&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="construct_not_closed" tpgRuExplanation="Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." tpgEnExplanation="This action cannot be performed: the previous construct is not finished yet (or has not started)." tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_e_notclosed">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="150" width="220" x="510" y="3687" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Уровень пройден&lt;/b&gt;&lt;br&gt;все критерии этого уровня выполнены" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgExpr="conclude: correct;" tpgSource="domain/main.tpg :: fragment checkLevel(C: ConcreteConstruct)" id="lv_r_ok">
+          <mxCell parent="g_level" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="120" width="200" x="1040" y="3947" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Порядок критериев важен&lt;/b&gt;&lt;br&gt;Критерии идут от грубых к точным: сначала вход в &lt;font color=&quot;#CC0066&quot;&gt;конструкцию&lt;/font&gt;, затем пропуск &lt;font color=&quot;#CC0066&quot;&gt;действий&lt;/font&gt;, затем само наличие &lt;font color=&quot;#CC0066&quot;&gt;перехода&lt;/font&gt;, и только потом его &lt;font color=&quot;#CC0066&quot;&gt;ограничения&lt;/font&gt;.&lt;br&gt;&lt;br&gt;Благодаря этому студент получает &lt;b&gt;самое конкретное&lt;/b&gt; объяснение из возможных, а не общее «так нельзя»." tpgKind="Comment" id="lv_note_order">
+          <mxCell parent="g_level" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="180" width="520" x="1580" y="2707" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font style=&quot;font-size: 18px;&quot;&gt;Потенциально не уточненная причина&lt;/font&gt;" tpgKind="Comment" id="32H8Q0yy_RHuGj364iQW-1">
+          <mxCell parent="g_level" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="204" x="230" y="2238" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" id="32H8Q0yy_RHuGj364iQW-2">
+          <mxCell edge="1" parent="g_level" source="32H8Q0yy_RHuGj364iQW-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeWidth=2;strokeColor=#999999;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;" target="lv_e_notrans">
+            <mxGeometry relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="332" y="2355.67" />
+                <mxPoint x="455.33" y="2355.67" />
+                <mxPoint x="455.33" y="2242" />
+              </Array>
+              <mxPoint x="-137" y="2272" as="sourcePoint" />
+              <mxPoint x="298" y="2598" as="targetPoint" />
+            </mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Граф мыслительного процесса: проверка выбранного студентом действия" id="t1">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontSize=27;fontStyle=1;" vertex="1">
+            <mxGeometry height="36" width="1700" x="40" y="20" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Тренажёр трассировки алгоритмических структур (Java / Python / C++). Словарь — выбранная часть домена, задействованная в этом графе." id="t2">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontSize=16;" vertex="1">
+            <mxGeometry height="26" width="1800" x="40" y="60" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Классы&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;абстрактное правило&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(AbstractSpec)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;правило действия&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(ActionSpec)&lt;/font&gt; — это &lt;font color=&quot;#CC0066&quot;&gt;абстрактное правило&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;правило перехода&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(TransitionSpec)&lt;/font&gt; — это &lt;font color=&quot;#CC0066&quot;&gt;абстрактное правило&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;правило конструкта&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(ConstructSpec)&lt;/font&gt; — это &lt;font color=&quot;#CC0066&quot;&gt;абстрактное правило&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;цепочка правил действий&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(ActionSpecChainPlaceholder)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;ограничение&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(Constraint)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(Effect)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;сущность AST&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(ASTEntity)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(ConcreteConstruct)&lt;/font&gt; — это &lt;font color=&quot;#CC0066&quot;&gt;сущность AST&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(ConcreteAction)&lt;/font&gt; — это &lt;font color=&quot;#CC0066&quot;&gt;сущность AST&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;значение времени выполнения&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(SemanticValue)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(TraceAct)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;состояние трассировки&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(TraceState)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;конфигурация трассировки&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(TraceConfigSpec)&lt;/font&gt;" tpgKind="Dictionary" tpgDict="Classes" tpgHint="ActionSpec/TransitionSpec/ConstructSpec : AbstractSpec; ConcreteConstruct/ConcreteAction : ASTEntity; видимые имена — терминология docs/domain.md, RU.localizedName модели: ConcreteConstruct=&#39;конструкция&#39;, ConcreteAction=&#39;действие&#39;, TraceAct=&#39;действие в трассе&#39;" id="n_classes">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="460" width="440" x="40" y="100" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Перечисления&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;тип прерывания&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(InterruptionType)&lt;/font&gt;: (&lt;font color=&quot;#009900&quot;&gt;обычное выполнение&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;прерывание цикла&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;прерывание итерации&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;возврат из функции&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;исключение&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;любое&lt;/font&gt;)&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;действие со стеком вызовов&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(CallStackAction)&lt;/font&gt;: (&lt;font color=&quot;#009900&quot;&gt;без изменений&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;добавление фрейма&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;удаление фрейма&lt;/font&gt;)" tpgKind="Dictionary" tpgDict="Enum" tpgHint="enum InterruptionType { none, break, continue, return, exception, any }; enum CallStackAction { none, add_frame, drop_frame }" id="n_enums">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="180" width="440" x="40" y="590" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Свойства классов&lt;/b&gt;&lt;br&gt;В этом домене &lt;b&gt;не объявлены&lt;/b&gt;: все свойства принадлежат объектам." tpgKind="Dictionary" tpgDict="Class properties" tpgHint="нет class prop деклараций" id="n_props_note">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="100" width="440" x="40" y="800" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Свойства объектов&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;роль&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;правило действия&lt;/font&gt;), string: BEGIN, END, cond, body, …&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;вид&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;правило действия&lt;/font&gt;), string: condition, block, loop, call, …&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;непрозрачность&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;правило действия&lt;/font&gt;), bool: студент обязан выбрать действие явно&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;имя&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;правило конструкта&lt;/font&gt;), string: global_statements_structure,&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;&amp;#160;&amp;#160;&amp;#160;&lt;/font&gt;func_def_structure, func_call_structure, …&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;значение условия&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;ограничение&lt;/font&gt;), bool или не задано&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;ограничение&lt;/font&gt;), &lt;font color=&quot;#CC0066&quot;&gt;тип прерывания&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;начало прерывания&lt;/font&gt; / &lt;font color=&quot;#009900&quot;&gt;снятие прерывания&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt;), &lt;font color=&quot;#CC0066&quot;&gt;тип прерывания&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;действие со стеком вызовов&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt;), &lt;font color=&quot;#CC0066&quot;&gt;действие со стеком вызовов&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;состояние трассировки&lt;/font&gt;), &lt;font color=&quot;#CC0066&quot;&gt;тип прерывания&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;логическое значение&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;использовано&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;значение времени выполнения&lt;/font&gt;), bool&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;id узла AST&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;тип узла AST&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;сущность AST&lt;/font&gt;), int, string&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;режим прохода непрозрачных действий&lt;/font&gt; (&lt;font color=&quot;#CC0066&quot;&gt;конфигурация трассировки&lt;/font&gt;), bool" tpgKind="Dictionary" tpgDict="Object properties" tpgHint="ActionSpec: role/generalization/kind: string, is_opaque: bool; ConstructSpec: name/kind: string; Constraint: condition_value: OptionalBool, interruption_mode: InterruptionType; Effect: interruption_start/interruption_stop: InterruptionType, call_stack: CallStackAction; TraceState: interruption_mode; SemanticValue: bool_value/used: bool; ASTEntity: ast_id: int, ast_type: string; TraceConfigSpec: stop_on_opaque: bool; класс-свойств (class prop) в этом домене не объявлено" id="n_props">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="370" width="620" x="500" y="100" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действия&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &amp;lt;ограничения&amp;gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;класс&lt;/font&gt;&amp;gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Добавить&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;&amp;gt; в трассу&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Применить&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt;&amp;gt; к &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;состоянию трассировки&lt;/font&gt;&amp;gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Достроить&lt;/font&gt; прозрачные &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Типы вопросов&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Является ли&lt;/font&gt; &amp;lt;объект&amp;gt; &amp;lt;&lt;font color=&quot;#009900&quot;&gt;свойство&lt;/font&gt;&amp;gt;?&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;bool: Да / Нет&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Возможен ли&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;&amp;gt; из &amp;lt;объекта&amp;gt; в &amp;lt;объект&amp;gt;?&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Совпадают ли&lt;/font&gt; &amp;lt;объект&amp;gt; и &amp;lt;объект&amp;gt;?&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;bool: Да / Нет&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Завершена ли&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;конструкция&lt;/font&gt;&amp;gt;?&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;bool: Да / Нет&lt;/font&gt;" tpgKind="Dictionary" tpgDict="Actions and question types" tpgHint="словарь формулировок; собственных LOQI-деклараций не имеет" id="n_acts">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="270" width="620" x="500" y="500" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Цвета терминов&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt;, &lt;font color=&quot;#3333CC&quot;&gt;Является ли&lt;/font&gt; — действие или ключевое слово вопроса&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;, &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; — класс&lt;br&gt;&lt;font color=&quot;#009900&quot;&gt;непрозрачность&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt; — свойство объекта и его значения&lt;br&gt;&lt;font color=&quot;#0099A8&quot;&gt;принадлежит&lt;/font&gt;, &lt;font color=&quot;#0099A8&quot;&gt;вложен в&lt;/font&gt; — отношение между объектами&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt;, &lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt;, &lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt;, &lt;font color=&quot;#B38F00&quot;&gt;D_a&lt;/font&gt;, &lt;font color=&quot;#B38F00&quot;&gt;D_p&lt;/font&gt; — переменная графа&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;свойств класса в этом домене нет (для них зарезервирован &lt;/font&gt;&lt;font color=&quot;#E67300&quot;&gt;оранжевый&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;)&lt;/font&gt;" tpgKind="Legend" tpgLegend="term colors" id="n_legend">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="180" width="620" x="500" y="800" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Отношения между объектами&lt;/b&gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;относится к&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действию&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;выполнен по&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правилу перехода&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;&amp;gt;, &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;имеет&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;значение времени выполнения&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;1&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;непосредственно перед&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;2&amp;gt;&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(шкала: линейная; производные: &lt;/font&gt;&lt;font color=&quot;#0099A8&quot;&gt;перед&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;, &lt;/font&gt;&lt;font color=&quot;#0099A8&quot;&gt;между&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;, &lt;/font&gt;&lt;font color=&quot;#0099A8&quot;&gt;ближе к&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;)&lt;/font&gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;1&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;непосредственно перед&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;2&amp;gt;&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(шкала: линейная)&lt;/font&gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;принадлежит&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;конструкту&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;порождено&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правилом действия&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;порождён&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правилом конструкта&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;1&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;вложен в&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;2&amp;gt;&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;(частичная шкала; транзитивное: &lt;/font&gt;&lt;font color=&quot;#0099A8&quot;&gt;предок&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;)&lt;/font&gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило перехода&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;ведёт из&lt;/font&gt; / &lt;font color=&quot;#0099A8&quot;&gt;ведёт в&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило действия&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило перехода&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;при отсутствии цели ведёт в&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;цепочку правил действий&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило перехода&lt;/font&gt;&amp;gt;, &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило действия&lt;/font&gt;&amp;gt;, &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;имеет&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило перехода&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;имеет&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;ограничение&lt;/font&gt;&amp;gt;&lt;br&gt;&amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правило конструкта&lt;/font&gt;&amp;gt; &lt;font color=&quot;#0099A8&quot;&gt;содержит&lt;/font&gt; &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правила действий&lt;/font&gt;&amp;gt;, &amp;lt;&lt;font color=&quot;#CC0066&quot;&gt;правила переходов&lt;/font&gt;&amp;gt;" tpgKind="Dictionary" tpgDict="Relationships between objects" tpgHint="TraceAct: hasAction(ConcreteAction) {*-&gt;1}, hasTransition(TransitionSpec) {*-&gt;1}, hasValue(SemanticValue), directlyBeforeOf(TraceAct): linear (+opposite directlyAfterOf, transitive beforeOf/afterOf, between isBetween, closer isCloserToThan, further isFurtherFromThan); ConcreteAction: belongsTo(ConcreteConstruct) {*-&gt;1}, derivedFrom(ActionSpec) {*-&gt;1}, hasEffects(Effect) {*-&gt;1}, directlyBeforeOf(ConcreteAction): linear; ConcreteConstruct: hasActions {1-&gt;*}, derivedFrom(ConstructSpec) {*-&gt;1}, hasParent(ConcreteConstruct): partial, hasAncestor: transitive to hasParent; TransitionSpec: from_(ActionSpec), to_(ActionSpec) {*-&gt;1}, to_when_absent(ActionSpecChainPlaceholder) {*-&gt;1}, belongsTo(ConstructSpec) {*-&gt;1}, hasConstraints(Constraint) {*-&gt;1}, hasEffects(Effect) {*-&gt;1}; ActionSpec: belongsTo, hasEffects; ConstructSpec: hasActions {1-&gt;*}, hasTransitions {1-&gt;*}" id="n_rels">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="370" width="700" x="1140" y="100" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Как читать результаты&lt;/b&gt;&lt;br&gt;&lt;b&gt;Зелёный&lt;/b&gt; — ответ студента засчитан: &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; добавлено в трассу.&lt;br&gt;&lt;b&gt;Красный с диагнозом&lt;/b&gt; — распознанная ошибка студента. Под формулировкой серым стоит идентификатор умения, по которому тренажёр учитывает ошибку.&lt;br&gt;&lt;b&gt;Красный с пометкой «внутреннее исключение»&lt;/b&gt; — не ошибка студента, а невозможная ситуация в самом рассуждателе.&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" tpgKind="Documentation" id="n_conv">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="220" width="700" x="1140" y="500" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Задача графа&lt;/b&gt;&lt;br&gt;Студент строит трассу выполнения программы по шагам. Граф отвечает на вопрос: &lt;b&gt;может ли выбранное действие быть выполнено прямо сейчас&lt;/b&gt;, и если нет — почему.&lt;br&gt;&lt;br&gt;&lt;b&gt;Дано:&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;S&lt;/font&gt; — &lt;font color=&quot;#CC0066&quot;&gt;состояние трассировки&lt;/font&gt; (текущий &lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt;);&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt; — последний корректный &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; (всё, что в трассе, уже засчитано как верное);&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; — &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, выбранное студентом на этом шаге.&lt;br&gt;&lt;br&gt;&lt;b&gt;Результат:&lt;/b&gt;&lt;br&gt;• &lt;b&gt;correct&lt;/b&gt; — &lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; может быть выполнено: оно добавляется в трассу с &lt;font color=&quot;#CC0066&quot;&gt;переходом&lt;/font&gt;, &lt;font color=&quot;#CC0066&quot;&gt;эффектами&lt;/font&gt; и израсходованным &lt;font color=&quot;#009900&quot;&gt;значением условия&lt;/font&gt;;&lt;br&gt;• &lt;b&gt;error&lt;/b&gt; с диагнозом — &lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; выполнить нельзя, и граф называет причину;&lt;br&gt;• &lt;b&gt;error&lt;/b&gt; с пометкой исключения — рассуждатель зашёл в невозможную ситуацию.&lt;br&gt;&lt;br&gt;Эталонной трассы у графа нет: корректность выводится из правил домена и уже построенной части трассы." tpgKind="Documentation" id="n_task">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="460" width="620" x="1860" y="100" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Фигуры и связи" id="n_shapes_title">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontStyle=1;fontSize=18;" vertex="1">
+            <mxGeometry height="30" width="660" x="2500" y="100" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Дано:&lt;br&gt;входные данные" tpgKind="LegendSample" id="lg_entry">
+          <mxCell parent="1" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#000000;size=0.06;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="145" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Входные данные графа" tpgKind="LegendText" id="lg_entry_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="145" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Вопрос?" tpgKind="LegendSample" id="lg_q">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="249" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Вопрос: ответы &lt;b&gt;Да&lt;/b&gt; / &lt;b&gt;Нет&lt;/b&gt;" tpgKind="LegendText" id="lg_q_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="249" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; объект&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;X&lt;/font&gt;" tpgKind="LegendSample" id="lg_find">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="353" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Поиск объекта; в последней строке — переменная графа.&lt;br&gt;Ответы: &lt;b&gt;найдено&lt;/b&gt; / &lt;b&gt;не найдено&lt;/b&gt;" tpgKind="LegendText" id="lg_find_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="353" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Достроить&lt;/font&gt; прозрачные&lt;br&gt;действия" tpgKind="LegendSample" id="lg_call">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="457" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Вызов другого графа или переиспользуемой процедуры" tpgKind="LegendText" id="lg_call_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="457" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="∀ конструкт&lt;br&gt;AND&amp;#160;&amp;#160;&lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt;" tpgKind="LegendSample" id="lg_cycle">
+          <mxCell parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="561" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Цикл-агрегация: тело повторяется для каждого объекта,&lt;br&gt;исходы объединяются по &lt;b&gt;AND&lt;/b&gt; — &lt;b&gt;успех&lt;/b&gt; только если прошли все" tpgKind="LegendText" id="lg_cycle_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="561" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Ответ засчитан" tpgKind="LegendSample" id="lg_ok">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="665" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Результат &lt;b&gt;correct&lt;/b&gt;" tpgKind="LegendText" id="lg_ok_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="665" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Диагноз ошибки&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;идентификатор умения&lt;/font&gt;" tpgKind="LegendSample" id="lg_err">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="769" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Результат &lt;b&gt;error&lt;/b&gt;: распознанная ошибка студента" tpgKind="LegendText" id="lg_err_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="769" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Внутреннее&lt;br&gt;исключение&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;рассуждателя&lt;/font&gt;" tpgKind="LegendSample" id="lg_exc">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="873" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Результат &lt;b&gt;error&lt;/b&gt;, помеченный как исключение: сбой&lt;br&gt;рассуждателя, а не ошибка студента" tpgKind="LegendText" id="lg_exc_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="873" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Результат&lt;br&gt;наружу" tpgKind="LegendSample" id="lg_up">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=20;dashed=1;dashPattern=6 4;fontSize=16;" vertex="1">
+            <mxGeometry height="84" width="230" x="2510" y="977" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Пунктирная рамка: результат передаётся наружу —&lt;br&gt;в объемлющий цикл" tpgKind="LegendText" id="lg_up_t">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;verticalAlign=middle;" vertex="1">
+            <mxGeometry height="84" width="430" x="2760" y="977" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Рамки этапов&lt;/b&gt;&lt;br&gt;Рамкой с заголовком выделены переиспользуемые части рассуждения (фрагменты модели). Каждая из них вызывается в графе один раз, поэтому показана прямо на своём месте в потоке, а не отдельным блоком со ссылками." tpgKind="Documentation" id="n_frag_legend">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="120" width="690" x="2500" y="1130" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Граф: может ли выбранное действие быть выполнено сейчас — и если нет, то почему?" id="m_t1">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontSize=27;fontStyle=1;" vertex="1">
+            <mxGeometry height="36" width="1800" x="40" y="1360" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;CtrlFlow_check&lt;/font&gt; — проверка шага студента по уже построенной части трассы. Словарь и легенда — выше." id="m_t2">
+          <mxCell parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontSize=16;" vertex="1">
+            <mxGeometry height="26" width="2000" x="40" y="1400" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Дано&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;S&lt;/font&gt; — &lt;font color=&quot;#CC0066&quot;&gt;состояние трассировки&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt; — последний корректный &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; — выбранное студентом &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;" tpgKind="DecisionTreeInputs" tpgVar="S: TraceState, P: TraceAct, A: ConcreteAction" tpgExpr="tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction)" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_entry">
+          <mxCell parent="1" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#000000;size=0.06;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="1080" y="1510" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Запомнить&lt;/font&gt; границу: последний &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; до пред-прогона&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P0&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="P0: TraceAct" tpgExpr="P" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="всё, что появится в трассе после P0, достроено автоматически" id="ck_p0">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="1130" y="1785" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Достроить&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;прозрачные&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; от &lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt; — пред-прогон графа поиска следующего действия&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;остановка перед первым &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;&lt;font color=&quot;#009900&quot;&gt;непрозрачным&lt;/font&gt;&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt; действием&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt; — последний акт достроенной трассы&lt;/font&gt;" tpgKind="ProcedureCallNode" tpgProcedure="MutableSubinterpreterCall(&quot;findCorrect&quot;) + EvalDef" tpgExpr="eval(obj:TraceConfig.stop_on_opaque = false);&#xa;subcall_mut(&quot;findCorrect&quot;, false, S, P);&#xa;eval(obj:TraceConfig.stop_on_opaque = true);&#xa;eval(P = findExtreme lastAct [not $lastAct=&gt;beforeOf($a)] among TraceAct a {true});" tpgAdaptation="в модели это четыре подряд идущих вызова процедур (две настройки stop_on_opaque, подынтерпретатор findCorrect и переустановка P); на схеме они сведены в один шаг рассуждения — точный текст в tpgExpr" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_prerun">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="200" width="400" x="1060" y="2000" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Достигнут ли&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; корневого &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt; программы — трасса уже полная?" tpgKind="QuestionNode" tpgExpr="P-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom.name == &quot;global_statements_structure&quot; and&#xa;P-&gt;hasAction-&gt;derivedFrom.role == &quot;END&quot;" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_q_done">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="1080" y="2295" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Программа уже полностью вычислена&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;everything_evaluated&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="everything_evaluated" tpgRuExplanation="Нельзя выполнить это действие: программа уже полностью вычислена." tpgEnExplanation="This action cannot be performed: the program is already fully evaluated." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_done">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="220" x="1910" y="2325" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Выполнялось ли&lt;/font&gt; это &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; раньше, и не осталось ли у него &lt;font color=&quot;#009900&quot;&gt;неиспользованных&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;значений&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="forAny TraceAct t {$t-&gt;hasAction == A} and&#xa;A=&gt;hasValue() and not forAny SemanticValue v {&#xa;    ($v == A-&gt;hasValue or $v=&gt;afterOf(A-&gt;hasValue)) and not $v.used&#xa;}" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_q_repeat">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="360" x="1080" y="3180" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие не может повторяться&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size: 16px;&quot;&gt;action_cannot_repeat&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="action_cannot_repeat" tpgRuExplanation="Нельзя повторить это действие: для него не осталось свободных значений." tpgEnExplanation="This action cannot be repeated: it has no unused values left." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_repeat">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="240" x="1900" y="3225" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Находится ли&lt;/font&gt; выбранное &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; внутри функции, тело которой &lt;b&gt;сейчас не открыто&lt;/b&gt;?" tpgKind="QuestionNode" tpgExpr="forAny ConcreteConstruct fd {&#xa;    $fd-&gt;derivedFrom.name == &quot;func_def_structure&quot; and&#xa;    isAncestorOrSelf(A-&gt;belongsTo, $fd) and&#xa;    not isConstructOpen($fd)&#xa;}&#xa;&#xa;// lambda isConstructOpen(C) = forAny TraceAct b {&#xa;//     $b-&gt;hasAction-&gt;belongsTo == C and $b-&gt;hasAction-&gt;derivedFrom.role == &quot;BEGIN&quot; and&#xa;//     not forAny TraceAct e { $e-&gt;hasAction-&gt;belongsTo == C and&#xa;//         $e-&gt;hasAction-&gt;derivedFrom.role == &quot;END&quot; and $e=&gt;afterOf($b) } };&#xa;// lambda isAncestorOrSelf(node, ancestor) = node == ancestor or node=&gt;hasAncestor(ancestor);" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="тело функции открывается эффектом call_stack = add_frame на переходе BEGIN -&gt; func вызова" id="ck_q_func">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="1080" y="3485" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Входили ли&lt;/font&gt; в эту функцию хоть раз — есть ли в трассе её &lt;font color=&quot;#009900&quot;&gt;BEGIN&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="forAny ConcreteConstruct fd {&#xa;    $fd-&gt;derivedFrom.name == &quot;func_def_structure&quot; and&#xa;    isAncestorOrSelf(A-&gt;belongsTo, $fd) and&#xa;    not forAny TraceAct b {&#xa;        $b-&gt;hasAction-&gt;belongsTo == $fd and&#xa;        $b-&gt;hasAction-&gt;derivedFrom.role == &quot;BEGIN&quot;&#xa;    }&#xa;}" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_q_func2">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="340" x="1880" y="3485" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;В функцию ещё не входили&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;function_not_entered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="function_not_entered" tpgRuExplanation="Нельзя выполнить это действие: оно находится внутри функции, в которую ещё не входили (вызов не выполнен)." tpgEnExplanation="This action cannot be performed: it is inside a function that has not been entered yet (the call has not happened)." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_notentered">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="220" x="2510" y="3400" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Функция уже завершилась&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;function_already_exited&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="function_already_exited" tpgRuExplanation="Нельзя выполнить это действие: выполнение функции, в которой оно находится, уже завершилось." tpgEnExplanation="This action cannot be performed: the function that contains it has already finished executing." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_exited">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="2490" y="3630" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Действует ли&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;прерывание&lt;/font&gt;, при котором выбрано &lt;b&gt;не&lt;/b&gt; завершение (&lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt;) ещё не закрытой &lt;font color=&quot;#CC0066&quot;&gt;конструкции&lt;/font&gt; с &lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="S.interruption_mode != InterruptionType:none and&#xa;not (&#xa;    A-&gt;derivedFrom.role == &quot;END&quot; and&#xa;    isConstructOpen(A-&gt;belongsTo) and&#xa;    isAncestorOrSelf(P-&gt;hasAction-&gt;belongsTo, A-&gt;belongsTo)&#xa;)" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_q_intr">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="210" width="400" x="1060" y="3760" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Сначала нужно выйти из текущей конструкции&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;interruption_not_considered&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="interruption_not_considered" tpgRuExplanation="Нельзя выполнить это действие: действует прерывание, и сначала нужно выйти из текущей конструкции." tpgEnExplanation="This action cannot be performed: an interruption is active, and the current construct must be exited first." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_intr">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="1890" y="3805" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; наиболее вложенный &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt;, &lt;font color=&quot;#0099A8&quot;&gt;предком&lt;/font&gt; которого являются &lt;font color=&quot;#CC0066&quot;&gt;конструкты&lt;/font&gt; обоих &lt;font color=&quot;#CC0066&quot;&gt;действий&lt;/font&gt; — &lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; и &lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;Common&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="Common: ConcreteConstruct" tpgExpr="commonConstruct(A, P-&gt;hasAction)&#xa;&#xa;// lambda commonConstruct(actionA, actionP) = find ConcreteConstruct c {&#xa;//     isAncestorOrSelf(actionA-&gt;belongsTo, $c) and&#xa;//     isAncestorOrSelf(actionP-&gt;belongsTo, $c) and&#xa;//     not forAny ConcreteConstruct deeper {&#xa;//         $deeper != $c and&#xa;//         isAncestorOrSelf(actionA-&gt;belongsTo, $deeper) and&#xa;//         isAncestorOrSelf(actionP-&gt;belongsTo, $deeper) and&#xa;//         $deeper=&gt;hasAncestor($c)&#xa;//     }&#xa;// };" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_common">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="300" x="1110" y="4065" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Общий конструкт не найден&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;внутреннее исключение рассуждателя&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgException="true" tpgExceptionName="NoCommonConstruct" tpgExpr="conclude: error [ exception = true; exceptionName = &quot;NoCommonConstruct&quot;; ];" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_exc_common">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="120" width="260" x="1890" y="4080" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="∀ &lt;font color=&quot;#CC0066&quot;&gt;конструкт&lt;/font&gt; от &lt;font color=&quot;#B38F00&quot;&gt;Common&lt;/font&gt; вниз до &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt; выбранного &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt;&lt;br&gt;&lt;b&gt;AND&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt;" tpgKind="CycleAggregationNode" tpgVar="C: ConcreteConstruct" tpgExpr="isAncestorOrSelf(A-&gt;belongsTo, $C) and isAncestorOrSelf($C, Common)   // cycle and (...) with ConcreteConstruct C" tpgOutcomes="CORRECT, ERROR" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="каждая итерация проверяет один уровень иерархии; результат AND — успех, только если пройдены все уровни" id="ck_cycle">
+          <mxCell parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="180" width="360" x="1080" y="4310" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Действие выполнить нельзя&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;причину назвал уровень, на котором проверка не прошла&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgExpr="conclude: error;" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="объяснение и skill приходят из результата итерации цикла" id="ck_e_final">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="280" x="290" y="4325" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Зачем пред-прогон&lt;/b&gt;&lt;br&gt;Проверять шаг студента можно только от «настоящей» текущей точки. &lt;font color=&quot;#009900&quot;&gt;Прозрачные&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; (границы &lt;font color=&quot;#CC0066&quot;&gt;конструктов&lt;/font&gt;, служебные шаги) студент не выбирает — их достраивает граф поиска следующего действия.&lt;br&gt;&lt;br&gt;Он же может автоматически увести выполнение вперёд: закрыть &lt;font color=&quot;#CC0066&quot;&gt;конструкцию&lt;/font&gt; или войти в другую ветвь. Именно поэтому дальше идёт уточнение причин." tpgKind="Comment" id="k_note_pre">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="200" width="640" x="180" y="2000" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Почему цикл по уровням&lt;/b&gt;&lt;br&gt;Выбранное и предыдущее &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; могут лежать в разных, вложенных друг в друга &lt;font color=&quot;#CC0066&quot;&gt;конструкциях&lt;/font&gt;.&lt;br&gt;&lt;br&gt;Переход проверяется на каждом уровне иерархии по отдельности: от общего &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt; вниз до &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt; выбранного &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt;. Ответ верен, только если пройдены &lt;b&gt;все&lt;/b&gt; уровни." tpgKind="Comment" id="k_note_cycle">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="200" width="480" x="180" y="4040" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Что такое «роль» на уровне&lt;/b&gt;&lt;br&gt;Оба &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; — выбранное и предыдущее — могут лежать глубоко внутри вложенных &lt;font color=&quot;#CC0066&quot;&gt;конструкций&lt;/font&gt;.&lt;br&gt;&lt;br&gt;Чтобы сравнить их на уровне &lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt;, каждое заменяется своей &lt;b&gt;ролью&lt;/b&gt;: &lt;font color=&quot;#CC0066&quot;&gt;действием&lt;/font&gt; самого уровня &lt;font color=&quot;#B38F00&quot;&gt;C&lt;/font&gt;, внутри раскрытой &lt;font color=&quot;#CC0066&quot;&gt;конструкции&lt;/font&gt; которого оно находится.&lt;br&gt;&lt;br&gt;Дальше уровень рассуждает так, будто оба &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; лежат прямо в нём." tpgKind="Comment" id="lv_note_roles">
+          <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=16;" vertex="1">
+            <mxGeometry height="250" width="520" x="1700" y="6945" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" id="k_e1">
+          <mxCell edge="1" parent="1" source="ck_entry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_p0">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" tpgOutcome="true" id="k_e2">
+          <mxCell edge="1" parent="1" source="ck_p0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_prerun">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" tpgOutcome="true" id="k_e3">
+          <mxCell edge="1" parent="1" source="ck_prerun" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_q_done">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_x0">
+          <mxCell edge="1" parent="1" source="ck_q_done" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_done">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_d0">
+          <mxCell edge="1" parent="1" source="ck_q_done" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_q_forced">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_x1">
+          <mxCell edge="1" parent="1" source="ck_q_forced" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_forced">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_d1">
+          <mxCell edge="1" parent="1" source="ck_q_forced" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_q_other">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_x2">
+          <mxCell edge="1" parent="1" source="ck_q_other" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_other">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_d2">
+          <mxCell edge="1" parent="1" source="ck_q_other" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_q_repeat">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_x3">
+          <mxCell edge="1" parent="1" source="ck_q_repeat" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_repeat">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_d3">
+          <mxCell edge="1" parent="1" source="ck_q_repeat" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_q_func">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_f1">
+          <mxCell edge="1" parent="1" source="ck_q_func" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_q_func2">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_f2">
+          <mxCell edge="1" parent="1" source="ck_q_func" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_q_intr">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_f3">
+          <mxCell edge="1" parent="1" source="ck_q_func2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_notentered">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_f4">
+          <mxCell edge="1" parent="1" source="ck_q_func2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_exited">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_i1">
+          <mxCell edge="1" parent="1" source="ck_q_intr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_intr">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_i2">
+          <mxCell edge="1" parent="1" source="ck_q_intr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_common">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="не найден" tpgOutcome="false" id="k_c1">
+          <mxCell edge="1" parent="1" source="ck_common" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_exc_common">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="найден" tpgOutcome="true" id="k_c2">
+          <mxCell edge="1" parent="1" source="ck_common" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ck_cycle">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="ошибка уровня" tpgOutcome="ERROR" id="k_cy_err">
+          <mxCell edge="1" parent="1" source="ck_cycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_final">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="все уровни пройдены" tpgOutcome="CORRECT" id="k_cy_ok">
+          <mxCell edge="1" parent="1" source="ck_cycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="cm_dpfin">
+            <mxGeometry relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="2780" y="4400" />
+                <mxPoint x="2780" y="4385" />
+              </Array>
+            </mxGeometry>
+          </mxCell>
+        </object>
+        <object label="" tpgOutcome="true" id="cm_e1">
+          <mxCell edge="1" parent="1" source="cm_dpfin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_tin">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="перехода нет" tpgOutcome="false" id="cm_e2">
+          <mxCell edge="1" parent="1" source="cm_tin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.8;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_expands_nt">
+            <mxGeometry relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="3250" y="4760" />
+              </Array>
+            </mxGeometry>
+          </mxCell>
+        </object>
+        <object label="переход найден" tpgOutcome="true" id="cm_e3">
+          <mxCell edge="1" parent="1" source="cm_tin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_expands">
+            <mxGeometry relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="4150" y="4760" />
+              </Array>
+            </mxGeometry>
+          </mxCell>
+        </object>
+        <object label="раскрывает" tpgOutcome="true" id="cm_e4">
+          <mxCell edge="1" parent="1" source="cm_expands_nt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_r_nt_both">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="не раскрывает" tpgOutcome="false" id="cm_e5">
+          <mxCell edge="1" parent="1" source="cm_expands_nt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_r_nt_plain">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="раскрывает" tpgOutcome="true" id="cm_e6">
+          <mxCell edge="1" parent="1" source="cm_expands" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_r_t_both">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="не раскрывает" tpgOutcome="false" id="cm_e7">
+          <mxCell edge="1" parent="1" source="cm_expands" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="cm_r_t_plain">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" id="k_note_pre_e">
+          <mxCell edge="1" parent="1" source="k_note_pre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeWidth=2;strokeColor=#999999;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_prerun">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" id="k_note_cycle_e">
+          <mxCell edge="1" parent="1" source="k_note_cycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeWidth=2;strokeColor=#999999;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.9;entryDx=0;entryDy=0;" target="ck_cycle">
+            <mxGeometry relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="850" y="4140" />
+                <mxPoint x="850" y="4472" />
+              </Array>
+            </mxGeometry>
+          </mxCell>
+        </object>
+        <object label="" tpgOutcome="body" tpgNote="тело цикла агрегации" id="lv_e0">
+          <mxCell edge="1" parent="1" source="ck_cycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_da">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" tpgOutcome="true" id="lv_e1">
+          <mxCell edge="1" parent="1" source="lv_da" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_dp">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" tpgOutcome="true" id="lv_e2">
+          <mxCell edge="1" parent="1" source="lv_dp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_same">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_e3">
+          <mxCell edge="1" parent="1" source="lv_q_same" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="lv_q_enter">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_e4">
+          <mxCell edge="1" parent="1" source="lv_q_same" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_entered">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_e5">
+          <mxCell edge="1" parent="1" source="lv_q_enter" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="lv_r_enter">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_e6">
+          <mxCell edge="1" parent="1" source="lv_q_enter" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_sameact">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_e7">
+          <mxCell edge="1" parent="1" source="lv_q_sameact" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="lv_r_deeper">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_e8">
+          <mxCell edge="1" parent="1" source="lv_q_sameact" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_find_dccsame">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="не найден" tpgOutcome="false" id="lv_e9">
+          <mxCell edge="1" parent="1" source="lv_find_dccsame" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_e_order_same">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="найден" tpgOutcome="true" id="lv_e10">
+          <mxCell edge="1" parent="1" source="lv_find_dccsame" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_e_notclosed_same">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_x0">
+          <mxCell edge="1" parent="1" source="lv_q_entered" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_entered">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_y0">
+          <mxCell edge="1" parent="1" source="lv_q_entered" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_skipped">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_x1">
+          <mxCell edge="1" parent="1" source="lv_q_skipped" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_skipped">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_y1">
+          <mxCell edge="1" parent="1" source="lv_q_skipped" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_trans">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_t1">
+          <mxCell edge="1" parent="1" source="lv_q_trans" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_q_passed">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_t2">
+          <mxCell edge="1" parent="1" source="lv_q_trans" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_order">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_t3">
+          <mxCell edge="1" parent="1" source="lv_q_passed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_passed">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_t4">
+          <mxCell edge="1" parent="1" source="lv_q_passed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_after">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_t5">
+          <mxCell edge="1" parent="1" source="lv_q_after" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_skippedacts">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_t6">
+          <mxCell edge="1" parent="1" source="lv_q_after" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_e_notrans">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_z0">
+          <mxCell edge="1" parent="1" source="lv_q_order" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_order">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_w0">
+          <mxCell edge="1" parent="1" source="lv_q_order" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_intr">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_z1">
+          <mxCell edge="1" parent="1" source="lv_q_intr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_intr">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_w1">
+          <mxCell edge="1" parent="1" source="lv_q_intr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_cond">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_z2">
+          <mxCell edge="1" parent="1" source="lv_q_cond" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_cond">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_w2">
+          <mxCell edge="1" parent="1" source="lv_q_cond" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_find_dcc">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="не найден" tpgOutcome="false" id="lv_d1">
+          <mxCell edge="1" parent="1" source="lv_find_dcc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_r_atomic">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="найден" tpgOutcome="true" id="lv_d2">
+          <mxCell edge="1" parent="1" source="lv_find_dcc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_find_dpact">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="не найден" tpgOutcome="false" id="lv_d3">
+          <mxCell edge="1" parent="1" source="lv_find_dpact" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_exc_noact">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="найден" tpgOutcome="true" id="lv_d4">
+          <mxCell edge="1" parent="1" source="lv_find_dpact" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_q_closed">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="lv_d5">
+          <mxCell edge="1" parent="1" source="lv_q_closed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_e_notclosed">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="lv_d6">
+          <mxCell edge="1" parent="1" source="lv_q_closed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_r_ok">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="" id="lv_note_roles_e">
+          <mxCell edge="1" parent="1" source="lv_note_roles" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeWidth=2;strokeColor=#999999;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0;exitY=0.1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lv_da">
+            <mxGeometry relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="1560" y="6970" />
+                <mxPoint x="1560" y="4700" />
+              </Array>
+            </mxGeometry>
+          </mxCell>
+        </object>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

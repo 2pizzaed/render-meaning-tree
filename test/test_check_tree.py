@@ -79,6 +79,9 @@ class CheckCase:
     встретиться в трассе проверки); для корректного ответа —
     ``("correct_answer",)`` и ``expected_correct=True``.
 
+    ``expected_action_appended`` отключается для успешных терминальных
+    вердиктов, которые не фиксируют выбранное действие в уже завершённой трассе.
+
     ``action_occurrence`` / ``advance_action_occurrence`` — индекс кандидата,
     когда на строке несколько действий с одинаковой ролью и конструктом
     (например, две ``func`` разных вызовов одной функции).
@@ -90,6 +93,7 @@ class CheckCase:
     action: ActionSpec
     expected_skills: tuple[str, ...]
     expected_correct: bool = False
+    expected_action_appended: bool = True
     action_occurrence: int = 0
     advance_to: ActionSpec | str | None = None
     advance_occurrence: int = 1
@@ -204,6 +208,8 @@ CHECK_CASES: list[Any] = [
         code=PLAIN_STATEMENTS,
         advance_to="end",
         action=(1, "first"),
+        expected_correct=True,
+        expected_action_appended=False,
         expected_skills=("everything_evaluated",),
     ),
     CheckCase(
@@ -828,7 +834,7 @@ def _assert_trace_invariants(
 
     appended = after_signature[len(before_signature) :]
     action_signature = (action.ast_id or -1, action.rule.role)
-    if case.expected_correct:
+    if case.expected_correct and case.expected_action_appended:
         assert action_signature in appended, (
             f"correct verdict must append the chosen action {action_signature}; "
             f"appended acts: {appended}"

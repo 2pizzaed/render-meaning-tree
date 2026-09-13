@@ -204,8 +204,7 @@ function handleButtonClick(btn) {
     }
 
     if (typeof ansData[actionId] === "string" && ansData[actionId]) {
-        traceData.push(ansData[actionId]);
-        updateTraceView();
+        appendTraceAction(ansData[actionId]);
         renderReasoningResult(null);
     } else {
         console.warn(`No domain info found for action_id: ${actionId}`);

@@ -457,6 +457,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
             ask (L->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" 
                 and L->hasAction->derivedFrom.role == "END") out false else {
                 conclude: true with (P = L) [
+                    skill = "everything_evaluated" ;
                     // все вычислено
                 ];
             };

@@ -310,6 +310,11 @@ button.submit-btn:hover {
     font-size: 13px;
 }
 
+.trace-item.trace-item-error {
+    background: #ffebee;
+    border-color: #ef9a9a;
+}
+
 .reason-alert.hidden,
 .reason-variables.hidden {
     display: none;

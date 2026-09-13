@@ -1,5 +1,25 @@
 var traceData = [];
 var draggedTraceIndex = null;
+// Индекс шага, который Reason признал ошибочным: следующее действие заменит его.
+var pendingErrorStepIndex = null;
+
+function setPendingErrorStep(index) {
+    pendingErrorStepIndex = Number.isInteger(index) && index >= 0 && index < traceData.length ? index : null;
+}
+
+function appendTraceAction(actionName) {
+    if (pendingErrorStepIndex !== null) {
+        // Непроверенные шаги после ошибочного тоже отбрасываются.
+        traceData.splice(pendingErrorStepIndex);
+    }
+    traceData.push(actionName);
+    setPendingErrorStep(null);
+    updateTraceView();
+}
+
+function checkedTracePrefix() {
+    return pendingErrorStepIndex !== null ? traceData.slice(0, pendingErrorStepIndex) : traceData;
+}
 
 function finalNodeMetaValues(finalNode, name) {
     if (!finalNode || !Array.isArray(finalNode.metadata)) return [];
@@ -55,7 +75,10 @@ function updateTraceView() {
 
 function createTraceItem(traceAction, index) {
     const item = document.createElement("div");
-    item.className = "trace-item";
+    item.className = index === pendingErrorStepIndex ? "trace-item trace-item-error" : "trace-item";
+    if (index === pendingErrorStepIndex) {
+        item.title = "Incorrect step: the next selected action will replace it";
+    }
     item.draggable = true;
     item.dataset.index = String(index);
 
@@ -88,12 +111,14 @@ function createTraceItem(traceAction, index) {
 
 function clearTrace() {
     traceData = [];
+    setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
 }
 
 function removeTraceItem(index) {
     traceData.splice(index, 1);
+    setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
 }
@@ -128,6 +153,7 @@ function handleTraceDrop(event) {
 
     const [movedAction] = traceData.splice(draggedTraceIndex, 1);
     traceData.splice(targetIndex, 0, movedAction);
+    setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
 }
@@ -163,6 +189,7 @@ async function pasteTraceJson() {
     }
 
     traceData = parsedTrace;
+    setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
 }
@@ -192,6 +219,8 @@ async function reasonTrace() {
             }),
         });
         const payload = await response.json();
+        setPendingErrorStep(payload.ok ? payload.failedStepIndex : null);
+        updateTraceView();
         renderReasoningResult(payload);
     } catch (error) {
         renderReasoningResult({ok: false, error: String(error)});
@@ -199,6 +228,50 @@ async function reasonTrace() {
         button.disabled = false;
         button.textContent = "Reason";
     }
+}
+
+async function requestHint() {
+    const button = document.getElementById("hint-button");
+    if (!button) return;
+
+    button.disabled = true;
+    button.textContent = "Hinting...";
+    try {
+        const response = await fetch("/hint-trace", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                code: document.querySelector('textarea[name="code"]')?.value || "",
+                language: document.querySelector('select[name="language"]')?.value || "java",
+                target_language: document.querySelector('select[name="target_language"]')?.value || "",
+                trace: checkedTracePrefix(),
+            }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) {
+            renderReasoningResult(payload);
+            return;
+        }
+        if (payload.finished) {
+            renderHintResult("correct", "Program is fully traced: no next action, trace unchanged.");
+            return;
+        }
+        appendTraceAction(payload.action);
+        renderHintResult("unknown", `Hint: added ${payload.action}`);
+    } catch (error) {
+        renderReasoningResult({ok: false, error: String(error)});
+    } finally {
+        button.disabled = false;
+        button.textContent = "Hint";
+    }
+}
+
+function renderHintResult(status, message) {
+    renderReasoningResult(null);
+    const statusBox = document.getElementById("reason-status");
+    if (!statusBox) return;
+    statusBox.className = `reason-alert ${status}`;
+    statusBox.textContent = message;
 }
 
 function openCorrectTrace() {

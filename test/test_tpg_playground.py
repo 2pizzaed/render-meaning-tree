@@ -80,6 +80,7 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
         ]
         captured["kwargs"] = kwargs
         return SimpleNamespace(
+            step_index=len(selected_trace) - 1,
             result=SimpleNamespace(
                 result=False,
                 exceptions=[],
@@ -129,6 +130,7 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload is not None
     assert payload["ok"] is True
     assert payload["trace"] == trace
+    assert payload["failedStepIndex"] == len(trace) - 1
     assert payload["reasoning"]["status"] == "error"
     assert payload["reasoning"]["hasException"] is True
     # finalNode несёт полную информацию; отдельных finalNodeId/Type/Line больше нет.
@@ -148,3 +150,54 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     ]
     assert all(isinstance(action, Action) for action in captured["selected_trace"])
     assert captured["selected_trace_names"] == trace
+
+
+def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
+    code = textwrap.dedent(
+        """
+        if x:
+            y = 1
+        else:
+            y = 2
+        """
+    )
+    manager = prepare_code(code, "python")
+    context = prepare_html_context(manager, answer_objects={})
+    answer_objects = build_answer_objects(manager, context, enable_trace=True)
+    assert answer_objects is not None
+    names = [str(value) for value in answer_objects.values()]
+    trace, hint_name = names[:1], names[1]
+
+    def fake_check_graph_stepwise_reasoning(directory, pipeline, selected_trace, **kwargs):  # type: ignore[no-untyped-def]
+        return SimpleNamespace(step_index=len(selected_trace) - 1, result=SimpleNamespace(result=True, exceptions=[]))
+
+    def fake_find_graph_next_correct_action(directory, pipeline, **kwargs):  # type: ignore[no-untyped-def]
+        serializer, _ = registry_to_loqi(pipeline.registry)
+        action = None if finished else serializer.object_by_name(hint_name)
+        return SimpleNamespace(action=action, finished=finished)
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", fake_check_graph_stepwise_reasoning)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", fake_find_graph_next_correct_action)
+
+    response = playground_app.app.test_client().post(
+        "/hint-trace",
+        json={"code": code, "language": "python", "target_language": "", "trace": trace},
+    )
+    assert response.status_code == 200
+    return hint_name, response.get_json()
+
+
+def test_hint_trace_returns_next_action_name(monkeypatch) -> None:
+    hint_name, payload = _hint_request_setup(monkeypatch, finished=False)
+
+    assert payload["ok"] is True
+    assert payload["finished"] is False
+    assert payload["action"] == hint_name
+
+
+def test_hint_trace_reports_finished_program(monkeypatch) -> None:
+    _, payload = _hint_request_setup(monkeypatch, finished=True)
+
+    assert payload["ok"] is True
+    assert payload["finished"] is True
+    assert payload["action"] is None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
@@ -22,6 +22,16 @@ class PipelineReasoningOutput:
     exported_loqi: str | None
     trace_acts: list[TraceAct]
     trace_state: TraceState | None
+    # Индекс последнего проверенного действия selected_trace (только для пошаговой проверки).
+    step_index: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NextCorrectActionOutput:
+    output: PipelineReasoningOutput
+    # Последнее непрозрачное действие, добавленное findCorrect; None, если программа вычислена.
+    action: Action | None
+    finished: bool
 
 
 def solve_pipeline_reasoning(
@@ -171,6 +181,7 @@ def check_graph_stepwise_reasoning(
             reasoner_output_stream=reasoner_output_stream,
             restore_exported_trace=True,
         )
+        last_output = replace(last_output, step_index=index)
         if last_output.result.result is not True or last_output.result.exceptions:
             return last_output
         if index < len(selected_trace) - 1 and last_output.exported_loqi is None:
@@ -181,6 +192,67 @@ def check_graph_stepwise_reasoning(
     if last_output is None:
         raise RuntimeError("stepwise reasoning produced no output")
     return last_output
+
+
+def find_graph_next_correct_action(
+    directory: Path,
+    pipeline: DomainDataGeneratorPipeline,
+    *,
+    model_dir: str | Path,
+    filename: str = "generated-domain.loqi",
+    tag: str | None = None,
+    tree: str | None = "findCorrect",
+    verbose: bool = False,
+    json_trace: bool = False,
+    debug_enabled: bool = True,
+    export_domain: bool = True,
+    time_limit_seconds: int | None = None,
+    reasoner_output_stream: TextIO | None = None,
+) -> NextCorrectActionOutput:
+    """Один вызов findCorrect от хвоста текущей трассы registry.
+
+    Трасса registry должна быть уже восстановлена (например, пошаговой проверкой).
+    """
+    registry = pipeline.registry
+    _ensure_trace_tail_as_p(pipeline)
+    registry.variables.pop("A", None)
+    previous_trace_length = len(registry.trace_acts)
+
+    output = _solve_pipeline_reasoning_once(
+        directory,
+        pipeline,
+        model_dir=model_dir,
+        filename=filename,
+        tag=tag,
+        tree=tree,
+        verbose=verbose,
+        json_trace=json_trace,
+        debug_enabled=debug_enabled,
+        export_domain=export_domain,
+        time_limit_seconds=time_limit_seconds,
+        reasoner_output_stream=reasoner_output_stream,
+        restore_exported_trace=True,
+    )
+    if output.result.result is not True or output.result.exceptions:
+        raise RuntimeError(f"findCorrect solve failed: {output.result}")
+    if output.exported_loqi is None:
+        raise RuntimeError("reasoner returned correct result without exported specificDomain")
+
+    opaque_acts = [
+        trace_act
+        for trace_act in output.trace_acts[previous_trace_length:]
+        if trace_act.action.is_opaque
+    ]
+    if opaque_acts:
+        return NextCorrectActionOutput(output=output, action=opaque_acts[-1].action, finished=False)
+
+    tail = output.trace_acts[-1] if output.trace_acts else None
+    if tail is not None and _is_root_end_action(pipeline, tail.action):
+        return NextCorrectActionOutput(output=output, action=None, finished=True)
+    raise RuntimeError(
+        "findCorrect did not append an opaque trace action; "
+        f"last trace act: {_describe_trace_act(tail)}"
+    )
 
 
 def write_pipeline_loqi(

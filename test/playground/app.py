@@ -13,7 +13,10 @@ from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import registry_to_loqi
-from src.helpers.tpg import check_graph_stepwise_reasoning
+from src.helpers.tpg import (
+    check_graph_stepwise_reasoning,
+    find_graph_next_correct_action,
+)
 from src.helpers.tpg.explanations import (
     ExplanationType,
     collect_explanations_from_trace,
@@ -168,11 +171,86 @@ def reason_trace():
         traceback.print_exc()
         return jsonify({"ok": False, "error": format_error(e)}), 500
 
+    serialized = serialize_reasoning_result(reasoning.result)
     return jsonify(
         {
             "ok": True,
             "trace": selected_trace,
-            "reasoning": serialize_reasoning_result(reasoning.result),
+            # Шаг, который клиент заменит следующим выбранным действием.
+            "failedStepIndex": (
+                reasoning.step_index if serialized["status"] != "correct" else None
+            ),
+            "reasoning": serialized,
+        }
+    )
+
+
+@app.post("/hint-trace")
+def hint_trace():
+    payload = request.get_json(silent=True) or {}
+    code = str(payload.get("code") or "")
+    language = read_language(payload.get("language"), "java")
+    target_language = read_target_language(payload.get("target_language"))
+    selected_trace = payload.get("trace")
+    if not isinstance(selected_trace, list) or not all(
+        isinstance(step, str) for step in selected_trace
+    ):
+        return jsonify({"ok": False, "error": "Trace payload must be a list of strings."}), 400
+
+    try:
+        manager = prepare_code(
+            code,
+            language,
+            target_language=target_language or None,
+        )
+        pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
+        pipeline.process()
+        serializer, _ = registry_to_loqi(pipeline.registry)
+        selected_actions = resolve_actions_from_trace(serializer, selected_trace)
+        hint_tmp = _playground_temp_dir("playground-hint-")
+        if selected_actions:
+            # Восстанавливаем трассу (с прозрачными актами) пошаговой проверкой.
+            checked = check_graph_stepwise_reasoning(
+                hint_tmp,
+                pipeline,
+                selected_actions,
+                model_dir=PLAYGROUND_REASON_MODEL_DIR,
+                filename="playground-hint-check.loqi",
+                tree=PLAYGROUND_REASON_TREE,
+                export_domain=True,
+                debug_enabled=True,
+                time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+            )
+            if checked.result.result is not True or checked.result.exceptions:
+                step = (checked.step_index or 0) + 1
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": f"Trace is incorrect at step {step}; fix it before requesting a hint.",
+                    }
+                ), 409
+        hint = find_graph_next_correct_action(
+            hint_tmp,
+            pipeline,
+            model_dir=PLAYGROUND_REASON_MODEL_DIR,
+            filename="playground-hint.loqi",
+            export_domain=True,
+            debug_enabled=True,
+            time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+        )
+        action_name = serializer.object_name(hint.action) if hint.action is not None else None
+        if hint.action is not None and action_name is None:
+            raise LookupError("findCorrect returned an action without a LOQI name")
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": format_error(e)}), 500
+
+    return jsonify(
+        {
+            "ok": True,
+            "trace": selected_trace,
+            "finished": hint.finished,
+            "action": action_name,
         }
     )
 

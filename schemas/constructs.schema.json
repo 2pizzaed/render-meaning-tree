@@ -720,6 +720,10 @@
           "type": "string",
           "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
         },
+        "preorder": {
+          "description": "The construct is unfolded before the action that spawns it: that action is appended to the trace after the construct's END (nested calls run first).",
+          "type": "boolean"
+        },
         "ast_node": {
           "$ref": "#/$defs/astNode"
         },

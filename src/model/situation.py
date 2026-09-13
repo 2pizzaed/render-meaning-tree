@@ -146,6 +146,10 @@ class TraceAct:
     used_transition: TransitionDeclaration | None
     situation: SituationContext
     value: Any | None = None
+    # Заполняется только у BEGIN-акта развёрнутого конструкта: действие, из которого
+    # конструкт развёрнут. Для preorder-конструктов по этой связи граф добавляет
+    # действие в трассу уже после END конструкта.
+    unfolded_from: Action | None = None
 
     @property
     def chain(self) -> list[TraceAct]:

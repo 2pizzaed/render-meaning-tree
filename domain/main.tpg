@@ -6,6 +6,7 @@
 //    шаг 1     — предпрогонка findCorrect по прозрачным действиям (subcall_mut);
 //    шаг 2     — everything_evaluated / action_cannot_repeat;
 //    шаг 3.1   — действие внутри функции, в которую не входили / из которой вышли;
+//    шаг 3.1а  — A раскрывает preorder-конструкт, который ещё выполняется;
 //    шаг 3.2   — активное прерывание требует выхода из текущего конструкта;
 //    шаги 4-5  — цикл агрегации AND по конструктам от общего (LCA) до конструкта A,
 //                на каждом уровне checkLevel классифицирует переход D_p -> D_a
@@ -14,7 +15,17 @@
 //                завершённость раскрытого из D_p конструкта);
 //    шаг 6     — фиксация A актом трассы (+переход, +значение, +эффекты,
 //                +прозрачный BEGIN раскрываемого конструкта, зеркально
-//                unwindNewConstruct из findCorrect).
+//                unfoldNewConstruct из findCorrect; у BEGIN-акта заполняется
+//                unfoldedFrom — действие, из которого конструкт раскрыт).
+//
+//  preorder-конструкты (ConstructSpec.preorder, см. docs/domain.md): раскрытие
+//  предшествует породившему действию, и это действие попадает в трассу после END
+//  конструкта. Поэтому здесь: критерий пропуска промежуточного действия ослаблен
+//  для отложенного D_a (isDeferredUnfoldAction), выбор самого отложенного действия
+//  после END конструкта считается корректным шагом (isPendingUnfoldAction),
+//  завершённость раскрытого конструкта проверяется зеркально
+//  (unfoldedConstructFinished), а BEGIN такого конструкта при фиксации не
+//  достраивается — он уже добавлен при раскрытии.
 //
 //  Связь «действие -> раскрываемый им конструкт» повсюду по равенству ast_id
 //  (как в findCorrect и src/model/situation.py: Action.expands_to), БЕЗ hasParent:
@@ -28,7 +39,10 @@
 //      «D_a уже есть в трассе позже последнего акта D_p» покрывает типовые случаи;
 //    - рекурсия не поддерживается (как и в findCorrect — RecursionDenied);
 //    - предпрогонка findCorrect может сама добавить непрозрачный BEGIN конструкта,
-//      на который указывает последнее действие (поведение findCorrect).
+//      на который указывает последнее действие (поведение findCorrect);
+//    - для отложенного действия preorder-конструкта переход в акт не переносится
+//      (в findCorrect он берётся из hasTransition BEGIN-акта): критерии уровня
+//      его не требуют, а эффектов на таких переходах в правилах сейчас нет.
 //
 //  Термины (из docs/check_graph_idea.md):
 //    Ошибка студента       -> conclude: error [ skill = ...; RU.explanation = ...; EN.explanation = ... ]
@@ -60,6 +74,17 @@ lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
 ] among SemanticValue v {
     A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
 };
+
+// Сбросить used у значений действий конструкта C и всех его потомков при новом
+// входе в C (зеркало одноимённой lambda из findCorrect.tpg и
+// _activation_start_order в serialization/adapters/situation.py).
+lambda resetUsedValues(C: ConcreteConstruct) = forAll SemanticValue v [
+    forAny ConcreteAction a {
+        ($a->belongsTo == C or $a->belongsTo=>hasAncestor(C)) and
+        $a=>hasValue() and
+        ($v == $a->hasValue or $v=>afterOf($a->hasValue))
+    }
+] { $v.used = false };
 
 // Fallback-цель перехода: первый реально присутствующий в C элемент цепочки
 // to_when_absent, либо основная цель to_, если fallback не задан.
@@ -202,6 +227,63 @@ lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction) =
     not fromA=>hasValue() or
     findUnusedValue(fromA).bool_value == t->hasConstraints.condition_value;
 
+// --- preorder-конструкты (раскрытие предшествует породившему действию) ---------
+
+// Действие, из которого раскрывается конструкт C (связь по ast_id, как в containingAction).
+lambda unfoldingActionOf(C: ConcreteConstruct) = find ConcreteAction x {
+    $x->belongsTo != C and
+    $x.ast_id == C.ast_id and
+    $x->derivedFrom.role != "BEGIN" and
+    $x->derivedFrom.role != "END"
+};
+
+lambda hasUnfoldingAction(C: ConcreteConstruct) = forAny ConcreteAction x {
+    $x->belongsTo != C and
+    $x.ast_id == C.ast_id and
+    $x->derivedFrom.role != "BEGIN" and
+    $x->derivedFrom.role != "END"
+};
+
+// D - действие уровня C, раскрывающее preorder-конструкт, внутри которого находится target.
+// Такое действие попадает в трассу ПОСЛЕ END своего конструкта, поэтому его отсутствие
+// в трассе перед target - не пропуск, а отложенное выполнение.
+lambda isDeferredUnfoldAction(D: ConcreteAction, target: ConcreteAction) = forAny ConcreteConstruct cc {
+    $cc != D->belongsTo and
+    $cc.ast_id == D.ast_id and
+    $cc->derivedFrom.preorder and
+    isAncestorOrSelf(target->belongsTo, $cc)
+};
+
+// target - отложенное действие preorder-конструкта, END которого уже последний акт трассы:
+// раскрытый конструкт завершён, и теперь это действие должно быть добавлено в трассу.
+lambda isPendingUnfoldAction(target: ConcreteAction) = forAny TraceAct e {
+    $e->hasAction->derivedFrom.role == "END" and
+    $e->hasAction->belongsTo->derivedFrom.preorder and
+    $e->hasAction.ast_id == target.ast_id and
+    not forAny TraceAct later { $later=>afterOf($e) } and
+    forAny TraceAct b {
+        $b->hasAction->belongsTo == $e->hasAction->belongsTo and
+        $b->hasAction->derivedFrom.role == "BEGIN" and
+        $b=>beforeOf($e) and
+        $b->unfoldedFrom == target
+    }
+};
+
+// Зеркало isClosedAfter для preorder-конструктов: их END лежит ДО акта E
+// (акт породившего действия добавляется уже после завершения конструкта).
+lambda isClosedBefore(C: ConcreteConstruct, E: TraceAct) = forAny TraceAct e {
+    $e->hasAction->belongsTo == C and $e->hasAction->derivedFrom.role == "END" and
+    $e=>beforeOf(E) and
+    not forAny TraceAct b {
+        $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
+        $b=>afterOf($e) and $b=>beforeOf(E)
+    }
+};
+
+// Раскрытый из акта E конструкт C завершён (с учётом порядка раскрытия).
+lambda unfoldedConstructFinished(C: ConcreteConstruct, E: TraceAct) =
+    C->derivedFrom.preorder ? isClosedBefore(C, E) : isClosedAfter(C, E);
+
 
 // ---------------------------------------------------------------------------
 //  Фрагменты.
@@ -212,7 +294,7 @@ lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction) =
 // действия и перехода (если переход в A существует — он прикладывается к акту:
 // по hasTransition с эффектом call_stack следующая предпрогонка входит в функцию).
 // Если A раскрывает конструкт с прозрачным BEGIN, BEGIN достраивается сразу
-// (зеркало unwindNewConstruct из findCorrect). Завершает граф успехом.
+// (зеркало unfoldNewConstruct из findCorrect). Завершает граф успехом.
 fragment commitCorrectAction() {
     var Prev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
     // роль P на уровне конструкта выбранного действия — источник перехода в A
@@ -229,6 +311,7 @@ fragment commitCorrectAction() {
             A->derivedFrom.role != "END" and
             $cc != A->belongsTo and
             $cc.ast_id == A.ast_id and
+            not $cc->derivedFrom.preorder and // см. Expands ниже
             not beginActionOf($cc)->derivedFrom.is_opaque
         } out false else {
             // A раскрывает конструкт с прозрачным BEGIN — фиксируем оба акта сразу
@@ -250,6 +333,7 @@ fragment commitCorrectAction() {
                     }
                 );
                 Prev +=> directlyBeforeOf(P);
+                resetUsedValues(ExpandsNT);
                 if (beginActionOf(ExpandsNT)->derivedFrom=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->derivedFrom->hasEffects, S);
                 if (beginActionOf(ExpandsNT)=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->hasEffects, S)
             }) [
@@ -262,11 +346,15 @@ fragment commitCorrectAction() {
             P = +obj : TraceAct (
                 {
                     hasAction(A);
+                    // BEGIN раскрытого конструкта помнит породившее его действие:
+                    // для preorder-конструкта оно добавляется в трассу после END
+                    (A->derivedFrom.role == "BEGIN" and hasUnfoldingAction(A->belongsTo)) ? unfoldedFrom(unfoldingActionOf(A->belongsTo));
                     (A=>hasValue()) ? hasValue(findUnusedValue(A));
                 }
             );
             Prev +=> directlyBeforeOf(P);
             if (A=>hasValue()) P->hasValue.used = true;
+            if (A->derivedFrom.role == "BEGIN") resetUsedValues(A->belongsTo);
             if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
             if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S)
         }) [
@@ -282,10 +370,13 @@ fragment commitCorrectAction() {
         A->derivedFrom.role != "END" and
         $cc != A->belongsTo and
         $cc.ast_id == A.ast_id and
+        // preorder-конструкт раскрыт и закрыт ДО этого действия (его BEGIN добавлен
+        // при раскрытии), поэтому здесь достраивать нечего
+        not $cc->derivedFrom.preorder and
         not beginActionOf($cc)->derivedFrom.is_opaque
     } out false else {
         // A раскрывает конструкт с прозрачным BEGIN — фиксируем оба акта сразу
-        // (зеркало unwindNewConstruct из findCorrect); непрозрачный BEGIN добавит
+        // (зеркало unfoldNewConstruct из findCorrect); непрозрачный BEGIN добавит
         // следующая предпрогонка findCorrect либо выберет студент.
         conclude: correct with ({
             P = +obj : TraceAct (
@@ -306,6 +397,7 @@ fragment commitCorrectAction() {
                 }
             );
             Prev +=> directlyBeforeOf(P);
+            resetUsedValues(Expands);
             if (beginActionOf(Expands)->derivedFrom=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->derivedFrom->hasEffects, S);
             if (beginActionOf(Expands)=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->hasEffects, S)
         }) [
@@ -319,11 +411,13 @@ fragment commitCorrectAction() {
             {
                 hasAction(A);
                 hasTransition(Tin);
+                (A->derivedFrom.role == "BEGIN" and hasUnfoldingAction(A->belongsTo)) ? unfoldedFrom(unfoldingActionOf(A->belongsTo));
                 (A=>hasValue()) ? hasValue(findUnusedValue(A));
             }
         );
         Prev +=> directlyBeforeOf(P);
         if (A=>hasValue()) P->hasValue.used = true;
+        if (A->derivedFrom.role == "BEGIN") resetUsedValues(A->belongsTo);
         if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
         if (Tin=>hasEffects()) applyInterruptionMode(Tin->hasEffects, S)
     }) [
@@ -363,7 +457,15 @@ fragment autoPassedRefinement() {
             ) or (
                 $t->hasAction->derivedFrom.role == "BEGIN" and
                 $t->hasAction.ast_id != A.ast_id and
-                $t->hasAction->belongsTo=>hasParent(A->belongsTo)
+                $t->hasAction->belongsTo=>hasParent(A->belongsTo) and
+                // именно ДРУГАЯ ветвь уровня A: конструкт раскрыт из действия того же
+                // уровня, отличного от A. Вход в тело вызванной функции этому не
+                // соответствует (её конструкт не раскрывается действием уровня A)
+                forAny ConcreteAction sibling {
+                    $sibling->belongsTo == A->belongsTo and
+                    $sibling != A and
+                    $sibling.ast_id == $t->hasAction.ast_id
+                }
             )
         )
     }) out false else {
@@ -390,6 +492,11 @@ fragment checkLevel(C: ConcreteConstruct) {
     ask (Dp == Da) out false else {
         // Вход в сам конструкт C: A и есть его BEGIN, а P ещё вне C — корректный шаг уровня
         ask (A == Dp and A->derivedFrom.role == "BEGIN" and not hasContainingAction(P->hasAction, C)) out false else {
+            conclude: correct;
+        };
+        // Отложенное действие preorder-конструкта: раскрытый из него конструкт уже
+        // завершён (его END - последний акт трассы), значит сейчас это корректный шаг
+        ask (A == Dp and isPendingUnfoldAction(A)) out false else {
             conclude: correct;
         };
         ask (A == Dp) out false else {
@@ -440,7 +547,10 @@ fragment checkLevel(C: ConcreteConstruct) {
     ask (
         Da == A or
         not Da->derivedFrom.is_opaque or
-        actAlreadyCurrent(Da, Dp)
+        actAlreadyCurrent(Da, Dp) or
+        // D_a раскрывает preorder-конструкт, внутри которого находится A:
+        // само D_a выполняется ПОСЛЕ этого конструкта, пропуска нет
+        isDeferredUnfoldAction(Da, A)
     ) out true else {
         conclude: error [
             skill = "intermediate_action_skipped" ;
@@ -544,9 +654,22 @@ fragment checkLevel(C: ConcreteConstruct) {
         }
         true -> {
             var DpAct: TraceAct = lastActOf(Dp) out true else {
-                conclude: error [ exception = true; exceptionName = "NoActForRoleAction"; ];
+                // для preorder-конструкта акт D_p появляется только после его END,
+                // поэтому отсутствие акта означает "конструкт ещё выполняется"
+                ask (Dcc->derivedFrom.preorder) {
+                    true -> {
+                        conclude: error [
+                            skill = "construct_not_closed" ;
+                            RU.explanation = "Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." ;
+                            EN.explanation = "This action cannot be performed: the previous construct is not finished yet (or has not started)." ;
+                        ];
+                    }
+                    false -> {
+                        conclude: error [ exception = true; exceptionName = "NoActForRoleAction"; ];
+                    }
+                };
             };
-            ask (isClosedAfter(Dcc, DpAct)) {
+            ask (unfoldedConstructFinished(Dcc, DpAct)) {
                 true -> { conclude: correct; }
                 false -> {
                     conclude: error [
@@ -643,6 +766,23 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
                 ];
             }
         };
+    };
+
+    // Шаг 3.1а: A раскрывает preorder-конструкт (вложенный вызов), который ещё
+    // выполняется. Само действие выполняется только ПОСЛЕ его завершения, а роль P
+    // на уровнях вне тела вызванной функции по статической иерархии этого не видит,
+    // поэтому проверяем явно.
+    ask (forAny ConcreteConstruct cc {
+        $cc != A->belongsTo and
+        $cc.ast_id == A.ast_id and
+        $cc->derivedFrom.preorder and
+        isConstructOpen($cc)
+    }) out false else {
+        conclude: error [
+            skill = "construct_not_closed" ;
+            RU.explanation = "Нельзя выполнить это действие: раскрытая им конструкция ещё выполняется и не завершена." ;
+            EN.explanation = "This action cannot be performed: the construct it unfolds into is still executing and is not finished." ;
+        ];
     };
 
     // Шаг 3.2: активное прерывание. Если режим прерывания не none, единственный

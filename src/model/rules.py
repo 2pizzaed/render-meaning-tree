@@ -261,6 +261,9 @@ class ConstructDeclaration:
     name: str
     kind: str
     ast_node: AstNodeQuerySource
+    # конструкт раскрывается ДО породившего его действия: это действие попадает
+    # в трассу после END конструкта (вложенные вызовы выполняются первыми)
+    preorder: bool = False
     applicable_languages: list[str] = field(default_factory=list)
     metadata: Metadata | None = None
     effects: EffectDeclaration | None = None
@@ -336,7 +339,10 @@ class ConstructDeclaration:
                 compiled.effects = _merge_effects(
                     compiled.effects, effects_by_role.get(from_role)
                 )
-                if compiled.to_role == "END":
+                # У preorder-конструкта эффекты конструкта применяются к породившему его
+                # действию (оно попадает в трассу уже после END), поэтому в переходы к END
+                # они не встраиваются - см. Pipeline._inline_effects_for_node.
+                if compiled.to_role == "END" and not self.preorder:
                     compiled.effects = _merge_effects(compiled.effects, self.effects)
                 result.append(compiled)
         return _add_optional_absent_targets(result, self.actions)
@@ -380,6 +386,7 @@ class ConstructDeclaration:
             name=name,
             kind=data["kind"],
             ast_node=data["ast_node"],
+            preorder=bool(data.get("preorder", False)),
             applicable_languages=list(data.get("applicable_languages", [])),
             metadata=Metadata.from_dict(data.get("metadata")),
             effects=_load_effect(data.get("effects")),

@@ -152,6 +152,9 @@ def _resolve_inline_compound_action(
         for candidate in pipeline.get_related_actions(construct)
         if candidate.is_opaque
     ]
+    # Если внутри конструкта нет непрозрачных действий (служебное content прозрачно,
+    # а вложенный вызов размечен своими BEGIN/END), шагом студента остаётся само
+    # действие - оператор или условие (first_cond), на него и ссылается кнопка.
     if not opaque_actions:
         return action
     return sorted(opaque_actions, key=pipeline.registry.action_order)[0]

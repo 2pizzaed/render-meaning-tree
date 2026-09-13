@@ -113,6 +113,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         obj construct_if_statement : ConstructSpec {
             name = "if_statement";
             kind = "branch";
+            preorder = false;
             hasActions(action_BEGIN);
             hasActions(action_END);
             hasTransitions(transition_if_statement_BEGIN_to_END);

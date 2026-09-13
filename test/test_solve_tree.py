@@ -190,10 +190,12 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             1: ["func"],
             2: ["func_body", "first"],
             5: ["func"],
-            6: ["func_body", "first", "BEGIN", "END", "content"],
-            9: ["first", "BEGIN", "END", "content"],
+            6: ["func_body", "first", "BEGIN", "END"],
+            9: ["first", "BEGIN", "END"],
         },
-        [(9, 3), (9, 1), (6, 4), (6, 2), (2, 1), (6, 3), (9, 2)],
+        # вызов выполняется раньше породившего его действия (preorder):
+        # BEGIN(f) -> BEGIN(g) -> return x+1 -> END(g) -> return g(x) -> END(f) -> result = f(1)
+        [(9, 1), (6, 2), (2, 1), (6, 3), (6, 1), (9, 2), (9, 0)],
         "python_sequential_function_calls.loqi",
     ),
     (
@@ -447,24 +449,23 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             3: ["first"],
             5: ["func"],
             6: ["BEGIN", "END", "func_body"],
-            7: ["first", "BEGIN", "END", "content"],
+            7: ["first", "BEGIN", "END"],
             10: ["func_body"],
-            11: ["first", "BEGIN", "END", "content"],
+            11: ["first", "BEGIN", "END"],
             12: ["next"],
         },
         [
-            (11, 3),
             (11, 1),
             (6, 2),
             (6, 0),
-            (7, 3),
             (7, 1),
             (2, 2),
             (2, 0),
             (3, 0),
             (7, 2),
-            (6, 1),
+            (7, 0),
             (11, 2),
+            (11, 0),
             (12, 0),
         ],
         "cpp_sequential_function_calls.loqi",
@@ -747,23 +748,22 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             1: ["func", "BEGIN", "END", "func_body"],
             2: ["first"],
             5: ["func", "BEGIN", "END", "func_body"],
-            6: ["first", "BEGIN", "END", "content"],
+            6: ["first", "BEGIN", "END"],
             9: ["func_body"],
-            10: ["first", "BEGIN", "END", "content"],
+            10: ["first", "BEGIN", "END"],
         },
         [
-            (10, 3),
             (10, 1),
             (5, 3),
             (5, 1),
-            (6, 3),
             (6, 1),
             (1, 3),
             (1, 1),
             (2, 0),
             (6, 2),
-            (5, 2),
+            (6, 0),
             (10, 2),
+            (10, 0),
         ],
         "java_sequential_function_calls.loqi",
     ),
@@ -813,10 +813,60 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         {
             1: ["func"],
             2: ["func_body", "first"],
-            5: ["first", "BEGIN", "END", "content"],
+            5: ["first", "BEGIN", "END"],
         },
-        [(5, 3), (5, 1), (2, 1), (5, 2)],
+        # preorder: вызов целиком выполняется раньше оператора, который его содержит
+        [(5, 1), (2, 1), (5, 2), (5, 0)],
         "python_function_call.loqi",
+    ),
+    (
+        # Вызов внутри условия: значение условия становится известно только после
+        # возврата из вызова, поэтому first_cond выполняется ПОСЛЕ END вызова
+        # (иначе значение условия расходуется до вызова и переход по нему не найти).
+        "python",
+        """
+        def f(x):
+            return x
+
+        if f(1):
+            y = 2
+        z = 3
+        """,
+        {
+            1: ["func"],
+            2: ["func_body", "first"],
+            5: ["first", "BEGIN", "END", "first_cond"],
+            6: ["if_branch", "first"],
+            7: ["next"],
+        },
+        [(5, 1), (2, 1), (5, 2), (5, 3), (6, 1), (7, 0)],
+        "python_if_condition_call.loqi",
+    ),
+    (
+        # return с вызовом: прерывание return начинается на самом операторе return,
+        # который выполняется после завершения вложенного вызова, поэтому код
+        # после return (строка 7) в трассу не попадает.
+        "python",
+        """
+        def g(x):
+            return x + 1
+
+        def f(x):
+            return g(x)
+            y = 5
+
+        result = f(1)
+        """,
+        {
+            1: ["func"],
+            2: ["func_body", "first"],
+            5: ["func"],
+            6: ["func_body", "first", "BEGIN", "END"],
+            7: ["next"],
+            10: ["first", "BEGIN", "END"],
+        },
+        [(10, 1), (6, 2), (2, 1), (6, 3), (6, 1), (10, 2), (10, 0)],
+        "python_return_compound_interruption.loqi",
     ),
     (
         "c++",
@@ -882,10 +932,10 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             2: ["BEGIN", "END", "func_body"],
             3: ["first"],
             6: ["func_body"],
-            7: ["first", "BEGIN", "END", "content"],
+            7: ["first", "BEGIN", "END"],
             8: ["next"],
         },
-        [(7, 3), (7, 1), (2, 2), (2, 0), (3, 0), (7, 2), (8, 0)],
+        [(7, 1), (2, 2), (2, 0), (3, 0), (7, 2), (7, 0), (8, 0)],
         "cpp_function_call.loqi",
     ),
     (
@@ -962,10 +1012,83 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             1: ["func", "BEGIN", "END", "func_body"],
             2: ["first"],
             5: ["func_body"],
-            6: ["first", "BEGIN", "END", "content"],
+            6: ["first", "BEGIN", "END"],
         },
-        [(6, 3), (6, 1), (1, 3), (1, 1), (2, 0), (6, 2)],
+        [(6, 1), (1, 3), (1, 1), (2, 0), (6, 2), (6, 0)],
         "java_function_call.loqi",
+    ),
+    (
+        # Повторный вызов функции с циклом в теле: значения условия цикла
+        # расходуются в каждой активации заново (resetUsedValues в
+        # findCorrect.tpg + _activation_start_order в serialization/adapters/situation.py).
+        "python",
+        """
+        def factorial(x):
+            s = 1
+            for i in range(x+1):
+                s *= i
+            return x
+
+
+        if factorial(5) == 125:
+           print("Hello")
+        print(factorial(5))
+        """,
+        {
+            1: ["func", "func"],
+            2: ["func_body", "first"],
+            3: ["next", "cond", "init"],
+            4: ["body", "first"],
+            5: ["next"],
+            8: ["first", "first_cond", "BEGIN", "END"],
+            9: ["if_branch", "first"],
+            10: ["next", "BEGIN", "END"],
+        },
+        [
+            (8, 2),
+            (2, 1),
+            (3, 2),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (5, 0),
+            (8, 3),
+            (8, 1),
+            (9, 1),
+            (10, 1),
+            # второй вызов: цикл снова проходит все значения условия
+            (2, 1),
+            (3, 2),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (5, 0),
+            (10, 2),
+            (10, 0),
+        ],
+        "python_factorial_repeated_call.loqi",
+    ),
+    (
+        # Повторный вход в тело цикла: условие вложенного if на каждой итерации
+        # получает первое значение заново.
+        "python",
+        """
+        for i in range(3):
+            if i > 0:
+                x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first", "first_cond"],
+            3: ["if_branch", "first"],
+        },
+        [(1, 2), (1, 1), (2, 2), (3, 1), (1, 1), (2, 2), (3, 1), (1, 1), (4, 0)],
+        "python_for_if_reentry.loqi",
     ),
 ]
 

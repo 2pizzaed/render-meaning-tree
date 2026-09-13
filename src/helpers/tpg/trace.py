@@ -18,7 +18,8 @@ _TRACE_ACT_OBJECT_RE = re.compile(
     re.DOTALL,
 )
 _TRACE_ACT_REF_RE = re.compile(
-    r"\b(?P<rel>hasAction|hasTransition|hasValue|directlyBeforeOf)\((?P<target>[A-Za-z_][A-Za-z0-9_]*)\)\s*;"
+    r"\b(?P<rel>hasAction|hasTransition|hasValue|unfoldedFrom|directlyBeforeOf)"
+    r"\((?P<target>[A-Za-z_][A-Za-z0-9_]*)\)\s*;"
 )
 _TRACE_STATE_OBJECT_RE = re.compile(
     r"(?:var\s+(?P<var_name>\w+)\s*=\s*)?obj\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*TraceState\s*\{(?P<body>.*?)\}",
@@ -41,6 +42,7 @@ class _TraceActSpec:
     next_name: str | None
     source_order: int
     variable_name: str | None = None
+    unfolded_from_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,11 +92,22 @@ def trace_acts_from_loqi(
                     f"{trace_spec.value_name!r}, found {type(value).__name__}"
                 )
 
+        unfolded_from = None
+        if trace_spec.unfolded_from_name is not None:
+            unfolded_from = serializer.object_by_name(trace_spec.unfolded_from_name)
+            if not isinstance(unfolded_from, Action):
+                raise LookupError(
+                    "Expected Action for "
+                    f"{trace_spec.unfolded_from_name!r}, "
+                    f"found {type(unfolded_from).__name__}"
+                )
+
         trace_act = TraceAct(
             action=action,
             used_transition=used_transition,
             situation=registry.owner,
             value=value,
+            unfolded_from=unfolded_from,
         )
         registry.add(trace_act)
         trace_acts.append(trace_act)
@@ -157,6 +170,7 @@ def _parse_trace_act_specs(loqi_text: str) -> list[_TraceActSpec]:
                 next_name=refs.get("directlyBeforeOf"),
                 source_order=index,
                 variable_name=match.group("var_name"),
+                unfolded_from_name=refs.get("unfoldedFrom"),
             )
         )
     return trace_specs

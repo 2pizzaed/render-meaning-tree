@@ -476,7 +476,12 @@ class DomainDataGeneratorPipeline(Pipeline):
             self.rules,
             type_matcher=self._matches_ast_node_type,
         )
-        if inline_rule is None or not inline_rule.is_atomic_inline:
+        if inline_rule is None:
+            return None
+        # Атомарный inline конструкт не строится, поэтому его эффекты несёт действие.
+        # У preorder-конструкта действие выполняется уже после END конструкта, поэтому
+        # эффекты конструкта тоже применяются к действию, а не к END (см. rules.py).
+        if not inline_rule.is_atomic_inline and not inline_rule.preorder:
             return None
         return inline_rule.effects
 

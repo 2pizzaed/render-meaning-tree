@@ -100,6 +100,11 @@ class TraceActAdapter:
         if value_ref is not None:
             relationships.append(ctx.relationship("hasValue", value_ref))
 
+        if obj.unfolded_from is not None:
+            relationships.append(
+                ctx.relationship("unfoldedFrom", ctx.serialize(obj.unfolded_from))
+            )
+
         if obj.used_transition is not None:
             relationships.append(
                 ctx.relationship(
@@ -215,26 +220,56 @@ def _semantic_value_ref_for_trace_act(trace_act: TraceAct) -> LoqiObjectRef | No
     )
 
 
+def _activation_start_order(
+    action: Action, trace_acts: list[TraceAct], before: int
+) -> int:
+    """Порядковый номер первого акта текущей активации конструкта действия.
+
+    Активация начинается после последнего (до ``before``) BEGIN-акта конструкта
+    действия или любого его предка: повторный вход (новый вызов функции, новая
+    итерация тела цикла) расходует значения условий заново. Зеркало lambda
+    ``resetUsedValues`` из ``domain/findCorrect.tpg`` и ``domain/main.tpg``.
+    """
+    scope: set[int] = set()
+    construct = action.parent
+    while construct is not None:
+        scope.add(id(construct))
+        construct = construct.parent
+
+    start = 0
+    for order, trace_act in enumerate(trace_acts[:before]):
+        if trace_act.action.rule.role == "BEGIN" and id(trace_act.action.parent) in scope:
+            start = order + 1
+    return start
+
+
 def _trace_act_value_occurrence_index(trace_act: TraceAct) -> int:
+    chain = trace_act.chain
+    order = trace_act.chain_order
+    start = _activation_start_order(trace_act.action, chain, order)
     return sum(
         1
-        for prior_trace_act in trace_act.chain[: trace_act.chain_order]
+        for prior_trace_act in chain[start:order]
         if prior_trace_act.action is trace_act.action
     )
 
 
 def _consumed_value_count_for_action(action: Action) -> int:
     current_trace_act = _current_trace_act(action)
+    trace_acts = action.owner.trace_acts
+    activation_acts = trace_acts[
+        _activation_start_order(action, trace_acts, len(trace_acts)) :
+    ]
     explicit_indexes = [
         trace_act.value.index
-        for trace_act in action.owner.trace_acts
+        for trace_act in activation_acts
         if trace_act is not current_trace_act
         and trace_act.action is action
         and isinstance(trace_act.value, SemanticValue)
     ]
     inferred_count = sum(
         1
-        for trace_act in action.owner.trace_acts
+        for trace_act in activation_acts
         if trace_act is not current_trace_act
         and trace_act.action is action
         and trace_act.value is None

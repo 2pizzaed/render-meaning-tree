@@ -68,6 +68,7 @@ class ConstructDeclarationAdapter:
             properties=(
                 ctx.property("name", obj.name),
                 ctx.property("kind", obj.kind),
+                ctx.property("preorder", obj.preorder),
             ),
             relationship_links=(
                 *ctx.relationship_links("hasActions", action_refs),
@@ -90,7 +91,13 @@ class ActionDeclarationAdapter:
             relationships.append(ctx.relationship("hasEffects", obj.effects))
         if obj.parent is not None:
             relationships.append(ctx.relationship("belongsTo", obj.parent))
-            if obj.role == "END" and obj.parent.effects is not None:
+            # У preorder-конструкта эффекты конструкта переезжают на конкретное
+            # породившее действие: оно выполняется уже после END конструкта.
+            if (
+                obj.role == "END"
+                and obj.parent.effects is not None
+                and not obj.parent.preorder
+            ):
                 relationships.append(ctx.relationship("hasEffects", obj.parent.effects))
 
         properties = [

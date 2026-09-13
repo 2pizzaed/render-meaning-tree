@@ -154,6 +154,26 @@ a = f(1)
 b = f(2)
 """
 
+IF_CONDITION_CALL = """
+def f(x):
+    return x
+
+if f(1):
+    y = 2
+z = 3
+"""
+
+RETURN_COMPOUND_DEAD_CODE = """
+def g(x):
+    return x + 1
+
+def f(x):
+    return g(x)
+    y = 5
+
+result = f(1)
+"""
+
 WHILE_BREAK = """
 while flag:
     break
@@ -165,6 +185,26 @@ if a > b:
     if b > c:
         print(c)
 x = 1
+"""
+
+FACTORIAL_REPEATED_CALL = """
+def factorial(x):
+    s = 1
+    for i in range(x+1):
+        s *= i
+    return x
+
+
+if factorial(5) == 125:
+   print("Hello")
+print(factorial(5))
+"""
+
+FOR_IF_REENTRY = """
+for i in range(3):
+    if i > 0:
+        x = 1
+y = 2
 """
 
 CPP_IF_BLOCK = """
@@ -339,16 +379,37 @@ CHECK_CASES: list[Any] = [
         expected_skills=("function_not_entered",),
     ),
     CheckCase(
-        # Двухэтапный вход в вызов: после оператора-вызова (content) следующий
-        # шаг — BEGIN конструкта вызова (предпрогонка останавливается перед
-        # непрозрачным BEGIN, не добавляя его).
-        id="function_begin_after_content",
+        # Вход в вызов — первый шаг оператора с вызовом: конструкт вызова помечен
+        # preorder и раскрывается раньше породившего его действия, поэтому
+        # предпрогонка останавливается перед непрозрачным BEGIN, не добавляя его.
+        id="function_begin_is_first_step",
         language="python",
         code=FUNCTION_CALL,
-        advance_to=(5, "content"),
+        advance_to=None,
         action=(5, "BEGIN", "func_call_structure"),
         expected_skills=("correct_answer",),
         expected_correct=True,
+    ),
+    CheckCase(
+        # Оператор с вызовом выполняется ПОСЛЕ завершения вызова (preorder):
+        # отложенное действие берётся из unfoldedFrom BEGIN-акта вызова.
+        id="function_statement_after_call_exit",
+        language="python",
+        code=FUNCTION_CALL,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "first"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Тот же оператор до завершения вызова выбрать нельзя: раскрытая им
+        # конструкция (вызов) ещё выполняется.
+        id="function_statement_before_call_exit",
+        language="python",
+        code=FUNCTION_CALL,
+        advance_to=(5, "BEGIN", "func_call_structure"),
+        action=(5, "first"),
+        expected_skills=("construct_not_closed",),
     ),
     CheckCase(
         # Корректный шаг после начала вызова — первый оператор тела функции:
@@ -414,6 +475,58 @@ CHECK_CASES: list[Any] = [
         action=(2, "first"),
         expected_skills=("function_already_exited",),
     ),
+    # --- Вызов внутри условия (preorder) ---
+    CheckCase(
+        # Условие с вызовом вычисляется ПОСЛЕ возврата из вызова: отложенное
+        # действие first_cond берётся из unfoldedFrom BEGIN-акта вызова.
+        id="condition_call_correct_after_exit",
+        language="python",
+        code=IF_CONDITION_CALL,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "first_cond"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # До завершения вызова условие вычислить нельзя.
+        id="condition_call_before_exit",
+        language="python",
+        code=IF_CONDITION_CALL,
+        advance_to=(5, "BEGIN", "func_call_structure"),
+        action=(5, "first_cond"),
+        expected_skills=("construct_not_closed",),
+    ),
+    CheckCase(
+        # Вход в вызов внутри условия — первый шаг конструкции ветвления.
+        id="condition_call_begin_is_first_step",
+        language="python",
+        code=IF_CONDITION_CALL,
+        advance_to=None,
+        action=(5, "BEGIN", "func_call_structure"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    # --- return с вызовом (preorder): прерывание начинается на самом return ---
+    CheckCase(
+        # Сам оператор return выполняется после завершения вложенного вызова.
+        id="return_compound_correct_after_call_exit",
+        language="python",
+        code=RETURN_COMPOUND_DEAD_CODE,
+        advance_to=(6, "END", "func_call_structure"),
+        action=(6, "first"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Код после return недостижим: прерывание, начатое оператором return,
+        # уже вывело выполнение из тела функции.
+        id="return_compound_dead_code",
+        language="python",
+        code=RETURN_COMPOUND_DEAD_CODE,
+        advance_to=(6, "first"),
+        action=(7, "next"),
+        expected_skills=("interruption_not_considered",),
+    ),
     # --- Прерывания ---
     CheckCase(
         # После break студент снова выбирает условие цикла (3.2 идеи):
@@ -463,6 +576,65 @@ CHECK_CASES: list[Any] = [
             (1, "first_cond", [True]),
             (2, "first_cond", [True]),
         ),
+    ),
+    # --- Повторный вход в конструкт: значения условий расходуются заново ---
+    # До сброса used при входе в конструкт (resetUsedValues) эталонная трасса
+    # FACTORIAL_REPEATED_CALL падала: у условия цикла не оставалось
+    # неиспользованных значений после первого вызова.
+    CheckCase(
+        # Во втором вызове тело функции снова доступно с первого оператора.
+        id="function_repeated_call_body",
+        language="python",
+        code=FACTORIAL_REPEATED_CALL,
+        advance_to=(10, "BEGIN", "func_call_structure"),
+        action=(2, "first"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Условие цикла во втором вызове: значения условия расходуются заново.
+        id="function_repeated_call_loop_condition",
+        language="python",
+        code=FACTORIAL_REPEATED_CALL,
+        advance_to=(3, "init"),
+        advance_occurrence=2,
+        action=(3, "cond"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    pytest.param(
+        CheckCase(
+            # Выход из второго вызова после return: эталонный findCorrect ставит
+            # END вызова следующим шагом, а граф проверок возвращает actions_skipped.
+            # Выход из первого вызова того же кода проходит; выход из второго вызова
+            # TWO_SEQUENTIAL_CALLS (без значений условий) тоже ломается — похоже на
+            # ограничение main.tpg для повторных активаций функции, не связанное
+            # со сбросом used.
+            id="function_repeated_call_exit",
+            language="python",
+            code=FACTORIAL_REPEATED_CALL,
+            advance_to=(5, "next"),
+            advance_occurrence=2,
+            action=(10, "END", "func_call_structure"),
+            expected_skills=("correct_answer",),
+            expected_correct=True,
+        ),
+        id="function_repeated_call_exit",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="main.tpg: выход из повторной активации функции даёт actions_skipped",
+        ),
+    ),
+    CheckCase(
+        # Условие вложенного if на второй итерации тела цикла.
+        id="loop_reentry_if_condition",
+        language="python",
+        code=FOR_IF_REENTRY,
+        advance_to=(1, "cond"),
+        advance_occurrence=2,
+        action=(2, "first_cond"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
     ),
     # --- C++: непрозрачные скобки блоков ---
     CheckCase(

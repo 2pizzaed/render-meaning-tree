@@ -423,6 +423,7 @@ func_def_structure:
 # --------------------------------
 func_call_structure:
   kind: inline.call
+  preorder: true  # вызов выполняется раньше действия, которое его раскрывает (условие, оператор)
   ast_node: ['function_call', 'method_call']
   metadata:
     locale_trace_name: "function_call"
@@ -472,6 +473,9 @@ return_action:
 
 return_compound_action:
   kind: inline.compound
+  preorder: true  # вложенные вызовы выполняются раньше самого оператора return
+  effects:
+    - interruption_start: return
   ast_node:
     query:
       - type: return_statement
@@ -484,6 +488,7 @@ return_compound_action:
   actions:
     - role: content
       kind: optional
+      opaque: false  # технический шаг к вложенным вызовам; шагом студента является сам оператор/условие
   transitions:
     - from: BEGIN
       to: content
@@ -589,6 +594,7 @@ inline_atom_structure:
 
 inline_compound_atom_structure:
   kind: inline.compound
+  preorder: true  # вложенные вызовы выполняются раньше самого оператора
   ast_node:
     query:
       - type:
@@ -602,6 +608,7 @@ inline_compound_atom_structure:
   actions:
     - role: content
       kind: optional
+      opaque: false  # технический шаг к вложенным вызовам; шагом студента является сам оператор/условие
   transitions:
     - from: BEGIN
       to: content

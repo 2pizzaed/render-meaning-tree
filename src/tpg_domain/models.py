@@ -26,6 +26,49 @@ class ReasoningException:
     exception_name: str | None = None
 
 
+class ReasoningCallError(RuntimeError):
+    """its_Reasoner failed with an exception instead of producing a result.
+
+    Carries the diagnostics reported by the backend (root cause, graph variables
+    and the statement being evaluated), so callers can show more than a bare
+    "no output" message.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        exception_name: str | None = None,
+        root_cause: str | None = None,
+        root_cause_message: str | None = None,
+        variables: dict[str, str] | None = None,
+        failed_expression: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.exception_name = exception_name
+        self.root_cause = root_cause
+        self.root_cause_message = root_cause_message
+        self.variables = variables or {}
+        self.failed_expression = failed_expression
+
+    def __str__(self) -> str:
+        lines = [self.message]
+        if self.exception_name:
+            lines.append(f"Exception: {self.exception_name}")
+        cause = ": ".join(
+            part for part in (self.root_cause, self.root_cause_message) if part
+        )
+        if cause:
+            lines.append(f"Root cause: {cause}")
+        if self.variables:
+            lines.append("Variables:")
+            lines.extend(f"  {name} = {value}" for name, value in self.variables.items())
+        if self.failed_expression:
+            lines.append(f"While evaluating:\n{self.failed_expression}")
+        return "\n".join(lines)
+
+
 type ReasoningTrace = str | dict[str, Any] | list[Any]
 
 

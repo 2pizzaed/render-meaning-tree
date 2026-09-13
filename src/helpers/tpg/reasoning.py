@@ -10,7 +10,7 @@ from src.generator.utilities import pipeline_to_loqi
 from src.helpers.tpg.trace import restore_trace_from_loqi
 from src.model.situation import Action, TraceAct, TraceState
 from src.serialization.loqi import LoqiSerializer
-from src.tpg_domain import ReasoningResult, solve_reasoning
+from src.tpg_domain import ReasoningCallError, ReasoningResult, solve_reasoning
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,22 +81,30 @@ def solve_graph_full_reasoning(
     previous_trace_length = len(registry.trace_acts)
     last_output: PipelineReasoningOutput | None = None
 
-    for _iteration in range(max_iterations):
-        last_output = _solve_pipeline_reasoning_once(
-            directory,
-            pipeline,
-            model_dir=model_dir,
-            filename=filename,
-            tag=tag,
-            tree=tree,
-            verbose=verbose,
-            json_trace=json_trace,
-            debug_enabled=debug_enabled,
-            export_domain=export_domain,
-            time_limit_seconds=time_limit_seconds,
-            reasoner_output_stream=reasoner_output_stream,
-            restore_exported_trace=True,
-        )
+    for iteration in range(max_iterations):
+        last_trace_act = registry.trace_acts[-1] if registry.trace_acts else None
+        try:
+            last_output = _solve_pipeline_reasoning_once(
+                directory,
+                pipeline,
+                model_dir=model_dir,
+                filename=filename,
+                tag=tag,
+                tree=tree,
+                verbose=verbose,
+                json_trace=json_trace,
+                debug_enabled=debug_enabled,
+                export_domain=export_domain,
+                time_limit_seconds=time_limit_seconds,
+                reasoner_output_stream=reasoner_output_stream,
+                restore_exported_trace=True,
+            )
+        except ReasoningCallError as exc:
+            exc.add_note(
+                f"Solve iteration {iteration + 1}; trace length {len(registry.trace_acts)}; "
+                f"last trace act: {_describe_trace_act(last_trace_act)}"
+            )
+            raise
         if last_output.result.result is not True or last_output.result.exceptions:
             raise RuntimeError(f"findCorrect solve failed: {last_output.result}")
         if last_output.exported_loqi is None:
@@ -212,20 +220,22 @@ def _solve_pipeline_reasoning_once(
         pipeline,
         filename=filename,
     )
-    result = solve_reasoning(
-        model_dir,
-        loqi_file,
-        tag=tag,
-        tree=tree,
-        verbose=verbose,
-        json_trace=json_trace,
-        debug_enabled=debug_enabled,
-        export_domain=export_domain,
-        time_limit_seconds=time_limit_seconds,
-        reasoner_output_stream=reasoner_output_stream,
-    )
-    if result is None:
-        raise RuntimeError("reasoner returned no output")
+    try:
+        result = solve_reasoning(
+            model_dir,
+            loqi_file,
+            tag=tag,
+            tree=tree,
+            verbose=verbose,
+            json_trace=json_trace,
+            debug_enabled=debug_enabled,
+            export_domain=export_domain,
+            time_limit_seconds=time_limit_seconds,
+            reasoner_output_stream=reasoner_output_stream,
+        )
+    except ReasoningCallError as exc:
+        exc.add_note(f"Tree: {tree or '<default>'}; specific domain LOQI: {loqi_file}")
+        raise
 
     exported_loqi = result.artifacts.get("specificDomain")
     if not isinstance(exported_loqi, str):
@@ -245,6 +255,13 @@ def _solve_pipeline_reasoning_once(
         trace_acts=trace_acts,
         trace_state=trace_state,
     )
+
+
+def _describe_trace_act(trace_act: TraceAct | None) -> str:
+    if trace_act is None:
+        return "<none>"
+    action = trace_act.action
+    return f"{action.parent.rule.name}.{action.rule.role} (ast {action.ast_id})"
 
 
 def _ensure_trace_tail_as_p(pipeline: DomainDataGeneratorPipeline) -> None:

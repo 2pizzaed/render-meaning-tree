@@ -14,6 +14,7 @@ from .models import (
     DiscoverTreeResult,
     DomainBuildMethod,
     ExpressionQueryResult,
+    ReasoningCallError,
     ReasoningResult,
     TpgProject,
     _format_human_value,
@@ -229,7 +230,7 @@ def solve_reasoning(
     export_domain: bool = False,
     reasoner_output_stream: TextIO | None = None,
     time_limit_seconds: int | None = None
-) -> ReasoningResult | None:
+) -> ReasoningResult:
     """Run its_Reasoner reasoning for a specific domain LOQI.
 
     The reasoner is always called with ``--format jsonl`` and returns a parsed
@@ -238,6 +239,9 @@ def solve_reasoning(
 
     If ``reasoner_output_stream`` is provided, ``reasoner-output`` JSONL events
     are printed to it while being collected in the result.
+
+    Raises :class:`ReasoningCallError` when the CLI fails; the reasoner error
+    output itself is logged by :func:`_run_tpg_cli`.
     """
     args = [
         "reason",
@@ -256,7 +260,10 @@ def solve_reasoning(
 
     raw_result = _run_reasoner_cli(*args)
     if raw_result is None:
-        return None
+        raise ReasoningCallError(
+            f"its_Reasoner CLI reason failed for {domain_loqi}; "
+            "see the log for the reasoner error output"
+        )
 
     return parse_reasoning_jsonl(
         raw_result,

@@ -52,6 +52,12 @@ def read_language(value: str | None, default: SupportedProgrammingLanguage) -> S
     return default
 
 
+def format_error(error: BaseException) -> str:
+    # format_exception_only включает __notes__ (итерация решателя, путь к LOQI) и
+    # многострочную диагностику ReasoningCallError (причина, переменные, выражение).
+    return "".join(traceback.format_exception_only(error)).rstrip()
+
+
 def read_target_language(value: str | None) -> SupportedProgrammingLanguage | Literal[""]:
     if not value or (value != "java" and value != "python" and value != "c++"):
         return ""
@@ -160,7 +166,7 @@ def reason_trace():
         )
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e!s}"}), 500
+        return jsonify({"ok": False, "error": format_error(e)}), 500
 
     return jsonify(
         {
@@ -195,7 +201,7 @@ def tracing():
         svg_bytes = svg_path.read_bytes()
     except Exception as e:
         traceback.print_exc()
-        return f"{type(e).__name__}: {e!s}", 500, {"Content-Type": "text/plain; charset=utf-8"}
+        return format_error(e), 500, {"Content-Type": "text/plain; charset=utf-8"}
 
     return send_file(
         BytesIO(svg_bytes),

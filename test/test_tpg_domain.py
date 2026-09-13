@@ -5,10 +5,13 @@ import logging
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from src.toolchain_rpc import RpcError
 from src.tpg_domain import (
     DiscoverTreeResult,
     ExpressionQueryResult,
+    ReasoningCallError,
     ReasoningException,
     ReasoningResult,
     TreeNode,
@@ -302,10 +305,12 @@ def test_run_reasoner_rpc_logs_trace_and_variables_on_error(
 
     monkeypatch.setattr("src.tpg_domain.rpc._rpc_call", fake_rpc_call)
 
-    with caplog.at_level(logging.ERROR, logger="src.tpg_domain.rpc"):
-        result = solve_reasoning_rpc("domain", "generated.loqi")
+    with (
+        caplog.at_level(logging.ERROR, logger="src.tpg_domain.rpc"),
+        pytest.raises(ReasoningCallError),
+    ):
+        solve_reasoning_rpc("domain", "generated.loqi")
 
-    assert result is None
     assert (
         "tpg_domain reason via JSON-RPC failed: reason failed: boom" in caplog.text
     )
@@ -315,6 +320,57 @@ def test_run_reasoner_rpc_logs_trace_and_variables_on_error(
     )
     assert 'Trace:\n{\n  "branchResult": "Error",\n  "elements": []\n}' in caplog.text
     assert 'Variables:\n{\n  "x": "1",\n  "state": "failed"\n}' in caplog.text
+
+
+def test_solve_reasoning_rpc_raises_with_server_diagnostics(monkeypatch) -> None:
+    def fake_rpc_call(*_, **__):
+        raise RpcError(
+            "reason failed: Cannot invoke getObjectName()",
+            code=-32000,
+            data={
+                "exceptionName": "its.reasoner.ReasoningException",
+                "rootCause": "java.lang.NullPointerException",
+                "rootCauseMessage": "Cannot invoke getObjectName()",
+                "variables": {
+                    "N": {
+                        "repr_name": "object for_range_structure_action_cond_ast19",
+                        "object_name": "for_range_structure_action_cond_ast19",
+                        "type": "ConcreteAction",
+                        "metadata": [],
+                    },
+                },
+                "partialExpressionTrace": [
+                    {
+                        "expression": "P = + obj: TraceAct({\r\n\thasAction(N) ;\r\n})",
+                        "value": None,
+                        "children": [],
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr("src.tpg_domain.rpc._rpc_call", fake_rpc_call)
+
+    with pytest.raises(ReasoningCallError) as error_info:
+        solve_reasoning_rpc("domain", "generated.loqi")
+
+    error = error_info.value
+    assert error.root_cause == "java.lang.NullPointerException"
+    assert error.variables == {"N": "object for_range_structure_action_cond_ast19"}
+    assert error.failed_expression == "P = + obj: TraceAct({\n\thasAction(N) ;\n})"
+    rendered = str(error)
+    assert (
+        "Root cause: java.lang.NullPointerException: Cannot invoke getObjectName()"
+        in rendered
+    )
+    assert "  N = object for_range_structure_action_cond_ast19" in rendered
+
+
+def test_solve_reasoning_cli_raises_when_reasoner_fails(monkeypatch) -> None:
+    monkeypatch.setattr("src.tpg_domain.cli._run_reasoner_cli", lambda *_: None)
+
+    with pytest.raises(ReasoningCallError, match="its_Reasoner CLI reason failed"):
+        solve_reasoning("domain", "generated.loqi")
 
 
 def test_parse_discover_tree_jsonl_builds_structured_result() -> None:

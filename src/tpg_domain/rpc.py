@@ -19,6 +19,7 @@ from .models import (
     DiscoverTreeResult,
     DomainBuildMethod,
     ExpressionQueryResult,
+    ReasoningCallError,
     ReasoningResult,
     TreeNode,
     _format_human_value,
@@ -178,7 +179,7 @@ def solve_reasoning(
     export_domain: bool = False,
     reasoner_output_stream: TextIO | None = None,
     time_limit_seconds: int | None = None,
-) -> ReasoningResult | None:
+) -> ReasoningResult:
     params: dict[str, Any] = {
         "model": dir_source(model_dir),
         "domainLoqi": file_source(Path(domain_loqi)),
@@ -192,9 +193,16 @@ def solve_reasoning(
     if time_limit_seconds is not None:
         params["timeLimitSeconds"] = time_limit_seconds
 
-    result = _safe_call(REASONER_ROUTE, "reason", params)
+    try:
+        result = _rpc_call(REASONER_ROUTE, "reason", params)
+    except RpcError as exc:
+        # Как и в meaning_tree.rpc: сохраняем диагностику сервера, а не отдаём None.
+        _log_rpc_error("reason", exc)
+        raise _reasoning_call_error(exc) from exc
     if not isinstance(result, dict):
-        return None
+        raise ReasoningCallError(
+            f"reason via JSON-RPC returned unexpected result: {result!r}"
+        )
     return _to_reasoning_result(result, reasoner_output_stream)
 
 
@@ -343,9 +351,51 @@ def _safe_call(route: str, method: str, params: dict[str, Any]) -> Any | None:
     try:
         return _rpc_call(route, method, params)
     except RpcError as exc:
-        logger.error("tpg_domain %s via JSON-RPC failed: %s", method, exc)
-        _log_rpc_error_data(exc.data)
+        _log_rpc_error(method, exc)
         return None
+
+
+def _log_rpc_error(method: str, exc: RpcError) -> None:
+    logger.error("tpg_domain %s via JSON-RPC failed: %s", method, exc)
+    _log_rpc_error_data(exc.data)
+
+
+def _reasoning_call_error(exc: RpcError) -> ReasoningCallError:
+    data = exc.data if isinstance(exc.data, dict) else {}
+    raw_variables = _find_rpc_event_value(
+        data, event_types={"variables"}, data_keys=("variables",)
+    )
+    variables = (
+        {str(name): _variable_value_to_str(value) for name, value in raw_variables.items()}
+        if isinstance(raw_variables, dict)
+        else {}
+    )
+    return ReasoningCallError(
+        str(exc),
+        exception_name=_optional_str(data.get("exceptionName")),
+        root_cause=_optional_str(data.get("rootCause")),
+        root_cause_message=_optional_str(data.get("rootCauseMessage")),
+        variables=variables,
+        failed_expression=_failed_expression(
+            _find_rpc_event_value(
+                data,
+                event_types={"partialExpressionTrace"},
+                data_keys=("partialExpressionTrace",),
+            )
+        ),
+    )
+
+
+def _failed_expression(partial_trace: Any) -> str | None:
+    # Корень частичной трассы выражения — оператор, при вычислении которого упал рассуждатель.
+    root = partial_trace[0] if isinstance(partial_trace, list) and partial_trace else partial_trace
+    if not isinstance(root, dict) or not isinstance(root.get("expression"), str):
+        return None
+    return root["expression"].replace("\r\n", "\n")
+
+
+def _optional_str(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _log_rpc_error_data(data: Any) -> None:

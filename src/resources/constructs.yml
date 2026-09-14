@@ -437,7 +437,7 @@ func_call_structure:
       identification:
         property_path: 'function / name'
     - role: func
-      kind: compound
+      kind: external
       # identification: func def lookup (see Python code)
       effects:
         - interruption_stop: return

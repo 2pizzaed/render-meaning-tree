@@ -671,19 +671,19 @@ CHECK_CASES: list[Any] = [
     ),
     # --- Java: та же семантика скобок + процедурная точка входа ---
     CheckCase(
-        # Корректный выбор действия ветки после истинного условия
-        # (в Java if_branch — отдельный непрозрачный шаг студента).
-        id="java_correct_branch_action",
+        # После истинного условия прозрачный if_branch проходится автоматически,
+        # а непрозрачный BEGIN блока остаётся шагом студента.
+        id="java_correct_branch_begin",
         language="java",
         code=JAVA_IF_BLOCK,
         advance_to=(2, "first_cond"),
-        action=(2, "if_branch"),
+        action=(2, "BEGIN", "block_structure"),
         expected_skills=("correct_answer",),
         expected_correct=True,
         value_patches=((2, "first_cond", [True]),),
     ),
     CheckCase(
-        # Прыжок в тело ветки мимо if_branch и `{`.
+        # Прыжок в тело ветки мимо `{`.
         id="java_construct_not_entered",
         language="java",
         code=JAVA_IF_BLOCK,

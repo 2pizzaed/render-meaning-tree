@@ -90,6 +90,33 @@ def test_subclass_stage_override_replaces_base_stage():
     assert pipeline.current_result.collect() == ["override", "second", "third"]
 
 
+def test_non_python_rule_patch_makes_compound_actions_transparent():
+    pipeline = DomainDataGeneratorPipeline(Mock(language="c++"))
+    body = ActionDeclaration(role="body", kind="compound")
+    block_begin = ActionDeclaration(role="BEGIN", kind="BEGIN")
+    block_end = ActionDeclaration(role="END", kind="END")
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="while_structure",
+            kind="compound.loop",
+            ast_node="while_loop",
+            actions=[body],
+        ),
+        ConstructDeclaration(
+            name="block_structure",
+            kind="compound.sequence.block",
+            ast_node="compound_statement",
+            actions=[block_begin, block_end],
+        ),
+    ]
+
+    pipeline._patch_rules_for_language()
+
+    assert not body.is_opaque
+    assert block_begin.is_opaque
+    assert block_end.is_opaque
+
+
 def test_fork_uses_can_fork():
     pipeline = RecordingPipeline()
 

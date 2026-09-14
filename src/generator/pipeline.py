@@ -363,10 +363,13 @@ class DomainDataGeneratorPipeline(Pipeline):
             return
 
         for construct in self.registry.rules:
-            if "block" not in construct.kind_classes:
-                continue
             for action in construct.actions:
-                if action.role in {"BEGIN", "END"}:
+                if "compound" in action.kind_classes:
+                    action.opaque = False
+                if (
+                    "block" in construct.kind_classes
+                    and action.role in {"BEGIN", "END"}
+                ):
                     action.opaque = True
 
     def _build_construct(self, ast_id: int, node: Node) -> Construct | None:

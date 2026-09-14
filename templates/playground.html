@@ -63,7 +63,19 @@
             
             <div id="tab-inspector" class="tab-content active">
                 <div id="inspector-header" class="inspector-header">
-                    Selected Token: <span id="selected-token-info" class="selected-token-info">None</span>
+                    <div>
+                        Selected Token: <span id="selected-token-info" class="selected-token-info">None</span>
+                    </div>
+                    {% if source_map %}
+                    <form id="node-id-search-form" class="node-id-search-form" role="search">
+                        <input id="node-id-search-input" type="text" inputmode="numeric" autocomplete="off"
+                               aria-label="Meaning Tree node ID" placeholder="Node ID">
+                        <button type="submit" aria-label="Find node in Source Map"
+                                title="Find node in Source Map">
+                            <i class="ri-search-line" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
                 <div id="node-info-content" class="node-path">
                     <span class="muted-text">Select a token to view hierarchy...</span>

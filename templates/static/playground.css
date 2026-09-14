@@ -152,11 +152,50 @@ button.submit-btn:hover {
     font-weight: bold;
     border-bottom: 1px solid #eee;
     padding-bottom: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .selected-token-info {
     font-weight: normal;
     color: #666;
+}
+
+.node-id-search-form {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+
+.node-id-search-form input {
+    width: 90px;
+    height: 28px;
+    padding: 4px 7px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font: 12px "Consolas", monospace;
+}
+
+.node-id-search-form button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    color: #0066cc;
+    cursor: pointer;
+}
+
+.node-id-search-form button:hover {
+    background: #eef6ff;
+    border-color: #0066cc;
 }
 
 .muted-text {
@@ -168,10 +207,15 @@ button.submit-btn:hover {
     margin-bottom: 4px;
     background: #f8f9fa;
     border-left: 3px solid #ccc;
-    cursor: default;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: space-between;
+}
+
+.node-item:focus-visible {
+    outline: 2px solid #0066cc;
+    outline-offset: 1px;
 }
 
 .node-item .badge {

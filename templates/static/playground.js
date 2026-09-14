@@ -103,13 +103,15 @@ function restoreActiveTab() {
 restoreActiveTab();
 
 // --- Source Map Viewer ---
+let sourceMapEditor = null;
+
 function initializeSourceMapEditor() {
     const container = document.getElementById("source-map-editor");
     if (!container || typeof JSONEditor !== "function" || typeof SOURCE_MAP_DATA === "undefined") {
         return;
     }
 
-    const editor = new JSONEditor(container, {
+    sourceMapEditor = new JSONEditor(container, {
         mode: "view",
         modes: ["view"],
         search: true,
@@ -119,10 +121,94 @@ function initializeSourceMapEditor() {
         enableSort: false,
         enableTransform: false,
     });
-    editor.set(SOURCE_MAP_DATA);
+    sourceMapEditor.set(SOURCE_MAP_DATA);
 }
 
 initializeSourceMapEditor();
+
+function findSourceMapNodePath(value, nodeId, nodeType = null, path = ["origin"]) {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    if (
+        !Array.isArray(value) &&
+        Object.prototype.hasOwnProperty.call(value, "id") &&
+        Object.prototype.hasOwnProperty.call(value, "type") &&
+        String(value.id) === String(nodeId) &&
+        (nodeType === null || value.type === nodeType)
+    ) {
+        return path;
+    }
+
+    const keys = Array.isArray(value) ? value.map((_, index) => index) : Object.keys(value);
+    for (const key of keys) {
+        const childPath = findSourceMapNodePath(value[key], nodeId, nodeType, [...path, key]);
+        if (childPath) {
+            return childPath;
+        }
+    }
+
+    return null;
+}
+
+function navigateToSourceMapNode(nodeId, nodeType = null) {
+    const origin = SOURCE_MAP_DATA?.origin;
+    if (!sourceMapEditor || !origin) {
+        return false;
+    }
+
+    const path = findSourceMapNodePath(origin, nodeId, nodeType);
+    if (!path) {
+        const typeSuffix = nodeType === null ? "" : ` (${nodeType})`;
+        console.warn(`Source map node not found: #${nodeId}${typeSuffix}`);
+        return false;
+    }
+
+    const sourceMapTabButton = document.querySelector("button[data-tab-name='tab-source-map']");
+    if (sourceMapTabButton) {
+        openTab({currentTarget: sourceMapTabButton}, "tab-source-map");
+    }
+
+    sourceMapEditor.expand({path, isExpand: true, recursive: false, withPath: true});
+    sourceMapEditor.setSelection({path});
+
+    requestAnimationFrame(() => {
+        const selectedRow = document.querySelector(
+            "#source-map-editor tr.jsoneditor-selected.jsoneditor-first",
+        );
+        selectedRow?.scrollIntoView({behavior: "smooth", block: "center"});
+    });
+
+    return true;
+}
+
+function initializeNodeIdSearch() {
+    const form = document.getElementById("node-id-search-form");
+    const input = document.getElementById("node-id-search-input");
+    if (!form || !input) {
+        return;
+    }
+
+    input.addEventListener("input", () => input.setCustomValidity(""));
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const nodeId = input.value.trim();
+        if (!nodeId) {
+            input.setCustomValidity("Enter a node ID.");
+            input.reportValidity();
+            return;
+        }
+
+        input.setCustomValidity("");
+        if (!navigateToSourceMapNode(nodeId)) {
+            input.setCustomValidity(`Node #${nodeId} was not found in Source Map.`);
+            input.reportValidity();
+        }
+    });
+}
+
+initializeNodeIdSearch();
 
 // --- Inspector Logic ---
 function handleTokenClick(element) {
@@ -156,7 +242,8 @@ function handleTokenClick(element) {
     }
 
     let html = "";
-    path.reverse().forEach((node, index) => {
+    const hierarchyNodes = path.reverse();
+    hierarchyNodes.forEach((node, index) => {
         const indent = index * 15;
         let badges = `<span class="badge" title="Node ID">#${node.id}</span>`;
 
@@ -174,7 +261,8 @@ function handleTokenClick(element) {
             : "";
 
         html += `
-            <div class="node-item" style="margin-left: ${indent}px">
+            <div class="node-item" style="margin-left: ${indent}px" role="button" tabindex="0"
+                 title="Show this node in Source Map">
                 <div class="main-info">
                     ${fieldStr}
                     <span class="type">${node.type}</span>
@@ -187,6 +275,17 @@ function handleTokenClick(element) {
     });
 
     container.innerHTML = html;
+    container.querySelectorAll(".node-item").forEach((item, index) => {
+        const node = hierarchyNodes[index];
+        const navigate = () => navigateToSourceMapNode(node.id, node.type);
+        item.addEventListener("click", navigate);
+        item.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                navigate();
+            }
+        });
+    });
 }
 
 function handleButtonClick(btn) {

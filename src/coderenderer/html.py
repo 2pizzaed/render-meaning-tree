@@ -9,8 +9,13 @@ from src.ast_managers import CodeManager
 from src.coderenderer.entities import Button, RendererEntity, Token
 from src.coderenderer.injections import ControlFlowButtons
 
+NO_SPACE_BEFORE = frozenset(
+    {"(", ")", ";", ":", ",", ".", "[", "]", "++", "--", "::", "->", ".*", "->*"}
+)
+NO_SPACE_AFTER = frozenset({"(", "[", ".", "::", "->", ".*", "->*"})
 
-def should_add_space(current, nxt) -> bool:
+
+def should_add_space(current: RendererEntity, nxt: RendererEntity) -> bool:
     """
     Определяет, нужно ли вставлять пробел между текущим (current) и следующим (nxt) элементом.
     """
@@ -40,21 +45,23 @@ def should_add_space(current, nxt) -> bool:
     ):
         return True
 
-    if isinstance(nxt, Token) and nxt.value in ("(", ")", ";", ":", ",", ".", "[", "]", "++", "--"):
+    if isinstance(nxt, Token) and nxt.value in NO_SPACE_BEFORE:
         return False
 
-    # 4. Не добавляем пробел после открывающей скобки
-    return not (isinstance(current, Token) and current.value in ("(", "["))
+    # 4. Не добавляем пробел после открывающей скобки или оператора доступа.
+    return not (isinstance(current, Token) and current.value in NO_SPACE_AFTER)
 
 
-def add_spacing_to_stream(stream: Sequence[RendererEntity]) -> list:
+def add_spacing_to_stream(
+    stream: Sequence[RendererEntity],
+) -> list[RendererEntity]:
     """
     Проходит по потоку RendererEntity и вставляет пробельные токены там, где это необходимо.
     """
     if not stream:
         return []
 
-    new_stream = []
+    new_stream: list[RendererEntity] = []
     for i, current_entity in enumerate(stream):
         # Сначала добавляем текущий элемент
         new_stream.append(current_entity)

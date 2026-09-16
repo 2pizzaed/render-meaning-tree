@@ -7,9 +7,11 @@ server documented in ``compph-toolchain-server`` (routes ``/rpc/meaning-tree``, 
 
 from __future__ import annotations
 
+import atexit
 import base64
 import itertools
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,9 @@ MODEL_DIR_EXTENSIONS = frozenset({".loqi", ".xml", ".tpg", ".csv", ".ttl"})
 DEFAULT_TIMEOUT_SECONDS = 600.0
 
 _id_counter = itertools.count(1)
+
+_client: httpx.Client | None = None
+_client_lock = threading.Lock()
 
 
 class RpcError(Exception):
@@ -52,7 +57,7 @@ def call(route: str, method: str, params: dict[str, Any], *, timeout: float = DE
         headers["X-Access-Secret"] = secret
 
     try:
-        response = httpx.post(url, json=request, headers=headers, timeout=timeout)
+        response = _http_client().post(url, json=request, headers=headers, timeout=timeout)
     except httpx.ConnectError as exc:
         raise RpcError(
             f"Could not connect to the toolchain RPC server at {url}.\n"
@@ -78,6 +83,24 @@ def call(route: str, method: str, params: dict[str, Any], *, timeout: float = DE
         message = error.get("message", "unknown error")
         raise RpcError(f"{method} failed: {message}", code=error.get("code"), data=error.get("data"))
     return payload.get("result")
+
+
+def _http_client() -> httpx.Client:
+    """Process-wide HTTP client that keeps connections to the server alive between calls.
+
+    A one-shot ``httpx.post`` builds a new client and TCP connection per call: ~14 ms on
+    ``127.0.0.1`` and ~2 s when ``localhost`` first resolves to an unbound ``::1``.
+    """
+    global _client
+    client = _client
+    if client is None:
+        with _client_lock:
+            client = _client
+            if client is None:
+                client = httpx.Client()
+                atexit.register(client.close)
+                _client = client
+    return client
 
 
 # -- payload builders ---------------------------------------------------------------------------

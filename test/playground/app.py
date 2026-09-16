@@ -144,6 +144,7 @@ def reason_trace():
     ):
         return jsonify({"ok": False, "error": "Trace payload must be a list of strings."}), 400
 
+    reasoning_tmp: Path | None = None
     try:
         manager = prepare_code(
             code,
@@ -169,7 +170,9 @@ def reason_trace():
         )
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"ok": False, "error": format_error(e)}), 500
+        return jsonify(
+            {"ok": False, "error": format_error(e), "loqi": _latest_loqi_text(reasoning_tmp)}
+        ), 500
 
     serialized = serialize_reasoning_result(reasoning.result)
     return jsonify(
@@ -181,6 +184,7 @@ def reason_trace():
                 reasoning.step_index if serialized["status"] != "correct" else None
             ),
             "reasoning": serialized,
+            "loqi": reasoning.loqi_text,
         }
     )
 
@@ -197,6 +201,7 @@ def hint_trace():
     ):
         return jsonify({"ok": False, "error": "Trace payload must be a list of strings."}), 400
 
+    hint_tmp: Path | None = None
     try:
         manager = prepare_code(
             code,
@@ -227,6 +232,7 @@ def hint_trace():
                     {
                         "ok": False,
                         "error": f"Trace is incorrect at step {step}; fix it before requesting a hint.",
+                        "loqi": checked.loqi_text,
                     }
                 ), 409
         hint = find_graph_next_correct_action(
@@ -243,7 +249,9 @@ def hint_trace():
             raise LookupError("findCorrect returned an action without a LOQI name")
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"ok": False, "error": format_error(e)}), 500
+        return jsonify(
+            {"ok": False, "error": format_error(e), "loqi": _latest_loqi_text(hint_tmp)}
+        ), 500
 
     return jsonify(
         {
@@ -251,6 +259,7 @@ def hint_trace():
             "trace": selected_trace,
             "finished": hint.finished,
             "action": action_name,
+            "loqi": hint.output.loqi_text,
         }
     )
 
@@ -458,6 +467,14 @@ def _playground_temp_root() -> Path:
 
 def _playground_temp_dir(prefix: str) -> Path:
     return make_project_temp_dir(prefix, _playground_temp_root())
+
+
+def _latest_loqi_text(directory: Path | None) -> str | None:
+    """LOQI, поданный в reasoner последним: нужен для диагностики упавшего запуска."""
+    if directory is None:
+        return None
+    loqi_files = sorted(directory.glob("*.loqi"), key=lambda path: path.stat().st_mtime)
+    return loqi_files[-1].read_text(encoding="utf-8") if loqi_files else None
 
 
 if __name__ == "__main__":

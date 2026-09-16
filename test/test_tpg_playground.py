@@ -105,6 +105,7 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
         captured["kwargs"] = kwargs
         return SimpleNamespace(
             step_index=len(selected_trace) - 1,
+            loqi_text="obj reason_input : ActionSpec {}",
             result=SimpleNamespace(
                 result=False,
                 exceptions=[],
@@ -155,6 +156,7 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["trace"] == trace
     assert payload["failedStepIndex"] == len(trace) - 1
+    assert payload["loqi"] == "obj reason_input : ActionSpec {}"
     assert payload["reasoning"]["status"] == "error"
     assert payload["reasoning"]["hasException"] is True
     # finalNode несёт полную информацию; отдельных finalNodeId/Type/Line больше нет.
@@ -193,12 +195,20 @@ def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
     trace, hint_name = names[:1], names[1]
 
     def fake_check_graph_stepwise_reasoning(directory, pipeline, selected_trace, **kwargs):  # type: ignore[no-untyped-def]
-        return SimpleNamespace(step_index=len(selected_trace) - 1, result=SimpleNamespace(result=True, exceptions=[]))
+        return SimpleNamespace(
+            step_index=len(selected_trace) - 1,
+            loqi_text="obj check_input : ActionSpec {}",
+            result=SimpleNamespace(result=True, exceptions=[]),
+        )
 
     def fake_find_graph_next_correct_action(directory, pipeline, **kwargs):  # type: ignore[no-untyped-def]
         serializer, _ = registry_to_loqi(pipeline.registry)
         action = None if finished else serializer.object_by_name(hint_name)
-        return SimpleNamespace(action=action, finished=finished)
+        return SimpleNamespace(
+            action=action,
+            finished=finished,
+            output=SimpleNamespace(loqi_text="obj hint_input : ActionSpec {}"),
+        )
 
     monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", fake_check_graph_stepwise_reasoning)
     monkeypatch.setattr(playground_app, "find_graph_next_correct_action", fake_find_graph_next_correct_action)
@@ -217,6 +227,8 @@ def test_hint_trace_returns_next_action_name(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["finished"] is False
     assert payload["action"] == hint_name
+    # LOQI последнего запуска reasoner: findCorrect идёт после пошаговой проверки.
+    assert payload["loqi"] == "obj hint_input : ActionSpec {}"
 
 
 def test_hint_trace_reports_finished_program(monkeypatch) -> None:
@@ -225,3 +237,16 @@ def test_hint_trace_reports_finished_program(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["finished"] is True
     assert payload["action"] is None
+
+
+def test_trace_template_renders_loqi_viewer_only_outside_static_page() -> None:
+    template = playground_app.app.jinja_env.get_template("playground_trace.html")
+    with playground_app.app.app_context():
+        interactive = template.render(static_used=False)
+        static = template.render(static_used=True)
+
+    assert 'id="loqi-button"' in interactive
+    assert 'id="loqi-modal"' in interactive
+    assert 'id="loqi-search-input"' in interactive
+    assert 'id="loqi-button"' not in static
+    assert 'id="loqi-modal"' not in static

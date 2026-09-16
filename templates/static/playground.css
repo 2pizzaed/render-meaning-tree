@@ -621,3 +621,145 @@ button.submit-btn:hover {
     outline: 2px solid #eab308;
     border-radius: 3px;
 }
+
+.loqi-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.loqi-modal.hidden {
+    display: none;
+}
+
+.loqi-modal-dialog {
+    display: flex;
+    flex-direction: column;
+    width: min(1100px, 100%);
+    height: min(85vh, 100%);
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.3);
+    overflow: hidden;
+}
+
+.loqi-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.loqi-modal-title {
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 600;
+    color: #243142;
+    white-space: nowrap;
+}
+
+.loqi-search-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.loqi-search-form input {
+    flex: 1;
+    min-width: 120px;
+    height: 30px;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font: 13px "Consolas", monospace;
+}
+
+.loqi-search-form input:focus {
+    outline: 2px solid #0066cc;
+    outline-offset: -1px;
+}
+
+.loqi-search-status {
+    flex: 0 1 auto;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.loqi-text {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px 0;
+    font: 12px/1.5 "Consolas", monospace;
+    color: #1f2937;
+}
+
+.loqi-line {
+    display: flex;
+    white-space: pre;
+}
+
+.loqi-line-number {
+    flex: 0 0 56px;
+    padding-right: 12px;
+    text-align: right;
+    color: #94a3b8;
+    user-select: none;
+}
+
+.loqi-line-text {
+    padding-right: 12px;
+}
+
+.loqi-line-match {
+    background: #fef9c3;
+}
+
+.loqi-line-current {
+    background: #fde047;
+}
+
+.loqi-ref {
+    color: #0066cc;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(0, 102, 204, 0.35);
+}
+
+.loqi-ref:hover,
+.loqi-ref:focus-visible {
+    background: #eef6ff;
+    border-bottom-color: #0066cc;
+    outline: none;
+}
+
+.loqi-ref-missing {
+    border-bottom: 1px dashed #cbd5e1;
+    cursor: help;
+}
+
+.loqi-line-target {
+    animation: loqi-jump-flash 1.4s ease-out;
+}
+
+@keyframes loqi-jump-flash {
+    from {
+        background: #bfdbfe;
+    }
+    to {
+        background: transparent;
+    }
+}

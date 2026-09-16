@@ -9,6 +9,12 @@
             {% endif %}
         </div>
         <div class="trace-clipboard-actions">
+            {% if not static_used %}
+            <button type="button" id="loqi-button" class="trace-icon-button" onclick="openLoqiModal()" disabled
+                    title="Show LOQI from the last reasoner run" aria-label="Show LOQI from the last reasoner run">
+                <i class="ri-file-code-line" aria-hidden="true"></i>
+            </button>
+            {% endif %}
             <button type="button" class="trace-icon-button" onclick="copyTraceJson()" title="Copy trace JSON" aria-label="Copy trace JSON">
                 <i class="ri-file-copy-line" aria-hidden="true"></i>
             </button>
@@ -24,3 +30,36 @@
         <div id="trace-list" class="trace-list" aria-label="Trace actions"></div>
     </div>
 </div>
+
+{% if not static_used %}
+<div id="loqi-modal" class="loqi-modal hidden" role="dialog" aria-modal="true" aria-labelledby="loqi-modal-title">
+    <div class="loqi-modal-dialog">
+        <div class="loqi-modal-header">
+            <div id="loqi-modal-title" class="loqi-modal-title">LOQI</div>
+            <form id="loqi-search-form" class="loqi-search-form" role="search">
+                <input id="loqi-search-input" type="search" autocomplete="off" spellcheck="false"
+                       placeholder="Class, enum or object name" aria-label="Search LOQI declaration by name">
+                <span id="loqi-search-status" class="loqi-search-status" aria-live="polite"></span>
+                <button type="button" class="trace-icon-button" onclick="stepLoqiMatch(-1)"
+                        title="Previous match (Shift+Enter)" aria-label="Previous match">
+                    <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+                </button>
+                <button type="submit" class="trace-icon-button" title="Next match (Enter)" aria-label="Next match">
+                    <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+                </button>
+            </form>
+            <button type="button" id="loqi-back-button" class="trace-icon-button" onclick="loqiJumpBack()" disabled
+                    title="Back to previous position (Alt+Left)" aria-label="Back to previous position">
+                <i class="ri-arrow-go-back-line" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="trace-icon-button" onclick="copyLoqiText()" title="Copy LOQI" aria-label="Copy LOQI">
+                <i class="ri-file-copy-line" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="trace-icon-button" onclick="closeLoqiModal()" title="Close (Esc)" aria-label="Close">
+                <i class="ri-close-line" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div id="loqi-text" class="loqi-text"></div>
+    </div>
+</div>
+{% endif %}

@@ -5,6 +5,11 @@ var pendingErrorStepIndex = null;
 // Имя действия трассы, чьи кнопки подсвечены во фрагменте кода.
 var highlightedTraceAction = null;
 var traceActionIdsByName = buildTraceActionIdsByName();
+// LOQI, поданный в reasoner последним запуском Reason/Hint.
+var lastReasonerLoqi = null;
+var lastReasonerLoqiSource = "";
+var loqiMatches = [];
+var loqiMatchIndex = -1;
 
 function buildTraceActionIdsByName() {
     const scriptTag = document.getElementById("answer_objects");
@@ -303,6 +308,7 @@ async function reasonTrace() {
             }),
         });
         const payload = await response.json();
+        rememberReasonerLoqi(payload, "Reason");
         setPendingErrorStep(payload.ok ? payload.failedStepIndex : null);
         updateTraceView();
         renderReasoningResult(payload);
@@ -332,6 +338,7 @@ async function requestHint() {
             }),
         });
         const payload = await response.json();
+        rememberReasonerLoqi(payload, "Hint");
         if (!payload.ok) {
             renderReasoningResult(payload);
             return;
@@ -451,4 +458,275 @@ function renderReasoningResult(payload) {
     scrollToReasonStatus();
 }
 
+// --- LOQI Viewer ---
+const LOQI_IDENTIFIER_CHAR = "[A-Za-z0-9_]";
+
+function rememberReasonerLoqi(payload, source) {
+    if (!payload || typeof payload.loqi !== "string") return;
+    lastReasonerLoqi = payload.loqi;
+    lastReasonerLoqiSource = `${source}, ${new Date().toLocaleTimeString()}`;
+    const button = document.getElementById("loqi-button");
+    if (button) button.disabled = false;
+    if (isLoqiModalOpen()) renderLoqiModal();
+}
+
+function isLoqiModalOpen() {
+    const modal = document.getElementById("loqi-modal");
+    return Boolean(modal && !modal.classList.contains("hidden"));
+}
+
+function openLoqiModal() {
+    const modal = document.getElementById("loqi-modal");
+    if (!modal || lastReasonerLoqi === null) return;
+    modal.classList.remove("hidden");
+    renderLoqiModal();
+    const input = document.getElementById("loqi-search-input");
+    input?.focus();
+    input?.select();
+}
+
+function closeLoqiModal() {
+    document.getElementById("loqi-modal")?.classList.add("hidden");
+    document.getElementById("loqi-button")?.focus();
+}
+
+function renderLoqiModal() {
+    const title = document.getElementById("loqi-modal-title");
+    const textBox = document.getElementById("loqi-text");
+    if (!title || !textBox) return;
+    title.textContent = `LOQI (${lastReasonerLoqiSource})`;
+    const lines = (lastReasonerLoqi || "").split("\n").map((line) => line.replace(/\r$/, ""));
+    const declarations = indexLoqiDeclarations(lines);
+    let insideObject = false;
+    textBox.innerHTML = lines.map((line, index) => {
+        let html;
+        if (LOQI_OBJECT_HEADER_RE.test(line)) {
+            html = renderLoqiObjectHeader(line, declarations);
+            insideObject = !/}\s*(\[.*\])?\s*$/.test(line);
+        } else if (insideObject && LOQI_RELATIONSHIP_RE.test(line)) {
+            html = renderLoqiRelationship(line, declarations);
+        } else {
+            html = escapeHtml(line);
+            if (/^\s*}/.test(line)) insideObject = false;
+        }
+        return `<div class="loqi-line"><span class="loqi-line-number">${index + 1}</span>` +
+            `<span class="loqi-line-text">${html || " "}</span></div>`;
+    }).join("");
+    textBox.scrollTop = 0;
+    loqiJumpHistory = [];
+    updateLoqiBackButton();
+    updateLoqiSearch();
+}
+
+// Заголовок объекта (objDecl/varDecl): [var v =] obj name : Type {
+const LOQI_OBJECT_HEADER_RE =
+    /^([ \t]*(?:var[ \t]+[A-Za-z0-9_]+[ \t]*=[ \t]*)?obj[ \t]+[A-Za-z0-9_]+[ \t]*:[ \t]*)([A-Za-z0-9_]+)(.*)$/;
+// Связь внутри тела объекта, как её пишет LoqiRenderer: rel(target1, target2) [ meta ];
+const LOQI_RELATIONSHIP_RE = /^([ \t]+[A-Za-z0-9_]+[ \t]*\()([^()]*)(\).*)$/;
+const LOQI_DECLARATION_NAMES_RE =
+    /^[ \t]*(?:(?:class|enum)[ \t]+([A-Za-z0-9_]+)|(?:var[ \t]+([A-Za-z0-9_]+)[ \t]*=[ \t]*)?obj[ \t]+([A-Za-z0-9_]+)[ \t]*:)/;
+var loqiJumpHistory = [];
+
+// Имя объявления (class, enum, obj, var) → индекс строки заголовка.
+function indexLoqiDeclarations(lines) {
+    const declarations = new Map();
+    lines.forEach((line, index) => {
+        const match = LOQI_DECLARATION_NAMES_RE.exec(line);
+        if (!match) return;
+        for (const name of match.slice(1)) {
+            if (name && !declarations.has(name)) declarations.set(name, index);
+        }
+    });
+    return declarations;
+}
+
+function renderLoqiReference(name, declarations) {
+    const line = declarations.get(name);
+    if (line === undefined) {
+        return `<span class="loqi-ref-missing" title="Not declared in this LOQI">${escapeHtml(name)}</span>`;
+    }
+    return `<a href="#" class="loqi-ref" data-line="${line}" title="Go to ${escapeHtml(name)} (line ${line + 1})">` +
+        `${escapeHtml(name)}</a>`;
+}
+
+function renderLoqiObjectHeader(line, declarations) {
+    const [, head, typeName, tail] = LOQI_OBJECT_HEADER_RE.exec(line);
+    // Классы обычно объявлены в domain.loqi, а не в этом тексте: ссылка только если класс здесь есть.
+    const type = declarations.has(typeName) ? renderLoqiReference(typeName, declarations) : escapeHtml(typeName);
+    return escapeHtml(head) + type + escapeHtml(tail);
+}
+
+function renderLoqiRelationship(line, declarations) {
+    const [, head, targets, tail] = LOQI_RELATIONSHIP_RE.exec(line);
+    const targetsHtml = targets.replace(/[A-Za-z0-9_]+|[^A-Za-z0-9_]+/g, (part) =>
+        /^[A-Za-z0-9_]+$/.test(part) ? renderLoqiReference(part, declarations) : escapeHtml(part)
+    );
+    return escapeHtml(head) + targetsHtml + escapeHtml(tail);
+}
+
+function scrollLoqiToLine(line) {
+    const textBox = document.getElementById("loqi-text");
+    const lineElement = textBox?.children[line];
+    if (!textBox || !lineElement) return;
+    textBox.scrollTop = lineElement.offsetTop - 8;
+}
+
+function jumpToLoqiLine(line) {
+    const textBox = document.getElementById("loqi-text");
+    const lineElement = textBox?.children[line];
+    if (!textBox || !lineElement) return;
+    loqiJumpHistory.push(textBox.scrollTop);
+    updateLoqiBackButton();
+    scrollLoqiToLine(line);
+    textBox.querySelectorAll(".loqi-line-target").forEach((element) => element.classList.remove("loqi-line-target"));
+    // Перезапуск анимации, если переходим на ту же строку повторно.
+    void lineElement.offsetWidth;
+    lineElement.classList.add("loqi-line-target");
+}
+
+function loqiJumpBack() {
+    const textBox = document.getElementById("loqi-text");
+    if (!textBox || loqiJumpHistory.length === 0) return;
+    textBox.scrollTop = loqiJumpHistory.pop();
+    updateLoqiBackButton();
+}
+
+function updateLoqiBackButton() {
+    const button = document.getElementById("loqi-back-button");
+    if (button) button.disabled = loqiJumpHistory.length === 0;
+}
+
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Заголовки верхнеуровневых объявлений LOQI (правила classDecl, enumDecl, objDecl, varDecl):
+//   class Name [: Parent] {    enum Name {    obj name : Type {    var v = obj name : Type {
+// Имя подходит, если содержит запрос как подстроку (без учёта регистра).
+// Члены класса `obj prop x: T` / `obj rel r(...)` не совпадают: после имени нет двоеточия.
+function buildLoqiDeclarationRegex(query) {
+    const name = `${LOQI_IDENTIFIER_CHAR}*${escapeRegExp(query)}${LOQI_IDENTIFIER_CHAR}*`;
+    const identifier = `${LOQI_IDENTIFIER_CHAR}+`;
+    const space = "[ \\t]";
+    return new RegExp(
+        `^${space}*(?:` +
+            `(class|enum)${space}+(${name})(?!${LOQI_IDENTIFIER_CHAR})` +
+            `|(?:var${space}+${identifier}${space}*=${space}*)?(obj)${space}+(${name})${space}*:` +
+            `|(var)${space}+(${name})${space}*=${space}*obj${space}+${identifier}${space}*:` +
+        ")",
+        "gim",
+    );
+}
+
+function findLoqiDeclarations(text, query) {
+    const lineStarts = [0];
+    for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) {
+        lineStarts.push(index + 1);
+    }
+    const lineOf = (offset) => {
+        let low = 0;
+        let high = lineStarts.length - 1;
+        while (low < high) {
+            const middle = (low + high + 1) >> 1;
+            if (lineStarts[middle] <= offset) low = middle; else high = middle - 1;
+        }
+        return low;
+    };
+
+    const matches = [];
+    for (const match of text.matchAll(buildLoqiDeclarationRegex(query))) {
+        const kind = match[1] || match[3] || match[5];
+        const name = match[2] || match[4] || match[6];
+        matches.push({line: lineOf(match.index), kind: kind.toLowerCase(), name});
+    }
+    return matches;
+}
+
+function updateLoqiSearch() {
+    const query = document.getElementById("loqi-search-input")?.value.trim() || "";
+    loqiMatches = query && lastReasonerLoqi ? findLoqiDeclarations(lastReasonerLoqi, query) : [];
+    loqiMatchIndex = loqiMatches.length > 0 ? 0 : -1;
+    showLoqiMatch(query);
+}
+
+function stepLoqiMatch(delta) {
+    if (loqiMatches.length === 0) return;
+    loqiMatchIndex = (loqiMatchIndex + delta + loqiMatches.length) % loqiMatches.length;
+    showLoqiMatch(document.getElementById("loqi-search-input")?.value.trim() || "");
+}
+
+function showLoqiMatch(query) {
+    const textBox = document.getElementById("loqi-text");
+    const status = document.getElementById("loqi-search-status");
+    if (!textBox || !status) return;
+
+    textBox.querySelectorAll(".loqi-line-match, .loqi-line-current").forEach((line) => {
+        line.classList.remove("loqi-line-match", "loqi-line-current");
+    });
+    status.title = "";
+    if (!query) {
+        status.textContent = "";
+        return;
+    }
+    if (loqiMatches.length === 0) {
+        status.textContent = "No declarations";
+        return;
+    }
+
+    const lines = textBox.children;
+    loqiMatches.forEach((match) => lines[match.line]?.classList.add("loqi-line-match"));
+    const current = loqiMatches[loqiMatchIndex];
+    const currentLine = lines[current.line];
+    currentLine?.classList.add("loqi-line-current");
+    status.textContent = `${loqiMatchIndex + 1}/${loqiMatches.length} · ${current.kind} ${current.name}`;
+    status.title = status.textContent;
+    scrollLoqiToLine(current.line);
+}
+
+async function copyLoqiText() {
+    try {
+        await navigator.clipboard.writeText(lastReasonerLoqi || "");
+    } catch (error) {
+        alert(`Could not copy LOQI: ${error}`);
+    }
+}
+
+function initializeLoqiModal() {
+    const modal = document.getElementById("loqi-modal");
+    const form = document.getElementById("loqi-search-form");
+    const input = document.getElementById("loqi-search-input");
+    if (!modal || !form || !input) return;
+
+    input.addEventListener("input", updateLoqiSearch);
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        stepLoqiMatch(1);
+    });
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && event.shiftKey) {
+            event.preventDefault();
+            stepLoqiMatch(-1);
+        }
+    });
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeLoqiModal();
+    });
+    document.getElementById("loqi-text")?.addEventListener("click", (event) => {
+        const reference = event.target.closest(".loqi-ref");
+        if (!reference) return;
+        event.preventDefault();
+        jumpToLoqiLine(Number(reference.dataset.line));
+    });
+    document.addEventListener("keydown", (event) => {
+        if (!isLoqiModalOpen()) return;
+        if (event.key === "Escape") {
+            closeLoqiModal();
+        } else if (event.key === "ArrowLeft" && event.altKey) {
+            event.preventDefault();
+            loqiJumpBack();
+        }
+    });
+}
+
+initializeLoqiModal();
 updateTraceView();

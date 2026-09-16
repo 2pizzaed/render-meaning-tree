@@ -2,6 +2,62 @@ var traceData = [];
 var draggedTraceIndex = null;
 // Индекс шага, который Reason признал ошибочным: следующее действие заменит его.
 var pendingErrorStepIndex = null;
+// Имя действия трассы, чьи кнопки подсвечены во фрагменте кода.
+var highlightedTraceAction = null;
+var traceActionIdsByName = buildTraceActionIdsByName();
+
+function buildTraceActionIdsByName() {
+    const scriptTag = document.getElementById("answer_objects");
+    const idsByName = new Map();
+    try {
+        const answerObjects = scriptTag && scriptTag.textContent.trim() ? JSON.parse(scriptTag.textContent) : {};
+        for (const [actionId, actionName] of Object.entries(answerObjects)) {
+            if (typeof actionName !== "string" || !actionName) continue;
+            if (!idsByName.has(actionName)) idsByName.set(actionName, []);
+            idsByName.get(actionName).push(actionId);
+        }
+    } catch (error) {
+        console.error("Error parsing answer_objects:", error);
+    }
+    return idsByName;
+}
+
+function findCodeButtonsForTraceAction(actionName) {
+    const actionIds = traceActionIdsByName.get(actionName) || [];
+    return Array.from(document.querySelectorAll(".injected-button[data-action-id]"))
+        .filter((button) => actionIds.includes(button.getAttribute("data-action-id")));
+}
+
+function applyTraceHighlight() {
+    document.querySelectorAll(".injected-button.trace-highlighted").forEach((button) => {
+        button.classList.remove("trace-highlighted");
+    });
+    if (highlightedTraceAction === null) return [];
+    const buttons = findCodeButtonsForTraceAction(highlightedTraceAction);
+    buttons.forEach((button) => button.classList.add("trace-highlighted"));
+    return buttons;
+}
+
+function toggleTraceHighlight(actionName) {
+    highlightedTraceAction = highlightedTraceAction === actionName ? null : actionName;
+    const buttons = applyTraceHighlight();
+    updateTraceView();
+    buttons[0]?.scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
+}
+
+function showTraceActionInSourceMap(actionName) {
+    const button = findCodeButtonsForTraceAction(actionName)[0];
+    const nodeId = button?.getAttribute("data-node-id");
+    if (!nodeId) {
+        alert(`No code button found for trace action: ${actionName}`);
+        return;
+    }
+    const nodeType = button.getAttribute("data-node-type") || null;
+    if (!navigateToSourceMapNode(nodeId, nodeType)) {
+        const typeSuffix = nodeType === null ? "" : ` (${nodeType})`;
+        alert(`Node #${nodeId}${typeSuffix} was not found in Source Map.`);
+    }
+}
 
 function setPendingErrorStep(index) {
     pendingErrorStepIndex = Number.isInteger(index) && index >= 0 && index < traceData.length ? index : null;
@@ -60,6 +116,11 @@ function updateTraceView() {
     if (!list) return;
     list.innerHTML = "";
 
+    if (highlightedTraceAction !== null && !traceData.includes(highlightedTraceAction)) {
+        highlightedTraceAction = null;
+        applyTraceHighlight();
+    }
+
     if (traceData.length === 0) {
         const empty = document.createElement("div");
         empty.className = "trace-empty";
@@ -100,7 +161,30 @@ function createTraceItem(traceAction, index) {
     deleteButton.innerHTML = '<i class="ri-close-line" aria-hidden="true"></i>';
     deleteButton.addEventListener("click", () => removeTraceItem(index));
 
-    item.append(handle, label, deleteButton);
+    const hasCodeButton = findCodeButtonsForTraceAction(traceAction).length > 0;
+
+    const highlightButton = document.createElement("button");
+    highlightButton.type = "button";
+    highlightButton.className = traceAction === highlightedTraceAction
+        ? "trace-item-icon-button trace-highlight-button active"
+        : "trace-item-icon-button trace-highlight-button";
+    highlightButton.title = hasCodeButton ? "Highlight action button in code" : "No action button in code";
+    highlightButton.setAttribute("aria-label", "Highlight action button in code");
+    highlightButton.setAttribute("aria-pressed", String(traceAction === highlightedTraceAction));
+    highlightButton.innerHTML = '<i class="ri-mark-pen-line" aria-hidden="true"></i>';
+    highlightButton.disabled = !hasCodeButton;
+    highlightButton.addEventListener("click", () => toggleTraceHighlight(traceAction));
+
+    const treeButton = document.createElement("button");
+    treeButton.type = "button";
+    treeButton.className = "trace-item-icon-button trace-tree-button";
+    treeButton.title = "Show action node in Source Map";
+    treeButton.setAttribute("aria-label", "Show action node in Source Map");
+    treeButton.innerHTML = '<i class="ri-node-tree" aria-hidden="true"></i>';
+    treeButton.disabled = !hasCodeButton || typeof SOURCE_MAP_DATA === "undefined" || !SOURCE_MAP_DATA?.origin;
+    treeButton.addEventListener("click", () => showTraceActionInSourceMap(traceAction));
+
+    item.append(handle, label, highlightButton, treeButton, deleteButton);
     item.addEventListener("dragstart", handleTraceDragStart);
     item.addEventListener("dragend", handleTraceDragEnd);
     item.addEventListener("dragover", handleTraceDragOver);

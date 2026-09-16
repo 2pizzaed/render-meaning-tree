@@ -531,7 +531,7 @@ button.submit-btn:hover {
 
 .trace-item {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 28px;
+    grid-template-columns: 28px minmax(0, 1fr) 28px 28px 28px;
     align-items: center;
     gap: 8px;
     min-height: 36px;
@@ -584,4 +584,40 @@ button.submit-btn:hover {
 
 .trace-delete-button:hover {
     background: #ffe4e6;
+}
+
+.trace-item-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.trace-item-icon-button:hover {
+    background: #eef2f7;
+}
+
+.trace-item-icon-button:disabled {
+    color: #cbd5e1;
+    background: transparent;
+    cursor: not-allowed;
+}
+
+.trace-highlight-button.active {
+    color: #854d0e;
+    background: #fef08a;
+}
+
+.injected-button.trace-highlighted {
+    background-color: #fde047;
+    outline: 2px solid #eab308;
+    border-radius: 3px;
 }

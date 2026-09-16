@@ -123,7 +123,11 @@
             {% for entity in line %}
                 {% if entity.__class__.__name__ == 'Button' %}
                     <button class="injected-button {{ entity.style }} {{ entity.type }} {{ entity.css_classes|join(' ') }}"
+                            {% if entity.tooltip %}
                             title="{{ entity.tooltip }}"
+                            {% elif not static_used and entity.attrs.get('node-id') is not none %}
+                            title="Node #{{ entity.attrs['node-id'] }} ({{ entity.attrs.get('node-type') }}), action #{{ entity.attrs.get('action-id') }}"
+                            {% endif %}
                             style="{{ entity.css_style }}"
                             {% for k, v in entity.attrs.items() %}
                                 data-{{ k }}="{{ v }}"

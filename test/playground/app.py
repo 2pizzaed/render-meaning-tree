@@ -34,6 +34,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"
 PLAYGROUND_REASON_TREE: str | None = None
 PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
+PLAYGROUND_SNIPPETS_DIR = PROJECT_ROOT / "test" / "data"
+# Расширение файла примера → исходный язык playground.
+SNIPPET_LANGUAGES_BY_SUFFIX: dict[str, SupportedProgrammingLanguage] = {
+    ".java": "java",
+    ".py": "python",
+    ".cpp": "c++",
+    ".cc": "c++",
+    ".cxx": "c++",
+    ".hpp": "c++",
+    ".hh": "c++",
+    ".h": "c++",
+}
 
 template_dir = (Path(__file__).parent / "../../templates").absolute()
 app = Flask(
@@ -42,6 +54,7 @@ app = Flask(
     static_folder=template_dir / "static",
     static_url_path="/static",
 )
+app.config["SNIPPETS_DIR"] = PLAYGROUND_SNIPPETS_DIR
 
 LANGUAGE_OPTIONS: tuple[tuple[SupportedProgrammingLanguage, str], ...] = (
     ("java", "Java"),
@@ -124,12 +137,62 @@ def index():
     context.setdefault("target_language", target_language)
     context.setdefault("enable_trace", enable_trace)
     context["language_options"] = LANGUAGE_OPTIONS
+    context["snippet"] = request.form.get("snippet", "") if request.method == "POST" else ""
+    context["snippet_options"] = list_snippet_files(_snippets_dir())
 
     return render_template(
         "playground.html",
         error=error,
         **context,  # Распаковываем словарь контекста в аргументы шаблона
     )
+
+
+@app.get("/snippet")
+def snippet():
+    relative_path = request.args.get("path", "")
+    snippet_file = resolve_snippet_file(_snippets_dir(), relative_path)
+    if snippet_file is None:
+        return jsonify({"ok": False, "error": f"Snippet not found: {relative_path}"}), 404
+    try:
+        code = snippet_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return jsonify({"ok": False, "error": format_error(e)}), 500
+    return jsonify(
+        {
+            "ok": True,
+            "path": relative_path,
+            "code": code,
+            "language": SNIPPET_LANGUAGES_BY_SUFFIX[snippet_file.suffix.lower()],
+        }
+    )
+
+
+def list_snippet_files(root: Path) -> list[str]:
+    """Пути примеров относительно root (через `/`), язык которых определяется по расширению."""
+    if not root.is_dir():
+        return []
+    return sorted(
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in SNIPPET_LANGUAGES_BY_SUFFIX
+    )
+
+
+def resolve_snippet_file(root: Path, relative_path: str) -> Path | None:
+    if not relative_path:
+        return None
+    root = root.resolve()
+    candidate = (root / relative_path).resolve()
+    # Не выпускаем запрос за пределы папки примеров (../, абсолютные пути).
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        return None
+    if candidate.suffix.lower() not in SNIPPET_LANGUAGES_BY_SUFFIX:
+        return None
+    return candidate
+
+
+def _snippets_dir() -> Path:
+    return Path(app.config["SNIPPETS_DIR"])
 
 
 @app.post("/reason-trace")
@@ -299,6 +362,7 @@ def tracing():
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    app.config["SNIPPETS_DIR"] = args.snippets_dir
     app.run(host=args.host, port=args.port, debug=args.debug)
     return 0
 
@@ -455,6 +519,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Enable or disable Flask debug mode.",
+    )
+    parser.add_argument(
+        "--snippets-dir",
+        type=Path,
+        default=PLAYGROUND_SNIPPETS_DIR,
+        help="Directory with code examples (searched recursively; language is taken from the file extension).",
     )
     return parser.parse_args(argv)
 

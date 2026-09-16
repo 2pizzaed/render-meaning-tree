@@ -22,6 +22,7 @@ body {
     padding: 20px;
     box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
     z-index: 10;
+    overflow-y: auto;
 }
 
 .form-group {
@@ -768,4 +769,68 @@ button.submit-btn:hover {
     width: auto;
     padding: 0 8px;
     font: 600 11px "Consolas", monospace;
+}
+
+.snippet-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font: 13px "Consolas", monospace;
+}
+
+.snippet-status {
+    min-height: 0;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.snippet-status:empty {
+    display: none;
+}
+
+.snippet-status.error {
+    color: #c62828;
+}
+
+/* Форма занимает всю высоту панели, чтобы выбор примера прижимался к низу. */
+.render-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+}
+
+.render-form .snippet-group {
+    margin-top: auto;
+    margin-bottom: 0;
+    padding-top: 15px;
+}
+
+/* Акцентный цвет jsoneditor (#3883fa) — как у кнопки Render. */
+.jsoneditor {
+    border-color: #0066cc;
+}
+
+.jsoneditor-menu {
+    background-color: #0066cc;
+    border-bottom-color: #0066cc;
+}
+
+.jsoneditor-modal .pico-modal-header {
+    background: #0066cc;
+}
+
+.jsoneditor-modal a {
+    color: #0066cc;
+}
+
+.jsoneditor-modal .selectr-selected .selectr-tag {
+    background-color: #0066cc;
+}
+
+.jsoneditor-modal .jsoneditor-button-group.jsoneditor-button-group-value-asc input.jsoneditor-button-asc,
+.jsoneditor-modal .jsoneditor-button-group.jsoneditor-button-group-value-desc input.jsoneditor-button-desc {
+    background: #0066cc;
+    border-color: #0066cc;
 }

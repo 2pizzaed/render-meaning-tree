@@ -250,3 +250,42 @@ def test_trace_template_renders_loqi_viewer_only_outside_static_page() -> None:
     assert 'id="loqi-search-input"' in interactive
     assert 'id="loqi-button"' not in static
     assert 'id="loqi-modal"' not in static
+
+
+def test_snippet_endpoint_loads_code_and_language_from_extension(tmp_path, monkeypatch) -> None:
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "Loop.java").write_text("class Loop {}", encoding="utf-8")
+    (tmp_path / "sum.py").write_text("x = 1", encoding="utf-8")
+    (tmp_path / "main.cpp").write_text("int main() {}", encoding="utf-8")
+    (tmp_path / "notes.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setitem(playground_app.app.config, "SNIPPETS_DIR", tmp_path)
+
+    assert playground_app.list_snippet_files(tmp_path) == ["main.cpp", "nested/Loop.java", "sum.py"]
+
+    client = playground_app.app.test_client()
+    response = client.get("/snippet", query_string={"path": "nested/Loop.java"})
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "path": "nested/Loop.java",
+        "code": "class Loop {}",
+        "language": "java",
+    }
+    assert client.get("/snippet", query_string={"path": "main.cpp"}).get_json()["language"] == "c++"
+
+    index = client.get("/")
+    assert b'<option value="nested/Loop.java">' in index.data
+
+
+def test_snippet_endpoint_rejects_paths_outside_directory_and_unknown_extensions(tmp_path, monkeypatch) -> None:
+    snippets = tmp_path / "snippets"
+    snippets.mkdir()
+    (snippets / "notes.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "secret.py").write_text("token = 1", encoding="utf-8")
+    monkeypatch.setitem(playground_app.app.config, "SNIPPETS_DIR", snippets)
+
+    client = playground_app.app.test_client()
+    for path in ["../secret.py", str(tmp_path / "secret.py"), "notes.json", "missing.py", ""]:
+        response = client.get("/snippet", query_string={"path": path})
+        assert response.status_code == 404, path
+        assert response.get_json()["ok"] is False

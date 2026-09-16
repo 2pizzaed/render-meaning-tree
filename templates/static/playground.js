@@ -68,6 +68,55 @@ if (renderTargetLanguageSelect) {
     });
 }
 
+// --- Code Examples ---
+const snippetInput = renderForm?.querySelector('input[name="snippet"]');
+const snippetStatus = document.getElementById("snippet-status");
+let loadedSnippetPath = snippetInput?.value || "";
+
+function isKnownSnippet(path) {
+    return Array.from(snippetInput?.list?.options || []).some((option) => option.value === path);
+}
+
+async function loadSnippet(path) {
+    if (!renderCodeTextarea || !renderLanguageSelect) return;
+    snippetStatus.textContent = "Loading...";
+    snippetStatus.classList.remove("error");
+    try {
+        const response = await fetch(`/snippet?path=${encodeURIComponent(path)}`);
+        const payload = await response.json();
+        if (!payload.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        renderCodeTextarea.value = payload.code;
+        renderLanguageSelect.value = payload.language;
+        storeValue(RENDER_CODE_STORAGE_KEY, payload.code);
+        storeValue(RENDER_LANGUAGE_STORAGE_KEY, payload.language);
+        loadedSnippetPath = path;
+        snippetStatus.textContent = "";
+    } catch (error) {
+        snippetStatus.textContent = `Could not load example: ${error.message || error}`;
+        snippetStatus.classList.add("error");
+    }
+}
+
+if (snippetInput && snippetStatus) {
+    // Выбор из списка (или точный ввод пути) сразу загружает файл.
+    snippetInput.addEventListener("input", () => {
+        const path = snippetInput.value;
+        if (path !== loadedSnippetPath && isKnownSnippet(path)) {
+            loadSnippet(path);
+        }
+    });
+    snippetInput.addEventListener("keydown", (event) => {
+        // Enter не отправляет форму: он только подтверждает выбор примера.
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        if (isKnownSnippet(snippetInput.value)) {
+            loadSnippet(snippetInput.value);
+        }
+    });
+}
+
 // --- Tabs Logic ---
 function openTab(evt, tabName) {
     var i, tabcontent, tablinks;

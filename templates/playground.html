@@ -14,7 +14,7 @@
     {% if not static_used %}
     <div class="sidebar">
         <h3>Playground</h3>
-        <form method="POST" action="/">
+        <form method="POST" action="/" class="render-form">
             <div class="form-group">
                 <label>Language</label>
                 <select name="language">
@@ -37,6 +37,20 @@
                 </select>
             </div>
             <button type="submit" class="submit-btn">Render</button>
+            {% if snippet_options %}
+            <div class="form-group snippet-group">
+                <label for="snippet-input">Example</label>
+                <div id="snippet-status" class="snippet-status" aria-live="polite"></div>
+                <input id="snippet-input" class="snippet-input" name="snippet" type="text" list="snippet-options"
+                       value="{{ snippet|default('') }}" autocomplete="off" spellcheck="false"
+                       placeholder="Type to search {{ snippet_options|length }} files">
+                <datalist id="snippet-options">
+                    {% for snippet_path in snippet_options %}
+                    <option value="{{ snippet_path }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            {% endif %}
         </form>
     </div>
     {% endif %}

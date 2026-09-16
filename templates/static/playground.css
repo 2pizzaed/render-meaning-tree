@@ -763,3 +763,9 @@ button.submit-btn:hover {
         background: transparent;
     }
 }
+
+.node-id-search-form button.source-map-json-button {
+    width: auto;
+    padding: 0 8px;
+    font: 600 11px "Consolas", monospace;
+}

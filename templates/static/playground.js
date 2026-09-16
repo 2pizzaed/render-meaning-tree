@@ -126,6 +126,21 @@ function initializeSourceMapEditor() {
 
 initializeSourceMapEditor();
 
+function openSourceMapJson() {
+    if (typeof SOURCE_MAP_DATA === "undefined" || SOURCE_MAP_DATA === null) {
+        return;
+    }
+    // Blob с типом application/json браузер показывает как сырой текст в новой вкладке.
+    const blob = new Blob([JSON.stringify(SOURCE_MAP_DATA, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const tab = window.open(url, "_blank");
+    if (!tab) {
+        alert("Could not open a new tab: the browser blocked the popup.");
+    }
+    // Вкладка успевает загрузить документ; ссылку освобождаем позже.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 function findSourceMapNodePath(value, nodeId, nodeType = null, path = ["origin"]) {
     if (!value || typeof value !== "object") {
         return null;

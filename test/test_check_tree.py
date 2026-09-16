@@ -154,6 +154,26 @@ a = f(1)
 b = f(2)
 """
 
+CALL_AFTER_STATEMENT = """
+def g(x):
+    return x * 2
+
+a = 1
+x = g(a)
+print(x)
+"""
+
+NESTED_CALL_AFTER_STATEMENT = """
+def f(x):
+    x = x + 1
+    return g(x)
+
+def g(x):
+    return x * 2
+
+y = f(1)
+"""
+
 IF_CONDITION_CALL = """
 def f(x):
     return x
@@ -475,6 +495,27 @@ CHECK_CASES: list[Any] = [
         action=(2, "first"),
         expected_skills=("function_already_exited",),
     ),
+    CheckCase(
+        # Выход из вызова, стоящего не первым оператором блока: роль P на уровне
+        # вызывающего блока берётся по стеку вызовов, а не BEGIN блока.
+        id="function_exit_call_after_statement",
+        language="python",
+        code=CALL_AFTER_STATEMENT,
+        advance_to=(2, "first"),
+        action=(6, "END", "func_call_structure"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # То же для вложенного вызова: g вызывается вторым оператором тела f.
+        id="function_exit_nested_call_after_statement",
+        language="python",
+        code=NESTED_CALL_AFTER_STATEMENT,
+        advance_to=(7, "first"),
+        action=(3, "END", "func_call_structure"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
     # --- Вызов внутри условия (preorder) ---
     CheckCase(
         # Условие с вызовом вычисляется ПОСЛЕ возврата из вызова: отложенное
@@ -602,28 +643,17 @@ CHECK_CASES: list[Any] = [
         expected_skills=("correct_answer",),
         expected_correct=True,
     ),
-    pytest.param(
-        CheckCase(
-            # Выход из второго вызова после return: эталонный findCorrect ставит
-            # END вызова следующим шагом, а граф проверок возвращает actions_skipped.
-            # Выход из первого вызова того же кода проходит; выход из второго вызова
-            # TWO_SEQUENTIAL_CALLS (без значений условий) тоже ломается — похоже на
-            # ограничение main.tpg для повторных активаций функции, не связанное
-            # со сбросом used.
-            id="function_repeated_call_exit",
-            language="python",
-            code=FACTORIAL_REPEATED_CALL,
-            advance_to=(5, "next"),
-            advance_occurrence=2,
-            action=(10, "END", "func_call_structure"),
-            expected_skills=("correct_answer",),
-            expected_correct=True,
-        ),
+    CheckCase(
+        # Выход из второго вызова после return: вызов стоит не первым оператором
+        # глобального блока, роль P на этом уровне берётся по стеку вызовов.
         id="function_repeated_call_exit",
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="main.tpg: выход из повторной активации функции даёт actions_skipped",
-        ),
+        language="python",
+        code=FACTORIAL_REPEATED_CALL,
+        advance_to=(5, "next"),
+        advance_occurrence=2,
+        action=(10, "END", "func_call_structure"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
     ),
     CheckCase(
         # Условие вложенного if на второй итерации тела цикла.

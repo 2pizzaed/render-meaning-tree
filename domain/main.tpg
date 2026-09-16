@@ -154,6 +154,33 @@ lambda hasContainingAction(target: ConcreteAction, C: ConcreteConstruct) = forAn
 lambda roleActionOf(target: ConcreteAction, C: ConcreteConstruct) =
     hasContainingAction(target, C) ? containingAction(target, C) : beginActionOf(C);
 
+// Последний акт трассы, находящийся внутри конструкта C (на любом уровне вложенности).
+// Условие повторяет hasContainingAction с собственными именами переменных:
+// лямбды подставляются inline, и вложенный вызов затенил бы переменную d.
+lambda lastActInside(C: ConcreteConstruct) = findExtreme latest [
+    not $latest=>beforeOf($t)
+] among TraceAct t {
+    forAny ConcreteAction inner {
+        $inner->belongsTo == C and (
+            $inner == $t->hasAction or
+            forAny ConcreteConstruct innerCc {
+                $innerCc != C and
+                $innerCc.ast_id == $inner.ast_id and
+                isAncestorOrSelf($t->hasAction->belongsTo, $innerCc)
+            }
+        )
+    }
+};
+
+// Роль уровня C для последнего корректного действия с учётом стека вызовов.
+// Если действие статически вне C, но C ещё открыт, выполнение находится в теле
+// функции, вызванной из C: роль — действие C, из которого раскрыт этот вызов
+// (по последнему акту трассы внутри C), а не BEGIN конструкта C.
+lambda currentRoleActionOf(target: ConcreteAction, C: ConcreteConstruct) =
+    hasContainingAction(target, C) ? containingAction(target, C) : (
+        isConstructOpen(C) ? containingAction(lastActInside(C)->hasAction, C) : beginActionOf(C)
+    );
+
 // Последний акт трассы для конкретного действия D (текущая активация:
 // при повторных входах в конструкты/функции интересен именно последний акт).
 lambda lastActOf(D: ConcreteAction) = findExtreme latest [
@@ -484,9 +511,9 @@ fragment autoPassedRefinement() {
 // если все критерии пройдены — conclude: correct для этого уровня.
 fragment checkLevel(C: ConcreteConstruct) {
     // 5.1.1: роль выбранного студентом действия A на уровне C
-    var Da: ConcreteAction = roleActionOf(A, C);
+    var Da: ConcreteAction = currentRoleActionOf(A, C);
     // 5.1.2: роль предыдущего корректного действия P на уровне C (или BEGIN, если P вне C)
-    var Dp: ConcreteAction = roleActionOf(P->hasAction, C);
+    var Dp: ConcreteAction = currentRoleActionOf(P->hasAction, C);
 
     // --- Вырожденный случай: роли совпали ---
     ask (Dp == Da) out false else {

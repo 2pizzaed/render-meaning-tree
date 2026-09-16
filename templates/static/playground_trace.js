@@ -356,6 +356,12 @@ function renderHintResult(status, message) {
     if (!statusBox) return;
     statusBox.className = `reason-alert ${status}`;
     statusBox.textContent = message;
+    scrollToReasonStatus();
+}
+
+function scrollToReasonStatus() {
+    // Сообщение стоит первым в прокручиваемой области трассы.
+    document.querySelector(".trace-workspace")?.scrollTo({top: 0, behavior: "smooth"});
 }
 
 function openCorrectTrace() {
@@ -392,6 +398,7 @@ function renderReasoningResult(payload) {
     if (!payload.ok) {
         statusBox.className = "reason-alert error";
         statusBox.textContent = payload.error || "Reasoning failed.";
+        scrollToReasonStatus();
         return;
     }
 
@@ -441,6 +448,7 @@ function renderReasoningResult(payload) {
             entries.map(([name, value]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(String(value))}</td></tr>`).join("")
         }</tbody></table>`;
     }
+    scrollToReasonStatus();
 }
 
 updateTraceView();

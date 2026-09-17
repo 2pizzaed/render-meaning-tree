@@ -254,6 +254,30 @@ lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction) =
     not fromA=>hasValue() or
     findUnusedValue(fromA).bool_value == t->hasConstraints.condition_value;
 
+// Роли fromA и toA — альтернативные ветви конструкта C: из каждой ведёт переход
+// прямо в END конструкта (ветви ветвления), поэтому одна исключает другую.
+lambda branchAlternatives(fromA: ConcreteAction, toA: ConcreteAction, C: ConcreteConstruct) =
+    forAny TransitionSpec t1 {
+        $t1->belongsTo == C->derivedFrom and
+        $t1->from_ == fromA->derivedFrom and
+        $t1->to_.role == "END"
+    } and
+    forAny TransitionSpec t2 {
+        $t2->belongsTo == C->derivedFrom and
+        $t2->from_ == toA->derivedFrom and
+        $t2->to_.role == "END"
+    };
+
+// Непрозрачное действие D уровня C всё равно проходится автоматически, если раскрывает
+// (не preorder) конструкт с прозрачным BEGIN: findCorrect добавляет D вместе с этим BEGIN
+// (classifyAction -> unfoldNewConstruct), поэтому D — не шаг студента.
+lambda autoPassedByUnfold(D: ConcreteAction, C: ConcreteConstruct) = forAny ConcreteConstruct cc {
+    $cc != C and
+    $cc.ast_id == D.ast_id and
+    not $cc->derivedFrom.preorder and
+    not beginActionOf($cc)->derivedFrom.is_opaque
+};
+
 // --- preorder-конструкты (раскрытие предшествует породившему действию) ---------
 
 // Действие, из которого раскрывается конструкт C (связь по ast_id, как в containingAction).
@@ -305,6 +329,15 @@ lambda isClosedBefore(C: ConcreteConstruct, E: TraceAct) = forAny TraceAct e {
         $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
         $b=>afterOf($e) and $b=>beforeOf(E)
     }
+};
+
+// Действие D ещё ждёт своей очереди: раскрытый из него preorder-конструкт (вызов)
+// сейчас выполняется, а акт самого D появится только после END этого конструкта.
+lambda awaitsUnfoldedConstruct(D: ConcreteAction, C: ConcreteConstruct) = forAny ConcreteConstruct cc {
+    $cc != C and
+    $cc.ast_id == D.ast_id and
+    $cc->derivedFrom.preorder and
+    isConstructOpen($cc)
 };
 
 // Раскрытый из акта E конструкт C завершён (с учётом порядка раскрытия).
@@ -480,7 +513,11 @@ fragment autoPassedRefinement() {
         $t=>afterOf(P0) and (
             (
                 $t->hasAction->derivedFrom.role == "END" and
-                isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo)
+                isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo) and
+                // выход именно по значению условия, а не естественное завершение тела
+                $t=>hasTransition() and
+                $t->hasTransition=>hasConstraints() and
+                $t->hasTransition->hasConstraints.condition_value != OptionalBool:`null`
             ) or (
                 $t->hasAction->derivedFrom.role == "BEGIN" and
                 $t->hasAction.ast_id != A.ast_id and
@@ -555,159 +592,191 @@ fragment checkLevel(C: ConcreteConstruct) {
         conclude: correct;
     };
 
-    // --- Критерий: вход в конструкт C ещё не совершён ---
-    // Если P вне C, вход достроится автоматически только при прозрачном BEGIN.
-    ask (
-        hasContainingAction(P->hasAction, C) or
-        not beginActionOf(C)->derivedFrom.is_opaque
-    ) out true else {
-        conclude: error [
-            skill = "construct_not_entered" ;
-            RU.explanation = "Нельзя выполнить это действие: сначала нужно войти в конструкцию, в которой оно находится." ;
-            EN.explanation = "This action cannot be performed: the construct that contains it must be entered first." ;
-        ];
-    };
-
-    // --- Критерий: пропуск непрозрачного промежуточного действия уровня C ---
-    // Если D_a — не само A, оно достроится автоматически, только будучи прозрачным
-    // либо уже выполненным в текущем контексте (после последнего акта D_p).
-    ask (
-        Da == A or
-        not Da->derivedFrom.is_opaque or
-        actAlreadyCurrent(Da, Dp) or
-        // D_a раскрывает preorder-конструкт, внутри которого находится A:
-        // само D_a выполняется ПОСЛЕ этого конструкта, пропуска нет
-        isDeferredUnfoldAction(Da, A)
-    ) out true else {
-        conclude: error [
-            skill = "intermediate_action_skipped" ;
-            RU.explanation = "Нельзя выполнить это действие: пропущено действие, которое должно быть выполнено перед ним." ;
-            EN.explanation = "This action cannot be performed: an action that must be performed before it was skipped." ;
-        ];
-    };
-
-    // --- Критерий 5.2/5.3.1: наличие перехода D_p -> D_a (без учёта ограничений) ---
-    ask (forAny TransitionSpec t {
-        transitionLeads($t, Dp, Da, C)
-    }) out true else {
-        // классифицируем по порядку конкретных действий в цепочке (авто-уход
-        // вперёд уже исключён ранним вызовом autoPassedRefinement)
-        ask (Da=>beforeOf(Dp) and not actAlreadyCurrent(Da, Dp)) out false else {
-            conclude: error [
-                skill = "action_already_passed" ;
-                RU.explanation = "Нельзя выполнить это действие: оно уже позади по ходу выполнения, вернуться к нему нельзя." ;
-                EN.explanation = "This action cannot be performed: execution has already passed it, and it cannot be returned to." ;
-            ];
-        };
-        ask (Da=>afterOf(Dp)) out false else {
-            conclude: error [
-                skill = "actions_skipped" ;
-                RU.explanation = "Нельзя выполнить это действие: перед ним есть невыполненные действия, которые нельзя пропустить." ;
-                EN.explanation = "This action cannot be performed: there are earlier actions that have not been performed and cannot be skipped." ;
-            ];
-        };
-        conclude: error [
-            skill = "no_transition" ;
-            RU.explanation = "Нельзя выполнить это действие: переход к нему из текущей точки выполнения не предусмотрен." ;
-            EN.explanation = "This action cannot be performed: there is no transition to it from the current point of execution." ;
-        ];
-    };
-
-    // --- Критерий 5.2: порядок конкретных действий (переходы «в себя» и цепочки) ---
-    // Если целевая роль повторяется в цепочке однотипных действий, D_a должно быть
-    // ближайшим подходящим после D_p (зеркало поиска N в findCorrect); назад — только
-    // если впереди подходящих действий нет либо D_a уже пройдено в текущем контексте.
-    ask (
-        not Dp=>directlyBeforeOf() or
-        actAlreadyCurrent(Da, Dp) or
-        (
-            Da=>afterOf(Dp) and
-            not forAny ConcreteAction mid {
-                $mid != Da and
-                $mid->derivedFrom == Da->derivedFrom and
-                $mid->belongsTo == C and
-                $mid=>afterOf(Dp) and
-                Da=>afterOf($mid)
-            }
-        ) or
-        (
-            not forAny ConcreteAction fwd {
-                $fwd->derivedFrom == Da->derivedFrom and
-                $fwd->belongsTo == C and
-                $fwd=>afterOf(Dp)
-            }
-        )
-    ) out true else {
-        conclude: error [
-            skill = "actions_order_violated" ;
-            RU.explanation = "Нельзя выполнить это действие: нарушен порядок — должно быть выполнено более близкое действие той же роли." ;
-            EN.explanation = "This action cannot be performed: the order is violated — a closer action of the same role must be performed instead." ;
-        ];
-    };
-
-    // --- Критерий 5.2: ограничение режима прерывания ---
-    ask (forAny TransitionSpec t {
-        transitionLeads($t, Dp, Da, C) and
-        interruptionOk($t, S)
-    }) out true else {
-        conclude: error [
-            skill = "interruption_not_considered" ;
-            RU.explanation = "Нельзя выполнить это действие: не учтено текущее прерывание, меняющее обычный порядок выполнения." ;
-            EN.explanation = "This action cannot be performed: the active interruption that changes the usual execution order is not taken into account." ;
-        ];
-    };
-
-    // --- Критерий 5.2: ограничение значения условия ---
-    ask (forAny TransitionSpec t {
-        transitionLeads($t, Dp, Da, C) and
-        interruptionOk($t, S) and
-        conditionOk($t, Dp)
-    }) out true else {
-        conclude: error [
-            skill = "condition_value_not_considered" ;
-            RU.explanation = "Нельзя выполнить это действие: не учтено вычисленное значение условия." ;
-            EN.explanation = "This action cannot be performed: the evaluated value of the condition is not taken into account." ;
-        ];
-    };
-
-    // --- Критерий 5.3.2.1: конструкт, раскрытый из D_p, должен быть завершён ---
-    var Dcc: ConcreteConstruct = find ConcreteConstruct cc {
-        $cc != C and
-        $cc.ast_id == Dp.ast_id
-    } {
-        false -> {
-            // D_p атомарно — все критерии уровня пройдены
-            conclude: correct;
-        }
-        true -> {
-            var DpAct: TraceAct = lastActOf(Dp) out true else {
-                // для preorder-конструкта акт D_p появляется только после его END,
-                // поэтому отсутствие акта означает "конструкт ещё выполняется"
-                ask (Dcc->derivedFrom.preorder) {
-                    true -> {
-                        conclude: error [
-                            skill = "construct_not_closed" ;
-                            RU.explanation = "Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." ;
-                            EN.explanation = "This action cannot be performed: the previous construct is not finished yet (or has not started)." ;
-                        ];
-                    }
-                    false -> {
-                        conclude: error [ exception = true; exceptionName = "NoActForRoleAction"; ];
-                    }
-                };
+    // Независимые необходимые условия уровня — агрегация AND, при нарушении
+    // нескольких студент получает все объяснения:
+    //   - вход в конструкт C (BEGIN C);
+    //   - путь D_p -> D_a: пропуск шага D_a, затем цепочка уточняющих фильтров
+    //     перехода (пропуск D_a и отсутствие перехода описывают один прыжок,
+    //     поэтому внутри ветви они остаются последовательными);
+    //   - завершённость конструкта, раскрытого из D_p.
+    agg and {
+        levelEntered -> {
+            // --- Критерий: вход в конструкт C ещё не совершён ---
+            // Если P вне C, вход достроится автоматически только при прозрачном BEGIN.
+            ask (
+                hasContainingAction(P->hasAction, C) or
+                not beginActionOf(C)->derivedFrom.is_opaque
+            ) out true else {
+                conclude: error [
+                    skill = "construct_not_entered" ;
+                    RU.explanation = "Нельзя выполнить это действие: сначала нужно войти в конструкцию, в которой оно находится." ;
+                    EN.explanation = "This action cannot be performed: the construct that contains it must be entered first." ;
+                ];
             };
-            ask (unfoldedConstructFinished(Dcc, DpAct)) {
-                true -> { conclude: correct; }
-                false -> {
+            conclude: correct;
+        };
+        transitionFromDp -> {
+            // --- Критерий: пропуск непрозрачного промежуточного действия уровня C ---
+            // Если D_a — не само A, оно достроится автоматически, если не является шагом студента
+            // либо уже выполненным в текущем контексте (после последнего акта D_p).
+            ask (
+                Da == A or
+                not Da->derivedFrom.is_opaque or
+                // непрозрачное D_a, раскрывающее конструкт с прозрачным BEGIN, findCorrect
+                // проходит сам (classifyAction/unfoldNewConstruct) — это не шаг студента
+                autoPassedByUnfold(Da, C) or
+                actAlreadyCurrent(Da, Dp) or
+                // D_a позади D_p по цепочке — это не пропуск вперёд, а возврат назад:
+                // его классифицирует критерий наличия перехода
+                Da=>beforeOf(Dp) or
+                // D_a раскрывает preorder-конструкт, внутри которого находится A:
+                // само D_a выполняется ПОСЛЕ этого конструкта, пропуска нет
+                isDeferredUnfoldAction(Da, A)
+            ) out true else {
+                conclude: error [
+                    skill = "intermediate_action_skipped" ;
+                    RU.explanation = "Нельзя выполнить это действие: пропущено действие, которое должно быть выполнено перед ним." ;
+                    EN.explanation = "This action cannot be performed: an action that must be performed before it was skipped." ;
+                ];
+            };
+
+            // --- Критерий 5.2/5.3.1: наличие перехода D_p -> D_a (без учёта ограничений) ---
+            ask (forAny TransitionSpec t {
+                transitionLeads($t, Dp, Da, C)
+            }) out true else {
+                // другая ветвь того же ветвления: её исключило значение условия, а не пропуск
+                ask (branchAlternatives(Dp, Da, C)) out false else {
                     conclude: error [
-                        skill = "construct_not_closed" ;
-                        RU.explanation = "Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." ;
-                        EN.explanation = "This action cannot be performed: the previous construct is not finished yet (or has not started)." ;
+                        skill = "condition_value_not_considered" ;
+                        RU.explanation = "Нельзя выполнить это действие: оно в другой ветви, а выполнение уже идёт по ветви, выбранной значением условия." ;
+                        EN.explanation = "This action cannot be performed: it is in another branch, and execution already follows the branch chosen by the condition value." ;
                     ];
+                };
+                // классифицируем по порядку конкретных действий в цепочке (авто-уход
+                // вперёд уже исключён ранним вызовом autoPassedRefinement).
+                // Возврат назад, пока D_p ещё ждёт завершения раскрытого из него вызова,
+                // — тоже «уже позади»: акта D_p в трассе ещё нет, и actAlreadyCurrent это не видит
+                ask (Da=>beforeOf(Dp) and (not actAlreadyCurrent(Da, Dp) or awaitsUnfoldedConstruct(Dp, C))) out false else {
+                    conclude: error [
+                        skill = "action_already_passed" ;
+                        RU.explanation = "Нельзя выполнить это действие: оно уже позади по ходу выполнения, вернуться к нему нельзя." ;
+                        EN.explanation = "This action cannot be performed: execution has already passed it, and it cannot be returned to." ;
+                    ];
+                };
+                ask (Da=>afterOf(Dp)) out false else {
+                    conclude: error [
+                        skill = "actions_skipped" ;
+                        RU.explanation = "Нельзя выполнить это действие: перед ним есть невыполненные действия, которые нельзя пропустить." ;
+                        EN.explanation = "This action cannot be performed: there are earlier actions that have not been performed and cannot be skipped." ;
+                    ];
+                };
+                conclude: error [
+                    skill = "no_transition" ;
+                    RU.explanation = "Нельзя выполнить это действие: переход к нему из текущей точки выполнения не предусмотрен." ;
+                    EN.explanation = "This action cannot be performed: there is no transition to it from the current point of execution." ;
+                ];
+            };
+
+            // --- Критерий 5.2: порядок конкретных действий (переходы «в себя» и цепочки) ---
+            // Если целевая роль повторяется в цепочке однотипных действий, D_a должно быть
+            // ближайшим подходящим после D_p (зеркало поиска N в findCorrect); назад — только
+            // если впереди подходящих действий нет либо D_a уже пройдено в текущем контексте.
+            ask (
+                not Dp=>directlyBeforeOf() or
+                actAlreadyCurrent(Da, Dp) or
+                (
+                    Da=>afterOf(Dp) and
+                    not forAny ConcreteAction mid {
+                        $mid != Da and
+                        $mid->derivedFrom == Da->derivedFrom and
+                        $mid->belongsTo == C and
+                        $mid=>afterOf(Dp) and
+                        Da=>afterOf($mid)
+                    }
+                ) or
+                (
+                    not forAny ConcreteAction fwd {
+                        $fwd->derivedFrom == Da->derivedFrom and
+                        $fwd->belongsTo == C and
+                        $fwd=>afterOf(Dp)
+                    }
+                )
+            ) out true else {
+                conclude: error [
+                    skill = "actions_order_violated" ;
+                    RU.explanation = "Нельзя выполнить это действие: нарушен порядок — должно быть выполнено более близкое действие той же роли." ;
+                    EN.explanation = "This action cannot be performed: the order is violated — a closer action of the same role must be performed instead." ;
+                ];
+            };
+
+            // --- Критерий 5.2: ограничение режима прерывания ---
+            ask (forAny TransitionSpec t {
+                transitionLeads($t, Dp, Da, C) and
+                interruptionOk($t, S)
+            }) out true else {
+                conclude: error [
+                    skill = "interruption_not_considered" ;
+                    RU.explanation = "Нельзя выполнить это действие: не учтено текущее прерывание, меняющее обычный порядок выполнения." ;
+                    EN.explanation = "This action cannot be performed: the active interruption that changes the usual execution order is not taken into account." ;
+                ];
+            };
+
+            // --- Критерий 5.2: ограничение значения условия ---
+            ask (forAny TransitionSpec t {
+                transitionLeads($t, Dp, Da, C) and
+                interruptionOk($t, S) and
+                conditionOk($t, Dp)
+            }) out true else {
+                conclude: error [
+                    skill = "condition_value_not_considered" ;
+                    RU.explanation = "Нельзя выполнить это действие: не учтено вычисленное значение условия." ;
+                    EN.explanation = "This action cannot be performed: the evaluated value of the condition is not taken into account." ;
+                ];
+            };
+            conclude: correct;
+        };
+        dpConstructFinished -> {
+            // --- Критерий 5.3.2.1: конструкт, раскрытый из D_p, должен быть завершён ---
+            var Dcc: ConcreteConstruct = find ConcreteConstruct cc {
+                $cc != C and
+                $cc.ast_id == Dp.ast_id
+            } {
+                false -> {
+                    // D_p атомарно — все критерии уровня пройдены
+                    conclude: correct;
+                }
+                true -> {
+                    var DpAct: TraceAct = lastActOf(Dp) out true else {
+                        // для preorder-конструкта акт D_p появляется только после его END,
+                        // поэтому отсутствие акта означает "конструкт ещё выполняется"
+                        ask (Dcc->derivedFrom.preorder) {
+                            true -> {
+                                conclude: error [
+                                    skill = "construct_not_closed" ;
+                                    RU.explanation = "Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." ;
+                                    EN.explanation = "This action cannot be performed: the previous construct is not finished yet (or has not started)." ;
+                                ];
+                            }
+                            false -> {
+                                conclude: error [ exception = true; exceptionName = "NoActForRoleAction"; ];
+                            }
+                        };
+                    };
+                    ask (unfoldedConstructFinished(Dcc, DpAct)) {
+                        true -> { conclude: correct; }
+                        false -> {
+                            conclude: error [
+                                skill = "construct_not_closed" ;
+                                RU.explanation = "Нельзя выполнить это действие: предыдущая конструкция ещё не завершена (или ещё не начата)." ;
+                                EN.explanation = "This action cannot be performed: the previous construct is not finished yet (or has not started)." ;
+                            ];
+                        }
+                    };
                 }
             };
-        }
+        };
     };
+    conclude: correct;
 }
 
 
@@ -746,22 +815,10 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
     // причина ошибки — не исчерпание значений. Скоуп по P0 отличает этот
     // случай от честного исчерпания (конструкция закрыта до P0).
     `fragment`:autoPassedRefinement() out null;
-    // Шаг 2б: действие уже выполнялось и не может повториться — в его цепочке
-    // не осталось неиспользованных значений (пример: условие цикла while).
-    ask (
-        forAny TraceAct t {$t->hasAction == A} and
-        A=>hasValue() and not forAny SemanticValue v {
-            ($v == A->hasValue or $v=>afterOf(A->hasValue)) and not $v.used
-        }
-    ) out false else {
-        conclude: error [
-            skill = "action_cannot_repeat" ;
-            RU.explanation = "Нельзя повторить это действие: для него не осталось свободных значений." ;
-            EN.explanation = "This action cannot be repeated: it has no unused values left." ;
-        ];
-    };
-
     // Шаг 3.1: действие внутри функции, в которую не входили или из которой вышли.
+    // Проверяется ДО шага 2б: у условий в завершённой функции значения тоже
+    // израсходованы, но первопричина — выход из функции (при повторном вызове
+    // значения сбросятся), а не исчерпание значений.
     // Конструкт тела функции открывается по эффекту call_stack = add_frame
     // (переход BEGIN -> func вызова, см. func_call_structure в constructs.yml),
     // поэтому корректный выбор внутри функции возможен только при открытом теле.
@@ -793,6 +850,21 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
                 ];
             }
         };
+    };
+
+    // Шаг 2б: действие уже выполнялось и не может повториться — в его цепочке
+    // не осталось неиспользованных значений (пример: условие цикла while).
+    ask (
+        forAny TraceAct t {$t->hasAction == A} and
+        A=>hasValue() and not forAny SemanticValue v {
+            ($v == A->hasValue or $v=>afterOf(A->hasValue)) and not $v.used
+        }
+    ) out false else {
+        conclude: error [
+            skill = "action_cannot_repeat" ;
+            RU.explanation = "Нельзя повторить это действие: для него не осталось свободных значений." ;
+            EN.explanation = "This action cannot be repeated: it has no unused values left." ;
+        ];
     };
 
     // Шаг 3.1а: A раскрывает preorder-конструкт (вложенный вызов), который ещё

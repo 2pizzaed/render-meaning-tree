@@ -247,6 +247,62 @@ public class Main {
 }
 """
 
+FUNCTION_WITH_LOOP = """
+def f(x):
+    while x > 0:
+        x = x - 1
+    return x
+
+y = f(1)
+z = y
+"""
+
+FUNCTION_TWO_STATEMENTS = """
+def f(x):
+    y = x
+    z = y
+
+a = f(1)
+b = a
+"""
+
+FUNCTION_STATEMENT_AND_RETURN = """
+def f(x):
+    y = x
+    return y
+
+a = f(1)
+b = a
+"""
+
+CPP_IF_BLOCK_TWO_AFTER = """
+int a = 1;
+if (a > 0) {
+    a = 2;
+}
+int b = a;
+int c = b;
+"""
+
+CPP_IF_BLOCK_TWO_STATEMENTS = """
+int a = 1;
+if (a > 0) {
+    a = 2;
+    a = 3;
+}
+int b = a;
+"""
+
+CPP_IF_ELSE = """
+int a = 1;
+if (a > 0) {
+    a = 2;
+} else {
+    a = 3;
+}
+int b = a;
+"""
+
 
 # -- Сценарии ------------------------------------------------------------------
 
@@ -720,6 +776,113 @@ CHECK_CASES: list[Any] = [
         advance_to=(2, "first_cond"),
         action=(3, "first"),
         expected_skills=("construct_not_entered", "intermediate_action_skipped"),
+        value_patches=((2, "first_cond", [True]),),
+    ),
+    # --- Порядок и агрегация критериев: первопричина вместо побочного диагноза ---
+    CheckCase(
+        # Условие цикла внутри уже завершённой функции: значения израсходованы,
+        # но первопричина — выход из функции (шаг 3.1 проверяется до шага 2б).
+        id="function_exited_condition_values_used",
+        language="python",
+        code=FUNCTION_WITH_LOOP,
+        advance_to=(7, "END", "func_call_structure"),
+        action=(2, "cond"),
+        expected_skills=("function_already_exited",),
+        value_patches=((2, "cond", [True, False]),),
+    ),
+    CheckCase(
+        # Тело функции завершилось естественно (без return): это не уход
+        # по значению условия, а выход из функции.
+        id="function_natural_end_body_action",
+        language="python",
+        code=FUNCTION_TWO_STATEMENTS,
+        advance_to=(3, "next"),
+        action=(2, "first"),
+        expected_skills=("function_already_exited",),
+    ),
+    CheckCase(
+        # Выход из функции по return по-прежнему объясняется прерыванием
+        # (уточнение autoPassedRefinement проверяется раньше шага 3.1).
+        id="function_return_body_action",
+        language="python",
+        code=FUNCTION_STATEMENT_AND_RETURN,
+        advance_to=(3, "next"),
+        action=(2, "first"),
+        expected_skills=("interruption_not_considered",),
+    ),
+    CheckCase(
+        # Возврат к первому оператору тела после второго: тело завершилось
+        # естественно, значение условия здесь ни при чём.
+        id="if_body_statement_already_passed",
+        language="python",
+        code=IF_TWO_BODY_STATEMENTS,
+        advance_to=(3, "next"),
+        action=(2, "first"),
+        expected_skills=("action_already_passed",),
+        value_patches=((1, "first_cond", [True]),),
+    ),
+    CheckCase(
+        # Возврат к уже выполненному оператору, пока идёт вызов из более
+        # позднего оператора: акта этого оператора в трассе ещё нет.
+        # Сопутствующий диагноз агрегации: вызов ещё не завершён.
+        id="back_to_statement_during_call",
+        language="python",
+        code=CALL_AFTER_STATEMENT,
+        advance_to=(2, "first"),
+        action=(5, "first"),
+        expected_skills=("action_already_passed",),
+    ),
+    CheckCase(
+        # То же внутри вызывающей функции при вложенном вызове.
+        id="back_in_caller_body_during_nested_call",
+        language="python",
+        code=NESTED_CALL_AFTER_STATEMENT,
+        advance_to=(7, "first"),
+        action=(2, "first"),
+        expected_skills=("action_already_passed",),
+    ),
+    CheckCase(
+        # Не закрыт `}` и пропущен оператор: агрегация AND сообщает обе ошибки
+        # (раньше незакрытый блок скрывался ошибкой порядка).
+        id="cpp_unclosed_block_and_skipped_statement",
+        language="c++",
+        code=CPP_IF_BLOCK_TWO_AFTER,
+        advance_to=(4, "first"),
+        action=(7, "next"),
+        expected_skills=("construct_not_closed",),
+        value_patches=((2, "first_cond", [True]),),
+    ),
+    CheckCase(
+        # Из условия сразу во второй оператор блока: не открыт `{` и пропущен
+        # первый оператор. Вход в конструкт — отдельная ветвь агрегации AND,
+        # поэтому сообщаются обе ошибки.
+        id="cpp_second_block_statement_from_condition",
+        language="c++",
+        code=CPP_IF_BLOCK_TWO_STATEMENTS,
+        advance_to=(2, "first_cond"),
+        action=(5, "next"),
+        expected_skills=("actions_skipped",),
+        value_patches=((2, "first_cond", [True]),),
+    ),
+    CheckCase(
+        # Оператор ветви else из блока if: другую ветвь исключило значение
+        # условия, это не «пропуск впереди стоящих действий».
+        id="cpp_else_statement_from_if_block",
+        language="c++",
+        code=CPP_IF_ELSE,
+        advance_to=(4, "first"),
+        action=(8, "first"),
+        expected_skills=("condition_value_not_considered",),
+        value_patches=((2, "first_cond", [True]),),
+    ),
+    CheckCase(
+        # То же для открытия блока else.
+        id="cpp_else_begin_from_if_block",
+        language="c++",
+        code=CPP_IF_ELSE,
+        advance_to=(4, "first"),
+        action=(7, "BEGIN", "block_structure"),
+        expected_skills=("condition_value_not_considered",),
         value_patches=((2, "first_cond", [True]),),
     ),
 ]

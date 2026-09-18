@@ -281,18 +281,23 @@ lambda autoPassedByUnfold(D: ConcreteAction, C: ConcreteConstruct) = forAny Conc
 // --- preorder-конструкты (раскрытие предшествует породившему действию) ---------
 
 // Действие, из которого раскрывается конструкт C (связь по ast_id, как в containingAction).
+// Одно и то же ast_id могут нести действия нескольких конструктов (вложенные inline-конструкты
+// print(f(x)) оба ссылаются на вызов), поэтому берём действие открытого конструкта —
+// того, из которого findCorrect раскрывает C в текущем контексте.
 lambda unfoldingActionOf(C: ConcreteConstruct) = find ConcreteAction x {
     $x->belongsTo != C and
     $x.ast_id == C.ast_id and
     $x->derivedFrom.role != "BEGIN" and
-    $x->derivedFrom.role != "END"
+    $x->derivedFrom.role != "END" and
+    isConstructOpen($x->belongsTo)
 };
 
 lambda hasUnfoldingAction(C: ConcreteConstruct) = forAny ConcreteAction x {
     $x->belongsTo != C and
     $x.ast_id == C.ast_id and
     $x->derivedFrom.role != "BEGIN" and
-    $x->derivedFrom.role != "END"
+    $x->derivedFrom.role != "END" and
+    isConstructOpen($x->belongsTo)
 };
 
 // D - действие уровня C, раскрывающее preorder-конструкт, внутри которого находится target.

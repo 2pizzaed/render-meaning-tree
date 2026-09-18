@@ -183,6 +183,13 @@ if f(1):
 z = 3
 """
 
+PRINT_CALL = """
+def f(x):
+    return x
+
+print(f(5))
+"""
+
 RETURN_COMPOUND_DEAD_CODE = """
 def g(x):
     return x + 1
@@ -600,6 +607,29 @@ CHECK_CASES: list[Any] = [
         code=IF_CONDITION_CALL,
         advance_to=None,
         action=(5, "BEGIN", "func_call_structure"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Вызов внутри print: вложенные inline-конструкты (оператор и print_values)
+        # оба несут content с ast_id вызова. Источник раскрытия — действие
+        # открытого конструкта оператора, а не неоднозначный поиск по ast_id.
+        id="print_call_begin_is_first_step",
+        language="python",
+        code=PRINT_CALL,
+        advance_to=None,
+        action=(5, "BEGIN", "func_call_structure"),
+        expected_skills=("correct_answer",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # После выхода из вызова в print оператор выполняется по отложенному
+        # действию, записанному в unfoldedFrom BEGIN-акта вызова.
+        id="print_call_statement_after_call_exit",
+        language="python",
+        code=PRINT_CALL,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "first"),
         expected_skills=("correct_answer",),
         expected_correct=True,
     ),

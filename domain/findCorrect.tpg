@@ -38,6 +38,30 @@ lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_ab
     forAny ConcreteAction aa {C=>hasActions($aa) and $aa=>derivedFrom($ap->contains)}
 })->contains else T->to_;
 
+// Переход t выходит из роли действия акта L в его конструкте
+lambda transitionFrom(t: TransitionSpec, L: TraceAct) =
+    t->from_ == L->hasAction->derivedFrom and
+    t->belongsTo == L->hasAction->belongsTo->derivedFrom;
+
+// Переход ограничен именно текущим режимом прерывания (не any)
+lambda interruptionSpecific(t: TransitionSpec, S: TraceState) =
+    t=>hasConstraints() and
+    t->hasConstraints.interruption_mode == S.interruption_mode and
+    t->hasConstraints.interruption_mode != InterruptionType:any;
+
+// Переход допустим в текущем режиме прерывания (без ограничений, совпадает или any)
+lambda interruptionAllowed(t: TransitionSpec, S: TraceState) =
+    not t=>hasConstraints() or
+    t->hasConstraints.interruption_mode == S.interruption_mode or
+    t->hasConstraints.interruption_mode == InterruptionType:any;
+
+// Если у L есть значение — переход должен требовать именно его
+lambda valueFits(t: TransitionSpec, L: TraceAct) =
+    not L=>hasValue() or (
+        t=>hasConstraints() and
+        findUnusedValue(L->hasAction).bool_value == t->hasConstraints.condition_value
+    );
+
 // BEGIN-действие (правило) конструкта C
 lambda beginActionOf(C: ConcreteConstruct) = find ConcreteAction d {
     $d->belongsTo == C and $d->derivedFrom.role == "BEGIN"
@@ -518,56 +542,14 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
 
             `fragment`:findLastTracedAction(L) out true, null; // присоединяем выходы true, null из фрагмента в этот поток
         
-            // Ищем переход внутри конструкта последнего действия, который соответствует условиям прерывания, значения условия
-            // Фаза 1: максимально специфичный — и interruption_mode, и condition_value совпадают
+            // Ищем переход из роли последнего действия. condition_value — фильтр (valueFits),
+            // ранжирование только по прерыванию: переход под текущий режим важнее any/без ограничений.
             var T: TransitionSpec = find TransitionSpec t {
-                $t->from_ == L->hasAction->derivedFrom and
-                $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
-                $t=>hasConstraints() and
-                S.interruption_mode == $t->hasConstraints.interruption_mode and
-                $t->hasConstraints.interruption_mode != InterruptionType:any and
-                L=>hasValue() and
-                findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
+                transitionFrom($t, L) and interruptionSpecific($t, S) and valueFits($t, L)
             } out true else {
-                // Фаза 2: частично специфичный — interruption_mode ИЛИ condition_value
                 var T: TransitionSpec = find TransitionSpec t {
-                    $t->from_ == L->hasAction->derivedFrom and
-                    $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
-                    $t=>hasConstraints() and (
-                        S.interruption_mode == $t->hasConstraints.interruption_mode
-                        and $t->hasConstraints.interruption_mode != InterruptionType:any
-                    ) and (
-                        not L=>hasValue() or
-                        findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
-                    )
-                } out true else {
-                    // Фаза 2b: только condition_value специфичен
-                    var T: TransitionSpec = find TransitionSpec t {
-                        $t->from_ == L->hasAction->derivedFrom and
-                        $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
-                        $t=>hasConstraints() and (
-                            S.interruption_mode == $t->hasConstraints.interruption_mode
-                            or $t->hasConstraints.interruption_mode == InterruptionType:any
-                        ) and (
-                            L=>hasValue() and
-                            findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
-                        )
-                    } out true else {
-                        // Фаза 3: fallback — без constraints или any
-                        var T: TransitionSpec = find TransitionSpec t {
-                            $t->from_ == L->hasAction->derivedFrom and
-                            $t->belongsTo == L->hasAction->belongsTo->derivedFrom and
-                            (not $t=>hasConstraints() or (
-                                S.interruption_mode == $t->hasConstraints.interruption_mode 
-                                or $t->hasConstraints.interruption_mode == InterruptionType:any
-                            )) and (not L=>hasValue() or 
-                                findUnusedValue(L->hasAction).bool_value == $t->hasConstraints.condition_value
-                            )
-                        } out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
-                        merge;
-                    };
-                    merge;
-                };
+                    transitionFrom($t, L) and interruptionAllowed($t, S) and valueFits($t, L)
+                } out true else {conclude : error [exception = true; exceptionName = "AmbiguousOrMissingTransition";];};
                 merge;
             };
 

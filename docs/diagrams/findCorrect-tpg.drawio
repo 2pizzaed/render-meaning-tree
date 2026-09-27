@@ -234,29 +234,19 @@
             <mxGeometry height="100" width="360" x="520" y="2790" as="geometry" />
           </mxCell>
         </object>
-        <object label="1. &lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;: совпадают и &lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt;, и &lt;font color=&quot;#009900&quot;&gt;значение условия&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="T: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    $t-&gt;from_ == L-&gt;hasAction-&gt;derivedFrom and&#xa;    $t-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom and&#xa;    $t=&gt;hasConstraints() and&#xa;    S.interruption_mode == $t-&gt;hasConstraints.interruption_mode and&#xa;    $t-&gt;hasConstraints.interruption_mode != InterruptionType:any and&#xa;    L=&gt;hasValue() and&#xa;    findUnusedValue(L-&gt;hasAction).bool_value == $t-&gt;hasConstraints.condition_value&#xa;}" tpgNote="фазы связаны merge: исход «найдено» любой фазы ведёт в общее продолжение" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_T1">
+        <object label="1. &lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, ограниченный именно текущим &lt;font color=&quot;#009900&quot;&gt;режимом прерывания&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="T: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    transitionFrom($t, L) and interruptionSpecific($t, S) and valueFits($t, L)&#xa;}&#xa;&#xa;// lambda transitionFrom(t, L) =&#xa;//     t-&gt;from_ == L-&gt;hasAction-&gt;derivedFrom and&#xa;//     t-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom;&#xa;// lambda valueFits(t, L) = not L=&gt;hasValue() or (&#xa;//     t=&gt;hasConstraints() and&#xa;//     findUnusedValue(L-&gt;hasAction).bool_value == t-&gt;hasConstraints.condition_value);&#xa;// lambda interruptionSpecific(t, S) =&#xa;//     t=&gt;hasConstraints() and&#xa;//     t-&gt;hasConstraints.interruption_mode == S.interruption_mode and&#xa;//     t-&gt;hasConstraints.interruption_mode != InterruptionType:any;" tpgNote="фазы связаны merge: исход «найден» любой фазы ведёт в общее продолжение" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_T1">
           <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
             <mxGeometry height="130" width="340" x="530" y="3150" as="geometry" />
           </mxCell>
         </object>
-        <object label="2. &lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;: совпадает &lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt; (&lt;font color=&quot;#009900&quot;&gt;значение условия&lt;/font&gt; — если оно есть)&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="T: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    $t-&gt;from_ == L-&gt;hasAction-&gt;derivedFrom and&#xa;    $t-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom and&#xa;    $t=&gt;hasConstraints() and (&#xa;        S.interruption_mode == $t-&gt;hasConstraints.interruption_mode&#xa;        and $t-&gt;hasConstraints.interruption_mode != InterruptionType:any&#xa;    ) and (&#xa;        not L=&gt;hasValue() or&#xa;        findUnusedValue(L-&gt;hasAction).bool_value == $t-&gt;hasConstraints.condition_value&#xa;    )&#xa;}" tpgNote="фазы связаны merge: исход «найдено» любой фазы ведёт в общее продолжение" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_T2">
+        <object label="2. &lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, допустимый в текущем &lt;font color=&quot;#009900&quot;&gt;режиме прерывания&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="T: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    transitionFrom($t, L) and interruptionAllowed($t, S) and valueFits($t, L)&#xa;}&#xa;&#xa;// lambda transitionFrom(t, L) =&#xa;//     t-&gt;from_ == L-&gt;hasAction-&gt;derivedFrom and&#xa;//     t-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom;&#xa;// lambda valueFits(t, L) = not L=&gt;hasValue() or (&#xa;//     t=&gt;hasConstraints() and&#xa;//     findUnusedValue(L-&gt;hasAction).bool_value == t-&gt;hasConstraints.condition_value);&#xa;// lambda interruptionAllowed(t, S) =&#xa;//     not t=&gt;hasConstraints() or&#xa;//     t-&gt;hasConstraints.interruption_mode == S.interruption_mode or&#xa;//     t-&gt;hasConstraints.interruption_mode == InterruptionType:any;" tpgNote="фазы связаны merge: исход «найден» любой фазы ведёт в общее продолжение" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_T2">
           <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
             <mxGeometry height="130" width="340" x="990" y="3150" as="geometry" />
           </mxCell>
         </object>
-        <object label="3. &lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;: совпадает только &lt;font color=&quot;#009900&quot;&gt;значение условия&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="T: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    $t-&gt;from_ == L-&gt;hasAction-&gt;derivedFrom and&#xa;    $t-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom and&#xa;    $t=&gt;hasConstraints() and (&#xa;        S.interruption_mode == $t-&gt;hasConstraints.interruption_mode&#xa;        or $t-&gt;hasConstraints.interruption_mode == InterruptionType:any&#xa;    ) and (&#xa;        L=&gt;hasValue() and&#xa;        findUnusedValue(L-&gt;hasAction).bool_value == $t-&gt;hasConstraints.condition_value&#xa;    )&#xa;}" tpgNote="фазы связаны merge: исход «найдено» любой фазы ведёт в общее продолжение" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_T3">
-          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
-            <mxGeometry height="130" width="340" x="1450" y="3150" as="geometry" />
-          </mxCell>
-        </object>
-        <object label="4. &lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; без &lt;font color=&quot;#CC0066&quot;&gt;ограничений&lt;/font&gt; или с &lt;font color=&quot;#009900&quot;&gt;режимом прерывания&lt;/font&gt; «&lt;font color=&quot;#009900&quot;&gt;любое&lt;/font&gt;»&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="T: TransitionSpec" tpgExpr="find TransitionSpec t {&#xa;    $t-&gt;from_ == L-&gt;hasAction-&gt;derivedFrom and&#xa;    $t-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo-&gt;derivedFrom and&#xa;    (not $t=&gt;hasConstraints() or (&#xa;        S.interruption_mode == $t-&gt;hasConstraints.interruption_mode&#xa;        or $t-&gt;hasConstraints.interruption_mode == InterruptionType:any&#xa;    )) and (not L=&gt;hasValue() or&#xa;        findUnusedValue(L-&gt;hasAction).bool_value == $t-&gt;hasConstraints.condition_value&#xa;    )&#xa;}" tpgNote="фазы связаны merge: исход «найдено» любой фазы ведёт в общее продолжение" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_T4">
-          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
-            <mxGeometry height="130" width="340" x="1910" y="3150" as="geometry" />
-          </mxCell>
-        </object>
         <object label="&lt;b&gt;Переход не найден или неоднозначен&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;AmbiguousOrMissingTransition&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgException="true" tpgExceptionName="AmbiguousOrMissingTransition" tpgExpr="conclude : error [exception = true; exceptionName = &quot;AmbiguousOrMissingTransition&quot;;];" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_err_amb">
           <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=16;" vertex="1">
-            <mxGeometry height="110" width="300" x="2370" y="3160" as="geometry" />
+            <mxGeometry height="110" width="300" x="1450" y="3160" as="geometry" />
           </mxCell>
         </object>
         <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; в том же &lt;font color=&quot;#CC0066&quot;&gt;конструкте&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, в которое &lt;font color=&quot;#0099A8&quot;&gt;ведёт&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;для повторяющихся ролей — ближайшее подходящее после &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;&lt;font color=&quot;#B38F00&quot;&gt;L&lt;/font&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;N&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="N: ConcreteAction" tpgExpr="find ConcreteAction a {&#xa;    $a != L-&gt;hasAction and&#xa;    $a-&gt;derivedFrom == T-&gt;to_ and&#xa;    $a-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo and&#xa;    (&#xa;        not L-&gt;hasAction=&gt;directlyBeforeOf()&#xa;        or (&#xa;            $a=&gt;afterOf(L-&gt;hasAction) and&#xa;            not forAny ConcreteAction mid {&#xa;                $mid != $a and $mid-&gt;derivedFrom == T-&gt;to_ and&#xa;                $mid-&gt;belongsTo == $a-&gt;belongsTo and&#xa;                $mid=&gt;afterOf(L-&gt;hasAction) and $a=&gt;afterOf($mid)&#xa;            }&#xa;        )&#xa;        or (&#xa;            not T=&gt;to_when_absent() and&#xa;            not forAny ConcreteAction fwd {&#xa;                $fwd-&gt;derivedFrom == T-&gt;to_ and&#xa;                $fwd-&gt;belongsTo == L-&gt;hasAction-&gt;belongsTo and&#xa;                $fwd=&gt;afterOf(L-&gt;hasAction)&#xa;            }&#xa;        )&#xa;    )&#xa;}" tpgSource="domain/findCorrect.tpg :: tpg CtrlFlow_findCorrect" id="n_find_N">
@@ -289,7 +279,7 @@
             <mxGeometry height="200" width="400" x="-164" y="1886" as="geometry" />
           </mxCell>
         </object>
-        <object label="&lt;b&gt;Выбор перехода&lt;/b&gt;&lt;br&gt;Фазы проверяются по убыванию специфичности: сначала полное совпадение &lt;font color=&quot;#009900&quot;&gt;режима прерывания&lt;/font&gt; и &lt;font color=&quot;#009900&quot;&gt;значения условия&lt;/font&gt;, затем частичное, затем только &lt;font color=&quot;#009900&quot;&gt;значение условия&lt;/font&gt;, в конце — &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; без &lt;font color=&quot;#CC0066&quot;&gt;ограничений&lt;/font&gt;.&lt;br&gt;&lt;br&gt;Первая успешная фаза определяет &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;; все четыре ветви «найден» ведут в одно продолжение." tpgKind="Comment" id="note_casc">
+        <object label="&lt;b&gt;Выбор перехода&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;Переход&lt;/font&gt; ищется из роли &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;L&lt;/font&gt; в его &lt;font color=&quot;#CC0066&quot;&gt;конструкте&lt;/font&gt;. Если у &lt;font color=&quot;#B38F00&quot;&gt;L&lt;/font&gt; есть &lt;font color=&quot;#009900&quot;&gt;значение условия&lt;/font&gt;, подходит только &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, требующий именно это значение.&lt;br&gt;&lt;br&gt;Сначала — &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, ограниченный именно текущим &lt;font color=&quot;#009900&quot;&gt;режимом прерывания&lt;/font&gt;; если такого нет — любой допустимый: без &lt;font color=&quot;#CC0066&quot;&gt;ограничений&lt;/font&gt;, с тем же &lt;font color=&quot;#009900&quot;&gt;режимом&lt;/font&gt; или «&lt;font color=&quot;#009900&quot;&gt;любое&lt;/font&gt;». Обе ветви «найден» ведут в одно продолжение." tpgKind="Comment" id="note_casc">
           <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=14;" vertex="1">
             <mxGeometry height="190" width="400" x="60" y="3140" as="geometry" />
           </mxCell>
@@ -380,56 +370,26 @@
           </mxCell>
         </object>
         <object label="не найден" tpgOutcome="false" id="e16">
-          <mxCell edge="1" parent="1" source="n_T2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="n_T3">
+          <mxCell edge="1" parent="1" source="n_T2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="n_err_amb">
             <mxGeometry relative="1" as="geometry" />
           </mxCell>
         </object>
-        <object label="не найден" tpgOutcome="false" id="e17">
-          <mxCell edge="1" parent="1" source="n_T3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="n_T4">
-            <mxGeometry relative="1" as="geometry" />
-          </mxCell>
-        </object>
-        <object label="не найден" tpgOutcome="false" id="e18">
-          <mxCell edge="1" parent="1" source="n_T4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="n_err_amb">
-            <mxGeometry relative="1" as="geometry" />
-          </mxCell>
-        </object>
-        <object label="найден" tpgOutcome="true" tpgNote="merge: общее продолжение всех четырёх фаз поиска перехода" id="e19">
-          <mxCell edge="1" parent="1" source="n_T1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.12;entryY=0;entryDx=0;entryDy=0;" target="n_find_N">
+        <object label="найден" tpgOutcome="true" tpgNote="merge: общее продолжение обеих фаз поиска перехода" id="e19">
+          <mxCell edge="1" parent="1" source="n_T1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="n_find_N">
             <mxGeometry relative="1" as="geometry">
               <Array as="points">
                 <mxPoint x="700" y="3360" />
-                <mxPoint x="1215" y="3360" />
+                <mxPoint x="1275" y="3360" />
               </Array>
             </mxGeometry>
           </mxCell>
         </object>
-        <object label="найден" tpgOutcome="true" tpgNote="merge: общее продолжение всех четырёх фаз поиска перехода" id="e20">
-          <mxCell edge="1" parent="1" source="n_T2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.36;entryY=0;entryDx=0;entryDy=0;" target="n_find_N">
+        <object label="найден" tpgOutcome="true" tpgNote="merge: общее продолжение обеих фаз поиска перехода" id="e20">
+          <mxCell edge="1" parent="1" source="n_T2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.6;entryY=0;entryDx=0;entryDy=0;" target="n_find_N">
             <mxGeometry relative="1" as="geometry">
               <Array as="points">
                 <mxPoint x="1160" y="3330" />
-                <mxPoint x="1326" y="3330" />
-              </Array>
-            </mxGeometry>
-          </mxCell>
-        </object>
-        <object label="найден" tpgOutcome="true" tpgNote="merge: общее продолжение всех четырёх фаз поиска перехода" id="e21">
-          <mxCell edge="1" parent="1" source="n_T3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.62;entryY=0;entryDx=0;entryDy=0;" target="n_find_N">
-            <mxGeometry relative="1" as="geometry">
-              <Array as="points">
-                <mxPoint x="1620" y="3330" />
-                <mxPoint x="1445" y="3330" />
-              </Array>
-            </mxGeometry>
-          </mxCell>
-        </object>
-        <object label="найден" tpgOutcome="true" tpgNote="merge: общее продолжение всех четырёх фаз поиска перехода" id="e22">
-          <mxCell edge="1" parent="1" source="n_T4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.86;entryY=0;entryDx=0;entryDy=0;" target="n_find_N">
-            <mxGeometry relative="1" as="geometry">
-              <Array as="points">
-                <mxPoint x="2080" y="3360" />
-                <mxPoint x="1556" y="3360" />
+                <mxPoint x="1436" y="3330" />
               </Array>
             </mxGeometry>
           </mxCell>

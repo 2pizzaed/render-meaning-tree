@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from src.helpers.tpg.templating import interpolate
+from src.helpers.tpg.templating import interpolate, referenced_variables
 from src.tpg_domain import ReasoningResult, variable_localized_name
 
 MAX_SIMILAR_EXPLANATION_COUNT = 3
@@ -272,7 +272,8 @@ def flatten_explanation_texts(
     given (the reasoner's structured ``variable_objects``), each leaf's text is run
     through :func:`~src.helpers.tpg.templating.interpolate`, substituting ``$name``
     / ``${name}`` with the variable's localized name for ``loc_code`` (see
-    :func:`_resolve_variables`).
+    :func:`_leaf_variables`): the leaf's own variable snapshot takes precedence
+    over ``variables``.
     """
     lines: list[str] = []
     resolved = _resolve_variables(variables, loc_code)
@@ -294,7 +295,8 @@ def explanation_view(
     markers pre-rendered into ``text``, so a template can render the grouped
     structure directly. When ``variables`` is given (the reasoner's structured
     ``variable_objects``), leaf texts have their ``$name`` / ``${name}``
-    interpolations substituted with each variable's localized name for ``loc_code``.
+    interpolations substituted with each variable's localized name for ``loc_code``
+    (the leaf's own variable snapshot takes precedence, see :func:`_leaf_variables`).
     """
     return _explanation_view(
         tree, loc_code, more_label, _resolve_variables(variables, loc_code)
@@ -371,21 +373,50 @@ def _node_text(
     if node.kind is ExplanationKind.LEAF:
         text = _element_localized_text(node.source_element, "explanation", loc_code)
         if text is not None and variables is not None:
-            return interpolate(text, variables)
+            return interpolate(text, _leaf_variables(node.source_element, variables, loc_code))
         return text
     return None
 
 
-def _explanation_signature(
+def _leaf_variables(
     element: dict[str, Any] | None,
-) -> tuple[tuple[str | None, str], ...]:
+    variables: Mapping[str, str],
+    loc_code: str,
+) -> dict[str, str]:
+    """Variables for interpolating a leaf's text.
+
+    Each trace element carries ``variables`` — the snapshot at the moment its node
+    finished. For a ``BranchResultNode`` this is the context of the conclude node
+    itself (fragment locals, the current iteration of a cycle aggregation), while
+    the reasoner's final variables only hold the last assigned values. The snapshot
+    therefore wins; final ``variables`` fill in names it lacks.
+    """
+    snapshot = element.get("variables") if element is not None else None
+    if not isinstance(snapshot, dict):
+        return dict(variables)
+    return {
+        **variables,
+        **{str(name): variable_localized_name(value, loc_code) for name, value in snapshot.items()},
+    }
+
+
+type _ExplanationSignature = tuple[
+    tuple[tuple[str | None, str], ...],
+    tuple[tuple[str, str], ...],
+]
+
+
+def _explanation_signature(element: dict[str, Any] | None) -> _ExplanationSignature:
     """Stable, hashable digest of an element's ``explanation`` localizations.
 
     Used as the message stand-in in :meth:`Explanation._key` so distinct
-    explanation texts do not collapse during de-duplication.
+    explanation texts do not collapse during de-duplication. Besides the
+    templates, it includes the objects bound to the variables they interpolate:
+    one conclude node reached with different objects (e.g. on different levels of
+    a cycle aggregation) renders distinct messages.
     """
     if element is None:
-        return ()
+        return (), ()
     entries = [
         (entry.get("locCode"), str(entry.get("value")))
         for entry in _metadata_entries(element)
@@ -393,7 +424,28 @@ def _explanation_signature(
         and entry.get("name") == "explanation"
         and entry.get("value") is not None
     ]
-    return tuple(sorted(entries, key=lambda item: (item[0] or "", item[1])))
+    templates = tuple(sorted(entries, key=lambda item: (item[0] or "", item[1])))
+    snapshot = element.get("variables")
+    if not isinstance(snapshot, dict):
+        return templates, ()
+    names = set().union(*(referenced_variables(text) for _, text in entries))
+    bound = tuple(
+        sorted(
+            (name, _variable_identity(snapshot[name]))
+            for name in names
+            if name in snapshot
+        )
+    )
+    return templates, bound
+
+
+def _variable_identity(value: Any) -> str:
+    """The object a variable snapshot entry refers to (its name in the situation)."""
+    if isinstance(value, dict):
+        for key in ("object_name", "repr_name"):
+            if value.get(key) is not None:
+                return str(value[key])
+    return str(value)
 
 
 def _element_localized_text(

@@ -9,7 +9,8 @@
 (``locale_trace_name``, ``locale_pronoun``, ``keyword``, ``identifier``), номер
 строки и имя идентификатора — из кода. Атомарные inline-конструкты (``break``,
 ``continue``, ...) в представление не попадают, поэтому их метаданные ищутся по
-объявлениям правил.
+объявлениям правил. Если метаданных нет ни в одном источнике (например, у
+простых операторов), используется ``DEFAULT_NAME_METADATA`` — «действие».
 """
 
 from __future__ import annotations
@@ -78,6 +79,10 @@ class NameMetadata:
             keyword=keyword if isinstance(keyword, str) else None,
             identifier=metadata.extra.get("identifier") is True,
         )
+
+
+# Имя объекта, у правила которого нет locale_trace_name (простые операторы и т.п.).
+DEFAULT_NAME_METADATA = NameMetadata(trace_name="statement", pronoun="it")
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,14 +159,15 @@ type NameResolver = Callable[[LoqiObject, NamingContext], NameParts | None]
 
 def resolve_construct(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     metadata = NameMetadata.from_spec(ctx.index.target(obj, "derivedFrom"))
-    return NameParts(metadata, ast_id_of(obj)) if metadata is not None else None
+    return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id_of(obj))
 
 
 def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     """
     Метаданные берутся целиком из одного источника, чтобы местоимение было
     согласовано с названием: собственный Spec → Spec конструкта с тем же
-    ``ast_id`` → объявление атомарного inline-конструкта узла.
+    ``ast_id`` → объявление атомарного inline-конструкта узла →
+    ``DEFAULT_NAME_METADATA``.
     """
     ast_id = ast_id_of(obj)
     metadata = NameMetadata.from_spec(ctx.index.target(obj, "derivedFrom"))
@@ -169,7 +175,7 @@ def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
         metadata = NameMetadata.from_spec(ctx.index.target(construct, "derivedFrom"))
     if metadata is None and (inline_rule := ctx.inline_rule(ast_id)) is not None:
         metadata = NameMetadata.from_metadata(inline_rule.metadata)
-    return NameParts(metadata, ast_id) if metadata is not None else None
+    return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id)
 
 
 def resolve_trace_act(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
@@ -276,6 +282,7 @@ def _identifier_node(node: Node) -> Node | None:
 
 
 __all__ = [
+    "DEFAULT_NAME_METADATA",
     "DEFAULT_NAME_RESOLVERS",
     "NameMetadata",
     "NameParts",

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Protocol, TypeVar
-
-from src.locale_utils import Locales
 
 
 class LoqiSerializationError(RuntimeError):
@@ -84,6 +82,49 @@ class LoqiRenderResult:
     variables: tuple[LoqiVariableAssignment, ...] = ()
 
 
+# Финальная модификация промежуточного представления перед рендером в текст.
+# Получает копию объектов сериализатора и меняет её на месте.
+type LoqiDecorator = Callable[[LoqiRenderResult], None]
+
+
+class LoqiRenderIndex:
+    """Навигация по промежуточному представлению без доступа к исходной модели."""
+
+    def __init__(self, result: LoqiRenderResult) -> None:
+        self.result = result
+        self._objects_by_id = {obj.object_id: obj for obj in result.objects}
+
+    def object(self, object_id: str) -> LoqiObject | None:
+        return self._objects_by_id.get(object_id)
+
+    def objects_of_type(self, type_name: str) -> list[LoqiObject]:
+        return [obj for obj in self.result.objects if obj.type_name == type_name]
+
+    def targets(self, obj: LoqiObject, link_name: str) -> list[LoqiObject]:
+        return [
+            target
+            for link in obj.relationship_links
+            if link.name == link_name
+            for ref in link.targets
+            if (target := self.object(ref.object_id)) is not None
+        ]
+
+    def target(self, obj: LoqiObject, link_name: str) -> LoqiObject | None:
+        return next(iter(self.targets(obj, link_name)), None)
+
+    @staticmethod
+    def property_value(obj: LoqiObject, name: str) -> LoqiScalar | None:
+        return next(
+            (prop.value for prop in obj.properties if prop.name == name), None
+        )
+
+    @staticmethod
+    def metadata_value(obj: LoqiObject, name: str) -> LoqiScalar | None:
+        return next(
+            (entry.value for entry in obj.metadata if entry.name == name), None
+        )
+
+
 T = TypeVar("T")
 
 
@@ -140,21 +181,6 @@ class LoqiAdapterContext:
             for name, value in entries.items()
             if value is not None
         )
-
-    def localized_metadata(
-        self,
-        key: str,
-        *,
-        languages: tuple[str, ...] = ("RU", "EN"),
-    ) -> tuple[LoqiMetadataEntry, ...]:
-        if self.serializer.locales is None:
-            return ()
-        entries: list[LoqiMetadataEntry] = []
-        for language in languages:
-            localized = self.serializer.locales.get(key, language.lower())
-            if localized != key:
-                entries.append(self.metadata_entry(f"{language}.localizedName", localized))
-        return tuple(entries)
 
     def to_scalar(
         self,
@@ -321,10 +347,10 @@ class LoqiSerializer:
         self,
         *,
         adapters_by_type: dict[type[Any], LoqiAdapter[Any]] | None = None,
-        locales: Locales | None = None,
+        decorators: Iterable[LoqiDecorator] = (),
     ) -> None:
         self.adapters_by_type = dict(adapters_by_type or build_default_loqi_adapters())
-        self.locales = locales
+        self.decorators = tuple(decorators)
         self.objects: list[LoqiObject] = []
         self._objects_by_python_id: dict[int, tuple[Any, LoqiObject]] = {}
         self._objects_by_id: dict[str, LoqiObject] = {}
@@ -368,7 +394,18 @@ class LoqiSerializer:
             LoqiVariableAssignment(variable_name=variable_name, object_id=object_id)
             for variable_name, object_id in self._variables_by_name.items()
         )
-        return LoqiRenderResult(roots=tuple(self._roots), objects=tuple(self.objects), variables=variables)
+        if not self.decorators:
+            return LoqiRenderResult(roots=tuple(self._roots), objects=tuple(self.objects), variables=variables)
+        # Декораторы меняют копию: собственные объекты сериализатора остаются
+        # исходными, поэтому повторный рендер не дублирует изменения.
+        result = LoqiRenderResult(
+            roots=tuple(self._roots),
+            objects=tuple(_copy_loqi_object(obj) for obj in self.objects),
+            variables=variables,
+        )
+        for decorator in self.decorators:
+            decorator(result)
+        return result
 
     def _serialize_root(self, root: Any, *, var_name: str | None = None) -> LoqiObjectRef:
         ref = self._serialize_object(root, LoqiAdapterContext(serializer=self))
@@ -470,6 +507,15 @@ def get_loqi_adapter(obj: Any, adapters_by_type: dict[type[Any], LoqiAdapter[Any
     raise LoqiAdapterNotFoundError(f"No Loqi adapter registered for {obj_type.__name__}")
 
 
+def _copy_loqi_object(obj: LoqiObject) -> LoqiObject:
+    return replace(
+        obj,
+        properties=list(obj.properties),
+        relationship_links=list(obj.relationship_links),
+        metadata=list(obj.metadata),
+    )
+
+
 def _normalize_object_name(raw_name: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9_]+", "_", raw_name.strip())
     normalized = re.sub(r"_+", "_", normalized).strip("_")
@@ -488,10 +534,10 @@ def serialize_loqi(
     root: Any,
     *,
     adapters_by_type: dict[type[Any], LoqiAdapter[Any]] | None = None,
-    locales: Locales | None = None,
+    decorators: Iterable[LoqiDecorator] = (),
     var_name: str | None = None,
 ) -> str:
-    serializer = LoqiSerializer(adapters_by_type=adapters_by_type, locales=locales)
+    serializer = LoqiSerializer(adapters_by_type=adapters_by_type, decorators=decorators)
     serializer.serialize(root, var_name=var_name)
     return serializer.render()
 
@@ -506,6 +552,7 @@ __all__ = [
     "LoqiAdapter",
     "LoqiAdapterContext",
     "LoqiAdapterNotFoundError",
+    "LoqiDecorator",
     "LoqiDomainMismatchError",
     "LoqiEnumLiteral",
     "LoqiMetadataEntry",
@@ -513,6 +560,7 @@ __all__ = [
     "LoqiObjectRef",
     "LoqiObjectSpec",
     "LoqiProperty",
+    "LoqiRenderIndex",
     "LoqiRenderResult",
     "LoqiRenderer",
     "LoqiSerializationError",

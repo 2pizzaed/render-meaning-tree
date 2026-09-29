@@ -108,6 +108,10 @@ class SituationDomainDataRegistry:
         self.variables: dict[str, Any] = {"S": self.trace_state}
         self.utilities = set()
 
+    @property
+    def code(self) -> CodeManager:
+        return self.owner.code
+
     def collect(self) -> list[Any]:
         actions = [action for actions in self.actions.values() for action in actions]
         return [

@@ -576,7 +576,8 @@ class CodeManager:
         if token_start is None or token_end is None:
             return None
         start_line = self.line_number(token_start)
-        end_line = self.line_number(token_end)
+        # token_index_range возвращает полуоткрытый диапазон [start, end)
+        end_line = self.line_number(token_end - 1)
         if start_line is None or end_line is None:
             return None
         return start_line, end_line

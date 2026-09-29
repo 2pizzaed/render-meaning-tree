@@ -11,8 +11,8 @@ global_statements_structure:
   kind: compound.sequence.program
   ast_node: program_entry_point
   metadata:
-    locale_trace_name: "statement"
-    locale_pronoun: "it"
+    locale_trace_name: "program"
+    locale_pronoun: "she"
   actions:
     - role: first
       kind: auto
@@ -51,7 +51,7 @@ if_structure:
   ast_node: if_statement
   metadata:
     locale_trace_name: "alternative"
-    locale_pronoun: "she"
+    locale_pronoun: "it"
   actions:
     - role: first_cond             # первое условие ветвления
       kind: inline.condition        # true / false
@@ -107,6 +107,7 @@ while_structure:
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
+    keyword: while
   effects:
     - interruption_stop: break
   actions:
@@ -147,6 +148,7 @@ while_else_structure:
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
+    keyword: while
   effects:
     - interruption_stop: break
   actions:
@@ -186,6 +188,7 @@ do_while_structure:
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
+    keyword: do while
   effects:
     - interruption_stop: break
   actions:
@@ -225,6 +228,7 @@ for_structure:
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
+    keyword: for
   effects:
     - interruption_stop: break
   actions:
@@ -232,6 +236,9 @@ for_structure:
       identification:
         property: "initializer"
       kind: inline.optional
+      metadata:
+        locale_trace_name: "init"
+        locale_pronoun: "she"
     - role: cond
       kind: inline.condition
       metadata:
@@ -248,6 +255,9 @@ for_structure:
       effects:
         - interruption_stop: continue
     - role: update
+      metadata:
+        locale_trace_name: "update"
+        locale_pronoun: "it"
       identification:
         property: "update"
       kind: inline.optional
@@ -278,6 +288,7 @@ for_each_structure:
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
+    keyword: for
   effects:
     - interruption_stop: break
   actions:
@@ -328,6 +339,7 @@ for_range_structure:
   metadata:
     locale_trace_name: "loop"
     locale_pronoun: "he"
+    keyword: for
   effects:
     - interruption_stop: break
   actions:
@@ -402,6 +414,10 @@ block_structure:
 func_def_structure:
   kind: compound.external.noop
   ast_node: ['function_definition', 'method_definition']
+  metadata:
+    locale_trace_name: "function_def"
+    locale_pronoun: "it"
+    identifier: true
   actions:
     - role: name
       opaque: false
@@ -428,6 +444,7 @@ func_call_structure:
   metadata:
     locale_trace_name: "function_call"
     locale_pronoun: "he"
+    identifier: true
   actions:
     - role: BEGIN
       kind: auto
@@ -473,6 +490,9 @@ return_action:
 
 return_compound_action:
   kind: inline.compound
+  metadata:
+    locale_trace_name: 'return'
+    locale_pronoun: 'it'
   preorder: true  # вложенные вызовы выполняются раньше самого оператора return
   effects:
     - interruption_start: return
@@ -502,6 +522,9 @@ return_compound_action:
 # --------------------------------
 break_action:
   kind: inline
+  metadata:
+    locale_trace_name: 'break'
+    locale_pronoun: 'she'
   ast_node: break_statement
   effects:
     - interruption_start: break
@@ -511,6 +534,9 @@ break_action:
 # --------------------------------
 continue_action:
   kind: inline
+  metadata:
+    locale_trace_name: 'continue'
+    locale_pronoun: 'he'
   ast_node: continue_statement
   effects:
     - interruption_start: continue
@@ -522,6 +548,9 @@ continue_action:
 try_except_structure:
   disabled: true  # TODO: not implemented yet
   kind: compound.try
+  metadata:
+    locale_trace_name: 'catch'
+    locale_pronoun: 'he'
   ast_node: exception_catch_statement 
   effects:
     - interruption_stop: exception

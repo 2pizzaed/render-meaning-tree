@@ -75,7 +75,7 @@ class ActionAdapter:
 
         return LoqiObjectSpec(
             properties=(
-                ctx.property("ast_id", obj.ast_id or -1),
+                ctx.property("ast_id", obj.ast_id if obj.ast_id is not None else -1),
                 ctx.property("ast_type", _ast_type(obj)),
             ),
             relationship_links=tuple(relationships),

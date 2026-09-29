@@ -21,7 +21,7 @@ distinguished.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -257,12 +257,26 @@ def collect_unique_skills(trace: dict[str, Any]) -> list[str]:
     return list(ordered)
 
 
+type PropertyResolver = Callable[[str, str, str], str | None]
+"""Resolves ``(object name, property, loc code)`` to text for ``${X.prop}``
+(see :class:`~src.helpers.tpg.loqi_values.LoqiPropertyResolver`)."""
+
+
+@dataclass(frozen=True, slots=True)
+class _RenderContext:
+    loc_code: str
+    more_label: str
+    variables: Mapping[str, Any] | None
+    properties: PropertyResolver | None
+
+
 def flatten_explanation_texts(
     tree: Explanation,
     *,
     loc_code: str = "EN",
     more_label: str = DEFAULT_MORE_LABEL,
     variables: Mapping[str, Any] | None = None,
+    properties: PropertyResolver | None = None,
 ) -> list[str]:
     """Flat, display-ready explanation lines from an aggregation ``tree``.
 
@@ -271,13 +285,14 @@ def flatten_explanation_texts(
     markers via ``more_label`` (formatted with ``count``). When ``variables`` is
     given (the reasoner's structured ``variable_objects``), each leaf's text is run
     through :func:`~src.helpers.tpg.templating.interpolate`, substituting ``$name``
-    / ``${name}`` with the variable's localized name for ``loc_code`` (see
+    / ``${name}`` with the variable's localized name for ``loc_code`` and
+    ``${name.prop}`` with the value ``properties`` gives (see
     :func:`_leaf_variables`): the leaf's own variable snapshot takes precedence
     over ``variables``.
     """
     lines: list[str] = []
-    resolved = _resolve_variables(variables, loc_code)
-    _collect_explanation_texts(tree, loc_code, more_label, resolved, lines)
+    ctx = _RenderContext(loc_code, more_label, variables, properties)
+    _collect_explanation_texts(tree, ctx, lines)
     return lines
 
 
@@ -287,117 +302,96 @@ def explanation_view(
     loc_code: str = "EN",
     more_label: str = DEFAULT_MORE_LABEL,
     variables: Mapping[str, Any] | None = None,
+    properties: PropertyResolver | None = None,
 ) -> dict[str, Any]:
     """Renderable nested dict for an aggregation ``tree``.
 
     Same shape as :meth:`Explanation.to_dict` but with each leaf's resolved
     ``text`` attached (from its source element, in ``loc_code``) and ``MORE``
     markers pre-rendered into ``text``, so a template can render the grouped
-    structure directly. When ``variables`` is given (the reasoner's structured
-    ``variable_objects``), leaf texts have their ``$name`` / ``${name}``
-    interpolations substituted with each variable's localized name for ``loc_code``
-    (the leaf's own variable snapshot takes precedence, see :func:`_leaf_variables`).
+    structure directly. Leaf texts are interpolated as in
+    :func:`flatten_explanation_texts`.
     """
-    return _explanation_view(
-        tree, loc_code, more_label, _resolve_variables(variables, loc_code)
-    )
+    return _explanation_view(tree, _RenderContext(loc_code, more_label, variables, properties))
 
 
-def _resolve_variables(
-    variables: Mapping[str, Any] | None,
-    loc_code: str,
-) -> dict[str, str] | None:
-    """Map each variable to the localized name interpolation should substitute.
-
-    Returns ``None`` (interpolation disabled) when ``variables`` is ``None``.
-    Otherwise each structured value is reduced to its ``localizedName`` for
-    ``loc_code`` — falling back to ``object_name`` then ``repr_name`` — via
-    :func:`~src.tpg_domain.variable_localized_name`, matching how its_QuestionGen
-    renders ``Obj`` variables in templates.
-    """
-    if variables is None:
-        return None
-    return {
-        name: variable_localized_name(value, loc_code)
-        for name, value in variables.items()
-    }
-
-
-def _explanation_view(
-    tree: Explanation,
-    loc_code: str,
-    more_label: str,
-    variables: Mapping[str, str] | None,
-) -> dict[str, Any]:
+def _explanation_view(tree: Explanation, ctx: _RenderContext) -> dict[str, Any]:
     return {
         "kind": tree.kind.value,
         "type": tree.type.value,
-        "text": _node_text(tree, loc_code, more_label, variables),
+        "text": _node_text(tree, ctx),
         "skill": tree.skill,
         "muted": tree.muted,
         "similarSkipped": tree.similar_skipped,
-        "children": [
-            _explanation_view(child, loc_code, more_label, variables)
-            for child in tree.children
-        ],
+        "children": [_explanation_view(child, ctx) for child in tree.children],
     }
 
 
 def _collect_explanation_texts(
     node: Explanation,
-    loc_code: str,
-    more_label: str,
-    variables: Mapping[str, str] | None,
+    ctx: _RenderContext,
     out: list[str],
 ) -> None:
     for child in node.children:
         if child.muted:
             continue
         if child.kind is ExplanationKind.GROUP:
-            _collect_explanation_texts(child, loc_code, more_label, variables, out)
+            _collect_explanation_texts(child, ctx, out)
             continue
-        text = _node_text(child, loc_code, more_label, variables)
+        text = _node_text(child, ctx)
         if text:
             out.append(text)
 
 
-def _node_text(
-    node: Explanation,
-    loc_code: str,
-    more_label: str,
-    variables: Mapping[str, str] | None,
-) -> str | None:
-    """Human text for a single explanation node (``None`` for groups)."""
+def _node_text(node: Explanation, ctx: _RenderContext) -> str | None:
+    """Human text for a single explanation node (``None`` for groups).
+
+    Interpolation is disabled when ``ctx.variables`` is ``None``.
+    """
     if node.kind is ExplanationKind.MORE:
-        return more_label.format(count=node.similar_skipped)
+        return ctx.more_label.format(count=node.similar_skipped)
     if node.kind is ExplanationKind.LEAF:
-        text = _element_localized_text(node.source_element, "explanation", loc_code)
-        if text is not None and variables is not None:
-            return interpolate(text, _leaf_variables(node.source_element, variables, loc_code))
+        text = _element_localized_text(node.source_element, "explanation", ctx.loc_code)
+        if text is not None and ctx.variables is not None:
+            return interpolate(text, _leaf_variables(node.source_element, text, ctx))
         return text
     return None
 
 
 def _leaf_variables(
     element: dict[str, Any] | None,
-    variables: Mapping[str, str],
-    loc_code: str,
+    template: str,
+    ctx: _RenderContext,
 ) -> dict[str, str]:
-    """Variables for interpolating a leaf's text.
+    """Values for interpolating a leaf's ``template``.
 
     Each trace element carries ``variables`` — the snapshot at the moment its node
     finished. For a ``BranchResultNode`` this is the context of the conclude node
     itself (fragment locals, the current iteration of a cycle aggregation), while
     the reasoner's final variables only hold the last assigned values. The snapshot
-    therefore wins; final ``variables`` fill in names it lacks.
+    therefore wins; final variables fill in names it lacks.
+
+    A variable becomes its ``localizedName`` for the localization — falling back
+    to ``object_name`` then ``repr_name`` — via
+    :func:`~src.tpg_domain.variable_localized_name`, matching how its_QuestionGen
+    renders ``Obj`` variables in templates. A ``name.prop`` reference is resolved
+    by ``ctx.properties`` for the object bound to ``name``.
     """
+    objects: dict[str, Any] = dict(ctx.variables or {})
     snapshot = element.get("variables") if element is not None else None
-    if not isinstance(snapshot, dict):
-        return dict(variables)
-    return {
-        **variables,
-        **{str(name): variable_localized_name(value, loc_code) for name, value in snapshot.items()},
+    if isinstance(snapshot, dict):
+        objects.update({str(name): value for name, value in snapshot.items()})
+    values = {
+        name: variable_localized_name(value, ctx.loc_code) for name, value in objects.items()
     }
+    if ctx.properties is not None:
+        for reference in referenced_variables(template):
+            name, _, prop = reference.partition(".")
+            if prop and name in objects:
+                value = ctx.properties(_variable_identity(objects[name]), prop, ctx.loc_code)
+                if value is not None:
+                    values[reference] = value
+    return values
 
 
 type _ExplanationSignature = tuple[
@@ -428,7 +422,11 @@ def _explanation_signature(element: dict[str, Any] | None) -> _ExplanationSignat
     snapshot = element.get("variables")
     if not isinstance(snapshot, dict):
         return templates, ()
-    names = set().union(*(referenced_variables(text) for _, text in entries))
+    names = {
+        reference.partition(".")[0]
+        for _, text in entries
+        for reference in referenced_variables(text)
+    }
     bound = tuple(
         sorted(
             (name, _variable_identity(snapshot[name]))

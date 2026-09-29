@@ -43,7 +43,13 @@ def test_non_modifier_brackets_stay_text_and_are_interpolated() -> None:
 
 
 def test_referenced_variables_ignores_expressions_and_escapes() -> None:
-    assert referenced_variables("${A}[case='р'] $C ${3+3} \\$D") == {"A", "C"}
+    assert referenced_variables("${A}[case='р'] $C ${3+3} \\$D ${S.mode} ${S->rel}") == {"A", "C", "S.mode"}
+
+
+def test_property_reference_is_looked_up_by_its_path() -> None:
+    values = {"S": "состояние", "S.mode": "возврат из функции"}
+
+    assert interpolate("идёт ${S.mode}[case='р'], $S.mode", values) == "идёт возврат из функции, состояние.mode"
 
 
 def _obj(object_name: str, ru_name: str) -> dict[str, Any]:
@@ -92,3 +98,22 @@ def test_leaf_text_uses_its_own_variable_snapshot() -> None:
     texts = flatten_explanation_texts(tree, loc_code="RU", variables={"C": levels[-1]})
 
     assert texts == ["Выполнение ветвление не завершено.", "Выполнение блок кода не завершено."]
+
+
+def test_property_of_snapshot_variable_is_resolved_for_its_object() -> None:
+    conclude = _conclude({"S": _obj("trace_state", "состояние")})
+    conclude["metadata"][1]["value"] = "Идёт ${S.interruption_mode}."
+    trace = {"branchResult": "ERROR", "elements": [conclude]}
+    tree = collect_explanations_from_trace(ExplanationType.ERROR, trace)
+    calls: list[tuple[str, str, str]] = []
+
+    def properties(object_name: str, prop: str, loc_code: str) -> str | None:
+        calls.append((object_name, prop, loc_code))
+        return "возврат из функции"
+
+    assert flatten_explanation_texts(tree, loc_code="RU", variables={}, properties=properties) == [
+        "Идёт возврат из функции."
+    ]
+    assert calls == [("trace_state", "interruption_mode", "RU")]
+    # без resolver свойство не разрешается и остаётся в тексте как есть
+    assert flatten_explanation_texts(tree, loc_code="RU", variables={}) == ["Идёт ${S.interruption_mode}."]

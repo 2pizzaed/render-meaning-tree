@@ -6,7 +6,9 @@ A deliberately tiny, regex-based port of the *interpolation* layer of the
 
 * **simple interpolation** — ``$name`` (a bare variable reference);
 * **braced interpolation** — ``${name}`` (the same, allowing surrounding text to
-  abut the name, e.g. ``${name}s``);
+  abut the name, e.g. ``${name}s``), or a property of a variable — ``${name.prop}``,
+  looked up in the supplied values under the key ``"name.prop"`` (callers resolve
+  the property themselves);
 * **modifiers** — ``${name}[mod, mod='arg', mod('arg', 2)]`` right after a braced
   interpolation (no space before ``[``), applied left to right to the substituted
   text. As in the Java lexer, ``$name[...]`` is *not* a modifier: the brackets stay
@@ -16,8 +18,8 @@ A leading backslash escapes the dollar (``\\$`` -> literal ``$``), matching the
 Java lexer's ``STR: (~[$] | '\\$')+`` rule.
 
 The full Java expression language inside ``${...}`` (arithmetic, comparisons,
-field access, method calls) is intentionally **not** ported: braced content that
-is not a plain identifier, references to variables that are not supplied, and
+relationship paths, method calls) is intentionally **not** ported: braced content
+that is not a plain reference, references that are not supplied, and
 unknown modifiers are left verbatim rather than evaluated or blanked. This keeps
 explanation rendering robust — an unknown ``$foo`` stays visible instead of
 crashing or silently vanishing.
@@ -44,7 +46,8 @@ _TOKEN = re.compile(
     rf"|\$(?P<simple>{_IDENTIFIER})"  # $name
 )
 
-_IDENTIFIER_RE = re.compile(rf"\A{_IDENTIFIER}\Z")
+# Braced content that is interpolated: a variable or a property of a variable.
+_REFERENCE_RE = re.compile(rf"\A{_IDENTIFIER}(?:\.{_IDENTIFIER})?\Z")
 
 # Java TemplatingParser: mod (',' mod)* ','?  where
 # mod: ID | ID '=' literal | ID '(' (literal ',')* literal? ')'.
@@ -86,16 +89,17 @@ def interpolate(
 ) -> str:
     """Replace ``$name`` / ``${name}[modifiers]`` interpolations in ``template``.
 
-    Each interpolation is substituted with ``str(variables[name])`` and then run
-    through its modifiers (looked up in ``modifiers``). Braced interpolations are
-    stripped of surrounding whitespace before lookup (``${ name }`` == ``${name}``).
-    A ``\\$`` escape becomes a literal ``$``.
+    Each interpolation is substituted with ``str(variables[name])`` (for
+    ``${name.prop}`` — ``str(variables["name.prop"])``) and then run through its
+    modifiers (looked up in ``modifiers``). Braced interpolations are stripped of
+    surrounding whitespace before lookup (``${ name }`` == ``${name}``). A ``\\$``
+    escape becomes a literal ``$``.
 
     Substitution is single-pass: values inserted into the result are never
     rescanned, so a value that itself contains ``$name`` is left as-is.
 
     Anything that cannot be resolved is preserved verbatim, modifiers included: a
-    missing variable, braced content that is not a plain identifier (e.g. an
+    missing variable, braced content that is not a plain reference (e.g. an
     expression like ``${3+3}``), or an unknown modifier (or one rejecting its
     arguments). Brackets that are not valid modifier syntax are not modifiers:
     they stay plain text after the substituted value.
@@ -108,8 +112,8 @@ def interpolate(
         name = match.group("braced")
         if name is not None:
             name = name.strip()
-            if not _IDENTIFIER_RE.match(name):
-                return text  # not a bare variable — leave the expression untouched
+            if not _REFERENCE_RE.match(name):
+                return text  # not a plain reference — leave the expression untouched
         else:
             name = match.group("simple")
         if name not in variables:
@@ -137,12 +141,12 @@ def interpolate(
 
 
 def referenced_variables(template: str) -> set[str]:
-    """Names of the variables that ``template`` interpolates (``$name`` / ``${name}``)."""
+    """References that ``template`` interpolates: ``name`` or ``name.prop``."""
     names: set[str] = set()
     for match in _TOKEN.finditer(template):
         name = match.group("braced")
         name = name.strip() if name is not None else match.group("simple")
-        if name is not None and _IDENTIFIER_RE.match(name):
+        if name is not None and _REFERENCE_RE.match(name):
             names.add(name)
     return names
 

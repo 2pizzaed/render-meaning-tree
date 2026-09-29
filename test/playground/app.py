@@ -1,5 +1,6 @@
 import argparse
 import traceback
+from functools import cache
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -24,6 +25,7 @@ from src.helpers.tpg.explanations import (
     explanation_view,
     flatten_explanation_texts,
 )
+from src.helpers.tpg.loqi_values import LoqiPropertyResolver
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
@@ -390,6 +392,20 @@ def build_answer_objects(
     }
 
 
+def _explanation_properties(result: ReasoningResult) -> LoqiPropertyResolver | None:
+    """``${X.prop}`` в объяснениях: значения свойств — из экспортированной ситуации,
+    localizedName значений перечислений — из domain.loqi модели."""
+    exported = result.artifacts.get("specificDomain")
+    if not isinstance(exported, str):
+        return None
+    return LoqiPropertyResolver(exported, _model_domain_loqi())
+
+
+@cache
+def _model_domain_loqi() -> str:
+    return (PLAYGROUND_REASON_MODEL_DIR / "domain.loqi").read_text(encoding="utf-8")
+
+
 def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     final_node = result.final_node
     trace = result.trace if isinstance(result.trace, dict) else None
@@ -413,11 +429,12 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     )
     if trace is not None:
         explanation_tree = collect_explanations_from_trace(explanation_type, trace)
+        properties = _explanation_properties(result)
         explanations = flatten_explanation_texts(
-            explanation_tree, variables=result.variable_objects
+            explanation_tree, variables=result.variable_objects, properties=properties
         )
         explanation_view_dict = explanation_view(
-            explanation_tree, variables=result.variable_objects
+            explanation_tree, variables=result.variable_objects, properties=properties
         )
         skills = collect_unique_skills(trace)
     else:

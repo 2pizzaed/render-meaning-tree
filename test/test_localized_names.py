@@ -197,6 +197,20 @@ def test_atomic_inline_action_uses_inline_rule_metadata(
     assert metadata["pronoun"] == "she"
 
 
+def test_action_without_rule_metadata_gets_default_statement_name(trace_loqi: str) -> None:
+    metadata = _object_metadata(trace_loqi, "block_structure_action_first_ast31")  # i += 1
+
+    assert metadata["EN.localizedName"].startswith("statement on line ")
+    assert metadata["pronoun"] == "it"
+
+
+def test_every_action_and_construct_gets_localized_name(trace_loqi: str) -> None:
+    object_ids = re.findall(r"^obj (\S+) : (?:ConcreteAction|ConcreteConstruct) ", trace_loqi, re.MULTILINE)
+
+    assert object_ids
+    assert [object_id for object_id in object_ids if "RU.localizedName" not in _object_metadata(trace_loqi, object_id)] == []
+
+
 def test_trace_act_wraps_action_name_with_traced_affixes(trace_loqi: str) -> None:
     action_metadata = _object_metadata(trace_loqi, "global_statements_structure_action_BEGIN_ast69")
     metadata = _object_metadata(trace_loqi, "act_root")

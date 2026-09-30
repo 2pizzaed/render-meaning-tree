@@ -44,13 +44,22 @@ class OrderedChain[T](Protocol):
 @dataclass(slots=True)
 class Action:
     ast_id: int | None
-    values: list[bool]
+    values: list[SemanticValue]
     rule: ActionDeclaration
     parent: Construct
     owner: SituationContext
     effects: EffectDeclaration | None = None
     ast_type: str | None = None
     assumed_value: bool | None = None
+
+    def __post_init__(self) -> None:
+        self.bind_values()
+
+    def bind_values(self) -> None:
+        for index, value in enumerate(self.values):
+            value.owner = self
+            value.index = index
+            value._chain = self.values
 
     @property
     def chain(self) -> list[Action]:
@@ -168,13 +177,18 @@ class TraceState:
 @dataclass(slots=True)
 class SemanticValue:
     bool_value: bool
-    owner: Any
-    index: int
+    hint_override: str | None = None
     used: bool = False
-    _chain: list[Any] | None = None
+    owner: Action | None = None
+    index: int = 0
+    _chain: list[SemanticValue] | None = None
 
     @property
-    def chain(self) -> list[Any]:
+    def hint(self) -> str:
+        return self.hint_override if self.hint_override is not None else str(self.bool_value)
+
+    @property
+    def chain(self) -> list[SemanticValue]:
         return self._chain or []
 
 

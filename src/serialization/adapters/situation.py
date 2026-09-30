@@ -57,9 +57,10 @@ class ActionAdapter:
 
     def describe(self, obj: Action, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
         consumed_count = _consumed_value_count_for_action(obj)
-        value_head = _semantic_value_head_for(
-            obj.values, owner=obj, consumed_count=consumed_count
-        )
+        obj.bind_values()
+        for index, value in enumerate(obj.values):
+            value.used = index < consumed_count
+        value_head = obj.values[0] if obj.values else None
         relationships: list[RelationshipLink] = [
             ctx.relationship("belongsTo", obj.parent),
             ctx.relationship("derivedFrom", _serialize_action_spec(obj.rule, ctx)),
@@ -140,6 +141,8 @@ class TraceStateAdapter:
 
 class SemanticValueAdapter:
     def object_name(self, obj: SemanticValue) -> str:
+        if obj.owner is None:
+            raise ValueError("SemanticValue must belong to an Action")
         return f"semantic_value_{_semantic_scope(obj.owner)}_{obj.index}"
 
     def type_name(self, obj: SemanticValue) -> str:
@@ -157,6 +160,7 @@ class SemanticValueAdapter:
                 ctx.property("used", obj.used),
             ),
             relationship_links=tuple(relationships),
+            metadata=ctx.object_metadata({"hint": obj.hint}),
         )
 
 
@@ -168,35 +172,6 @@ def build_situation_loqi_adapters() -> dict[type[Any], LoqiAdapter[Any]]:
         TraceState: TraceStateAdapter(),
         SemanticValue: SemanticValueAdapter(),
     }
-
-
-def _semantic_values_for(
-    values: list[bool],
-    *,
-    owner: Any,
-    consumed_count: int = 0,
-) -> list[SemanticValue]:
-    semantic_values = [
-        SemanticValue(
-            bool_value=value, owner=owner, index=index, used=index < consumed_count
-        )
-        for index, value in enumerate(values)
-    ]
-    for semantic_value in semantic_values:
-        semantic_value._chain = semantic_values
-    return semantic_values
-
-
-def _semantic_value_head_for(
-    values: list[bool],
-    *,
-    owner: Any,
-    consumed_count: int = 0,
-) -> SemanticValue | None:
-    semantic_values = _semantic_values_for(
-        values, owner=owner, consumed_count=consumed_count
-    )
-    return semantic_values[0] if semantic_values else None
 
 
 def _semantic_value_ref_for_action(action: Action, index: int) -> LoqiObjectRef | None:

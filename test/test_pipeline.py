@@ -627,7 +627,7 @@ def test_domain_pipeline_fill_actions_adds_loop_values_for_condition_actions():
     cond_actions = pipeline.get_actions_for(11)
     body_actions = pipeline.get_actions_for(12)
     assert len(cond_actions) == 1
-    assert cond_actions[0].values == [True, True, False]
+    assert [value.bool_value for value in cond_actions[0].values] == [True, True, False]
     assert len(body_actions) == 1
     assert body_actions[0].values == []
 
@@ -669,7 +669,7 @@ def test_domain_pipeline_fill_actions_adds_single_true_for_non_loop_condition():
 
     cond_actions = pipeline.get_actions_for(11)
     assert len(cond_actions) == 1
-    assert cond_actions[0].values == [True]
+    assert [value.bool_value for value in cond_actions[0].values] == [True]
 
 
 def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
@@ -707,7 +707,7 @@ def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
     assert len(cond_actions) == 1
     assert cond_actions[0].ast_id == 0
     assert cond_actions[0].ast_type == "bool_literal"
-    assert cond_actions[0].values == [True]
+    assert [value.bool_value for value in cond_actions[0].values] == [True]
 
 
 def test_domain_pipeline_fill_actions_skips_absent_optional_action():

@@ -24,7 +24,7 @@ from src.model.rules import (
     load_construct_declarations,
     locate_construct_declaration_by_ast_node,
 )
-from src.model.situation import Action, Construct, TraceAct, TraceState
+from src.model.situation import Action, Construct, SemanticValue, TraceAct, TraceState
 from src.types import Node, NodeQueryFormat
 
 
@@ -531,7 +531,7 @@ class DomainDataGeneratorPipeline(Pipeline):
 
         action = Action(
             ast_id=0,
-            values=[assumed_value],
+            values=[SemanticValue(assumed_value)],
             rule=action_decl,
             parent=construct,
             owner=self,
@@ -752,8 +752,10 @@ class DomainDataGeneratorPipeline(Pipeline):
             action for actions in self.registry.actions.values() for action in actions
         ):
             action.values = _values_for_action(action)
+            action.bind_values()
         for action in self.registry.anonymous_actions:
             action.values = _values_for_action(action)
+            action.bind_values()
 
 
 def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:
@@ -801,10 +803,13 @@ def _assumed_value(action_decl: ActionDeclaration) -> bool | None:
     )
 
 
-def _values_for_action(action: Action) -> list[bool]:
+def _values_for_action(action: Action) -> list[SemanticValue]:
     if action.assumed_value is not None:
-        return [action.assumed_value]
-    return _bool_values_for_action(action.rule, action.parent.rule)
+        return [SemanticValue(action.assumed_value)]
+    return [
+        SemanticValue(value)
+        for value in _bool_values_for_action(action.rule, action.parent.rule)
+    ]
 
 
 def _bool_values_for_action(

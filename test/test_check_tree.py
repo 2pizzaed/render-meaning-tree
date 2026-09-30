@@ -43,7 +43,7 @@ from src.generator.pipeline import (
 )
 from src.generator.utilities import code_snippet_to_pipeline
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
-from src.model.situation import Action, TraceAct
+from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult
 
 pytestmark = [pytest.mark.serial, pytest.mark.xdist_group("check_tree")]
@@ -994,7 +994,9 @@ def _apply_value_patches(
     patches: tuple[ValuePatch, ...],
 ) -> None:
     for line_number, role, values in patches:
-        _role_action(registry, line_number, role).values = values.copy()
+        action = _role_action(registry, line_number, role)
+        action.values = [SemanticValue(value) for value in values]
+        action.bind_values()
 
 
 def _spec_action(

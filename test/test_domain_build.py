@@ -71,7 +71,7 @@ def main(x):
     ]
 
     assert condition_actions
-    assert all(action.values == [True] for action in condition_actions)
+    assert all([value.bool_value for value in action.values] == [True] for action in condition_actions)
 
 
 def test_domain_build_validates_sequence_action_chain_in_execution_order(tmp_path: Path) -> None:
@@ -122,7 +122,7 @@ def main(x):
     ]
 
     assert len(condition_actions) == 1
-    assert condition_actions[0].values == [True, True, False]
+    assert [value.bool_value for value in condition_actions[0].values] == [True, True, False]
 
 
 def test_domain_build_validates_simple_branch_domain(tmp_path: Path) -> None:

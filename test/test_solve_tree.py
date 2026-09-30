@@ -15,7 +15,7 @@ from src.generator.pipeline import (
 from src.generator.utilities import code_snippet_to_pipeline
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.rules import InterruptionType
-from src.model.situation import Action, TraceAct
+from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult
 from test.helpers import (
     open_file_and_wait,
@@ -1273,11 +1273,13 @@ def _apply_action_value_patches(
     if patches is None:
         return
     for (line_number, action_index), values in patches.items():
-        require_line_action(
+        action = require_line_action(
             registry,
             line_number,
             action_index=action_index,
-        ).values = values.copy()
+        )
+        action.values = [SemanticValue(value) for value in values]
+        action.bind_values()
 
 
 def _assert_solve_sequence(
@@ -1487,11 +1489,13 @@ def _solve_once(
     trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, pipeline)
     assert trace_state is not None
     assert trace_acts
-    if trace_state.interruption_mode is not InterruptionType.NONE:
-        if trace_act_interruptions is not None:
-            trace_act_interruptions.append(
-                (len(trace_acts) - 1, trace_state.interruption_mode)
-            )
+    if (
+        trace_state.interruption_mode is not InterruptionType.NONE
+        and trace_act_interruptions is not None
+    ):
+        trace_act_interruptions.append(
+            (len(trace_acts) - 1, trace_state.interruption_mode)
+        )
 
     assert pipeline.registry.variables["P"] is trace_acts[-1]
     return solve_output

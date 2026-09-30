@@ -17,7 +17,7 @@ from src.model.rules import (
     Metadata,
     TransitionDeclaration,
 )
-from src.model.situation import Action, Construct, TraceAct, TraceState
+from src.model.situation import Action, Construct, SemanticValue, TraceAct, TraceState
 from src.serialization.adapters.rules import build_rules_loqi_adapters
 from src.serialization.adapters.situation import build_situation_loqi_adapters
 from src.serialization.loqi import (
@@ -536,6 +536,20 @@ def test_serialize_loqi_renders_rule_enum_objects_as_loqi_enums() -> None:
     assert "call_stack = CallStackAction:add_frame;" in rendered
 
 
+def test_semantic_value_hint_tracks_bool_value_until_overridden() -> None:
+    value = SemanticValue(True)
+    assert value.hint == "True"
+
+    value.bool_value = False
+    assert value.hint == "False"
+
+    value.hint_override = "custom"
+    assert value.hint == "custom"
+
+    value.hint_override = None
+    assert value.hint == "False"
+
+
 def test_serialize_loqi_situation_construct_action_and_values() -> None:
     ctx = SituationContextStub()
     construct_rule = ConstructDeclaration(
@@ -551,13 +565,18 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     construct = Construct(parent=None, ast_id=10, rule=construct_rule, owner=ctx)
     action = Action(
         ast_id=11,
-        values=[True, False],
+        values=[SemanticValue(True), SemanticValue(False, hint_override="custom")],
         rule=construct_rule.actions[1],
         parent=construct,
         owner=ctx,
     )
     ctx.add(construct)
     ctx.add(action)
+
+    assert action.values[0].owner is action
+    assert action.values[1].index == 1
+    assert action.values[0].hint == "True"
+    assert action.values[1].hint == "custom"
 
     rendered = serialize_loqi(construct, adapters_by_type=_all_model_adapters())
 
@@ -574,6 +593,8 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "hasValue(semantic_value_action_11_body_1);" not in rendered
     assert "obj semantic_value_action_11_body_0 : SemanticValue {" in rendered
     assert "bool_value = true;" in rendered
+    assert 'hint = "True"' in rendered
+    assert 'hint = "custom"' in rendered
     assert "directlyBeforeOf(semantic_value_action_11_body_1);" in rendered
     assert "directlyBeforeOf(demo_action_body_ast11);" in rendered
 
@@ -625,7 +646,7 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     construct = Construct(parent=None, ast_id=20, rule=construct_rule, owner=ctx)
     action = Action(
         ast_id=21,
-        values=[True],
+        values=[SemanticValue(True)],
         rule=construct_rule.actions[1],
         parent=construct,
         owner=ctx,
@@ -667,7 +688,7 @@ def test_serialize_loqi_repeated_trace_act_uses_next_semantic_value() -> None:
     construct = Construct(parent=None, ast_id=20, rule=construct_rule, owner=ctx)
     action = Action(
         ast_id=21,
-        values=[True, True, False],
+        values=[SemanticValue(True), SemanticValue(True), SemanticValue(False)],
         rule=construct_rule.actions[1],
         parent=construct,
         owner=ctx,

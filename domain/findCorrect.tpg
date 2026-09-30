@@ -67,10 +67,19 @@ lambda beginActionOf(C: ConcreteConstruct) = find ConcreteAction d {
     $d->belongsTo == C and $d->derivedFrom.role == "BEGIN"
 };
 
+// Кадр вызова для BEGIN-акта, добавляемого сразу после акта prev: если в prev вошли
+// по переходу с add_frame (действие func вызова), BEGIN открывает новый кадр - сам prev,
+// иначе остаётся в кадре prev. Зеркало на стороне Python: _frame_acts в serialization/adapters/situation.py
+lambda frameAfter(prev: TraceAct) = if (
+    prev=>hasTransition() and prev->hasTransition=>hasEffects() and
+    prev->hasTransition->hasEffects.call_stack == CallStackAction:add_frame
+) prev else prev->inFrame;
+
 // Последний BEGIN-акт конструкта акта t, несущий unfoldedFrom
 lambda unfoldBeginAct(t: TraceAct) = findExtreme latest [
     not $latest=>beforeOf($b)
 ] among TraceAct b {
+    $b->inFrame == t->inFrame and
     $b->hasAction->belongsTo == t->hasAction->belongsTo and
     $b->hasAction->derivedFrom.role == "BEGIN" and
     $b=>beforeOf(t) and
@@ -83,6 +92,7 @@ lambda hasPendingUnfold(t: TraceAct) =
     t->hasAction->belongsTo->derivedFrom.preorder and
     not forAny TraceAct later { $later=>afterOf(t) } and
     forAny TraceAct b {
+        $b->inFrame == t->inFrame and
         $b->hasAction->belongsTo == t->hasAction->belongsTo and
         $b->hasAction->derivedFrom.role == "BEGIN" and
         $b=>beforeOf(t) and
@@ -107,6 +117,7 @@ fragment appendPendingUnfold() {
         L = +obj : TraceAct (
             {
                 hasAction(U);
+                inFrame(beganAct->inFrame);
                 (beganAct=>hasTransition()) ? hasTransition(beganAct->hasTransition);
                 (U=>hasValue()) ? hasValue(findUnusedValue(U));
             }
@@ -139,16 +150,20 @@ fragment findLastTracedAction(last: TraceAct) {
     ) {
         body -> {
         // Найти последнее действие последнего вложенного конструкта, из которого еще не вышли
-        var current: ConcreteAction = (findExtreme act [$act == last or $act=>isCloserToThan(last, $prev)] among TraceAct prev {
+        // (BEGIN/END конструкта ищутся в кадре акта: END вложенной активации той же функции его не закрывает)
+        var currentAct: TraceAct = findExtreme act [$act == last or $act=>isCloserToThan(last, $prev)] among TraceAct prev {
             forAny TraceAct c {
-                $c->hasAction->belongsTo == $prev->hasAction->belongsTo 
+                $c->inFrame == $prev->inFrame
+                and $c->hasAction->belongsTo == $prev->hasAction->belongsTo
                 and $c->hasAction->derivedFrom.role == "BEGIN"}
             and not forAny TraceAct c {
-                $c->hasAction->belongsTo == $prev->hasAction->belongsTo 
+                $c->inFrame == $prev->inFrame
+                and $c->hasAction->belongsTo == $prev->hasAction->belongsTo
                 and $c->hasAction->derivedFrom.role == "END"}
-        })->hasAction out true else {
+        } out true else {
             conclude: error [exception = true; exceptionName = "UnclosedInterruption"];
         };
+        var current: ConcreteAction = currentAct->hasAction;
 
         // Если эффекты текущего действия останавливают текущее прерывание — не выходим из конструкта
         ask (current->derivedFrom=>hasEffects() and (
@@ -169,6 +184,7 @@ fragment findLastTracedAction(last: TraceAct) {
             last = +obj : TraceAct (
                 {
                     hasAction(exit);
+                    inFrame(currentAct->inFrame);
                     (exit=>hasValue()) ? hasValue(findUnusedValue(exit));
                 }
             );
@@ -189,11 +205,15 @@ fragment findLastTracedAction(last: TraceAct) {
 
     // последнее вычисленное действие является END в его конструкте
     ask (last->hasAction->derivedFrom.role == "END") out false else {
-        // ищем еще незавершенное действие конструкта, который ближе к P (но не сам конструкт из P)
+        // ищем еще незавершенное действие конструкта, который ближе к P (но не сам конструкт из P).
+        // END ищется только в кадре акта: иначе END вложенной (рекурсивной) активации той же
+        // функции "закрыл" бы акты внешней активации. Когда кадр закрыт целиком (END тела функции),
+        // ближайшим незавершённым оказывается акт func вызова в кадре вызывающего - точка возврата
         var possibleLast: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($c)] among TraceAct c {
-            $c->hasAction->derivedFrom.role != "END" and 
+            $c->hasAction->derivedFrom.role != "END" and
             not forAny TraceAct t2 {
-                $t2->hasAction->belongsTo == $c->hasAction->belongsTo and 
+                $t2->inFrame == $c->inFrame and
+                $t2->hasAction->belongsTo == $c->hasAction->belongsTo and
                 $t2->hasAction->derivedFrom.role == "END" and 
                 $t2=>afterOf($c)
             }
@@ -207,19 +227,9 @@ fragment findLastTracedAction(last: TraceAct) {
         last=>hasTransition() and last->hasTransition=>hasEffects() and 
         last->hasTransition->hasEffects.call_stack != CallStackAction:none
     ) out false else {
-        // Рекурсия временно запрещена
-        ask (forAny TraceAct act {
-            $act->hasAction.ast_id == last->hasAction.ast_id and 
-            $act->hasAction->derivedFrom.role == "BEGIN" and
-            not forAny TraceAct mid {
-                $mid->hasAction.ast_id == last->hasAction.ast_id and
-                $mid->hasAction->derivedFrom.role == "END" and
-                $mid=>isBetween($act, last)
-            }
-        }) out false else {
-            conclude : error [exception = true; exceptionName = "RecursionDenied";];
-        };
-        // Ищем начало тела функции и создаем акт вызова функции
+        // Ищем начало тела функции и создаем акт вызова функции.
+        // Рекурсия допустима: BEGIN открывает новый кадр (сам акт вызова callPrev),
+        // и акты вложенной активации сопоставляются только внутри своего кадра
         var callAction: ConcreteAction = find ConcreteAction a {
             $a->derivedFrom.role == "BEGIN" and
             $a.ast_id == last->hasAction.ast_id
@@ -230,6 +240,7 @@ fragment findLastTracedAction(last: TraceAct) {
             last = +obj : TraceAct (
                 {
                     hasAction(callAction);
+                    inFrame(frameAfter(callPrev));
                     (callAction=>hasValue()) ? hasValue(findUnusedValue(callAction));
                 }
             );
@@ -249,6 +260,9 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
         $c->derivedFrom.role == "BEGIN" and $c->belongsTo == C
     } out true else { conclude : error [exception = true;];};
     var unfoldPrev: TraceAct = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true};
+    // Кадр берётся от L (логически последнего акта), а не от unfoldPrev: после возврата
+    // из вызова хронологически последним в трассе стоит END уже закрытого кадра
+    var unfoldFrame: TraceAct = L->inFrame;
 
     // preorder-конструкт раскрывается ДО породившего его действия N: в трассу
     // добавляется только BEGIN (с unfoldedFrom(N) и переходом T, ведущим к N),
@@ -266,6 +280,7 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                     P = +obj : TraceAct (
                         {
                             hasAction(A);
+                            inFrame(unfoldFrame);
                             unfoldedFrom(N);
                             hasTransition(T);
                         }
@@ -283,6 +298,7 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                     L = +obj : TraceAct (
                         {
                             hasAction(A);
+                            inFrame(unfoldFrame);
                             unfoldedFrom(N);
                             hasTransition(T);
                         }
@@ -303,6 +319,7 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                 L = +obj : TraceAct (
                     {
                         hasAction(N);
+                        inFrame(unfoldFrame);
                         hasTransition(T);
                         (N=>hasValue()) ? hasValue(findUnusedValue(N));
                     }
@@ -312,10 +329,12 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                 if (N=>hasValue()) L->hasValue.used = true;
                 if (N=>hasEffects()) applyInterruptionMode(N->hasEffects, S);
                 if (T=>hasEffects()) applyInterruptionMode(T->hasEffects, S);
-                // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное
+                // Затем то, во что оно разворачивается (BEGIN нового конструкта), если оно прозрачное.
+                // Для вызова (T с add_frame: func -> тело функции) BEGIN открывает новый кадр
                 L = +obj : TraceAct (
                     {
                         hasAction(A);
+                        inFrame(frameAfter(unfoldPrev));
                         unfoldedFrom(N);
                     }
                 );
@@ -332,6 +351,7 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                     L = +obj : TraceAct (
                         {
                             hasAction(N);
+                            inFrame(unfoldFrame);
                             hasTransition(T);
                             (N=>hasValue()) ? hasValue(findUnusedValue(N));
                         }
@@ -348,6 +368,7 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                 P = +obj : TraceAct (
                     {
                         hasAction(N);
+                        inFrame(unfoldFrame);
                         hasTransition(T);
                         (N=>hasValue()) ? hasValue(findUnusedValue(N));
                     }
@@ -405,6 +426,7 @@ fragment classifyAction(N: ConcreteAction) {
                         P = +obj : TraceAct (
                             {
                                 hasAction(N);
+                                inFrame(L->inFrame);
                                 (N=>hasValue()) ? hasValue(findUnusedValue(N));
                                 hasTransition(T);
                             }
@@ -437,6 +459,7 @@ fragment classifyAction(N: ConcreteAction) {
                         L = +obj : TraceAct (
                             {
                                 hasAction(N);
+                                inFrame(L->inFrame);
                                 (N=>hasValue()) ? hasValue(findUnusedValue(N));
                                 hasTransition(T);
                             }
@@ -454,11 +477,12 @@ fragment classifyAction(N: ConcreteAction) {
 }
 
 fragment checkRepeatedAction(N: ConcreteAction) {
-    // Если действия уже было в трассе
-    ask (forAny TraceAct t {$t->hasAction == N}) out false else {
+    // Если действия уже было в трассе (в текущем кадре: во внешней активации той же
+    // функции действия выполнялись, но к текущей активации это не относится)
+    ask (forAny TraceAct t {$t->inFrame == L->inFrame and $t->hasAction == N}) out false else {
         // Проверяем, является ли действие повторяемым и выбираем следующее возможное действие из цепочки
-        var N1: ConcreteAction = find ConcreteAction n {$n=>afterOf(N) 
-            and not (forAny TraceAct t {$t->hasAction == $n}) 
+        var N1: ConcreteAction = find ConcreteAction n {$n=>afterOf(N)
+            and not (forAny TraceAct t {$t->inFrame == L->inFrame and $t->hasAction == $n})
             and $n=>isCloserToThan(
                 N,
                 findExtreme lastN [not $lastN=>beforeOf($c)] among ConcreteAction c {$c=>afterOf(N)}
@@ -504,12 +528,14 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                 L->hasAction->derivedFrom.role != "BEGIN" and
                 L->hasAction->derivedFrom.role != "END" and
                 $c.ast_id == L->hasAction.ast_id and
-                // если только он уже не развернут (нет BEGIN без парного END) (не сработает для рекурсии!)
+                // если только он уже не развернут в текущем кадре (нет BEGIN без парного END)
                 not forAny TraceAct t {
-                    $t->hasAction->belongsTo == $c
+                    $t->inFrame == L->inFrame
+                    and $t->hasAction->belongsTo == $c
                     and $t->hasAction->derivedFrom.role == "BEGIN"
                     and not forAny TraceAct e {
-                        $e->hasAction->belongsTo == $c
+                        $e->inFrame == $t->inFrame
+                        and $e->hasAction->belongsTo == $c
                         and $e->hasAction->derivedFrom.role == "END"
                         and $e=>afterOf($t)
                     }
@@ -529,6 +555,7 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                     P = +obj : TraceAct (
                         {
                             hasAction(A);
+                            inFrame(frameAfter(L));
                             unfoldedFrom(unfoldSource);
                         }
                     );

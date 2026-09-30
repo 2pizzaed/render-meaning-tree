@@ -197,6 +197,9 @@ class TraceAct {
 	rel hasValue(SemanticValue);
 	// заполняется только у BEGIN-акта развернутого конструкта: действие, из которого конструкт развернут
 	rel unfoldedFrom(ConcreteAction) : {* -> 1};
+	// кадр вызова: акт действия func, открывший активацию функции (для глобального кода - корневой акт трассы).
+	// Акты разных активаций одной функции различаются кадром, поэтому BEGIN/END сопоставляются только внутри кадра
+	rel inFrame(TraceAct) : {* -> 1};
 
 	rel directlyBeforeOf(TraceAct) : linear ;
 	rel directlyAfterOf(TraceAct) : opposite to directlyBeforeOf ;

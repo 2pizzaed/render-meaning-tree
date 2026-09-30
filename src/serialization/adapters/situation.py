@@ -4,6 +4,7 @@ from typing import Any
 
 from src.model.rules import (
     ActionDeclaration,
+    CallStackAction,
     ConstructDeclaration,
     TransitionDeclaration,
 )
@@ -105,6 +106,10 @@ class TraceActAdapter:
             relationships.append(
                 ctx.relationship("unfoldedFrom", ctx.serialize(obj.unfolded_from))
             )
+
+        frame_act = _frame_act_for(obj)
+        if frame_act is not None:
+            relationships.append(ctx.relationship("inFrame", frame_act))
 
         if obj.used_transition is not None:
             relationships.append(
@@ -216,6 +221,53 @@ def _activation_start_order(
         if trace_act.action.rule.role == "BEGIN" and id(trace_act.action.parent) in scope:
             start = order + 1
     return start
+
+
+def _frame_acts(trace_acts: list[TraceAct]) -> list[TraceAct]:
+    """Кадр вызова каждого акта трассы (связь ``inFrame``).
+
+    Кадр - акт действия func, по переходу в которое (с ``add_frame``) вошли в тело
+    функции; у глобального кода - корневой акт трассы. BEGIN-акт сразу после такого
+    акта открывает новый кадр, END того же конструкта его закрывает. Зеркало lambda
+    ``frameAfter`` и связей ``inFrame`` в ``domain/findCorrect.tpg``.
+    """
+    if not trace_acts:
+        return []
+
+    stack: list[tuple[TraceAct, Construct | None]] = [(trace_acts[0], None)]
+    frames: list[TraceAct] = []
+    for order, trace_act in enumerate(trace_acts):
+        role = trace_act.action.rule.role
+        if order > 0 and role == "BEGIN" and _enters_call_frame(trace_acts[order - 1]):
+            stack.append((trace_acts[order - 1], trace_act.action.parent))
+        frames.append(stack[-1][0])
+        if len(stack) > 1 and role == "END" and trace_act.action.parent is stack[-1][1]:
+            stack.pop()
+    return frames
+
+
+def _enters_call_frame(trace_act: TraceAct) -> bool:
+    transition = trace_act.used_transition
+    if transition is None:
+        return False
+    transition = (
+        _matching_compiled_transition(
+            transition, trace_act.action.parent.rule, trace_act.action.rule
+        )
+        or transition
+    )
+    return (
+        transition.effects is not None
+        and transition.effects.call_stack is CallStackAction.ADD_FRAME
+    )
+
+
+def _frame_act_for(trace_act: TraceAct) -> TraceAct | None:
+    chain = trace_act.chain
+    order = trace_act.chain_order
+    if order >= len(chain):
+        return None
+    return _frame_acts(chain)[order]
 
 
 def _trace_act_value_occurrence_index(trace_act: TraceAct) -> int:

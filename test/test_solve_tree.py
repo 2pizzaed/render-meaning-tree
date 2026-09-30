@@ -1098,6 +1098,132 @@ SEQUENCE_CASE_PARAMS: list[SequenceCase] = [
     _normalize_sequence_case(case) for case in SEQUENCE_CASES
 ]
 
+# Рекурсия: активации одной функции различаются кадрами вызова (TraceAct.inFrame),
+# возврат из вложенной активации продолжает внешнюю. Семантические значения пока
+# общие для всех активаций, и resetUsedValues при каждом входе в функцию начинает
+# цепочку условия заново, поэтому условие, охраняющее рекурсивный вызов, всегда
+# истинно и рекурсия не завершается. Ожидаемые последовательности сняты с
+# отключённым сбросом (значения расходуются по трассе: патч задаёт их для всех
+# активаций подряд); при привязке значений к активации патчи, вероятно, придётся
+# переписать под новую модель. Кейсы уже идут в общей параметризации
+# test_solve_tree_sequences: после исправления значений снять RECURSION_XFAIL и
+# перенести их в SEQUENCE_CASES.
+RECURSION_XFAIL = pytest.mark.xfail(
+    reason="семантические значения общие для всех активаций функции: рекурсия не завершается",
+    strict=True,
+)
+
+RECURSION_SEQUENCE_CASES: list[tuple[object, ...]] = [
+    (
+        # Глубина 2: после возврата из вложенного вызова внешняя активация
+        # продолжается с того же места (END вызова, оператор, print).
+        "python",
+        """
+        def f(n):
+            if n > 0:
+                f(n - 1)
+            print(n)
+
+
+        f(2)
+        """,
+        {
+            2: ["func_body", "first", "first_cond"],
+            3: ["if_branch", "first", "BEGIN", "END"],
+            4: ["next"],
+            7: ["first", "BEGIN", "END"],
+        },
+        [
+            (7, 1),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (4, 0),
+            # возврат в активацию f(1)
+            (3, 3),
+            (3, 1),
+            (4, 0),
+            # возврат в активацию f(2)
+            (3, 3),
+            (3, 1),
+            (4, 0),
+            (7, 2),
+            (7, 0),
+        ],
+        "python_recursion_depth2.loqi",
+        {(2, 2): [True, True, False]},
+    ),
+    (
+        # Выход из рекурсии через return: прерывание снимается на вызове своей
+        # активации, return 0 во внешних активациях не выполняется.
+        "python",
+        """
+        def f(n):
+            if n > 0:
+                return f(n - 1)
+            return 0
+
+
+        print(f(2))
+        """,
+        None,
+        [
+            (7, 1),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (4, 0),
+            (3, 3),
+            (3, 1),
+            (3, 3),
+            (3, 1),
+            (7, 2),
+            (7, 0),
+        ],
+        "python_recursion_return.loqi",
+        {(2, 2): [True, True, False]},
+    ),
+    (
+        # Взаимная рекурсия f -> g -> f.
+        "python",
+        """
+        def g(n):
+            f(n)
+
+
+        def f(n):
+            if n > 0:
+                g(n - 1)
+            print(n)
+
+
+        f(1)
+        """,
+        None,
+        [
+            (11, 1),
+            (6, 2),
+            (7, 2),
+            (2, 2),
+            (6, 2),
+            (8, 0),
+            (2, 3),
+            (2, 1),
+            (7, 3),
+            (7, 1),
+            (8, 0),
+            (11, 2),
+            (11, 0),
+        ],
+        "python_recursion_mutual.loqi",
+        {(6, 2): [True, False]},
+    ),
+]
+
 
 # -- Tests --------------------------------------------------------------------
 
@@ -1176,8 +1302,16 @@ def test_plain_statements(tmp_path: Path):
         "loqi_filename",
         "value_patches",
     ),
-    SEQUENCE_CASE_PARAMS,
-    ids=[Path(case[4]).stem for case in SEQUENCE_CASE_PARAMS],
+    [
+        *(
+            pytest.param(*case, id=Path(case[4]).stem)
+            for case in SEQUENCE_CASE_PARAMS
+        ),
+        *(
+            pytest.param(*case, id=Path(case[4]).stem, marks=RECURSION_XFAIL)
+            for case in map(_normalize_sequence_case, RECURSION_SEQUENCE_CASES)
+        ),
+    ],
 )
 def test_solve_tree_sequences(
     tmp_path: Path,

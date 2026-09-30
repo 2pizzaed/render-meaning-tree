@@ -37,7 +37,9 @@
 //    - выход из функции: роль P на уровнях ВНЕ тела функции ищется по статической
 //      иерархии (через конструкт определения функции); ослабляющий критерий
 //      «D_a уже есть в трассе позже последнего акта D_p» покрывает типовые случаи;
-//    - рекурсия не поддерживается (как и в findCorrect — RecursionDenied);
+//    - рекурсия: активации различаются кадрами вызова (TraceAct.inFrame, см. findCorrect),
+//      но семантические значения общие для всех активаций, поэтому условие, охраняющее
+//      рекурсивный вызов, в каждой активации получает первое значение (см. resetUsedValues);
 //    - предпрогонка findCorrect может сама добавить непрозрачный BEGIN конструкта,
 //      на который указывает последнее действие (поведение findCorrect);
 //    - для отложенного действия preorder-конструкта переход в акт не переносится
@@ -143,14 +145,17 @@ lambda beginActionOf(C: ConcreteConstruct) = find ConcreteAction d {
 // 2. Действие уровня C, «внутри» которого находится `target» —
 // либо это само `target`, либо действие C, чей раскрываемый конструкт
 // (связь по ast_id, кроме самого C — BEGIN/END носят ast_id конструкта)
-// является предком (или самим) конструкта `target`.
+// является предком (или самим) конструкта `target`. Связь через вызов (тело функции
+// лексически не вложено в C) учитывается, только пока этот вызов выполняется:
+// при рекурсии вызов лежит в теле той же функции, и статическая связь зациклилась бы.
 lambda containingAction(target: ConcreteAction, C: ConcreteConstruct) = find ConcreteAction d {
     $d->belongsTo == C and (
         $d == target or
-        forAny ConcreteConstruct cc {
+        target->belongsTo != C and forAny ConcreteConstruct cc {
             $cc != C and
             $cc.ast_id == $d.ast_id and
-            isAncestorOrSelf(target->belongsTo, $cc)
+            isAncestorOrSelf(target->belongsTo, $cc) and
+            ($cc=>hasAncestor(C) or callActive($d))
         }
     )
 };
@@ -159,10 +164,11 @@ lambda containingAction(target: ConcreteAction, C: ConcreteConstruct) = find Con
 lambda hasContainingAction(target: ConcreteAction, C: ConcreteConstruct) = forAny ConcreteAction d {
     $d->belongsTo == C and (
         $d == target or
-        forAny ConcreteConstruct cc {
+        target->belongsTo != C and forAny ConcreteConstruct cc {
             $cc != C and
             $cc.ast_id == $d.ast_id and
-            isAncestorOrSelf(target->belongsTo, $cc)
+            isAncestorOrSelf(target->belongsTo, $cc) and
+            ($cc=>hasAncestor(C) or callActive($d))
         }
     )
 };
@@ -177,13 +183,15 @@ lambda roleActionOf(target: ConcreteAction, C: ConcreteConstruct) =
 lambda lastActInside(C: ConcreteConstruct) = findExtreme latest [
     not $latest=>beforeOf($t)
 ] among TraceAct t {
+    $t->inFrame == frameOf(C) and
     forAny ConcreteAction inner {
         $inner->belongsTo == C and (
             $inner == $t->hasAction or
-            forAny ConcreteConstruct innerCc {
+            $t->hasAction->belongsTo != C and forAny ConcreteConstruct innerCc {
                 $innerCc != C and
                 $innerCc.ast_id == $inner.ast_id and
-                isAncestorOrSelf($t->hasAction->belongsTo, $innerCc)
+                isAncestorOrSelf($t->hasAction->belongsTo, $innerCc) and
+                ($innerCc=>hasAncestor(C) or callActive($inner))
             }
         )
     }
@@ -198,19 +206,80 @@ lambda currentRoleActionOf(target: ConcreteAction, C: ConcreteConstruct) =
         isConstructOpen(C) ? containingAction(lastActInside(C)->hasAction, C) : beginActionOf(C)
     );
 
-// Последний акт трассы для конкретного действия D (текущая активация:
-// при повторных входах в конструкты/функции интересен именно последний акт).
+// --- кадры вызова (TraceAct.inFrame, см. findCorrect.tpg) -----------------------
+// Акты разных активаций одной функции различаются кадром, поэтому BEGIN/END,
+// последние акты и «содержащие» действия ищутся в кадре текущей активации.
+
+// Кадр вызова X закрыт: в нём уже есть END тела функции (END несёт ast_id определения
+// функции, как и действие func вызова X); для корневого кадра - END программы.
+lambda frameClosed(X: TraceAct) = forAny TraceAct fe {
+    $fe->inFrame == X and
+    $fe->hasAction->derivedFrom.role == "END" and
+    $fe->hasAction.ast_id == X->hasAction.ast_id
+};
+
+// Кадр X обслуживает конструкт C: в кадре есть акты, он ещё не закрыт, и его функция
+// (действие func кадра несёт ast_id её определения; у корневого кадра - ast_id программы)
+// - ближайшая объемлющая C функция (или программа, если C вне функций).
+lambda frameServes(X: TraceAct, C: ConcreteConstruct) =
+    forAny TraceAct fxIn { $fxIn->inFrame == X } and
+    not frameClosed(X) and
+    forAny ConcreteConstruct fxFunc {
+        $fxFunc.ast_id == X->hasAction.ast_id and
+        isAncestorOrSelf(C, $fxFunc) and
+        not forAny ConcreteConstruct fxInner {
+            $fxInner != $fxFunc and
+            $fxInner->derivedFrom.name == "func_def_structure" and
+            isAncestorOrSelf(C, $fxInner) and
+            $fxInner=>hasAncestor($fxFunc)
+        }
+    };
+
+// Кадр текущей активации конструкта C: самый внутренний обслуживающий его кадр
+// (при рекурсии живы несколько активаций одной функции - текущая самая внутренняя).
+// Нет, если функция C сейчас не выполняется.
+lambda frameOf(C: ConcreteConstruct) = findExtreme innermost [
+    not $innermost=>beforeOf($fx)
+] among TraceAct fx { frameServes($fx, C) };
+
+// Есть ли у конструкта C выполняющаяся активация.
+lambda hasLiveFrame(C: ConcreteConstruct) = forAny TraceAct fy { frameServes($fy, C) };
+
+// Акт t относится к текущей активации конструкта C. Если функция C уже не
+// выполняется (например, только что вышли из неё по return), подходят акты любого кадра.
+lambda inCurrentActivation(t: TraceAct, C: ConcreteConstruct) =
+    t->inFrame == frameOf(C) or not hasLiveFrame(C);
+
+// Вызов через действие D сейчас выполняется: есть акт D, открывший кадр
+// (в кадре есть акты), и этот кадр ещё не закрыт.
+lambda callActive(D: ConcreteAction) = forAny TraceAct cx {
+    $cx->hasAction == D and
+    $cx->inFrame == frameOf(D->belongsTo) and
+    forAny TraceAct cxIn { $cxIn->inFrame == $cx and $cxIn != $cx } and
+    not forAny TraceAct cxEnd {
+        $cxEnd->inFrame == $cx and
+        $cxEnd->hasAction->derivedFrom.role == "END" and
+        $cxEnd->hasAction.ast_id == $cx->hasAction.ast_id
+    }
+};
+
+// Последний акт трассы для конкретного действия D в текущей активации его
+// конструкта (при повторных входах интересен именно последний акт, при рекурсии -
+// акт самой внутренней выполняющейся активации функции).
 lambda lastActOf(D: ConcreteAction) = findExtreme latest [
     not $latest=>beforeOf($t)
 ] among TraceAct t {
-    $t->hasAction == D
+    $t->hasAction == D and
+    $t->inFrame == frameOf(D->belongsTo)
 };
 
-// Открыт ли конструкт C в трассе: есть BEGIN-акт без последующего END-акта.
-// (При повторных входах закрытые активации отфильтровываются автоматически.)
+// Открыт ли конструкт C в трассе: в кадре текущей активации есть BEGIN-акт без
+// последующего END-акта (END вложенной активации той же функции его не закрывает).
 lambda isConstructOpen(C: ConcreteConstruct) = forAny TraceAct b {
+    $b->inFrame == frameOf(C) and
     $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
     not forAny TraceAct e {
+        $e->inFrame == $b->inFrame and
         $e->hasAction->belongsTo == C and $e->hasAction->derivedFrom.role == "END" and
         $e=>afterOf($b)
     }
@@ -222,10 +291,13 @@ lambda isConstructOpen(C: ConcreteConstruct) = forAny TraceAct b {
 // трассы, правая граница области (END охватывающего конструкта) не нужна —
 // текущая активация тянется до конца трассы. Повторные входы (циклы, повторные
 // вызовы функций) отсекаются требованием «после E» и «нет BEGIN после END».
+// Акты C ищутся в кадре E, а для тела функции - в кадре, открытом E (действие func).
 lambda isClosedAfter(C: ConcreteConstruct, E: TraceAct) = forAny TraceAct e {
+    ($e->inFrame == E->inFrame or $e->inFrame == E) and
     $e->hasAction->belongsTo == C and $e->hasAction->derivedFrom.role == "END" and
     $e=>afterOf(E) and
     not forAny TraceAct b {
+        $b->inFrame == $e->inFrame and
         $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
         $b=>afterOf($e)
     }
@@ -237,7 +309,9 @@ lambda isClosedAfter(C: ConcreteConstruct, E: TraceAct) = forAny TraceAct e {
 // уровне (например, оператор с вызовом функции при проверке выхода из вызова).
 lambda actAlreadyCurrent(Da: ConcreteAction, Dp: ConcreteAction) = forAny TraceAct t {
     $t->hasAction == Da and
+    $t->inFrame == frameOf(Da->belongsTo) and
     not forAny TraceAct u {
+        $u->inFrame == $t->inFrame and
         $u->hasAction == Dp and
         $u=>afterOf($t)
     }
@@ -345,9 +419,11 @@ lambda isPendingUnfoldAction(target: ConcreteAction) = forAny TraceAct e {
 // Зеркало isClosedAfter для preorder-конструктов: их END лежит ДО акта E
 // (акт породившего действия добавляется уже после завершения конструкта).
 lambda isClosedBefore(C: ConcreteConstruct, E: TraceAct) = forAny TraceAct e {
+    ($e->inFrame == E->inFrame or $e->inFrame == E) and
     $e->hasAction->belongsTo == C and $e->hasAction->derivedFrom.role == "END" and
     $e=>beforeOf(E) and
     not forAny TraceAct b {
+        $b->inFrame == $e->inFrame and
         $b->hasAction->belongsTo == C and $b->hasAction->derivedFrom.role == "BEGIN" and
         $b=>afterOf($e) and $b=>beforeOf(E)
     }
@@ -561,7 +637,7 @@ fragment commitCorrectAction() {
 fragment autoPassedRefinement() {
     // после P0 конструкция с A была принудительно закрыта (акт END без перехода)
     ask (forAny TraceAct t {
-        $t=>afterOf(P0) and
+        $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
         $t->hasAction->derivedFrom.role == "END" and
         isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo) and
         not $t=>hasTransition()
@@ -573,7 +649,7 @@ fragment autoPassedRefinement() {
         var ForcedExit: ConcreteConstruct = findExtreme outer [isAncestorOrSelf($c, $outer)] among ConcreteConstruct c {
             isAncestorOrSelf(A->belongsTo, $c) and
             forAny TraceAct t {
-                $t=>afterOf(P0) and
+                $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
                 $t->hasAction->derivedFrom.role == "END" and
                 $t->hasAction->belongsTo == $c and
                 not $t=>hasTransition()
@@ -593,7 +669,7 @@ fragment autoPassedRefinement() {
     // после P0 конструкция с A была закрыта по переходу либо выполнение вошло
     // в другую её ветвь — значение условия уже определило дальнейший путь
     ask (forAny TraceAct t {
-        $t=>afterOf(P0) and (
+        $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and (
             (
                 $t->hasAction->derivedFrom.role == "END" and
                 isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo) and
@@ -610,7 +686,7 @@ fragment autoPassedRefinement() {
         var ValueExited: ConcreteConstruct = findExtreme outer [isAncestorOrSelf($c, $outer)] among ConcreteConstruct c {
             isAncestorOrSelf(A->belongsTo, $c) and
             forAny TraceAct t {
-                $t=>afterOf(P0) and
+                $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
                 $t->hasAction->derivedFrom.role == "END" and
                 $t->hasAction->belongsTo == $c and
                 $t=>hasTransition() and
@@ -626,10 +702,10 @@ fragment autoPassedRefinement() {
         };
         var ValueEntered: ConcreteConstruct = find ConcreteConstruct c {
             forAny TraceAct t {
-                $t=>afterOf(P0) and
+                $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
                 entersSiblingBranch($t, A) and
                 $t->hasAction->belongsTo == $c and
-                not forAny TraceAct u { $u=>afterOf($t) and entersSiblingBranch($u, A) }
+                not forAny TraceAct u { $u=>afterOf($t) and $u->inFrame == $t->inFrame and entersSiblingBranch($u, A) }
             }
         } out false else {
             conclude: error [
@@ -929,6 +1005,9 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
     subcall_mut("findCorrect", false, S, P);
     eval(obj:TraceConfig.stop_on_opaque = true);
     eval(P = findExtreme lastAct [not $lastAct=>beforeOf($a)] among TraceAct a {true});
+    // Кадр P закрыт (последний акт - END тела функции): выполнение вернулось в кадр
+    // вызывающего, и точка отсчёта - акт func вызова (зеркало ветки END в findCorrect)
+    eval(P = if (P->inFrame->inFrame != P->inFrame and frameClosed(P->inFrame)) P->inFrame else P);
 
     // Шаг 2а: программа уже полностью вычислена.
     ask (

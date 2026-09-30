@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from textwrap import dedent
 from typing import Any
 from unittest.mock import Mock
@@ -668,6 +669,86 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     assert "directlyBeforeOf(act_demo_trace_body_1_ast21);" in rendered
     assert "hasValue(semantic_value_action_21_body_0);" in rendered
     assert "semantic_value_owner_" not in rendered
+
+
+def test_serialize_loqi_trace_act_in_frame_separates_recursive_activations() -> None:
+    ctx = SituationContextStub()
+    call_rule = ConstructDeclaration(
+        name="demo_call",
+        kind="inline.call",
+        ast_node="call_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="func", kind="external"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(
+                from_role="BEGIN",
+                to_role="func",
+                effects=EffectDeclaration(call_stack=CallStackAction.ADD_FRAME),
+            ),
+        ],
+    )
+    def_rule = ConstructDeclaration(
+        name="demo_def",
+        kind="compound",
+        ast_node="def_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="body", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[TransitionDeclaration(from_role="BEGIN", to_role="body")],
+    )
+    call = Construct(parent=None, ast_id=10, rule=call_rule, owner=ctx)
+    function = Construct(parent=None, ast_id=20, rule=def_rule, owner=ctx)
+    func = Action(ast_id=20, values=[], rule=call_rule.actions[1], parent=call, owner=ctx)
+    body = Action(ast_id=21, values=[], rule=def_rule.actions[1], parent=function, owner=ctx)
+    for obj in (call, function, func, body):
+        ctx.add(obj)
+    enter = call_rule.transitions[0]
+    # f(2): вызов из глобального кода, внутри тела - рекурсивный вызов
+    for action, transition in [
+        (call.begin_action(), None),
+        (func, enter),
+        (function.begin_action(), None),  # кадр акта 1
+        (body, None),
+        (call.begin_action(), None),
+        (func, enter),
+        (function.begin_action(), None),  # кадр акта 5
+        (body, None),
+        (function.end_action(), None),
+        (call.end_action(), None),  # снова кадр акта 1
+        (function.end_action(), None),
+        (call.end_action(), None),  # корневой кадр
+    ]:
+        ctx.add(TraceAct(action=action, used_transition=transition, situation=ctx))
+
+    rendered = serialize_loqi(ctx.trace_acts[0], adapters_by_type=_all_model_adapters())
+
+    frames = {
+        match.group(1): match.group(2)
+        for match in re.finditer(
+            r"obj (\w+) : TraceAct \{[^}]*?inFrame\((\w+)\);", rendered
+        )
+    }
+    outer = "act_demo_call_func_1_ast20"
+    inner = "act_demo_call_func_5_ast20"
+    assert frames == {
+        "act_root": "act_root",
+        outer: "act_root",
+        "act_demo_def_BEGIN_2_ast20": outer,
+        "act_demo_def_body_3_ast21": outer,
+        "act_demo_call_BEGIN_4_ast10": outer,
+        inner: outer,
+        "act_demo_def_BEGIN_6_ast20": inner,
+        "act_demo_def_body_7_ast21": inner,
+        "act_demo_def_END_8_ast20": inner,
+        "act_demo_call_END_9_ast10": outer,
+        "act_demo_def_END_10_ast20": outer,
+        "act_demo_call_END_11_ast10": "act_root",
+    }
 
 
 def test_serialize_loqi_repeated_trace_act_uses_next_semantic_value() -> None:

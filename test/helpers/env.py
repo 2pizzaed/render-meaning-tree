@@ -12,6 +12,22 @@ OPEN_TEST_ARTIFACTS_ENV_VAR = "OPEN_TEST_ARTIFACTS"
 PNG_DOT_OUTPUT_ENV_VAR = "PNG_DOT_OUTPUT"
 
 
+class SlowToolchainBackendWarning(UserWarning):
+    """Тесты вызывают тулчейн через CLI (новая JVM на каждый вызов), а не через RPC-сервер."""
+
+
+def toolchains_without_rpc() -> list[str]:
+    """Фасады тулчейна, выбравшие при импорте не RPC-бэкенд."""
+    # Бэкенд выбирается при импорте фасада; health-проба auto-режима кешируется на процесс.
+    from src import meaning_tree, tpg_domain
+
+    backends = {
+        "tpg_domain (its_DomainModel, its_Reasoner)": tpg_domain.ACTIVE_BACKEND,
+        "meaning_tree": meaning_tree.ACTIVE_BACKEND,
+    }
+    return [name for name, backend in backends.items() if backend != "rpc"]
+
+
 def resolve_project_root(start: str | Path | None = None) -> Path:
     """Return repository root, detected by the sibling domain directory."""
     current = Path(start) if start is not None else Path(__file__)

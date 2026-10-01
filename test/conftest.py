@@ -4,13 +4,51 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from src.env import load_project_env
+from test.helpers.env import SlowToolchainBackendWarning, toolchains_without_rpc
 
 pytest_plugins = ("test.helpers.fixtures",)
 
 load_project_env()
 
 MAX_PYTEST_RUN_DIRS = 10
+
+
+SLOW_BACKEND_TOOLCHAINS_KEY = pytest.StashKey[list[str]]()
+
+
+def _slow_backend_message(toolchains: list[str]) -> str:
+    return (
+        f"toolchain is not using the RPC backend (CLI: {', '.join(toolchains)}). "
+        "Every call starts a new JVM, so the test run will be far too slow. "
+        "Strongly recommended: stop the tests (Ctrl+C), set up RPC "
+        "(bash rpc_server.sh start; TOOLCHAIN_BACKEND=auto or rpc and "
+        "JSON_RPC_TOOLCHAIN_SERVER in .env) and run them again."
+    )
+
+
+def _check_toolchain_backend(config: pytest.Config) -> None:
+    toolchains = toolchains_without_rpc()
+    config.stash[SLOW_BACKEND_TOOLCHAINS_KEY] = toolchains
+    if toolchains:
+        # Попадает в warnings summary в конце прогона; с -W error::...SlowToolchainBackendWarning
+        # прогон сразу прерывается.
+        config.issue_config_time_warning(
+            SlowToolchainBackendWarning(_slow_backend_message(toolchains)), stacklevel=2
+        )
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    # warnings summary печатается только в конце, поэтому дублируем предупреждение
+    # в начале прогона, пока его ещё есть смысл остановить.
+    toolchains = session.config.stash.get(SLOW_BACKEND_TOOLCHAINS_KEY, [])
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if toolchains and reporter is not None:
+        reporter.write_sep("!", "WARNING: " + SlowToolchainBackendWarning.__name__, red=True, bold=True)
+        reporter.write_line(_slow_backend_message(toolchains), yellow=True, bold=True)
+        reporter.write_sep("!", red=True, bold=True)
 
 
 def pytest_configure(config):
@@ -26,6 +64,8 @@ def pytest_configure(config):
         _prune_old_run_dirs(temp_root, keep=MAX_PYTEST_RUN_DIRS, cur=run_temp)
     tempfile.tempdir = str(run_temp)
     config.option.basetemp = str(run_temp)
+    if worker_id is None:
+        _check_toolchain_backend(config)
 
 
 def _prune_old_run_dirs(temp_root: Path, *, keep: int, cur: Path) -> None:

@@ -37,9 +37,9 @@
 //    - выход из функции: роль P на уровнях ВНЕ тела функции ищется по статической
 //      иерархии (через конструкт определения функции); ослабляющий критерий
 //      «D_a уже есть в трассе позже последнего акта D_p» покрывает типовые случаи;
-//    - рекурсия: активации различаются кадрами вызова (TraceAct.inFrame, см. findCorrect),
-//      но семантические значения общие для всех активаций, поэтому условие, охраняющее
-//      рекурсивный вызов, в каждой активации получает первое значение (см. resetUsedValues);
+//    - семантические значения расходуются по всей трассе и не сбрасываются при повторном
+//      входе в конструкт: цепочка значений действия должна покрывать все его выполнения
+//      в задаче (все вызовы функции, все итерации внешних циклов);
 //    - предпрогонка findCorrect может сама добавить непрозрачный BEGIN конструкта,
 //      на который указывает последнее действие (поведение findCorrect);
 //    - для отложенного действия preorder-конструкта переход в акт не переносится
@@ -93,17 +93,6 @@ lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
 ] among SemanticValue v {
     A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
 };
-
-// Сбросить used у значений действий конструкта C и всех его потомков при новом
-// входе в C (зеркало одноимённой lambda из findCorrect.tpg и
-// _activation_start_order в serialization/adapters/situation.py).
-lambda resetUsedValues(C: ConcreteConstruct) = forAll SemanticValue v [
-    forAny ConcreteAction a {
-        ($a->belongsTo == C or $a->belongsTo=>hasAncestor(C)) and
-        $a=>hasValue() and
-        ($v == $a->hasValue or $v=>afterOf($a->hasValue))
-    }
-] { $v.used = false };
 
 // Fallback-цель перехода: первый реально присутствующий в C элемент цепочки
 // to_when_absent, либо основная цель to_, если fallback не задан.
@@ -534,7 +523,6 @@ fragment commitCorrectAction() {
                     }
                 );
                 Prev +=> directlyBeforeOf(P);
-                resetUsedValues(ExpandsNT);
                 if (beginActionOf(ExpandsNT)->derivedFrom=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->derivedFrom->hasEffects, S);
                 if (beginActionOf(ExpandsNT)=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->hasEffects, S)
             }) [
@@ -555,7 +543,6 @@ fragment commitCorrectAction() {
             );
             Prev +=> directlyBeforeOf(P);
             if (A=>hasValue()) P->hasValue.used = true;
-            if (A->derivedFrom.role == "BEGIN") resetUsedValues(A->belongsTo);
             if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
             if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S)
         }) [
@@ -598,7 +585,6 @@ fragment commitCorrectAction() {
                 }
             );
             Prev +=> directlyBeforeOf(P);
-            resetUsedValues(Expands);
             if (beginActionOf(Expands)->derivedFrom=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->derivedFrom->hasEffects, S);
             if (beginActionOf(Expands)=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->hasEffects, S)
         }) [
@@ -618,7 +604,6 @@ fragment commitCorrectAction() {
         );
         Prev +=> directlyBeforeOf(P);
         if (A=>hasValue()) P->hasValue.used = true;
-        if (A->derivedFrom.role == "BEGIN") resetUsedValues(A->belongsTo);
         if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
         if (Tin=>hasEffects()) applyInterruptionMode(Tin->hasEffects, S)
     }) [

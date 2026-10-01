@@ -18,18 +18,6 @@ lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
     A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
 };
 
-// Сбросить used у значений действий конструкта C и всех его потомков:
-// новый вход в конструкт (повторный вызов функции, новая итерация тела цикла)
-// начинает новую активацию, где значения условий расходуются заново.
-// Зеркало на стороне Python: _activation_start_order в serialization/adapters/situation.py
-lambda resetUsedValues(C: ConcreteConstruct) = forAll SemanticValue v [
-    forAny ConcreteAction a {
-        ($a->belongsTo == C or $a->belongsTo=>hasAncestor(C)) and
-        $a=>hasValue() and
-        ($v == $a->hasValue or $v=>afterOf($a->hasValue))
-    }
-] { $v.used = false };
-
 // чтобы поддерживать порядок из нескольких to_when_absent
 lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_absent()) (findExtreme present [
     $present=>isCloserToThan(T->to_when_absent, $ap) or $present == T->to_when_absent
@@ -245,7 +233,6 @@ fragment findLastTracedAction(last: TraceAct) {
                 }
             );
             if (callAction=>hasValue()) last->hasValue.used = true;
-            resetUsedValues(callAction->belongsTo);
             if (callAction->derivedFrom=>hasEffects()) applyInterruptionMode(callAction->derivedFrom->hasEffects, S);
             if (callAction=>hasEffects()) applyInterruptionMode(callAction->hasEffects, S);
             callPrev +=> directlyBeforeOf(last);
@@ -287,7 +274,6 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                     );
                     unfoldPrev +=> directlyBeforeOf(P);
                     L = P;
-                    resetUsedValues(C);
                     if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
                     if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
                 });
@@ -304,7 +290,6 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                         }
                     );
                     unfoldPrev +=> directlyBeforeOf(L);
-                    resetUsedValues(C);
                     if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
                     if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
                 });
@@ -339,7 +324,6 @@ fragment unfoldNewConstruct(C: ConcreteConstruct) {
                     }
                 );
                 unfoldPrev +=> directlyBeforeOf(L);
-                resetUsedValues(C);
                 if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
                 if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
             });
@@ -561,7 +545,6 @@ tpg CtrlFlow_findCorrect(S: TraceState, P: TraceAct) {
                     );
                     Prev +=> directlyBeforeOf(P);
                     L = P;
-                    resetUsedValues(C);
                     if (A->derivedFrom=>hasEffects()) applyInterruptionMode(A->derivedFrom->hasEffects, S);
                     if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S);
                 });

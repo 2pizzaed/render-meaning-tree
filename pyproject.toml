@@ -37,13 +37,14 @@ tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
 validate-dsm = "src.validate_dsm:main"
 
 [tool.pytest.ini_options]
-addopts = "-q -s --tb=short --disable-warnings"
+addopts = "-q -s --tb=short"
 markers = [
     "serial: tests that should run outside xdist parallel scheduling",
 ]
+# Все предупреждения скрыты, кроме перечисленных ниже (последнее совпавшее правило важнее).
 filterwarnings = [
-    "ignore::pytest.PytestRemovedIn10Warning",
-    "ignore::DeprecationWarning:pydot",
+    "ignore",
+    "default::test.helpers.env.SlowToolchainBackendWarning",
 ]
 
 [tool.ruff.lint]

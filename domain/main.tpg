@@ -53,19 +53,30 @@
 //  Объяснения — шаблоны: ${X} подставляет localizedName переменной X из снимка
 //  переменных conclude-узла, ${X}[case='р'] — то же в нужном падеже (только RU),
 //  ${X.prop} — значение свойства (для перечисления — его localizedName из
-//  domain.loqi; значение берётся из ситуации ПОСЛЕ прогона). Студенту понятны
-//  только термины языка и алгоритмов: служебных слов модели («прерывание»,
-//  «трасса», «переход») в текстах нет. Причину называем действием («из-за
-//  остановки цикла на строке 2»); вид ${S.interruption_mode} — только когда
-//  действия нет (иначе тавтология: «остановка цикла — это прерывание цикла»).
+//  domain.loqi; значение берётся из ситуации ПОСЛЕ прогона).
+//
+//  Объяснение называет ПРИЧИНУ, по которой A сейчас не выполняется, а не
+//  следующий верный шаг: в текстах нет «сначала выполняется X», «нужно выйти из
+//  Y», «выполнение ушло в Z». Строится как в ControlFlow CompPrehension: правило
+//  конструкции языка, затем его применение к ситуации, связанное союзами («так
+//  как», «потому что», «поэтому»), без двоеточий. Правило выводится из данных:
+//  ограничения перехода (значение условия), вида прерывания (localizedName
+//  InterruptionType), структуры конструкции. Конструкции и действия называются
+//  только своим localizedName (${C}, ${ValueExited}, ...): слов «цикл»,
+//  «ветвление», «функция» в шаблонах нет — вид конструкции текст не угадывает.
+//  ConstructSpec.kind допустим лишь как условие выбора правила, которое для
+//  других видов неверно. Студенту понятны только термины языка и алгоритмов:
+//  служебных слов модели («трасса», «переход», «акт») в текстах нет.
+//  Объяснение не показывает неполноту проверки: если граф вывел причину по
+//  состоянию трассы (autoPassedRefinement), текст утверждает её как факт.
 //  Ссылки — на действия и конструкты (A, C, Da, Dp, Dcc и переменные, найденные
-//  перед conclude только для текста: Blocking, Expected, Interrupter, ...), а не на
+//  перед conclude только для текста: Blocking, Decider, Interrupter, ...), а не на
 //  акты трассы: акты, созданные во время прогона, не имеют localizedName. Объект,
 //  гарантированный проверкой выше, при отсутствии даёт внутреннее исключение, а не
-//  пустой для студента текст; запасной текст — только там, где объекта может
-//  действительно не быть (Expected, Skipped). Имя пишется со
-//  строчной буквы, поэтому фраза с него не начинается; согласование по роду
-//  обходится формулировкой (косвенный падеж, настоящее время, «где», «это действие»).
+//  пустой для студента текст. Имя пишется со строчной буквы, поэтому фраза с него
+//  не начинается; согласование по роду обходится формулировкой («выполнение X»,
+//  настоящее время, «это действие»). Имена условий начинаются со слова «условие»,
+//  поэтому «${Dp} ложно» согласовано.
 // ============================================================================
 
 
@@ -453,14 +464,6 @@ lambda lastInterrupterAction() = find ConcreteAction ia {
     }
 };
 
-// Самый внутренний открытый конструкт, содержащий конструкт node
-// (открытые конструкты вложены друг в друга, поэтому он единственный).
-lambda innermostOpenAround(node: ConcreteConstruct) = findExtreme inner [
-    isAncestorOrSelf($inner, $c)
-] among ConcreteConstruct c {
-    isAncestorOrSelf(node, $c) and isConstructOpen($c)
-};
-
 // Акт t — вход в ДРУГУЮ ветвь конструкта действия A: конструкт раскрыт из действия
 // того же уровня, отличного от A. Вход в тело вызванной функции этому не
 // соответствует (её конструкт не раскрывается действием уровня A).
@@ -527,8 +530,8 @@ fragment commitCorrectAction() {
                 if (beginActionOf(ExpandsNT)=>hasEffects()) applyInterruptionMode(beginActionOf(ExpandsNT)->hasEffects, S)
             }) [
                 skill = "correct_answer";
-                RU.explanation = "Верно: следующим выполняется ${A}." ;
-                EN.explanation = "Correct: the ${A} is executed next." ;
+                RU.explanation = "Верно, следующим выполняется ${A}." ;
+                EN.explanation = "Correct, the ${A} is executed next." ;
             ];
         };
         conclude: correct with ({
@@ -547,8 +550,8 @@ fragment commitCorrectAction() {
             if (A=>hasEffects()) applyInterruptionMode(A->hasEffects, S)
         }) [
             skill = "correct_answer";
-            RU.explanation = "Верно: следующим выполняется ${A}." ;
-            EN.explanation = "Correct: the ${A} is executed next." ;
+            RU.explanation = "Верно, следующим выполняется ${A}." ;
+            EN.explanation = "Correct, the ${A} is executed next." ;
         ];
     };
     // === Переход найден: он прикладывается к акту (по hasTransition с эффектом
@@ -589,8 +592,8 @@ fragment commitCorrectAction() {
             if (beginActionOf(Expands)=>hasEffects()) applyInterruptionMode(beginActionOf(Expands)->hasEffects, S)
         }) [
             skill = "correct_answer";
-            RU.explanation = "Верно: следующим выполняется ${A}." ;
-            EN.explanation = "Correct: the ${A} is executed next." ;
+            RU.explanation = "Верно, следующим выполняется ${A}." ;
+            EN.explanation = "Correct, the ${A} is executed next." ;
         ];
     };
     conclude: correct with ({
@@ -608,8 +611,8 @@ fragment commitCorrectAction() {
         if (Tin=>hasEffects()) applyInterruptionMode(Tin->hasEffects, S)
     }) [
         skill = "correct_answer";
-        RU.explanation = "Верно: следующим выполняется ${A}." ;
-        EN.explanation = "Correct: the ${A} is executed next." ;
+        RU.explanation = "Верно, следующим выполняется ${A}." ;
+        EN.explanation = "Correct, the ${A} is executed next." ;
     ];
 }
 
@@ -645,10 +648,22 @@ fragment autoPassedRefinement() {
         var ForcedBy: ConcreteAction = lastInterrupterAction() out true else {
             conclude: error [ exception = true; exceptionName = "NoInterrupterAction"; ];
         };
+        // эффект, которым ForcedBy начал прерывание (у правила действия или у самого
+        // действия, как в startsInterruption): его вид называется в объяснении.
+        // После предпрогонки S.interruption_mode уже сброшен концом конструкции,
+        // поэтому вид берётся из эффекта, а не из S
+        var ForcedKind: Effect = find Effect e {
+            $e.interruption_start != InterruptionType:none and (
+                (ForcedBy->derivedFrom=>hasEffects() and ForcedBy->derivedFrom->hasEffects == $e) or
+                (ForcedBy=>hasEffects() and ForcedBy->hasEffects == $e)
+            )
+        } out true else {
+            conclude: error [ exception = true; exceptionName = "NoInterruptionEffect"; ];
+        };
         conclude: error [
             skill = "interruption_not_considered" ;
-            RU.explanation = "Нельзя перейти к ${A}[case='д']: выполнение уже вышло из ${ForcedExit}[case='р'] из-за ${ForcedBy}[case='р']." ;
-            EN.explanation = "Cannot go to the ${A}: execution has already left the ${ForcedExit} because of the ${ForcedBy}." ;
+            RU.explanation = "Выполнение ${ForcedExit}[case='р'] прервано ${ForcedKind.interruption_start}[case='т'] из-за ${ForcedBy}[case='р'], поэтому ${A} сейчас не может быть выполнен." ;
+            EN.explanation = "The execution of the ${ForcedExit} has been interrupted by a ${ForcedKind.interruption_start} because of the ${ForcedBy}, so the ${A} cannot be executed now." ;
         ];
     };
     // после P0 конструкция с A была закрыта по переходу либо выполнение вошло
@@ -679,10 +694,35 @@ fragment autoPassedRefinement() {
                 $t->hasTransition->hasConstraints.condition_value != OptionalBool:`null`
             }
         } out false else {
+            // для объяснения: условие, значение которого закрыло ValueExited, — последний
+            // акт со значением внутри этой конструкции перед её END (в шаблон идёт
+            // действие: у актов нет localizedName). Гарантировано: END по ограничению
+            // condition_value бывает только сразу после вычисления условия конструкции
+            var ExitAct: TraceAct = findExtreme latest [not $latest=>beforeOf($t)] among TraceAct t {
+                $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
+                $t->hasAction->derivedFrom.role == "END" and
+                $t->hasAction->belongsTo == ValueExited and
+                $t=>hasTransition() and
+                $t->hasTransition=>hasConstraints() and
+                $t->hasTransition->hasConstraints.condition_value != OptionalBool:`null`
+            } out true else {
+                conclude: error [ exception = true; exceptionName = "NoValueExitAct"; ];
+            };
+            var ExitDeciderAct: TraceAct = findExtreme latest [not $latest=>beforeOf($d)] among TraceAct d {
+                $d=>beforeOf(ExitAct) and
+                $d->inFrame == ExitAct->inFrame and
+                $d->hasAction->belongsTo == ValueExited and
+                $d=>hasValue()
+            } out true else {
+                conclude: error [ exception = true; exceptionName = "NoValueExitDecider"; ];
+            };
+            var ExitDecider: ConcreteAction = ExitDeciderAct->hasAction;
+            // правило — из ограничения перехода в END: конструкция заканчивается
+            // именно при этом значении условия
             conclude: error [
                 skill = "condition_value_not_considered" ;
-                RU.explanation = "Нельзя перейти к ${A}[case='д']: по вычисленному значению условия выполнение уже вышло из ${ValueExited}[case='р']." ;
-                EN.explanation = "Cannot go to the ${A}: because of the evaluated condition value, execution has already left the ${ValueExited}." ;
+                RU.explanation = "${ExitDecider} имеет значение ${ExitDeciderAct->hasValue.bool_value}, выполнение ${ValueExited}[case='р'] закончилось, поэтому ${A} сейчас не выполнится." ;
+                EN.explanation = "The ${ExitDecider} has the value ${ExitDeciderAct->hasValue.bool_value}, the execution of the ${ValueExited} has ended, so the ${A} is not executed now." ;
             ];
         };
         var ValueEntered: ConcreteConstruct = find ConcreteConstruct c {
@@ -693,10 +733,39 @@ fragment autoPassedRefinement() {
                 not forAny TraceAct u { $u=>afterOf($t) and $u->inFrame == $t->inFrame and entersSiblingBranch($u, A) }
             }
         } out false else {
+            // для объяснения: условие, значение которого выбрало ValueEntered, — последний
+            // акт со значением в конструкции A перед входом в эту ветвь
+            var EnterAct: TraceAct = findExtreme latest [not $latest=>beforeOf($t)] among TraceAct t {
+                $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
+                entersSiblingBranch($t, A) and
+                $t->hasAction->belongsTo == ValueEntered
+            } out true else {
+                conclude: error [ exception = true; exceptionName = "NoValueEnterAct"; ];
+            };
+            var EnterDeciderAct: TraceAct = findExtreme latest [not $latest=>beforeOf($d)] among TraceAct d {
+                $d=>beforeOf(EnterAct) and
+                $d->inFrame == EnterAct->inFrame and
+                $d->hasAction->belongsTo == A->belongsTo and
+                $d=>hasValue()
+            } out true else {
+                conclude: error [ exception = true; exceptionName = "NoValueEnterDecider"; ];
+            };
+            var EnterDecider: ConcreteAction = EnterDeciderAct->hasAction;
+            var EnterOwner: ConcreteConstruct = A->belongsTo;
+            // A — само условие, которое только что выбрало ветвь (немедленный повтор):
+            // причина не в другой ветви, а в том, что условие снова вычисляется не раньше
+            // окончания выбранной им части
+            ask (EnterDecider == A) out false else {
+                conclude: error [
+                    skill = "condition_value_not_considered" ;
+                    RU.explanation = "${A} не может быть выполнен повторно, поскольку имеет значение ${EnterDeciderAct->hasValue.bool_value}, и в ${EnterOwner}[case='п'] выполняется ${ValueEntered}." ;
+                    EN.explanation = "The ${A} cannot be executed again, because it has the value ${EnterDeciderAct->hasValue.bool_value}, and the ${ValueEntered} is executed in the ${EnterOwner}." ;
+                ];
+            };
             conclude: error [
                 skill = "condition_value_not_considered" ;
-                RU.explanation = "Нельзя перейти к ${A}[case='д']: по вычисленному значению условия выполнение уже вошло в ${ValueEntered}[case='в']." ;
-                EN.explanation = "Cannot go to the ${A}: because of the evaluated condition value, execution has already entered the ${ValueEntered}." ;
+                RU.explanation = "В ${EnterOwner}[case='п'] при значении ${EnterDeciderAct->hasValue.bool_value} в ${EnterDecider}[case='р'] выполняется ${ValueEntered}, а не ${A}." ;
+                EN.explanation = "In the ${EnterOwner}, when the ${EnterDecider} has the value ${EnterDeciderAct->hasValue.bool_value}, the ${ValueEntered} is executed, not the ${A}." ;
             ];
         };
         conclude: error [ exception = true; exceptionName = "NoValueDecisionConstruct"; ];
@@ -736,15 +805,15 @@ fragment checkLevel(C: ConcreteConstruct) {
                 false -> {
                     conclude: error [
                         skill = "actions_order_violated" ;
-                        RU.explanation = "Нельзя снова перейти к ${A}[case='д']: это действие только что выполнено, и дальше выполняется то, что следует за ним." ;
-                        EN.explanation = "Cannot go to the ${A} again: this action has just been executed, and what follows it comes next." ;
+                        RU.explanation = "Действие ${A} не может повторяться, поскольку оно только что выполнилось." ;
+                        EN.explanation = "The ${A} cannot be repeated, because it has just been executed." ;
                     ];
                 }
                 true -> {
                     conclude: error [
                         skill = "construct_not_closed" ;
-                        RU.explanation = "Нельзя снова перейти к ${A}[case='д']: выполнение уже находится внутри этой конструкции и ещё не дошло до её конца." ;
-                        EN.explanation = "Cannot go to the ${A} again: execution is already inside this construct and has not reached its end yet." ;
+                        RU.explanation = "Выполнение ${A}[case='р'] уже идёт и ещё не закончилось, поэтому заново ${A} сейчас не начнётся." ;
+                        EN.explanation = "The execution of the ${A} is already in progress and has not finished yet, so the ${A} will not start again now." ;
                     ];
                 }
             };
@@ -771,8 +840,8 @@ fragment checkLevel(C: ConcreteConstruct) {
             ) out true else {
                 conclude: error [
                     skill = "construct_not_entered" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: выполнение ещё не вошло в ${C}[case='в'], где находится это действие." ;
-                    EN.explanation = "Cannot go to the ${A}: execution has not entered the ${C} that contains this action yet." ;
+                    RU.explanation = "${A} сейчас не выполнится, так как находится внутри ${C}[case='р'], а выполнение ${C}[case='р'] ещё не началось." ;
+                    EN.explanation = "The ${A} is not executed now, because it is inside the ${C}, and the execution of the ${C} has not started yet." ;
                 ];
             };
             conclude: correct;
@@ -797,8 +866,8 @@ fragment checkLevel(C: ConcreteConstruct) {
             ) out true else {
                 conclude: error [
                     skill = "intermediate_action_skipped" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: пропущен шаг, который должен выполниться раньше, — ${Da}." ;
-                    EN.explanation = "Cannot go to the ${A}: a step that must be executed earlier is skipped — the ${Da}." ;
+                    RU.explanation = "Вложенные действия выполняются только во время выполнения той части, в которую они входят. Так как это действие входит в ${Da}[case='в'], а выполнение ${Da}[case='р'] ещё не началось, ${A} сейчас не выполнится." ;
+                    EN.explanation = "Nested actions are executed only while the part containing them runs. Since this action is part of the ${Da} and the ${Da} has not started yet, the ${A} is not executed now." ;
                 ];
             };
 
@@ -810,8 +879,8 @@ fragment checkLevel(C: ConcreteConstruct) {
                 ask (branchAlternatives(Dp, Da, C)) out false else {
                     conclude: error [
                         skill = "condition_value_not_considered" ;
-                        RU.explanation = "Нельзя перейти к ${A}[case='д']: в ${C}[case='п'] значение условия уже выбрало другую ветвь — ${Dp}." ;
-                        EN.explanation = "Cannot go to the ${A}: in the ${C}, the condition value has already chosen another branch — the ${Dp}." ;
+                        RU.explanation = "В ${C}[case='п'] выполняется только одно из действий: ${Dp}[case='р'] или ${A}[case='р']. Так как выполнение ${C}[case='р'] перешло в ${Dp}[case='д'], ${A} не выполнится." ;
+                        EN.explanation = "In the ${C}, only one of the actions is executed: the ${Dp} or the ${A}. Since the execution of the ${C} has moved to the ${Dp}, the ${A} will not be executed." ;
                     ];
                 };
                 // классифицируем по порядку конкретных действий в цепочке (авто-уход
@@ -821,38 +890,45 @@ fragment checkLevel(C: ConcreteConstruct) {
                 ask (Da=>beforeOf(Dp) and (not actAlreadyCurrent(Da, Dp) or awaitsUnfoldedConstruct(Dp, C))) out false else {
                     conclude: error [
                         skill = "action_already_passed" ;
-                        RU.explanation = "Нельзя вернуться к ${A}[case='д']: выполнение уже дошло до ${Dp}[case='р'] и назад не возвращается." ;
-                        EN.explanation = "Cannot go back to the ${A}: execution has already reached the ${Dp} and does not go back." ;
+                        RU.explanation = "Внутри ${C}[case='п'] не предусмотрено выполнение уже пройденных действий. Так как в ${C}[case='п'] это действие стоит раньше ${Dp}[case='р'], ${A} сейчас не сможет выполниться." ;
+                        EN.explanation = "Inside the ${C}, actions that have already been passed are not executed again. Since this action comes before the ${Dp} in the ${C}, the ${A} cannot be executed now." ;
                     ];
                 };
                 ask (Da=>afterOf(Dp)) out false else {
-                    // для объяснения: ближайший по цепочке шаг, в который действительно
-                    // ведёт переход из D_p
-                    var Expected: ConcreteAction = findExtreme earliest [not $earliest=>afterOf($n)] among ConcreteAction n {
-                        $n->belongsTo == C and
-                        $n=>afterOf(Dp) and
-                        forAny TransitionSpec t {
-                            transitionLeads($t, Dp, $n, C) and
-                            interruptionOk($t, S) and
-                            conditionOk($t, Dp)
-                        }
-                    } out true else {
+                    // D_p — условие в конструкции, проверяющей условия по порядку до первого
+                    // истинного (kind — только выбор правила, в тексте имя из localizedName)
+                    ask (C->derivedFrom.kind == "compound.alternative" and Dp=>hasValue()) out false else {
                         conclude: error [
                             skill = "actions_skipped" ;
-                            RU.explanation = "Нельзя перейти к ${A}[case='д']: между ${Dp}[case='т'] и этим действием есть шаги, которые нельзя пропустить." ;
-                            EN.explanation = "Cannot go to the ${A}: there are steps between the ${Dp} and this action that cannot be skipped." ;
+                            RU.explanation = "В ${C}[case='п'] условия проверяются по порядку до первого истинного. Так как между ${Dp}[case='т'] и этим действием есть ещё не проверенные условия, ${A} сейчас не выполнится." ;
+                            EN.explanation = "In the ${C}, conditions are checked in order up to the first true one. Since there are unchecked conditions between the ${Dp} and this action, the ${A} is not executed now." ;
+                        ];
+                    };
+                    // из D_p переходы ведут только в конец C: после D_p конструкция заканчивается
+                    ask (forAny TransitionSpec tAny {
+                        $tAny->belongsTo == C->derivedFrom and
+                        $tAny->from_ == Dp->derivedFrom
+                    } and not forAny TransitionSpec tEnd {
+                        $tEnd->belongsTo == C->derivedFrom and
+                        $tEnd->from_ == Dp->derivedFrom and
+                        $tEnd->to_.role != "END"
+                    }) out false else {
+                        conclude: error [
+                            skill = "actions_skipped" ;
+                            RU.explanation = "После ${Dp}[case='р'] выполнение ${C}[case='р'] заканчивается, поэтому ${A} не выполнится." ;
+                            EN.explanation = "After the ${Dp}, the execution of the ${C} ends, so the ${A} will not be executed." ;
                         ];
                     };
                     conclude: error [
                         skill = "actions_skipped" ;
-                        RU.explanation = "Нельзя перейти к ${A}[case='д']: пропущены шаги — сначала выполняется ${Expected}." ;
-                        EN.explanation = "Cannot go to the ${A}: steps are skipped — the ${Expected} comes first." ;
+                        RU.explanation = "Действия внутри ${C}[case='р'] выполняются по порядку. Так как между ${Dp}[case='т'] и этим ${A}[case='т'] есть ещё не выполненные действия, ${A} сейчас не выполнится." ;
+                        EN.explanation = "Actions inside the ${C} are executed in order. Since there are actions between the ${Dp} and this ${A} that have not been executed yet, the ${A} is not executed now." ;
                     ];
                 };
                 conclude: error [
                     skill = "no_transition" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: от ${Dp}[case='р'] выполнение не может перейти к этому действию." ;
-                    EN.explanation = "Cannot go to the ${A}: execution cannot move from the ${Dp} to this action." ;
+                    RU.explanation = "В ${C}[case='п'] после ${Dp}[case='р'] не следует ${A}, поэтому ${A} не может быть выполнен." ;
+                    EN.explanation = "In the ${C}, the ${A} does not follow the ${Dp}, so the ${A} cannot be executed." ;
                 ];
             };
 
@@ -881,23 +957,18 @@ fragment checkLevel(C: ConcreteConstruct) {
                     }
                 )
             ) out true else {
-                // для объяснения: ближайшее однотипное действие между D_p и D_a
-                var Skipped: ConcreteAction = findExtreme earliest [not $earliest=>afterOf($m)] among ConcreteAction m {
-                    $m->derivedFrom == Da->derivedFrom and
-                    $m->belongsTo == C and
-                    $m=>afterOf(Dp) and
-                    Da=>afterOf($m)
-                } out true else {
+                // между D_p и D_a в цепочке C есть ещё не выполненные однотипные действия
+                ask (C->derivedFrom.kind == "compound.alternative" and Dp=>hasValue()) out false else {
                     conclude: error [
                         skill = "actions_order_violated" ;
-                        RU.explanation = "Нельзя перейти к ${A}[case='д']: нарушен порядок выполнения действий после ${Dp}[case='р']." ;
-                        EN.explanation = "Cannot go to the ${A}: the execution order of actions after the ${Dp} is violated." ;
+                        RU.explanation = "В ${C}[case='п'] условия проверяются по порядку до первого истинного. Так как между ${Dp}[case='т'] и этим действием есть ещё не проверенные условия, ${A} сейчас не выполнится." ;
+                        EN.explanation = "In the ${C}, conditions are checked in order up to the first true one. Since there are unchecked conditions between the ${Dp} and this action, the ${A} is not executed now." ;
                     ];
                 };
                 conclude: error [
                     skill = "actions_order_violated" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: действия выполняются по порядку — сначала выполняется ${Skipped}." ;
-                    EN.explanation = "Cannot go to the ${A}: actions are executed in order — the ${Skipped} comes first." ;
+                    RU.explanation = "Действия внутри ${C}[case='р'] выполняются по порядку. Так как между ${Dp}[case='т'] и этим ${A}[case='т'] есть ещё не выполненные действия, ${A} сейчас не выполнится." ;
+                    EN.explanation = "Actions inside the ${C} are executed in order. Since there are actions between the ${Dp} and this ${A} that have not been executed yet, the ${A} is not executed now." ;
                 ];
             };
 
@@ -906,23 +977,48 @@ fragment checkLevel(C: ConcreteConstruct) {
                 transitionLeads($t, Dp, Da, C) and
                 interruptionOk($t, S)
             }) out true else {
+                // прерывания нет, а переход в D_a возможен только при нём (досрочный выход)
+                ask (S.interruption_mode == InterruptionType:none) out false else {
+                    conclude: error [
+                        skill = "interruption_not_considered" ;
+                        RU.explanation = "${A} следует за ${Dp}[case='т'] только при досрочном выходе из ${C}[case='р']. Так как досрочного выхода не было, ${A} сейчас не выполнится." ;
+                        EN.explanation = "The ${A} follows the ${Dp} only on an early exit from the ${C}. Since there was no early exit, the ${A} is not executed now." ;
+                    ];
+                };
+                // прерывание идёт (режим не none — значит, его начавшее действие есть в трассе)
+                var LevelInterrupter: ConcreteAction = lastInterrupterAction() out true else {
+                    conclude: error [ exception = true; exceptionName = "NoInterrupterAction"; ];
+                };
                 conclude: error [
                     skill = "interruption_not_considered" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: когда идёт ${S.interruption_mode}, ${C} так не выполняется." ;
-                    EN.explanation = "Cannot go to the ${A}: the ${C} does not run this way during ${S.interruption_mode}." ;
+                    RU.explanation = "Во время ${S.interruption_mode}[case='т'] выполняется выход из охватывающих ${LevelInterrupter}[case='в'] алгоритмических структур без выполнения действий, поэтому ${A} сейчас не выполнится." ;
+                    EN.explanation = "During a ${S.interruption_mode}, execution leaves the constructs enclosing the ${LevelInterrupter} without executing actions, so the ${A} is not executed now." ;
                 ];
             };
 
             // --- Критерий 5.2: ограничение значения условия ---
+            // Значение D_p — то же, по которому conditionOk отверг переход в D_a;
+            // правило — из ограничения этого перехода (требуется противоположное значение)
             ask (forAny TransitionSpec t {
                 transitionLeads($t, Dp, Da, C) and
                 interruptionOk($t, S) and
                 conditionOk($t, Dp)
             }) out true else {
+                // для объяснения: переход в D_a, отвергнутый только conditionOk (по режиму
+                // прерывания подходящий переход гарантирован ask выше); в шаблон идёт
+                // требуемое им значение условия, а не фактическое значение D_p
+                var ValueTransition: TransitionSpec = find TransitionSpec t {
+                    transitionLeads($t, Dp, Da, C) and
+                    interruptionOk($t, S) and
+                    $t=>hasConstraints() and
+                    $t->hasConstraints.condition_value != OptionalBool:`null`
+                } out true else {
+                    conclude: error [ exception = true; exceptionName = "NoValueConstrainedTransition"; ];
+                };
                 conclude: error [
                     skill = "condition_value_not_considered" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: при вычисленном значении ${Dp}[case='р'] выполнение идёт другим путём." ;
-                    EN.explanation = "Cannot go to the ${A}: with the evaluated value of the ${Dp}, execution takes a different path." ;
+                    RU.explanation = "В ${C}[case='п'] это действие следует за ${Dp}[case='т'], только когда оно имеет значение ${ValueTransition->hasConstraints.condition_value}, поэтому ${A} не выполнится." ;
+                    EN.explanation = "In the ${C}, this action follows the ${Dp} only when it has the value ${ValueTransition->hasConstraints.condition_value}, so the ${A} will not be executed." ;
                 ];
             };
             conclude: correct;
@@ -945,8 +1041,8 @@ fragment checkLevel(C: ConcreteConstruct) {
                             true -> {
                                 conclude: error [
                                     skill = "construct_not_closed" ;
-                                    RU.explanation = "Нельзя перейти к ${A}[case='д']: выполнение ${Dcc}[case='р'] ещё не завершено." ;
-                                    EN.explanation = "Cannot go to the ${A}: the ${Dcc} has not been executed completely yet." ;
+                                    RU.explanation = "Выполнение ${Dcc}[case='р'] ещё не закончилось, поэтому ${A} не может быть выполнен." ;
+                                    EN.explanation = "The execution of the ${Dcc} has not finished yet, so the ${A} cannot be executed." ;
                                 ];
                             }
                             false -> {
@@ -959,8 +1055,8 @@ fragment checkLevel(C: ConcreteConstruct) {
                         false -> {
                             conclude: error [
                                 skill = "construct_not_closed" ;
-                                RU.explanation = "Нельзя перейти к ${A}[case='д']: выполнение ${Dcc}[case='р'] ещё не завершено." ;
-                                EN.explanation = "Cannot go to the ${A}: the ${Dcc} has not been executed completely yet." ;
+                                RU.explanation = "Выполнение ${Dcc}[case='р'] ещё не закончилось, поэтому ${A} не может быть выполнен." ;
+                                EN.explanation = "The execution of the ${Dcc} has not finished yet, so the ${A} cannot be executed." ;
                             ];
                         }
                     };
@@ -999,10 +1095,11 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
         P->hasAction->belongsTo->derivedFrom.name == "global_statements_structure" and
         P->hasAction->derivedFrom.role == "END"
     ) out false else {
+        var Program: ConcreteConstruct = P->hasAction->belongsTo;
         conclude: true [
             skill = "everything_evaluated" ;
-            RU.explanation = "Программа уже выполнена полностью: переходить к ${A}[case='д'] больше не нужно." ;
-            EN.explanation = "The program has already been executed completely: there is no need to go to the ${A}." ;
+            RU.explanation = "Выполнение ${Program}[case='р'] уже закончилось, поэтому ${A} больше не выполнится." ;
+            EN.explanation = "The ${Program} has already finished, so the ${A} will not be executed anymore." ;
         ];
     };
     // Уточнение до проверки повторяемости: если выполнение после P0 уже
@@ -1045,8 +1142,8 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
                 };
                 conclude: error [
                     skill = "function_not_entered" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: это действие находится в ${UncalledFunc}[case='п'], а эта функция ещё не вызывалась." ;
-                    EN.explanation = "Cannot go to the ${A}: this action is inside the ${UncalledFunc}, and this function has not been called yet." ;
+                    RU.explanation = "Действия внутри ${UncalledFunc}[case='р'] выполняются только во время вызова. Так как это действие находится там, а вызова ещё не было, ${A} сейчас не выполнится." ;
+                    EN.explanation = "Actions inside the ${UncalledFunc} are executed only during a call. Since this action is there and there has been no call yet, the ${A} is not executed now." ;
                 ];
             }
             false -> {
@@ -1061,8 +1158,8 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
                 };
                 conclude: error [
                     skill = "function_already_exited" ;
-                    RU.explanation = "Нельзя перейти к ${A}[case='д']: это действие находится в ${FinishedFunc}[case='п'], а эта функция уже завершила работу — снова попасть в неё можно только новым вызовом." ;
-                    EN.explanation = "Cannot go to the ${A}: this action is inside the ${FinishedFunc}, and this function has already finished — it can be re-entered only by a new call." ;
+                    RU.explanation = "Действия внутри ${FinishedFunc}[case='р'] выполняются только во время вызова. Так как это действие находится там, а вызов уже закончился, ${A} не выполнится до следующего вызова ${FinishedFunc}[case='р']." ;
+                    EN.explanation = "Actions inside the ${FinishedFunc} are executed only during a call. Since this action is there and the call has already finished, the ${A} will not be executed until the next call of the ${FinishedFunc}." ;
                 ];
             }
         };
@@ -1078,8 +1175,8 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
     ) out false else {
         conclude: error [
             skill = "action_cannot_repeat" ;
-            RU.explanation = "Нельзя снова перейти к ${A}[case='д']: это условие уже проверено столько раз, сколько требует выполнение программы." ;
-            EN.explanation = "Cannot go to the ${A} again: this condition has already been checked as many times as the program execution requires." ;
+            RU.explanation = "${A} не может быть вычислено, поскольку выполнение больше не возвращается к этому действию." ;
+            EN.explanation = "The ${A} cannot be evaluated, because execution does not return to this action anymore." ;
         ];
     };
 
@@ -1110,8 +1207,8 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
         };
         conclude: error [
             skill = "construct_not_closed" ;
-            RU.explanation = "Нельзя перейти к ${A}[case='д']: сначала должно завершиться выполнение ${Blocking}[case='р'], и только потом выполняется это действие." ;
-            EN.explanation = "Cannot go to the ${A}: the ${Blocking} must finish first, and only then is this action executed." ;
+            RU.explanation = "Выполнение ${Blocking}[case='р'] ещё не закончилось, поэтому ${A} сейчас не выполнится." ;
+            EN.explanation = "The execution of the ${Blocking} has not finished yet, so the ${A} is not executed now." ;
         ];
     };
 
@@ -1127,19 +1224,14 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
         )
     ) out false else {
         // для объяснения: действие, начавшее прерывание (режим не none — значит,
-        // такое действие есть в трассе), и конструкция, из которой нужно выйти
-        // следующим шагом: самая внутренняя открытая вокруг P (открыта как минимум
-        // программа — её завершение исключено шагом 2а)
+        // такое действие есть в трассе); вид прерывания — S.interruption_mode
         var Interrupter: ConcreteAction = lastInterrupterAction() out true else {
             conclude: error [ exception = true; exceptionName = "NoInterrupterAction"; ];
         };
-        var ExitTarget: ConcreteConstruct = innermostOpenAround(P->hasAction->belongsTo) out true else {
-            conclude: error [ exception = true; exceptionName = "NoOpenConstructAroundP"; ];
-        };
         conclude: error [
             skill = "interruption_not_considered" ;
-            RU.explanation = "Нельзя перейти к ${A}[case='д']: из-за ${Interrupter}[case='р'] сначала нужно выйти из ${ExitTarget}[case='р']." ;
-            EN.explanation = "Cannot go to the ${A}: because of the ${Interrupter}, the ${ExitTarget} must be exited first." ;
+            RU.explanation = "Во время ${S.interruption_mode}[case='т'] выполняется выход из охватывающих ${Interrupter}[case='в'] алгоритмических структур без выполнения действий, поэтому ${A} сейчас не выполнится." ;
+            EN.explanation = "During a ${S.interruption_mode}, execution leaves the constructs enclosing the ${Interrupter} without executing actions, so the ${A} is not executed now." ;
         ];
     };
 

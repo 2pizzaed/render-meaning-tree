@@ -44,3 +44,14 @@ Tip: Use Git Bash in Windows
 - Prefer small, focused edits over broad refactors.
 - When adding new code, reuse existing helper modules instead of re-implementing the same utility logic; in tests, prefer `test/helpers` utilities over new local helpers.
 - Preserve generated/domain artifacts unless the developer explicitly asks to regenerate or update them.
+
+## Solution Quality Review
+
+- Before completing a task, review all solutions created or changed during the session for correctness, readability, cognitive load, and impact on project complexity. Resolve issues within the task scope before reporting completion.
+- Prefer straightforward control flow, clear names, and existing project patterns. Avoid unnecessary abstractions, indirection, configuration options, dependencies, and duplication; any added complexity must be justified by the task's requirements.
+- Keep comments concise and understandable to a human reader. Explain non-obvious intent, constraints, or tradeoffs rather than restating the code.
+
+## Project Documentation
+
+- Record important, lasting information from the task in the relevant existing document under `docs/`, including behavior changes, design decisions, constraints, and usage or maintenance instructions. Keep documentation focused and consistent with the final implementation.
+- Create new documents under `docs/` only with explicit user approval. If no suitable existing document is available, propose a filename and purpose and request approval before creating it.

@@ -6,9 +6,11 @@ A deliberately tiny, regex-based port of the *interpolation* layer of the
 
 * **simple interpolation** — ``$name`` (a bare variable reference);
 * **braced interpolation** — ``${name}`` (the same, allowing surrounding text to
-  abut the name, e.g. ``${name}s``), or a property of a variable — ``${name.prop}``,
-  looked up in the supplied values under the key ``"name.prop"`` (callers resolve
-  the property themselves);
+  abut the name, e.g. ``${name}s``), or a path from a variable: relationships
+  (LOQI ``->``) optionally followed by a property — ``${name.prop}``,
+  ``${name->rel}``, ``${name->rel->rel2.prop}``. A path is looked up in the
+  supplied values under its full text (e.g. ``"name->rel.prop"``); callers
+  resolve it themselves (see :func:`split_reference`);
 * **modifiers** — ``${name}[mod, mod='arg', mod('arg', 2)]`` right after a braced
   interpolation (no space before ``[``), applied left to right to the substituted
   text. As in the Java lexer, ``$name[...]`` is *not* a modifier: the brackets stay
@@ -18,7 +20,7 @@ A leading backslash escapes the dollar (``\\$`` -> literal ``$``), matching the
 Java lexer's ``STR: (~[$] | '\\$')+`` rule.
 
 The full Java expression language inside ``${...}`` (arithmetic, comparisons,
-relationship paths, method calls) is intentionally **not** ported: braced content
+method calls) is intentionally **not** ported: braced content
 that is not a plain reference, references that are not supplied, and
 unknown modifiers are left verbatim rather than evaluated or blanked. This keeps
 explanation rendering robust — an unknown ``$foo`` stays visible instead of
@@ -46,8 +48,11 @@ _TOKEN = re.compile(
     rf"|\$(?P<simple>{_IDENTIFIER})"  # $name
 )
 
-# Braced content that is interpolated: a variable or a property of a variable.
-_REFERENCE_RE = re.compile(rf"\A{_IDENTIFIER}(?:\.{_IDENTIFIER})?\Z")
+# Braced content that is interpolated: a variable, optionally followed by
+# relationships (``->rel``) and a property (``.prop``).
+_REFERENCE_RE = re.compile(
+    rf"\A(?P<name>{_IDENTIFIER})(?P<relationships>(?:->{_IDENTIFIER})*)(?:\.(?P<prop>{_IDENTIFIER}))?\Z"
+)
 
 # Java TemplatingParser: mod (',' mod)* ','?  where
 # mod: ID | ID '=' literal | ID '(' (literal ',')* literal? ')'.
@@ -89,8 +94,8 @@ def interpolate(
 ) -> str:
     """Replace ``$name`` / ``${name}[modifiers]`` interpolations in ``template``.
 
-    Each interpolation is substituted with ``str(variables[name])`` (for
-    ``${name.prop}`` — ``str(variables["name.prop"])``) and then run through its
+    Each interpolation is substituted with ``str(variables[name])`` (for a path
+    like ``${name->rel.prop}`` — ``str(variables["name->rel.prop"])``) and then run through its
     modifiers (looked up in ``modifiers``). Braced interpolations are stripped of
     surrounding whitespace before lookup (``${ name }`` == ``${name}``). A ``\\$``
     escape becomes a literal ``$``.
@@ -140,8 +145,20 @@ def interpolate(
     return _TOKEN.sub(_replace, template)
 
 
+def split_reference(reference: str) -> tuple[str, tuple[str, ...], str | None]:
+    """``"name->rel->rel2.prop"`` -> ``("name", ("rel", "rel2"), "prop")``.
+
+    ``reference`` must be one of :func:`referenced_variables`.
+    """
+    match = _REFERENCE_RE.match(reference)
+    if match is None:
+        raise ValueError(f"not a template reference: {reference!r}")
+    relationships = tuple(filter(None, match.group("relationships").split("->")))
+    return match.group("name"), relationships, match.group("prop")
+
+
 def referenced_variables(template: str) -> set[str]:
-    """References that ``template`` interpolates: ``name`` or ``name.prop``."""
+    """References that ``template`` interpolates: ``name`` or a path like ``name->rel.prop``."""
     names: set[str] = set()
     for match in _TOKEN.finditer(template):
         name = match.group("braced")

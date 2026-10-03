@@ -26,7 +26,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from src.helpers.tpg.templating import interpolate, referenced_variables
+from src.helpers.tpg.templating import (
+    interpolate,
+    referenced_variables,
+    split_reference,
+)
 from src.tpg_domain import ReasoningResult, variable_localized_name
 
 MAX_SIMILAR_EXPLANATION_COUNT = 3
@@ -257,8 +261,9 @@ def collect_unique_skills(trace: dict[str, Any]) -> list[str]:
     return list(ordered)
 
 
-type PropertyResolver = Callable[[str, str, str], str | None]
-"""Resolves ``(object name, property, loc code)`` to text for ``${X.prop}``
+type PropertyResolver = Callable[[str, tuple[str, ...], str | None, str], str | None]
+"""Resolves ``(object name, relationships, property, loc code)`` to text for
+``${X.prop}`` / ``${X->rel}`` / ``${X->rel.prop}``
 (see :class:`~src.helpers.tpg.loqi_values.LoqiPropertyResolver`)."""
 
 
@@ -286,7 +291,7 @@ def flatten_explanation_texts(
     given (the reasoner's structured ``variable_objects``), each leaf's text is run
     through :func:`~src.helpers.tpg.templating.interpolate`, substituting ``$name``
     / ``${name}`` with the variable's localized name for ``loc_code`` and
-    ``${name.prop}`` with the value ``properties`` gives (see
+    paths like ``${name->rel.prop}`` with the value ``properties`` gives (see
     :func:`_leaf_variables`): the leaf's own variable snapshot takes precedence
     over ``variables``.
     """
@@ -374,8 +379,9 @@ def _leaf_variables(
     A variable becomes its ``localizedName`` for the localization — falling back
     to ``object_name`` then ``repr_name`` — via
     :func:`~src.tpg_domain.variable_localized_name`, matching how its_QuestionGen
-    renders ``Obj`` variables in templates. A ``name.prop`` reference is resolved
-    by ``ctx.properties`` for the object bound to ``name``.
+    renders ``Obj`` variables in templates. A path reference (``name.prop``,
+    ``name->rel.prop``) is resolved by ``ctx.properties`` for the object bound to
+    ``name``.
     """
     objects: dict[str, Any] = dict(ctx.variables or {})
     snapshot = element.get("variables") if element is not None else None
@@ -386,9 +392,11 @@ def _leaf_variables(
     }
     if ctx.properties is not None:
         for reference in referenced_variables(template):
-            name, _, prop = reference.partition(".")
-            if prop and name in objects:
-                value = ctx.properties(_variable_identity(objects[name]), prop, ctx.loc_code)
+            name, relationships, prop = split_reference(reference)
+            if (relationships or prop) and name in objects:
+                value = ctx.properties(
+                    _variable_identity(objects[name]), relationships, prop, ctx.loc_code
+                )
                 if value is not None:
                     values[reference] = value
     return values
@@ -423,7 +431,7 @@ def _explanation_signature(element: dict[str, Any] | None) -> _ExplanationSignat
     if not isinstance(snapshot, dict):
         return templates, ()
     names = {
-        reference.partition(".")[0]
+        split_reference(reference)[0]
         for _, text in entries
         for reference in referenced_variables(text)
     }

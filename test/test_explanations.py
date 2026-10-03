@@ -7,7 +7,11 @@ from src.helpers.tpg.explanations import (
     collect_explanations_from_trace,
     flatten_explanation_texts,
 )
-from src.helpers.tpg.templating import interpolate, referenced_variables
+from src.helpers.tpg.templating import (
+    interpolate,
+    referenced_variables,
+    split_reference,
+)
 
 NAMES = {"A": "условие на строке 2", "C": "цикл <code>while</code>"}
 
@@ -43,7 +47,15 @@ def test_non_modifier_brackets_stay_text_and_are_interpolated() -> None:
 
 
 def test_referenced_variables_ignores_expressions_and_escapes() -> None:
-    assert referenced_variables("${A}[case='р'] $C ${3+3} \\$D ${S.mode} ${S->rel}") == {"A", "C", "S.mode"}
+    template = "${A}[case='р'] $C ${3+3} \\$D ${S.mode} ${S->rel} ${f(S).mode} ${S.a.b} ${S.mode->rel}"
+
+    assert referenced_variables(template) == {"A", "C", "S.mode", "S->rel"}
+
+
+def test_relationship_path_is_split_into_parts() -> None:
+    assert split_reference("A") == ("A", (), None)
+    assert split_reference("S.mode") == ("S", (), "mode")
+    assert split_reference("D->hasValue->next.bool_value") == ("D", ("hasValue", "next"), "bool_value")
 
 
 def test_property_reference_is_looked_up_by_its_path() -> None:
@@ -107,7 +119,11 @@ def test_property_of_snapshot_variable_is_resolved_for_its_object() -> None:
     tree = collect_explanations_from_trace(ExplanationType.ERROR, trace)
     calls: list[tuple[str, str, str]] = []
 
-    def properties(object_name: str, prop: str, loc_code: str) -> str | None:
+    def properties(
+        object_name: str, relationships: tuple[str, ...], prop: str | None, loc_code: str
+    ) -> str | None:
+        assert relationships == ()
+        assert prop is not None
         calls.append((object_name, prop, loc_code))
         return "возврат из функции"
 
@@ -117,3 +133,22 @@ def test_property_of_snapshot_variable_is_resolved_for_its_object() -> None:
     assert calls == [("trace_state", "interruption_mode", "RU")]
     # без resolver свойство не разрешается и остаётся в тексте как есть
     assert flatten_explanation_texts(tree, loc_code="RU", variables={}) == ["Идёт ${S.interruption_mode}."]
+
+
+def test_relationship_path_of_snapshot_variable_is_resolved_for_its_object() -> None:
+    conclude = _conclude({"D": _obj("act_7", "акт")})
+    conclude["metadata"][1]["value"] = "Значение ${D->hasValue.bool_value}, ${D->hasValue}."
+    trace = {"branchResult": "ERROR", "elements": [conclude]}
+    tree = collect_explanations_from_trace(ExplanationType.ERROR, trace)
+    calls: list[tuple[str, tuple[str, ...], str | None]] = []
+
+    def properties(
+        object_name: str, relationships: tuple[str, ...], prop: str | None, loc_code: str
+    ) -> str | None:
+        calls.append((object_name, relationships, prop))
+        return "true" if prop == "bool_value" else None
+
+    assert flatten_explanation_texts(tree, loc_code="RU", variables={}, properties=properties) == [
+        "Значение true, ${D->hasValue}."
+    ]
+    assert sorted(calls, key=str) == [("act_7", ("hasValue",), "bool_value"), ("act_7", ("hasValue",), None)]

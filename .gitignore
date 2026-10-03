@@ -3,6 +3,7 @@ __pycache__/
 .pytest*/
 .idea/
 .env
+.venv/
 .ruff_cache/
 /domain/test.xml
 /test/output/

@@ -9,6 +9,7 @@ import pytest
 from src.generator.pipeline import DomainDataGeneratorPipeline
 from src.generator.utilities import code_snippet_to_pipeline, registry_to_loqi
 from src.localization import MessageBundle, load_bundle, parse_properties
+from src.model.rules import Metadata
 from src.serialization.localized_names import (
     TRACED_PREFIX_KEY,
     TRACED_SUFFIX_KEY,
@@ -99,6 +100,28 @@ def test_format_localized_name_puts_boundary_before_name_declined_in_russian() -
 
     assert format_localized_name(begin, BUNDLE, "en", line=3) == "traced begin of loop <code>while</code> on line 3"
     assert format_localized_name(begin, BUNDLE, "ru", line=3) == "начало цикла <code>while</code> на строке 3 в трассе"
+
+
+def test_raw_explanation_replaces_composed_name_and_keeps_other_placeholders() -> None:
+    raw = NameMetadata(None, keyword="while", raw_explanation="${translate(\"begin\")} ${translate('loop')}[case='р'] ${X}")
+    parts = NameParts(raw, prefix_key=TRACED_PREFIX_KEY, boundary_key="begin")
+
+    assert format_localized_name(parts, BUNDLE, "en", line=3) == "traced begin of loop ${X}"
+    assert format_localized_name(parts, BUNDLE, "ru", line=3) == "начало цикла ${X}"
+    assert parts.pronoun is None
+
+
+def test_raw_explanation_keeps_unresolved_templating_verbatim() -> None:
+    raw = "${X}[case='р'] $Y \\$Z ${translate(1, 2)} ${f('a')}"
+
+    assert format_localized_name(NameParts(NameMetadata(None, raw_explanation=raw)), BUNDLE, "ru") == raw
+
+
+def test_name_metadata_accepts_raw_explanation_without_trace_name() -> None:
+    metadata = NameMetadata.from_metadata(Metadata.from_dict({"raw_explanation": "${X}", "locale_pronoun": "it"}))
+
+    assert metadata == NameMetadata(None, pronoun="it", raw_explanation="${X}")
+    assert NameMetadata.from_metadata(Metadata.from_dict({"locale_pronoun": "it"})) is None
 
 
 class _NamedAdapter:

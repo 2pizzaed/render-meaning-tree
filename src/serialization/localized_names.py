@@ -25,6 +25,14 @@
 конструкции ставится в родительный падеж — «начало цикла <code>while</code> на
 строке 5». ``ActionSpec`` границы без собственных метаданных берёт их у своей
 ``ConstructSpec``.
+
+Вместо ``locale_trace_name`` метаданные могут задать ``raw_explanation`` — готовое
+имя-шаблон, например ``${translate("begin")}[case='р'] ... ${X}``. Оно заменяет
+всё собранное выше (название, ``keyword``, идентификатор, номер строки и
+``begin``/``end``); приставки ``TraceAct`` сохраняются. Для каждого языка
+раскрываются только вызовы ``${translate("key")}`` (строка бандла, ``[case=...]``
+склоняет её в русском), остальной текст, в том числе ``${X}``, переносится без
+изменений. Функция ``translate`` есть только здесь: в шаблонах объяснений TPG её нет.
 """
 
 from __future__ import annotations
@@ -37,6 +45,7 @@ from typing import Any, cast
 
 from src.ast_managers import CodeManager
 from src.helpers.grammar_case import GrammaticalCase, decline
+from src.helpers.templating import interpolate, modifiers_for_language
 from src.localization import MessageBundle
 from src.model.rules import (
     ConstructDeclaration,
@@ -64,10 +73,13 @@ _BOUNDARY_PRONOUNS: Mapping[str, str] = {"begin": "it", "end": "he"}
 
 @dataclass(frozen=True, slots=True)
 class NameMetadata:
-    trace_name: str
+    """Задано ``trace_name`` или ``raw_explanation``; второе важнее."""
+
+    trace_name: str | None
     pronoun: str | None = None
     keyword: str | None = None
     identifier: bool = False
+    raw_explanation: str | None = None
 
     @classmethod
     def from_spec(cls, spec: LoqiObject | None) -> NameMetadata | None:
@@ -75,8 +87,9 @@ class NameMetadata:
         if spec is None:
             return None
         value = LoqiRenderIndex.metadata_value
-        trace_name = value(spec, "locale_trace_name")
-        if not isinstance(trace_name, str) or not trace_name:
+        trace_name = _non_empty_str(value(spec, "locale_trace_name"))
+        raw_explanation = _non_empty_str(value(spec, "raw_explanation"))
+        if trace_name is None and raw_explanation is None:
             return None
         pronoun = value(spec, "locale_pronoun")
         keyword = value(spec, "keyword")
@@ -85,19 +98,24 @@ class NameMetadata:
             pronoun=pronoun if isinstance(pronoun, str) else None,
             keyword=keyword if isinstance(keyword, str) else None,
             identifier=value(spec, "identifier") is True,
+            raw_explanation=raw_explanation,
         )
 
     @classmethod
     def from_metadata(cls, metadata: Metadata | None) -> NameMetadata | None:
         """Из метаданных объявления правила."""
-        if metadata is None or not metadata.locale_trace_name:
+        if metadata is None:
+            return None
+        raw_explanation = _non_empty_str(metadata.extra.get("raw_explanation"))
+        if not metadata.locale_trace_name and raw_explanation is None:
             return None
         keyword = metadata.extra.get("keyword")
         return cls(
-            trace_name=metadata.locale_trace_name,
+            trace_name=metadata.locale_trace_name or None,
             pronoun=metadata.locale_pronoun,
             keyword=keyword if isinstance(keyword, str) else None,
             identifier=metadata.extra.get("identifier") is True,
+            raw_explanation=raw_explanation,
         )
 
 
@@ -117,7 +135,8 @@ class NameParts:
 
     @property
     def pronoun(self) -> str | None:
-        if self.boundary_key is not None:
+        # Имя из raw_explanation не дополняется begin/end, его местоимение не меняется.
+        if self.boundary_key is not None and self.metadata.raw_explanation is None:
             return _BOUNDARY_PRONOUNS[self.boundary_key]
         return self.metadata.pronoun
 
@@ -292,21 +311,33 @@ def format_localized_name(
     identifier: str | None = None,
 ) -> str:
     metadata = parts.metadata
-    words = [bundle.translate(metadata.trace_name, lang)]
-    if metadata.keyword:
-        words.append(f"<code>{escape(bundle.translate(metadata.keyword, lang))}</code>")
-    if identifier:
-        words.append(f'<code class="id">{escape(identifier)}</code>')
-    if line is not None:
-        words.append(f"{bundle.translate(ON_LINE_KEY, lang)} {line}")
-    name = " ".join(words)
-    if parts.boundary_key is not None:
-        if lang == "ru":
-            name = decline(name, GrammaticalCase.GENITIVE)
-        name = f"{bundle.translate(parts.boundary_key, lang)} {name}"
+    if metadata.raw_explanation is not None:
+        name = expand_raw_explanation(metadata.raw_explanation, bundle, lang)
+    else:
+        words = [bundle.translate(metadata.trace_name, lang)] if metadata.trace_name else []
+        if metadata.keyword:
+            words.append(f"<code>{escape(bundle.translate(metadata.keyword, lang))}</code>")
+        if identifier:
+            words.append(f'<code class="id">{escape(identifier)}</code>')
+        if line is not None:
+            words.append(f"{bundle.translate(ON_LINE_KEY, lang)} {line}")
+        name = " ".join(words)
+        if parts.boundary_key is not None:
+            if lang == "ru":
+                name = decline(name, GrammaticalCase.GENITIVE)
+            name = f"{bundle.translate(parts.boundary_key, lang)} {name}"
     # Приставки есть не во всех языках: без фолбэка на язык по умолчанию.
     affixed = [_optional(bundle, parts.prefix_key, lang), name, _optional(bundle, parts.suffix_key, lang)]
     return " ".join(word for word in affixed if word)
+
+
+def expand_raw_explanation(template: str, bundle: MessageBundle, lang: str) -> str:
+    """Раскрывает в ``template`` только ``${translate("key")}[модификаторы]`` для ``lang``."""
+
+    def translate(key: object) -> str:
+        return bundle.translate(str(key), lang)
+
+    return interpolate(template, {}, modifiers_for_language(lang), {"translate": translate}, unescape=False)
 
 
 def localized_name_key(lang: str) -> str:
@@ -324,6 +355,10 @@ def ast_id_of(obj: LoqiObject) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         return None
     return value
+
+
+def _non_empty_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _optional(bundle: MessageBundle, key: str | None, lang: str) -> str | None:
@@ -352,6 +387,7 @@ __all__ = [
     "NameParts",
     "NameResolver",
     "NamingContext",
+    "expand_raw_explanation",
     "format_localized_name",
     "localized_names_decorator",
     "resolve_action",

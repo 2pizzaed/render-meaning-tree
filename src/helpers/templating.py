@@ -1,7 +1,7 @@
 """Minimal string-interpolation for explanation templates.
 
 A deliberately tiny, regex-based port of the *interpolation* layer of the
-`JavaStringTemplating <../../../../JavaStringTemplating>`_ library (``Template`` /
+`JavaStringTemplating <../../../JavaStringTemplating>`_ library (``Template`` /
 ``InterpretationData``). Supported surface forms:
 
 * **simple interpolation** — ``$name`` (a bare variable reference);
@@ -14,15 +14,18 @@ A deliberately tiny, regex-based port of the *interpolation* layer of the
 * **modifiers** — ``${name}[mod, mod='arg', mod('arg', 2)]`` right after a braced
   interpolation (no space before ``[``), applied left to right to the substituted
   text. As in the Java lexer, ``$name[...]`` is *not* a modifier: the brackets stay
-  plain text.
+  plain text;
+* **function calls** — ``${func('arg', 2)}``, only for functions the caller
+  registers (none by default, so explanation templates never evaluate them). The
+  result is substituted like a variable value and may take modifiers.
 
 A leading backslash escapes the dollar (``\\$`` -> literal ``$``), matching the
 Java lexer's ``STR: (~[$] | '\\$')+`` rule.
 
 The full Java expression language inside ``${...}`` (arithmetic, comparisons,
-method calls) is intentionally **not** ported: braced content
-that is not a plain reference, references that are not supplied, and
-unknown modifiers are left verbatim rather than evaluated or blanked. This keeps
+method calls) is intentionally **not** ported: braced content that is neither a
+plain reference nor a registered function call, references that are not supplied,
+and unknown modifiers are left verbatim rather than evaluated or blanked. This keeps
 explanation rendering robust — an unknown ``$foo`` stays visible instead of
 crashing or silently vanishing.
 
@@ -34,6 +37,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
+from types import MappingProxyType
 from typing import Any
 
 from src.helpers.grammar_case import GrammaticalCase, decline
@@ -71,11 +75,18 @@ def _modifier_pattern(name: str = "", value: str = "", args: str = "") -> str:
 _MODIFIER_RE = re.compile(_modifier_pattern("?P<name>", "?P<value>", "?P<args>"))
 _MODIFIERS_RE = re.compile(rf"{_modifier_pattern()}(?:,{_modifier_pattern()})*,?\s*")
 _LITERAL_RE = re.compile(_LITERAL)
+# Braced content that calls a registered function: ``func('arg', 2)``.
+_CALL_RE = re.compile(rf"\A(?P<function>{_IDENTIFIER})\s*\(\s*(?P<args>{_ARGS})\)\Z")
 
 _JAVA_ESCAPES = {"b": "\b", "t": "\t", "n": "\n", "f": "\f", "r": "\r"}
 
 type Modifier = Callable[..., str]
 """A template modifier: ``(text, *literal_args) -> text``."""
+
+type TemplateFunction = Callable[..., str]
+"""A function callable from a template: ``(*literal_args) -> text``."""
+
+_NO_FUNCTIONS: Mapping[str, TemplateFunction] = MappingProxyType({})
 
 
 def case_modifier(text: str, case: object) -> str:
@@ -89,44 +100,72 @@ def case_modifier(text: str, case: object) -> str:
 
 DEFAULT_MODIFIERS: Mapping[str, Modifier] = {"case": case_modifier}
 
+# Declension exists only in Russian: elsewhere ``[case=...]`` keeps the text as is.
+_DECLENSION_LANGUAGE = "RU"
+_NO_DECLENSION_MODIFIERS: Mapping[str, Modifier] = {
+    **DEFAULT_MODIFIERS,
+    "case": lambda text, _case: text,
+}
+
+
+def modifiers_for_language(lang: str) -> Mapping[str, Modifier]:
+    """:data:`DEFAULT_MODIFIERS` for ``lang`` (``"ru"``/``"RU"``, ``"en"``, ...)."""
+    return DEFAULT_MODIFIERS if lang.upper() == _DECLENSION_LANGUAGE else _NO_DECLENSION_MODIFIERS
+
 
 def interpolate(
     template: str,
     variables: Mapping[str, Any],
     modifiers: Mapping[str, Modifier] = DEFAULT_MODIFIERS,
+    functions: Mapping[str, TemplateFunction] = _NO_FUNCTIONS,
+    *,
+    unescape: bool = True,
 ) -> str:
     """Replace ``$name`` / ``${name}[modifiers]`` interpolations in ``template``.
 
     Each interpolation is substituted with ``str(variables[name])`` (for a path
     like ``${name->rel.prop}`` — ``str(variables["name->rel.prop"])``) and then run through its
-    modifiers (looked up in ``modifiers``). Braced interpolations are stripped of
-    surrounding whitespace before lookup (``${ name }`` == ``${name}``). A ``\\$``
-    escape becomes a literal ``$``.
+    modifiers (looked up in ``modifiers``). ``${func(args)}`` is substituted with
+    the result of ``functions[func](*args)`` the same way. Braced interpolations are
+    stripped of surrounding whitespace before lookup (``${ name }`` == ``${name}``).
+    A ``\\$`` escape becomes a literal ``$`` unless ``unescape`` is false — for a
+    partial pass whose result is a template again.
 
     Substitution is single-pass: values inserted into the result are never
     rescanned, so a value that itself contains ``$name`` is left as-is.
 
     Anything that cannot be resolved is preserved verbatim, modifiers included: a
-    missing variable, braced content that is not a plain reference (e.g. an
-    expression like ``${3+3}``), or an unknown modifier (or one rejecting its
-    arguments). Brackets that are not valid modifier syntax are not modifiers:
-    they stay plain text after the substituted value.
+    missing variable, braced content that is neither a plain reference nor a call of
+    a registered function (e.g. an expression like ``${3+3}``), a function rejecting
+    its arguments, or an unknown modifier (or one rejecting its arguments). Brackets
+    that are not valid modifier syntax are not modifiers: they stay plain text after
+    the substituted value.
     """
+
+    def _evaluate(content: str) -> str | None:
+        """Value of braced content: a supplied reference or a registered function call."""
+        if _REFERENCE_RE.match(content):
+            return str(variables[content]) if content in variables else None
+        call = _CALL_RE.match(content)
+        if call is None or (function := functions.get(call["function"])) is None:
+            return None
+        try:
+            return function(*_literals(call["args"]))
+        except (TypeError, ValueError):
+            return None
 
     def _replace(match: re.Match[str]) -> str:
         text = match.group()
         if text == "\\$":
-            return "$"
-        name = match.group("braced")
-        if name is not None:
-            name = name.strip()
-            if not _REFERENCE_RE.match(name):
-                return text  # not a plain reference — leave the expression untouched
+            return "$" if unescape else text
+        braced = match.group("braced")
+        if braced is not None:
+            value = _evaluate(braced.strip())
         else:
             name = match.group("simple")
-        if name not in variables:
-            return text  # unknown variable — keep the placeholder visible
-        value = str(variables[name])
+            value = str(variables[name]) if name in variables else None
+        if value is None:
+            return text  # unresolved — keep the placeholder visible
 
         raw_modifiers = match.group("modifiers")
         if raw_modifiers is None:
@@ -134,7 +173,8 @@ def interpolate(
         calls = _parse_modifiers(raw_modifiers)
         if calls is None:
             # not modifier syntax — the brackets are ordinary template text
-            return f"{value}[{interpolate(raw_modifiers, variables, modifiers)}]"
+            inner = interpolate(raw_modifiers, variables, modifiers, functions, unescape=unescape)
+            return f"{value}[{inner}]"
         for modifier_name, args in calls:
             modifier = modifiers.get(modifier_name)
             if modifier is None:
@@ -183,11 +223,16 @@ def _parse_modifiers(content: str) -> list[tuple[str, tuple[Any, ...]]] | None:
         if match.group("value") is not None:
             args: tuple[Any, ...] = (_literal(match.group("value")),)
         elif match.group("args") is not None:
-            args = tuple(_literal(arg.group()) for arg in _LITERAL_RE.finditer(match.group("args")))
+            args = _literals(match.group("args"))
         else:
             args = ()
         calls.append((match.group("name"), args))
     return calls
+
+
+def _literals(args: str) -> tuple[Any, ...]:
+    """Comma-separated literals (already validated by the caller's regex) as Python values."""
+    return tuple(_literal(arg.group()) for arg in _LITERAL_RE.finditer(args))
 
 
 def _literal(token: str) -> Any:

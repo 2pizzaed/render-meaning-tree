@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.helpers.templating import (
+    interpolate,
+    referenced_variables,
+    split_reference,
+)
 from src.helpers.tpg.explanations import (
     ExplanationType,
     collect_explanations_from_trace,
     flatten_explanation_texts,
-)
-from src.helpers.tpg.templating import (
-    interpolate,
-    referenced_variables,
-    split_reference,
 )
 
 NAMES = {"A": "условие на строке 2", "C": "цикл <code>while</code>"}
@@ -66,6 +66,26 @@ def test_property_reference_is_looked_up_by_its_path() -> None:
     values = {"S": "состояние", "S.mode": "возврат из функции"}
 
     assert interpolate("идёт ${S.mode}[case='р'], $S.mode", values) == "идёт возврата из функции, состояние.mode"
+
+
+def test_registered_function_result_takes_modifiers() -> None:
+    functions = {"name": lambda key: {"loop": "цикл"}[key]}
+
+    assert interpolate("${name('loop')} и ${ name(\"loop\") }[case='р']", {}, functions=functions) == (
+        "цикл и цикла"
+    )
+
+
+def test_unregistered_function_or_rejected_arguments_stay_verbatim() -> None:
+    functions = {"number": lambda text: str(int(text))}
+    template = "${translate('begin')}[case='р'] ${number('x')} ${number(1, 2)}"
+
+    assert interpolate(template, {}) == template
+    assert interpolate(template, {}, functions=functions) == template
+
+
+def test_escape_is_kept_when_unescape_is_off() -> None:
+    assert interpolate("\\$A ${A}", NAMES, unescape=False) == "\\$A условие на строке 2"
 
 
 def _obj(object_name: str, ru_name: str) -> dict[str, Any]:

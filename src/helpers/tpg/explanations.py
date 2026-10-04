@@ -26,10 +26,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from src.helpers.tpg.templating import (
-    DEFAULT_MODIFIERS,
-    Modifier,
+from src.helpers.templating import (
     interpolate,
+    modifiers_for_language,
     referenced_variables,
     split_reference,
 )
@@ -263,14 +262,6 @@ def collect_unique_skills(trace: dict[str, Any]) -> list[str]:
     return list(ordered)
 
 
-# Склонение есть только в русском: в других языках ``[case=...]`` оставляет имя как есть.
-_DECLENSION_LOC_CODE = "RU"
-_NO_DECLENSION_MODIFIERS: Mapping[str, Modifier] = {
-    **DEFAULT_MODIFIERS,
-    "case": lambda text, _case: text,
-}
-
-
 type PropertyResolver = Callable[[str, tuple[str, ...], str | None, str], str | None]
 """Resolves ``(object name, relationships, property, loc code)`` to text for
 ``${X.prop}`` / ``${X->rel}`` / ``${X->rel.prop}``
@@ -299,7 +290,7 @@ def flatten_explanation_texts(
     its :attr:`Explanation.source_element` (in ``loc_code``) and expands ``MORE``
     markers via ``more_label`` (formatted with ``count``). When ``variables`` is
     given (the reasoner's structured ``variable_objects``), each leaf's text is run
-    through :func:`~src.helpers.tpg.templating.interpolate`, substituting ``$name``
+    through :func:`~src.helpers.templating.interpolate`, substituting ``$name``
     / ``${name}`` with the variable's localized name for ``loc_code`` and
     paths like ``${name->rel.prop}`` with the value ``properties`` gives (see
     :func:`_leaf_variables`): the leaf's own variable snapshot takes precedence
@@ -369,12 +360,8 @@ def _node_text(node: Explanation, ctx: _RenderContext) -> str | None:
     if node.kind is ExplanationKind.LEAF:
         text = _element_localized_text(node.source_element, "explanation", ctx.loc_code)
         if text is not None and ctx.variables is not None:
-            modifiers = (
-                DEFAULT_MODIFIERS
-                if ctx.loc_code.upper() == _DECLENSION_LOC_CODE
-                else _NO_DECLENSION_MODIFIERS
-            )
-            return interpolate(text, _leaf_variables(node.source_element, text, ctx), modifiers)
+            variables = _leaf_variables(node.source_element, text, ctx)
+            return interpolate(text, variables, modifiers_for_language(ctx.loc_code))
         return text
     return None
 

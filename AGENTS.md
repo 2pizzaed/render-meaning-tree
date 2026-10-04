@@ -9,6 +9,7 @@
 ## TPG And LOQI Safety
 
 - Do not modify `.tpg` or `.loqi` files without explicit developer approval for that specific change.
+- The same approval rule applies to TPG documentation: `docs/check_graph_idea.md`, `docs/findCorrect_graph_idea.md`, `docs/diagrams/` and any other `docs/` file describing thought process graphs. Propose the text for review instead of editing these files.
 - For `.tpg` and `.loqi` requests, default to diagnosis: explain the suspected issue, cite the relevant file/construct, and propose a patch or replacement snippet for developer review.
 - Before recommending TPG/LOQI code, check that the syntax and constructs are valid for the current project. Validate against the relevant documentation, grammar, source implementation, or available conversion/validation tooling.
 - If a proposed reasoner/domain change cannot be validated locally, say exactly what was checked and what remains unverified.
@@ -53,5 +54,5 @@ Tip: Use Git Bash in Windows
 
 ## Project Documentation
 
-- Record important, lasting information from the task in the relevant existing document under `docs/`, including behavior changes, design decisions, constraints, and usage or maintenance instructions. Keep documentation focused and consistent with the final implementation.
+- Record important, lasting information from the task in the relevant existing document under `docs/` (TPG documentation only with explicit approval, see "TPG And LOQI Safety"), including behavior changes, design decisions, constraints, and usage or maintenance instructions. Keep documentation focused and consistent with the final implementation.
 - Create new documents under `docs/` only with explicit user approval. If no suitable existing document is available, propose a filename and purpose and request approval before creating it.

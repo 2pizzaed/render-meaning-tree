@@ -19,6 +19,12 @@
 ``ActionSpec`` с собственными метаданными получает то же имя, что и его
 конкретные действия, но без номера строки и идентификатора: спецификация не
 связана с кодом.
+
+Действия с ролью ``BEGIN``/``END`` (и их ``ActionSpec``) называются через имя
+конструкции: к нему добавляется ``begin``/``end`` из бандла, а в русском имя
+конструкции ставится в родительный падеж — «начало цикла <code>while</code> на
+строке 5». ``ActionSpec`` границы без собственных метаданных берёт их у своей
+``ConstructSpec``.
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from html import escape
 from typing import Any, cast
 
 from src.ast_managers import CodeManager
+from src.helpers.grammar_case import GrammaticalCase, decline
 from src.localization import MessageBundle
 from src.model.rules import (
     ConstructDeclaration,
@@ -48,6 +55,11 @@ from src.types import Node
 ON_LINE_KEY = "on_line"
 TRACED_PREFIX_KEY = "traced_prefix"
 TRACED_SUFFIX_KEY = "traced_suffix"
+
+# Роль граничного действия → ключ бандла, которым дополняется имя конструкции.
+BOUNDARY_KEYS: Mapping[str, str] = {"BEGIN": "begin", "END": "end"}
+# Местоимение согласуется с добавленным словом: «начало» — ср. род, «конец» — м. род.
+_BOUNDARY_PRONOUNS: Mapping[str, str] = {"begin": "it", "end": "he"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +113,13 @@ class NameParts:
     ast_id: int | None = None
     prefix_key: str | None = None
     suffix_key: str | None = None
+    boundary_key: str | None = None
+
+    @property
+    def pronoun(self) -> str | None:
+        if self.boundary_key is not None:
+            return _BOUNDARY_PRONOUNS[self.boundary_key]
+        return self.metadata.pronoun
 
 
 class NamingContext:
@@ -179,17 +198,21 @@ def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     ``DEFAULT_NAME_METADATA``.
     """
     ast_id = ast_id_of(obj)
-    metadata = NameMetadata.from_spec(ctx.index.target(obj, "derivedFrom"))
+    spec = ctx.index.target(obj, "derivedFrom")
+    metadata = NameMetadata.from_spec(spec)
     if metadata is None and (construct := ctx.construct_for(ast_id)) is not None:
         metadata = NameMetadata.from_spec(ctx.index.target(construct, "derivedFrom"))
     if metadata is None and (inline_rule := ctx.inline_rule(ast_id)) is not None:
         metadata = NameMetadata.from_metadata(inline_rule.metadata)
-    return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id)
+    return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id, boundary_key=boundary_key_of(spec))
 
 
 def resolve_action_spec(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     metadata = NameMetadata.from_spec(obj)
-    return NameParts(metadata) if metadata is not None else None
+    boundary_key = boundary_key_of(obj)
+    if metadata is None and boundary_key is not None:
+        metadata = NameMetadata.from_spec(ctx.index.target(obj, "belongsTo"))
+    return NameParts(metadata, boundary_key=boundary_key) if metadata is not None else None
 
 
 def resolve_trace_act(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
@@ -255,8 +278,8 @@ def localized_name_entries(
         )
         for lang in languages
     ]
-    if parts.metadata.pronoun is not None:
-        entries.append(LoqiMetadataEntry(name="pronoun", value=parts.metadata.pronoun))
+    if parts.pronoun is not None:
+        entries.append(LoqiMetadataEntry(name="pronoun", value=parts.pronoun))
     return entries
 
 
@@ -269,20 +292,31 @@ def format_localized_name(
     identifier: str | None = None,
 ) -> str:
     metadata = parts.metadata
-    # Приставки есть не во всех языках: без фолбэка на язык по умолчанию.
-    words = [_optional(bundle, parts.prefix_key, lang), bundle.translate(metadata.trace_name, lang)]
+    words = [bundle.translate(metadata.trace_name, lang)]
     if metadata.keyword:
         words.append(f"<code>{escape(bundle.translate(metadata.keyword, lang))}</code>")
     if identifier:
         words.append(f'<code class="id">{escape(identifier)}</code>')
     if line is not None:
         words.append(f"{bundle.translate(ON_LINE_KEY, lang)} {line}")
-    words.append(_optional(bundle, parts.suffix_key, lang))
-    return " ".join(word for word in words if word)
+    name = " ".join(words)
+    if parts.boundary_key is not None:
+        if lang == "ru":
+            name = decline(name, GrammaticalCase.GENITIVE)
+        name = f"{bundle.translate(parts.boundary_key, lang)} {name}"
+    # Приставки есть не во всех языках: без фолбэка на язык по умолчанию.
+    affixed = [_optional(bundle, parts.prefix_key, lang), name, _optional(bundle, parts.suffix_key, lang)]
+    return " ".join(word for word in affixed if word)
 
 
 def localized_name_key(lang: str) -> str:
     return f"{lang.upper()}.localizedName"
+
+
+def boundary_key_of(spec: LoqiObject | None) -> str | None:
+    """Ключ ``begin``/``end`` для ``ActionSpec`` с ролью ``BEGIN``/``END``."""
+    role = LoqiRenderIndex.property_value(spec, "role") if spec is not None else None
+    return BOUNDARY_KEYS.get(role) if isinstance(role, str) else None
 
 
 def ast_id_of(obj: LoqiObject) -> int | None:

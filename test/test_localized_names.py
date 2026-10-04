@@ -31,8 +31,9 @@ BUNDLE = MessageBundle(
             "on_line": "on line",
             "function_call": "function call",
             "traced_prefix": "traced",
+            "begin": "begin of",
         },
-        "ru": {"loop": "цикл", "on_line": "на строке", "traced_suffix": "в трассе"},
+        "ru": {"loop": "цикл", "on_line": "на строке", "traced_suffix": "в трассе", "begin": "начало"},
     }
 )
 
@@ -86,6 +87,18 @@ def test_format_localized_name_skips_affixes_missing_in_language() -> None:
 
     assert format_localized_name(traced, BUNDLE, "en", line=3) == "traced loop on line 3"
     assert format_localized_name(traced, BUNDLE, "ru", line=3) == "цикл на строке 3 в трассе"
+
+
+def test_format_localized_name_puts_boundary_before_name_declined_in_russian() -> None:
+    begin = NameParts(
+        NameMetadata("loop", keyword="while"),
+        prefix_key=TRACED_PREFIX_KEY,
+        suffix_key=TRACED_SUFFIX_KEY,
+        boundary_key="begin",
+    )
+
+    assert format_localized_name(begin, BUNDLE, "en", line=3) == "traced begin of loop <code>while</code> on line 3"
+    assert format_localized_name(begin, BUNDLE, "ru", line=3) == "начало цикла <code>while</code> на строке 3 в трассе"
 
 
 class _NamedAdapter:
@@ -172,10 +185,23 @@ def test_action_prefers_own_metadata_over_construct(
     assert metadata["pronoun"] == "it"
 
 
-def test_boundary_action_falls_back_to_construct_with_same_ast_id(trace_loqi: str) -> None:
-    assert _object_metadata(trace_loqi, "while_structure_action_BEGIN_ast54") == _object_metadata(
-        trace_loqi, "construct_while_structure_ast54"
-    )
+@pytest.mark.parametrize(
+    ("object_id", "en", "ru", "pronoun"),
+    [
+        ("while_structure_action_BEGIN_ast54", "begin of loop", "начало цикла", "it"),
+        ("while_structure_action_END_ast54", "end of loop", "конец цикла", "he"),
+    ],
+)
+def test_boundary_action_names_construct_with_same_ast_id(
+    trace_loqi: str, lines: dict[str, int], object_id: str, en: str, ru: str, pronoun: str
+) -> None:
+    metadata = _object_metadata(trace_loqi, object_id)
+
+    assert metadata == {
+        "EN.localizedName": f"{en} <code>while</code> on line {lines['while']}",
+        "RU.localizedName": f"{ru} <code>while</code> на строке {lines['while']}",
+        "pronoun": pronoun,
+    }
 
 
 def test_function_call_name_includes_identifier(
@@ -233,6 +259,19 @@ def test_action_spec_gets_name_from_own_metadata_without_line(trace_loqi: str) -
         "pronoun": "it",
     }
     assert "localizedName" not in str(_object_metadata(trace_loqi, "action_body"))
+
+
+def test_boundary_action_spec_without_own_metadata_uses_construct_spec(trace_loqi: str) -> None:
+    spec_id = re.search(
+        r"^obj while_structure_action_BEGIN_ast54 : .*?derivedFrom\((\w+)\)", trace_loqi, re.MULTILINE | re.DOTALL
+    )
+    assert spec_id is not None
+
+    assert _object_metadata(trace_loqi, spec_id[1]) == {
+        "EN.localizedName": "begin of loop <code>while</code>",
+        "RU.localizedName": "начало цикла <code>while</code>",
+        "pronoun": "it",
+    }
 
 
 def test_semantic_value_name_copies_hint_for_every_language(trace_loqi: str) -> None:

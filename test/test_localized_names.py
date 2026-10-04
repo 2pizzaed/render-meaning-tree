@@ -222,5 +222,24 @@ def test_trace_act_wraps_action_name_with_traced_affixes(trace_loqi: str) -> Non
     }
 
 
+def test_action_spec_gets_name_from_own_metadata_without_line(trace_loqi: str) -> None:
+    metadata = _object_metadata(trace_loqi, "action_cond")
+
+    assert metadata == {
+        "locale_trace_name": "condition",
+        "locale_pronoun": "it",
+        "EN.localizedName": "condition",
+        "RU.localizedName": "условие",
+        "pronoun": "it",
+    }
+    assert "localizedName" not in str(_object_metadata(trace_loqi, "action_body"))
+
+
+def test_semantic_value_name_copies_hint_for_every_language(trace_loqi: str) -> None:
+    metadata = _object_metadata(trace_loqi, "semantic_value_action_28_cond_2")
+
+    assert metadata == {"hint": "False", "EN.localizedName": "False", "RU.localizedName": "False"}
+
+
 def _definition_keys(bundle: MessageBundle, lang: str) -> set[str]:
     return set(bundle._messages[lang])  # pyright: ignore[reportPrivateUsage]

@@ -5,12 +5,20 @@
 резолверов ``тип LOQI-объекта → функция``. Чтобы поддержать новый класс,
 достаточно написать резолвер и добавить его в ``DEFAULT_NAME_RESOLVERS``.
 
+Резолвер возвращает либо части имени, переводимые через бандл, либо готовую
+строку, одинаковую во всех языках: так ``SemanticValue`` пока получает имя из
+своей подсказки ``hint``.
+
 Исходные значения берутся из сырых метаданных ``ConstructSpec``/``ActionSpec``
 (``locale_trace_name``, ``locale_pronoun``, ``keyword``, ``identifier``), номер
 строки и имя идентификатора — из кода. Атомарные inline-конструкты (``break``,
 ``continue``, ...) в представление не попадают, поэтому их метаданные ищутся по
 объявлениям правил. Если метаданных нет ни в одном источнике (например, у
 простых операторов), используется ``DEFAULT_NAME_METADATA`` — «действие».
+
+``ActionSpec`` с собственными метаданными получает то же имя, что и его
+конкретные действия, но без номера строки и идентификатора: спецификация не
+связана с кодом.
 """
 
 from __future__ import annotations
@@ -154,7 +162,8 @@ class NamingContext:
         return self.code.code_line_number_by_id(ast_id)
 
 
-type NameResolver = Callable[[LoqiObject, NamingContext], NameParts | None]
+# Строка — готовое имя без перевода, одинаковое во всех языках.
+type NameResolver = Callable[[LoqiObject, NamingContext], NameParts | str | None]
 
 
 def resolve_construct(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
@@ -178,6 +187,11 @@ def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id)
 
 
+def resolve_action_spec(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
+    metadata = NameMetadata.from_spec(obj)
+    return NameParts(metadata) if metadata is not None else None
+
+
 def resolve_trace_act(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     action = ctx.index.target(obj, "hasAction")
     parts = resolve_action(action, ctx) if action is not None else None
@@ -186,10 +200,18 @@ def resolve_trace_act(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     return replace(parts, prefix_key=TRACED_PREFIX_KEY, suffix_key=TRACED_SUFFIX_KEY)
 
 
+def resolve_semantic_value(obj: LoqiObject, ctx: NamingContext) -> str | None:
+    """Пока имя значения совпадает с его подсказкой ``hint``."""
+    hint = LoqiRenderIndex.metadata_value(obj, "hint")
+    return hint if isinstance(hint, str) and hint else None
+
+
 DEFAULT_NAME_RESOLVERS: Mapping[str, NameResolver] = {
     "ConcreteConstruct": resolve_construct,
     "ConcreteAction": resolve_action,
+    "ActionSpec": resolve_action_spec,
     "TraceAct": resolve_trace_act,
+    "SemanticValue": resolve_semantic_value,
 }
 
 
@@ -207,9 +229,13 @@ def localized_names_decorator(
         ctx = NamingContext(result, code, rules)
         for obj in result.objects:
             resolver = resolvers.get(obj.type_name)
-            parts = resolver(obj, ctx) if resolver is not None else None
-            if parts is not None:
-                obj.metadata.extend(localized_name_entries(parts, bundle, target_languages, ctx))
+            name = resolver(obj, ctx) if resolver is not None else None
+            if isinstance(name, str):
+                obj.metadata.extend(
+                    LoqiMetadataEntry(name=localized_name_key(lang), value=name) for lang in target_languages
+                )
+            elif name is not None:
+                obj.metadata.extend(localized_name_entries(name, bundle, target_languages, ctx))
 
     return decorate
 
@@ -224,7 +250,7 @@ def localized_name_entries(
     identifier = ctx.identifier(parts.ast_id) if parts.metadata.identifier else None
     entries = [
         LoqiMetadataEntry(
-            name=f"{lang.upper()}.localizedName",
+            name=localized_name_key(lang),
             value=format_localized_name(parts, bundle, lang, line=line, identifier=identifier),
         )
         for lang in languages
@@ -253,6 +279,10 @@ def format_localized_name(
         words.append(f"{bundle.translate(ON_LINE_KEY, lang)} {line}")
     words.append(_optional(bundle, parts.suffix_key, lang))
     return " ".join(word for word in words if word)
+
+
+def localized_name_key(lang: str) -> str:
+    return f"{lang.upper()}.localizedName"
 
 
 def ast_id_of(obj: LoqiObject) -> int | None:
@@ -291,6 +321,8 @@ __all__ = [
     "format_localized_name",
     "localized_names_decorator",
     "resolve_action",
+    "resolve_action_spec",
     "resolve_construct",
+    "resolve_semantic_value",
     "resolve_trace_act",
 ]

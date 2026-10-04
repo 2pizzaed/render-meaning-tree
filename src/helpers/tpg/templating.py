@@ -36,6 +36,8 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from src.helpers.grammar_case import GrammaticalCase, decline
+
 _IDENTIFIER = r"[A-Za-z_$][A-Za-z0-9_$]*"
 _STRING = r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\""
 _LITERAL = rf"{_STRING}|\d+(?:\.\d+)?|{_IDENTIFIER}"  # identifiers: true / false / null
@@ -76,12 +78,13 @@ type Modifier = Callable[..., str]
 """A template modifier: ``(text, *literal_args) -> text``."""
 
 
-def case_modifier(text: str, _case: object = None) -> str:
+def case_modifier(text: str, case: object) -> str:
     """``[case='р']`` — Russian declension of the substituted name.
 
-    Declension is not implemented yet: the text stays in the nominative case.
+    ``case`` is a Russian case letter or a pymorphy3 grammeme (see
+    :meth:`~src.helpers.grammar_case.GrammaticalCase.parse`).
     """
-    return text
+    return decline(text, GrammaticalCase.parse(str(case)))
 
 
 DEFAULT_MODIFIERS: Mapping[str, Modifier] = {"case": case_modifier}
@@ -138,7 +141,7 @@ def interpolate(
                 return text  # unknown modifier — keep the placeholder visible
             try:
                 value = modifier(value, *args)
-            except TypeError:
+            except (TypeError, ValueError):
                 return text  # wrong arguments for the modifier
         return value
 

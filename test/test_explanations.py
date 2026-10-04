@@ -16,11 +16,15 @@ from src.helpers.tpg.templating import (
 NAMES = {"A": "условие на строке 2", "C": "цикл <code>while</code>"}
 
 
-def test_case_modifier_keeps_nominative_in_both_syntaxes() -> None:
+def test_case_modifier_declines_name_in_both_syntaxes() -> None:
     assert (
         interpolate("к ${A}[case='д'] внутри ${C}[case('р')]", NAMES)
-        == "к условие на строке 2 внутри цикл <code>while</code>"
+        == "к условию на строке 2 внутри цикла <code>while</code>"
     )
+
+
+def test_case_modifier_with_unknown_case_stays_verbatim() -> None:
+    assert interpolate("${A}[case='x'], ${A}[case]", NAMES) == "${A}[case='x'], ${A}[case]"
 
 
 def test_modifier_list_is_applied_left_to_right() -> None:
@@ -61,7 +65,7 @@ def test_relationship_path_is_split_into_parts() -> None:
 def test_property_reference_is_looked_up_by_its_path() -> None:
     values = {"S": "состояние", "S.mode": "возврат из функции"}
 
-    assert interpolate("идёт ${S.mode}[case='р'], $S.mode", values) == "идёт возврат из функции, состояние.mode"
+    assert interpolate("идёт ${S.mode}[case='р'], $S.mode", values) == "идёт возврата из функции, состояние.mode"
 
 
 def _obj(object_name: str, ru_name: str) -> dict[str, Any]:
@@ -109,7 +113,15 @@ def test_leaf_text_uses_its_own_variable_snapshot() -> None:
     # Финальные переменные рассуждателя содержат только последнее значение C.
     texts = flatten_explanation_texts(tree, loc_code="RU", variables={"C": levels[-1]})
 
-    assert texts == ["Выполнение ветвление не завершено.", "Выполнение блок кода не завершено."]
+    assert texts == ["Выполнение ветвления не завершено.", "Выполнение блока кода не завершено."]
+
+
+def test_case_modifier_keeps_name_outside_russian() -> None:
+    element = _conclude({"C": _obj("construct_if", "ветвление")})
+    element["metadata"].append({"name": "explanation", "locCode": "EN", "value": "${C}[case='р'] is open."})
+    tree = collect_explanations_from_trace(ExplanationType.ERROR, {"branchResult": "ERROR", "elements": [element]})
+
+    assert flatten_explanation_texts(tree, loc_code="EN", variables={}) == ["ветвление is open."]
 
 
 def test_property_of_snapshot_variable_is_resolved_for_its_object() -> None:

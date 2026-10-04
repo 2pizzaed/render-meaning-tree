@@ -76,8 +76,8 @@ class CheckCase:
       * ``(line, role)`` — прогонять findCorrect, пока P не встанет на это
         действие (``advance_occurrence`` — какая по счёту остановка на нём).
     ``expected_skills`` — допустимые skill вердикта (хотя бы один обязан
-    встретиться в трассе проверки); для корректного ответа —
-    ``("correct_answer",)`` и ``expected_correct=True``.
+    встретиться в трассе проверки); для корректного ответа — засчитанное
+    умение и ``expected_correct=True``.
 
     ``expected_action_appended`` отключается для успешных терминальных
     вердиктов, которые не фиксируют выбранное действие в уже завершённой трассе.
@@ -363,7 +363,7 @@ CHECK_CASES: list[Any] = [
         code=PLAIN_STATEMENTS,
         advance_to=(1, "first"),
         action=(2, "next"),
-        expected_skills=("correct_answer",),
+        expected_skills=("actions_in_order",),
         expected_correct=True,
     ),
     CheckCase(
@@ -384,7 +384,7 @@ CHECK_CASES: list[Any] = [
         code=PLAIN_STATEMENTS,
         advance_to=(2, "next"),
         action=(1, "first"),
-        expected_skills=("action_already_passed",),
+        expected_skills=("passed_action_repeat",),
     ),
     CheckCase(
         # Пропуск оператора между P и A внутри одной цепочки (порядок, 5.2).
@@ -393,7 +393,7 @@ CHECK_CASES: list[Any] = [
         code=PLAIN_STATEMENTS,
         advance_to=(1, "first"),
         action=(3, "next"),
-        expected_skills=("actions_order_violated",),
+        expected_skills=("actions_in_order",),
     ),
     # --- Условный оператор ---
     # if_branch в Python раскрывает блок с прозрачным BEGIN, поэтому предпрогонка
@@ -405,7 +405,7 @@ CHECK_CASES: list[Any] = [
         code=IF_SIMPLE,
         advance_to=(1, "first_cond"),
         action=(2, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("condition_value_selects_next",),
         expected_correct=True,
         value_patches=((1, "first_cond", [True]),),
     ),
@@ -417,7 +417,7 @@ CHECK_CASES: list[Any] = [
         code=IF_SIMPLE,
         advance_to=(1, "first_cond"),
         action=(2, "if_branch"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
         value_patches=((1, "first_cond", [True]),),
     ),
     CheckCase(
@@ -431,7 +431,7 @@ CHECK_CASES: list[Any] = [
         code=IF_WITH_ELSE,
         advance_to=(1, "first_cond"),
         action=(4, "else_branch"),
-        expected_skills=("condition_value_not_considered",),
+        expected_skills=("condition_value_selects_next",),
         value_patches=((1, "first_cond", [True]),),
     ),
     CheckCase(
@@ -443,7 +443,7 @@ CHECK_CASES: list[Any] = [
         code=IF_SIMPLE,
         advance_to=(1, "first_cond"),
         action=(2, "if_branch"),
-        expected_skills=("condition_value_not_considered",),
+        expected_skills=("condition_value_selects_next",),
         value_patches=((1, "first_cond", [False]),),
     ),
     CheckCase(
@@ -454,7 +454,7 @@ CHECK_CASES: list[Any] = [
         code=IF_TWO_BODY_STATEMENTS,
         advance_to=(2, "first"),
         action=(4, "next"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
         value_patches=((1, "first_cond", [True]),),
     ),
     # --- Цикл while: повторяющиеся действия и цепочки значений ---
@@ -466,7 +466,7 @@ CHECK_CASES: list[Any] = [
         code=WHILE_TWO_ITERATIONS,
         advance_to=(3, "first"),
         action=(2, "cond"),
-        expected_skills=("correct_answer",),
+        expected_skills=("passed_action_repeat",),
         expected_correct=True,
         value_patches=((2, "cond", [True, True, False]),),
     ),
@@ -479,7 +479,7 @@ CHECK_CASES: list[Any] = [
         code=WHILE_TWO_ITERATIONS,
         advance_to=(2, "cond"),
         action=(2, "cond"),
-        expected_skills=("condition_value_not_considered",),
+        expected_skills=("condition_value_selects_next",),
         value_patches=((2, "cond", [True, True, False]),),
     ),
     CheckCase(
@@ -490,7 +490,7 @@ CHECK_CASES: list[Any] = [
         code=WHILE_TWO_ITERATIONS,
         advance_to=(4, "next"),
         action=(2, "cond"),
-        expected_skills=("action_cannot_repeat",),
+        expected_skills=("passed_action_repeat",),
         value_patches=((2, "cond", [True, True, False]),),
     ),
     # --- Функции (3.2 идеи) ---
@@ -501,7 +501,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=None,
         action=(2, "first"),
-        expected_skills=("function_not_entered",),
+        expected_skills=("function_body_runs_on_call",),
     ),
     CheckCase(
         # Вход в вызов — первый шаг оператора с вызовом: конструкт вызова помечен
@@ -512,7 +512,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=None,
         action=(5, "BEGIN", "func_call_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
     ),
     CheckCase(
@@ -523,7 +523,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=(5, "END", "func_call_structure"),
         action=(5, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     CheckCase(
@@ -534,7 +534,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=(5, "BEGIN", "func_call_structure"),
         action=(5, "first"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
     ),
     CheckCase(
         # Корректный шаг после начала вызова — первый оператор тела функции:
@@ -545,7 +545,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=(5, "BEGIN", "func_call_structure"),
         action=(2, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("actions_in_order",),
         expected_correct=True,
     ),
     CheckCase(
@@ -556,7 +556,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=(5, "BEGIN", "func_call_structure"),
         action=(1, "func"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
     ),
     CheckCase(
         # Корректное завершение вызова (выход из функции через END вызова).
@@ -568,7 +568,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=(2, "first"),
         action=(5, "END", "func_call_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     CheckCase(
@@ -578,7 +578,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_CALL,
         advance_to=(5, "END", "func_call_structure"),
         action=(2, "first"),
-        expected_skills=("function_already_exited",),
+        expected_skills=("function_not_resumed_after_exit",),
     ),
     CheckCase(
         # Повторный вызов той же функции: после BEGIN второго вызова тело
@@ -588,7 +588,7 @@ CHECK_CASES: list[Any] = [
         code=TWO_SEQUENTIAL_CALLS,
         advance_to=(6, "BEGIN", "func_call_structure"),
         action=(2, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("actions_in_order",),
         expected_correct=True,
     ),
     CheckCase(
@@ -598,7 +598,7 @@ CHECK_CASES: list[Any] = [
         code=TWO_SEQUENTIAL_CALLS,
         advance_to=(5, "END", "func_call_structure"),
         action=(2, "first"),
-        expected_skills=("function_already_exited",),
+        expected_skills=("function_not_resumed_after_exit",),
     ),
     CheckCase(
         # Выход из вызова, стоящего не первым оператором блока: роль P на уровне
@@ -608,7 +608,7 @@ CHECK_CASES: list[Any] = [
         code=CALL_AFTER_STATEMENT,
         advance_to=(2, "first"),
         action=(6, "END", "func_call_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     CheckCase(
@@ -618,7 +618,7 @@ CHECK_CASES: list[Any] = [
         code=NESTED_CALL_AFTER_STATEMENT,
         advance_to=(7, "first"),
         action=(3, "END", "func_call_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     # --- Вызов внутри условия (preorder) ---
@@ -630,7 +630,7 @@ CHECK_CASES: list[Any] = [
         code=IF_CONDITION_CALL,
         advance_to=(5, "END", "func_call_structure"),
         action=(5, "first_cond"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     CheckCase(
@@ -640,7 +640,7 @@ CHECK_CASES: list[Any] = [
         code=IF_CONDITION_CALL,
         advance_to=(5, "BEGIN", "func_call_structure"),
         action=(5, "first_cond"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
     ),
     CheckCase(
         # Вход в вызов внутри условия — первый шаг конструкции ветвления.
@@ -649,7 +649,7 @@ CHECK_CASES: list[Any] = [
         code=IF_CONDITION_CALL,
         advance_to=None,
         action=(5, "BEGIN", "func_call_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
     ),
     CheckCase(
@@ -661,7 +661,7 @@ CHECK_CASES: list[Any] = [
         code=PRINT_CALL,
         advance_to=None,
         action=(5, "BEGIN", "func_call_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
     ),
     CheckCase(
@@ -672,7 +672,7 @@ CHECK_CASES: list[Any] = [
         code=PRINT_CALL,
         advance_to=(5, "END", "func_call_structure"),
         action=(5, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     # --- return с вызовом (preorder): прерывание начинается на самом return ---
@@ -683,7 +683,7 @@ CHECK_CASES: list[Any] = [
         code=RETURN_COMPOUND_DEAD_CODE,
         advance_to=(6, "END", "func_call_structure"),
         action=(6, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("inner_construct_finished_before_next",),
         expected_correct=True,
     ),
     CheckCase(
@@ -694,7 +694,7 @@ CHECK_CASES: list[Any] = [
         code=RETURN_COMPOUND_DEAD_CODE,
         advance_to=(6, "first"),
         action=(7, "next"),
-        expected_skills=("interruption_not_considered",),
+        expected_skills=("interruption_exits_constructs",),
     ),
     # --- Прерывания ---
     CheckCase(
@@ -707,7 +707,7 @@ CHECK_CASES: list[Any] = [
         code=WHILE_BREAK,
         advance_to=(2, "first"),
         action=(1, "cond"),
-        expected_skills=("interruption_not_considered",),
+        expected_skills=("interruption_exits_constructs",),
         value_patches=((1, "cond", [True]),),
     ),
     # --- Вложенные условия (пример из идеи, «конструкты вложены друг в друга») ---
@@ -719,7 +719,7 @@ CHECK_CASES: list[Any] = [
         code=NESTED_IFS,
         advance_to=(2, "first_cond"),
         action=(3, "first"),
-        expected_skills=("correct_answer",),
+        expected_skills=("condition_value_selects_next",),
         expected_correct=True,
         value_patches=(
             (1, "first_cond", [True]),
@@ -736,10 +736,9 @@ CHECK_CASES: list[Any] = [
         advance_to=(1, "first_cond"),
         action=(3, "first"),
         expected_skills=(
-            "intermediate_action_skipped",
-            "actions_skipped",
-            "no_transition",
-            "construct_not_entered",
+            "containing_action_before_inner",
+            "actions_in_order",
+            "construct_entered_before_inner",
         ),
         value_patches=(
             (1, "first_cond", [True]),
@@ -755,7 +754,7 @@ CHECK_CASES: list[Any] = [
             code=FACTORIAL_REPEATED_CALL,
             advance_to=(10, "BEGIN", "func_call_structure"),
             action=(2, "first"),
-            expected_skills=("correct_answer",),
+            expected_skills=("actions_in_order",),
             expected_correct=True,
         ),
         id="function_repeated_call_body",
@@ -770,7 +769,7 @@ CHECK_CASES: list[Any] = [
             advance_to=(3, "init"),
             advance_occurrence=2,
             action=(3, "cond"),
-            expected_skills=("correct_answer",),
+            expected_skills=("actions_in_order",),
             expected_correct=True,
         ),
         id="function_repeated_call_loop_condition",
@@ -786,7 +785,7 @@ CHECK_CASES: list[Any] = [
             advance_to=(5, "next"),
             advance_occurrence=2,
             action=(10, "END", "func_call_structure"),
-            expected_skills=("correct_answer",),
+            expected_skills=("inner_construct_finished_before_next",),
             expected_correct=True,
         ),
         id="function_repeated_call_exit",
@@ -801,7 +800,7 @@ CHECK_CASES: list[Any] = [
             advance_to=(1, "cond"),
             advance_occurrence=2,
             action=(2, "first_cond"),
-            expected_skills=("correct_answer",),
+            expected_skills=("actions_in_order",),
             expected_correct=True,
         ),
         id="loop_reentry_if_condition",
@@ -816,7 +815,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_BLOCK,
         advance_to=(2, "first_cond"),
         action=(4, "first"),
-        expected_skills=("construct_not_entered", "intermediate_action_skipped"),
+        expected_skills=("construct_entered_before_inner", "containing_action_before_inner"),
         value_patches=((2, "first_cond", [True]),),
     ),
     CheckCase(
@@ -827,7 +826,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_BLOCK,
         advance_to=(3, "BEGIN", "block_structure"),
         action=(3, "END", "block_structure"),
-        expected_skills=("no_transition", "actions_skipped"),
+        expected_skills=("actions_in_order",),
         value_patches=((2, "first_cond", [True]),),
     ),
     CheckCase(
@@ -837,7 +836,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_BLOCK,
         advance_to=(4, "first"),
         action=(6, "next"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
         value_patches=((2, "first_cond", [True]),),
     ),
     # --- Java: та же семантика скобок + процедурная точка входа ---
@@ -849,7 +848,7 @@ CHECK_CASES: list[Any] = [
         code=JAVA_IF_BLOCK,
         advance_to=(2, "first_cond"),
         action=(2, "BEGIN", "block_structure"),
-        expected_skills=("correct_answer",),
+        expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
         value_patches=((2, "first_cond", [True]),),
     ),
@@ -860,7 +859,7 @@ CHECK_CASES: list[Any] = [
         code=JAVA_IF_BLOCK,
         advance_to=(2, "first_cond"),
         action=(3, "first"),
-        expected_skills=("construct_not_entered", "intermediate_action_skipped"),
+        expected_skills=("construct_entered_before_inner", "containing_action_before_inner"),
         value_patches=((2, "first_cond", [True]),),
     ),
     # --- Порядок и агрегация критериев: первопричина вместо побочного диагноза ---
@@ -872,7 +871,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_WITH_LOOP,
         advance_to=(7, "END", "func_call_structure"),
         action=(2, "cond"),
-        expected_skills=("function_already_exited",),
+        expected_skills=("function_not_resumed_after_exit",),
         value_patches=((2, "cond", [True, False]),),
     ),
     CheckCase(
@@ -883,7 +882,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_TWO_STATEMENTS,
         advance_to=(3, "next"),
         action=(2, "first"),
-        expected_skills=("function_already_exited",),
+        expected_skills=("function_not_resumed_after_exit",),
     ),
     CheckCase(
         # Выход из функции по return по-прежнему объясняется прерыванием
@@ -893,7 +892,7 @@ CHECK_CASES: list[Any] = [
         code=FUNCTION_STATEMENT_AND_RETURN,
         advance_to=(3, "next"),
         action=(2, "first"),
-        expected_skills=("interruption_not_considered",),
+        expected_skills=("interruption_exits_constructs",),
     ),
     CheckCase(
         # Возврат к первому оператору тела после второго: тело завершилось
@@ -903,7 +902,7 @@ CHECK_CASES: list[Any] = [
         code=IF_TWO_BODY_STATEMENTS,
         advance_to=(3, "next"),
         action=(2, "first"),
-        expected_skills=("action_already_passed",),
+        expected_skills=("passed_action_repeat",),
         value_patches=((1, "first_cond", [True]),),
     ),
     CheckCase(
@@ -915,7 +914,7 @@ CHECK_CASES: list[Any] = [
         code=CALL_AFTER_STATEMENT,
         advance_to=(2, "first"),
         action=(5, "first"),
-        expected_skills=("action_already_passed",),
+        expected_skills=("passed_action_repeat",),
     ),
     CheckCase(
         # То же внутри вызывающей функции при вложенном вызове.
@@ -924,7 +923,7 @@ CHECK_CASES: list[Any] = [
         code=NESTED_CALL_AFTER_STATEMENT,
         advance_to=(7, "first"),
         action=(2, "first"),
-        expected_skills=("action_already_passed",),
+        expected_skills=("passed_action_repeat",),
     ),
     CheckCase(
         # Не закрыт `}` и пропущен оператор: агрегация AND сообщает обе ошибки
@@ -934,7 +933,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_BLOCK_TWO_AFTER,
         advance_to=(4, "first"),
         action=(7, "next"),
-        expected_skills=("construct_not_closed",),
+        expected_skills=("inner_construct_finished_before_next",),
         value_patches=((2, "first_cond", [True]),),
     ),
     CheckCase(
@@ -946,7 +945,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_BLOCK_TWO_STATEMENTS,
         advance_to=(2, "first_cond"),
         action=(5, "next"),
-        expected_skills=("actions_skipped",),
+        expected_skills=("actions_in_order",),
         value_patches=((2, "first_cond", [True]),),
     ),
     CheckCase(
@@ -957,7 +956,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_ELSE,
         advance_to=(4, "first"),
         action=(8, "first"),
-        expected_skills=("condition_value_not_considered",),
+        expected_skills=("alternative_single_branch",),
         value_patches=((2, "first_cond", [True]),),
     ),
     CheckCase(
@@ -967,7 +966,7 @@ CHECK_CASES: list[Any] = [
         code=CPP_IF_ELSE,
         advance_to=(4, "first"),
         action=(7, "BEGIN", "block_structure"),
-        expected_skills=("condition_value_not_considered",),
+        expected_skills=("alternative_single_branch",),
         value_patches=((2, "first_cond", [True]),),
     ),
     # --- Рекурсия ---
@@ -980,7 +979,7 @@ CHECK_CASES: list[Any] = [
             code=RECURSION_DEPTH2,
             advance_to=(2, "first_cond"),
             action=(3, "BEGIN", "func_call_structure"),
-            expected_skills=("correct_answer",),
+            expected_skills=("construct_entered_before_inner",),
             expected_correct=True,
             value_patches=RECURSION_VALUES,
         ),
@@ -997,7 +996,7 @@ CHECK_CASES: list[Any] = [
             advance_to=(2, "first_cond"),
             advance_occurrence=2,
             action=(3, "BEGIN", "func_call_structure"),
-            expected_skills=("correct_answer",),
+            expected_skills=("construct_entered_before_inner",),
             expected_correct=True,
             value_patches=RECURSION_VALUES,
         ),
@@ -1013,7 +1012,7 @@ CHECK_CASES: list[Any] = [
             code=RECURSION_DEPTH2,
             advance_to=(4, "next"),
             action=(3, "END", "func_call_structure"),
-            expected_skills=("correct_answer",),
+            expected_skills=("inner_construct_finished_before_next",),
             expected_correct=True,
             value_patches=RECURSION_VALUES,
         ),
@@ -1029,7 +1028,7 @@ CHECK_CASES: list[Any] = [
             code=RECURSION_DEPTH2,
             advance_to=(4, "next"),
             action=(7, "END", "func_call_structure"),
-            expected_skills=("construct_not_closed",),
+            expected_skills=("inner_construct_finished_before_next",),
             value_patches=RECURSION_VALUES,
         ),
         id="recursion_outer_call_end_too_early",
@@ -1044,7 +1043,7 @@ CHECK_CASES: list[Any] = [
             code=RECURSION_RETURN,
             advance_to=(4, "next"),
             action=(3, "END", "func_call_structure"),
-            expected_skills=("correct_answer",),
+            expected_skills=("inner_construct_finished_before_next",),
             expected_correct=True,
             value_patches=RECURSION_VALUES,
         ),

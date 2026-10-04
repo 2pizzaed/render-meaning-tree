@@ -103,7 +103,7 @@ def _conclude(variables: dict[str, Any]) -> dict[str, Any]:
         "nodeResult": "ERROR",
         "variables": variables,
         "metadata": [
-            {"name": "skill", "locCode": None, "value": "construct_not_closed"},
+            {"name": "skill", "locCode": None, "value": "inner_construct_finished_before_next"},
             {"name": "explanation", "locCode": "RU", "value": "Выполнение ${C}[case='р'] не завершено."},
         ],
     }

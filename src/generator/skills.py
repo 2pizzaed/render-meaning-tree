@@ -1,35 +1,36 @@
 from src.helpers.bitflags import bit
 
 # Идентификаторы skill из domain/main.tpg в порядке первого появления.
+# Skill — умение студента: правильный исход проверки засчитывает его, ошибочный — нарушает.
 SKILLS: dict[str, int] = {
-    "correct_answer": bit(0),
-    "interruption_not_considered": bit(1),
-    "condition_value_not_considered": bit(2),
-    "actions_order_violated": bit(3),
-    "construct_not_closed": bit(4),
-    "construct_not_entered": bit(5),
-    "intermediate_action_skipped": bit(6),
-    "action_already_passed": bit(7),
-    "actions_skipped": bit(8),
-    "no_transition": bit(9),
+    "interruption_exits_constructs": bit(0),
+    "condition_value_selects_next": bit(1),
+    "construct_entered_before_inner": bit(2),
+    "inner_construct_finished_before_next": bit(3),
+    "passed_action_repeat": bit(4),
+    "containing_action_before_inner": bit(5),
+    "alternative_single_branch": bit(6),
+    "alternative_conditions_in_order": bit(7),
+    "actions_in_order": bit(8),
+    "no_early_exit_without_interruption": bit(9),
+    # Метка завершения программы (conclude: true), а не умение.
     "everything_evaluated": bit(10),
-    "function_not_entered": bit(11),
-    "function_already_exited": bit(12),
-    "action_cannot_repeat": bit(13),
+    "function_body_runs_on_call": bit(11),
+    "function_not_resumed_after_exit": bit(12),
 }
 
-# Только skill у conclude: error/false, независимо от текста объяснения.
+# Умения, которые может нарушить ошибочный ответ (skill у conclude: error).
 ERRORNEOUS_SKILLS: set[str] = {
-    "interruption_not_considered",
-    "condition_value_not_considered",
-    "actions_order_violated",
-    "construct_not_closed",
-    "construct_not_entered",
-    "intermediate_action_skipped",
-    "action_already_passed",
-    "actions_skipped",
-    "no_transition",
-    "function_not_entered",
-    "function_already_exited",
-    "action_cannot_repeat",
+    "interruption_exits_constructs",
+    "condition_value_selects_next",
+    "construct_entered_before_inner",
+    "inner_construct_finished_before_next",
+    "passed_action_repeat",
+    "containing_action_before_inner",
+    "alternative_single_branch",
+    "alternative_conditions_in_order",
+    "actions_in_order",
+    "no_early_exit_without_interruption",
+    "function_body_runs_on_call",
+    "function_not_resumed_after_exit",
 }

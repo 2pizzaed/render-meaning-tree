@@ -12,8 +12,7 @@ from src.coderenderer.html import extract_buttons_from_context, prepare_html_con
 from src.dot import render_dot_svg
 from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
-from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import registry_to_loqi
+from src.generator.utilities import code_manager_to_registry, registry_to_loqi
 from src.helpers.tpg import (
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,
@@ -30,7 +29,7 @@ from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
 from test.helpers.env import make_project_temp_dir
-from test.scripts.find_correct_trace_actions import build_correct_trace_pipeline
+from test.scripts.find_correct_trace_actions import build_correct_trace_registry
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"
@@ -216,14 +215,13 @@ def reason_trace():
             language,
             target_language=target_language or None,
         )
-        pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
-        pipeline.process()
-        serializer, _ = registry_to_loqi(pipeline.registry)
+        registry = code_manager_to_registry(manager)
+        serializer, _ = registry_to_loqi(registry)
         selected_actions = resolve_actions_from_trace(serializer, selected_trace)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
         reasoning = check_graph_stepwise_reasoning(
             reasoning_tmp,
-            pipeline,
+            registry,
             selected_actions,
             model_dir=PLAYGROUND_REASON_MODEL_DIR,
             filename="playground-trace.loqi",
@@ -273,16 +271,15 @@ def hint_trace():
             language,
             target_language=target_language or None,
         )
-        pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
-        pipeline.process()
-        serializer, _ = registry_to_loqi(pipeline.registry)
+        registry = code_manager_to_registry(manager)
+        serializer, _ = registry_to_loqi(registry)
         selected_actions = resolve_actions_from_trace(serializer, selected_trace)
         hint_tmp = _playground_temp_dir("playground-hint-")
         if selected_actions:
             # Восстанавливаем трассу (с прозрачными актами) пошаговой проверкой.
             checked = check_graph_stepwise_reasoning(
                 hint_tmp,
-                pipeline,
+                registry,
                 selected_actions,
                 model_dir=PLAYGROUND_REASON_MODEL_DIR,
                 filename="playground-hint-check.loqi",
@@ -302,7 +299,7 @@ def hint_trace():
                 ), 409
         hint = find_graph_next_correct_action(
             hint_tmp,
-            pipeline,
+            registry,
             model_dir=PLAYGROUND_REASON_MODEL_DIR,
             filename="playground-hint.loqi",
             export_domain=True,
@@ -336,7 +333,7 @@ def tracing():
 
     try:
         solver_stops: set[int] = set()
-        pipeline = build_correct_trace_pipeline(
+        registry = build_correct_trace_registry(
             code,
             language=language,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
@@ -344,7 +341,7 @@ def tracing():
             solver_stops=solver_stops,
         )
         dot_text = trace_acts_to_dot(
-            pipeline.registry.trace_acts,
+            registry.trace_acts,
             name="playground_correct_trace",
             solver_stops=solver_stops,
         )
@@ -378,12 +375,11 @@ def build_answer_objects(
     """Temporary hook for answer-trace payload generation."""
     if not enable_trace:
         return None
-    pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
-    pipeline.process()
-    serializer, _ = registry_to_loqi(pipeline.registry)
+    registry = code_manager_to_registry(manager)
+    serializer, _ = registry_to_loqi(registry)
     return {
         str(button["action_id"]): resolve_button_action_name(
-            pipeline,
+            registry,
             button,
             serializer=serializer,
         )

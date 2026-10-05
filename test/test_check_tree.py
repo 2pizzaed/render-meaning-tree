@@ -37,11 +37,8 @@ from typing import Any
 import pytest
 
 from src.generator.helpers import line_actions
-from src.generator.pipeline import (
-    DomainDataGeneratorPipeline,
-    SituationDomainDataRegistry,
-)
-from src.generator.utilities import code_snippet_to_pipeline
+from src.generator.pipeline import SituationRegistry
+from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult
@@ -1070,15 +1067,15 @@ def _case_params() -> list[Any]:
 def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
     reference = _reference_trace_signature(case, tmp_path)
 
-    pipeline, registry = _build_registry(case.code, language=case.language)
+    registry = _build_registry(case.code, language=case.language)
     _apply_value_patches(registry, case.value_patches)
-    _advance_partial_trace(tmp_path, pipeline, case)
+    _advance_partial_trace(tmp_path, registry, case)
 
     action = _spec_action(registry, case.action, occurrence=case.action_occurrence)
     before_signature = _trace_signature(registry)
     registry.variables["A"] = action
 
-    result = _run_check(tmp_path, pipeline)
+    result = _run_check(tmp_path, registry)
 
     skills = _extract_skills(result)
     assert not result.exceptions, (
@@ -1102,7 +1099,7 @@ def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
         )
 
     _assert_trace_invariants(
-        pipeline,
+        registry,
         result,
         case=case,
         action=action,
@@ -1114,18 +1111,14 @@ def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
 # -- Построение ситуации -------------------------------------------------------
 
 
-def _build_registry(
-    code: str, *, language: str
-) -> tuple[DomainDataGeneratorPipeline, SituationDomainDataRegistry]:
-    pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
-    pipeline.fork_enabled = False
-    registry = pipeline.flatten_results()[0]
+def _build_registry(code: str, *, language: str) -> SituationRegistry:
+    registry = code_snippet_to_registry(textwrap.dedent(code), language=language)
     registry.variables["P"] = registry.trace_acts[0]
-    return pipeline, registry
+    return registry
 
 
 def _apply_value_patches(
-    registry: SituationDomainDataRegistry,
+    registry: SituationRegistry,
     patches: tuple[ValuePatch, ...],
 ) -> None:
     for line_number, role, values in patches:
@@ -1135,7 +1128,7 @@ def _apply_value_patches(
 
 
 def _spec_action(
-    registry: SituationDomainDataRegistry,
+    registry: SituationRegistry,
     spec: ActionSpec,
     *,
     occurrence: int = 0,
@@ -1146,7 +1139,7 @@ def _spec_action(
 
 
 def _role_action(
-    registry: SituationDomainDataRegistry,
+    registry: SituationRegistry,
     line_number: int,
     role: str,
     construct: str | None = None,
@@ -1183,13 +1176,11 @@ def _role_action(
 
 def _advance_partial_trace(
     tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     case: CheckCase,
 ) -> None:
     if case.advance_to is None:
         return
-
-    registry = pipeline.registry
     target: Action | None = None
     if isinstance(case.advance_to, tuple):
         target = _spec_action(
@@ -1200,7 +1191,7 @@ def _advance_partial_trace(
 
     stops = 0
     for _iteration in range(MAX_ADVANCE_SOLVES):
-        _solve_find_correct_once(tmp_path, pipeline)
+        _solve_find_correct_once(tmp_path, registry)
         current = registry.variables.get("P")
         current_action = current.action if isinstance(current, TraceAct) else None
 
@@ -1208,9 +1199,9 @@ def _advance_partial_trace(
             stops += 1
             if stops >= case.advance_occurrence:
                 return
-        if case.advance_to == "end" and _root_end_reached(pipeline, current_action):
+        if case.advance_to == "end" and _root_end_reached(registry, current_action):
             return
-        if current_action is not None and _root_end_reached(pipeline, current_action):
+        if current_action is not None and _root_end_reached(registry, current_action):
             raise AssertionError(
                 f"findCorrect reached program END before advance target "
                 f"{case.advance_to!r} (occurrence {case.advance_occurrence})"
@@ -1223,12 +1214,12 @@ def _advance_partial_trace(
 
 def _solve_find_correct_once(
     tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
 ) -> None:
     with (tmp_path / "find_correct_output.txt").open("a", encoding="utf-8") as out:
         reasoning = solve_pipeline_reasoning(
             tmp_path,
-            pipeline,
+            registry,
             model_dir=Path("domain"),
             filename="advance.loqi",
             tree=FIND_CORRECT_TREE,
@@ -1247,7 +1238,7 @@ def _solve_find_correct_once(
 
 
 def _root_end_reached(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     action: Action | None,
 ) -> bool:
     if action is None:
@@ -1263,12 +1254,12 @@ def _root_end_reached(
 
 def _run_check(
     tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
 ) -> ReasoningResult:
     with (tmp_path / "check_output.txt").open("a", encoding="utf-8") as out:
         reasoning = solve_pipeline_reasoning(
             tmp_path,
-            pipeline,
+            registry,
             model_dir=Path("domain"),
             filename="check.loqi",
             tree=CHECK_TREE,
@@ -1301,7 +1292,7 @@ def _trace_tail(result: ReasoningResult, *, lines: int = 40) -> str:
     return "--- trace tail ---\n" + "\n".join(tail)
 
 
-def _trace_signature(registry: SituationDomainDataRegistry) -> TraceSignature:
+def _trace_signature(registry: SituationRegistry) -> TraceSignature:
     return [
         (trace_act.action.ast_id or -1, trace_act.action.rule.role)
         for trace_act in registry.trace_acts
@@ -1319,16 +1310,16 @@ def _reference_trace_signature(case: CheckCase, tmp_path: Path) -> TraceSignatur
     if cached is not None:
         return cached
 
-    pipeline, registry = _build_registry(case.code, language=case.language)
+    registry = _build_registry(case.code, language=case.language)
     _apply_value_patches(registry, case.value_patches)
 
     reference_dir = tmp_path / "reference"
     reference_dir.mkdir(exist_ok=True)
     for _iteration in range(MAX_ADVANCE_SOLVES):
-        _solve_find_correct_once(reference_dir, pipeline)
+        _solve_find_correct_once(reference_dir, registry)
         current = registry.variables.get("P")
         current_action = current.action if isinstance(current, TraceAct) else None
-        if _root_end_reached(pipeline, current_action):
+        if _root_end_reached(registry, current_action):
             break
     else:
         raise AssertionError(
@@ -1341,7 +1332,7 @@ def _reference_trace_signature(case: CheckCase, tmp_path: Path) -> TraceSignatur
 
 
 def _assert_trace_invariants(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     result: ReasoningResult,
     *,
     case: CheckCase,
@@ -1351,8 +1342,8 @@ def _assert_trace_invariants(
 ) -> None:
     exported = result.artifacts.get("specificDomain")
     assert isinstance(exported, str), "check tree did not export specificDomain"
-    restore_trace_from_loqi(exported, pipeline)
-    after_signature = _trace_signature(pipeline.registry)
+    restore_trace_from_loqi(exported, registry)
+    after_signature = _trace_signature(registry)
 
     # Проверка никогда не укорачивает трассу; предпрогонка и фиксация ответа
     # обязаны держать её префиксом эталонной трассы (доп. акты — только

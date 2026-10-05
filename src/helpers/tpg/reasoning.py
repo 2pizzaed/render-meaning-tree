@@ -5,8 +5,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
-from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import pipeline_to_loqi
+from src.generator.pipeline import SituationRegistry
+from src.generator.utilities import registry_to_loqi
 from src.helpers.tpg.trace import restore_trace_from_loqi
 from src.model.situation import Action, TraceAct, TraceState
 from src.serialization.loqi import LoqiSerializer
@@ -36,7 +36,7 @@ class NextCorrectActionOutput:
 
 def solve_pipeline_reasoning(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     model_dir: str | Path,
     filename: str = "generated-domain.loqi",
@@ -52,7 +52,7 @@ def solve_pipeline_reasoning(
 ) -> PipelineReasoningOutput:
     return _solve_pipeline_reasoning_once(
         directory,
-        pipeline,
+        registry,
         model_dir=model_dir,
         filename=filename,
         tag=tag,
@@ -69,7 +69,7 @@ def solve_pipeline_reasoning(
 
 def solve_graph_full_reasoning(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     model_dir: str | Path,
     filename: str = "generated-domain.loqi",
@@ -87,7 +87,6 @@ def solve_graph_full_reasoning(
     if max_iterations < 1:
         raise ValueError("max_iterations must be at least 1")
 
-    registry = pipeline.registry
     previous_trace_length = len(registry.trace_acts)
     last_output: PipelineReasoningOutput | None = None
 
@@ -96,7 +95,7 @@ def solve_graph_full_reasoning(
         try:
             last_output = _solve_pipeline_reasoning_once(
                 directory,
-                pipeline,
+                registry,
                 model_dir=model_dir,
                 filename=filename,
                 tag=tag,
@@ -137,7 +136,7 @@ def solve_graph_full_reasoning(
             if isinstance(current_trace_act, TraceAct)
             else last_output.trace_acts[-1].action
         )
-        if _is_root_end_action(pipeline, current_action):
+        if _is_root_end_action(registry, current_action):
             return last_output
 
     raise RuntimeError(f"findCorrect did not finish after {max_iterations} iteration(s)")
@@ -145,7 +144,7 @@ def solve_graph_full_reasoning(
 
 def check_graph_stepwise_reasoning(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     selected_trace: Sequence[Action],
     *,
     model_dir: str | Path,
@@ -164,11 +163,11 @@ def check_graph_stepwise_reasoning(
 
     last_output: PipelineReasoningOutput | None = None
     for index, action in enumerate(selected_trace):
-        _ensure_trace_tail_as_p(pipeline)
-        pipeline.registry.variables["A"] = action
+        _ensure_trace_tail_as_p(registry)
+        registry.variables["A"] = action
         last_output = _solve_pipeline_reasoning_once(
             directory,
-            pipeline,
+            registry,
             model_dir=model_dir,
             filename=filename,
             tag=tag,
@@ -196,7 +195,7 @@ def check_graph_stepwise_reasoning(
 
 def find_graph_next_correct_action(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     model_dir: str | Path,
     filename: str = "generated-domain.loqi",
@@ -213,14 +212,13 @@ def find_graph_next_correct_action(
 
     Трасса registry должна быть уже восстановлена (например, пошаговой проверкой).
     """
-    registry = pipeline.registry
-    _ensure_trace_tail_as_p(pipeline)
+    _ensure_trace_tail_as_p(registry)
     registry.variables.pop("A", None)
     previous_trace_length = len(registry.trace_acts)
 
     output = _solve_pipeline_reasoning_once(
         directory,
-        pipeline,
+        registry,
         model_dir=model_dir,
         filename=filename,
         tag=tag,
@@ -247,7 +245,7 @@ def find_graph_next_correct_action(
         return NextCorrectActionOutput(output=output, action=opaque_acts[-1].action, finished=False)
 
     tail = output.trace_acts[-1] if output.trace_acts else None
-    if tail is not None and _is_root_end_action(pipeline, tail.action):
+    if tail is not None and _is_root_end_action(registry, tail.action):
         return NextCorrectActionOutput(output=output, action=None, finished=True)
     raise RuntimeError(
         "findCorrect did not append an opaque trace action; "
@@ -257,15 +255,11 @@ def find_graph_next_correct_action(
 
 def write_pipeline_loqi(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     filename: str = "generated-domain.loqi",
 ) -> tuple[LoqiSerializer, Path, str]:
-    loqi_results = pipeline_to_loqi(pipeline)
-    if len(loqi_results) != 1:
-        raise RuntimeError(f"Expected one LOQI result, found {len(loqi_results)}")
-
-    serializer, loqi_text = loqi_results[0]
+    serializer, loqi_text = registry_to_loqi(registry)
     loqi_file = directory / filename
     loqi_file.write_text(loqi_text, encoding="utf-8", newline="")
     return serializer, loqi_file, loqi_text
@@ -273,7 +267,7 @@ def write_pipeline_loqi(
 
 def _solve_pipeline_reasoning_once(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     model_dir: str | Path,
     filename: str = "generated-domain.loqi",
@@ -289,7 +283,7 @@ def _solve_pipeline_reasoning_once(
 ) -> PipelineReasoningOutput:
     serializer, loqi_file, loqi_text = write_pipeline_loqi(
         directory,
-        pipeline,
+        registry,
         filename=filename,
     )
     try:
@@ -316,7 +310,7 @@ def _solve_pipeline_reasoning_once(
     trace_acts: list[TraceAct] = []
     trace_state: TraceState | None = None
     if restore_exported_trace and exported_loqi is not None:
-        trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, pipeline)
+        trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, registry)
 
     return PipelineReasoningOutput(
         serializer=serializer,
@@ -336,18 +330,17 @@ def _describe_trace_act(trace_act: TraceAct | None) -> str:
     return f"{action.parent.rule.name}.{action.rule.role} (ast {action.ast_id})"
 
 
-def _ensure_trace_tail_as_p(pipeline: DomainDataGeneratorPipeline) -> None:
-    registry = pipeline.registry
+def _ensure_trace_tail_as_p(registry: SituationRegistry) -> None:
     if registry.trace_acts:
         registry.variables["P"] = registry.trace_acts[-1]
 
 
 def _is_root_end_action(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     action: Action,
 ) -> bool:
-    entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
-    entry_point = pipeline.get_construct_for(entry_point_id)
+    entry_point_id = registry.code.ast.find_paths_by_type("program_entry_point")[0].id
+    entry_point = registry.get_construct_for(entry_point_id)
     if entry_point is None:
         return False
     return (

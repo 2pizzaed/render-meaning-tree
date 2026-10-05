@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import code_snippet_to_pipeline
+from src.generator.pipeline import SituationRegistry
+from src.generator.utilities import code_snippet_to_registry
 from src.tpg_domain import validate_domain_loqi
 from test.helpers import (
     code_snippet_to_loqi_files,
@@ -12,10 +12,10 @@ from test.helpers import (
 )
 
 
-def _single_construct(pipeline: DomainDataGeneratorPipeline, rule_name: str):
+def _single_construct(registry: SituationRegistry, rule_name: str):
     matches = [
         construct
-        for construct in pipeline.registry.constructs.values()
+        for construct in registry.constructs.values()
         if construct.rule.name == rule_name
     ]
     assert len(matches) == 1
@@ -38,9 +38,9 @@ def main(x):
 
     assert validate_code_snippet_domain_loqi(output_dir, code, filename="elif-chain.loqi")
 
-    pipeline = code_snippet_to_pipeline(code)
-    if_construct = _single_construct(pipeline, "if_structure")
-    roles = [action.rule.role for action in pipeline.get_related_actions(if_construct)]
+    registry = code_snippet_to_registry(code)
+    if_construct = _single_construct(registry, "if_structure")
+    roles = [action.rule.role for action in registry.get_related_actions(if_construct)]
 
     assert roles.count("first_cond") == 1
     assert roles.count("next_cond") == 2
@@ -62,11 +62,11 @@ def main(x):
 
     assert validate_code_snippet_domain_loqi(output_dir, code, filename="elif-condition-values.loqi")
 
-    pipeline = code_snippet_to_pipeline(code)
-    if_construct = _single_construct(pipeline, "if_structure")
+    registry = code_snippet_to_registry(code)
+    if_construct = _single_construct(registry, "if_structure")
     condition_actions = [
         action
-        for action in pipeline.get_related_actions(if_construct)
+        for action in registry.get_related_actions(if_construct)
         if action.rule.role in {"first_cond", "next_cond"}
     ]
 
@@ -85,15 +85,15 @@ def main():
 
     assert validate_code_snippet_domain_loqi(output_dir, code, filename="sequence-order.loqi")
 
-    pipeline = code_snippet_to_pipeline(code)
+    registry = code_snippet_to_registry(code)
     block_constructs = [
         construct
-        for construct in pipeline.registry.constructs.values()
+        for construct in registry.constructs.values()
         if construct.rule.name == "block_structure"
     ]
-    function_block = max(block_constructs, key=lambda construct: len(pipeline.get_related_actions(construct)))
+    function_block = max(block_constructs, key=lambda construct: len(registry.get_related_actions(construct)))
 
-    assert [action.rule.role for action in pipeline.get_related_actions(function_block)] == [
+    assert [action.rule.role for action in registry.get_related_actions(function_block)] == [
         "BEGIN",
         "first",
         "next",
@@ -113,11 +113,11 @@ def main(x):
 
     assert validate_code_snippet_domain_loqi(output_dir, code, filename="while-condition-values.loqi")
 
-    pipeline = code_snippet_to_pipeline(code)
-    while_construct = _single_construct(pipeline, "while_structure")
+    registry = code_snippet_to_registry(code)
+    while_construct = _single_construct(registry, "while_structure")
     condition_actions = [
         action
-        for action in pipeline.get_related_actions(while_construct)
+        for action in registry.get_related_actions(while_construct)
         if action.rule.role == "cond"
     ]
 

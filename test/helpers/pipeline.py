@@ -6,15 +6,13 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from src.ast_managers import CodeManager
 from src.dot import render_dot_png
-from src.generator.pipeline import (
-    DomainDataGeneratorPipeline,
-    PipelineRegistry,
-)
+from src.generator.pipeline import SituationRegistry
 from src.generator.utilities import (
     code_file_to_pipeline,
     code_snippet_to_pipeline,
-    pipeline_to_loqi,
+    registry_to_loqi,
 )
 from src.meaning_tree import to_dot
 from src.serialization.loqi import LoqiSerializer
@@ -31,8 +29,8 @@ def code_snippet_to_loqi_files(
     mode: str = "procedural",
     filename: str = "generated-domain.loqi",
 ) -> list[tuple[LoqiSerializer, Path]]:
-    pipeline = code_snippet_to_pipeline(code, language=language, mode=mode)
-    return pipeline_to_loqi_files(directory, pipeline, filename=filename)
+    registries = code_snippet_to_pipeline_registries(code, language=language, mode=mode)
+    return registries_to_loqi_files(directory, registries, filename=filename)
 
 
 def code_snippet_to_pipeline_registries(
@@ -40,18 +38,18 @@ def code_snippet_to_pipeline_registries(
     *,
     language: str = "python",
     mode: str = "procedural",
-) -> Sequence[PipelineRegistry]:
+) -> Sequence[SituationRegistry]:
     pipeline = code_snippet_to_pipeline(code, language=language, mode=mode)
-    return pipeline.flatten_results()
+    return pipeline.results()
 
 
-def pipeline_to_loqi_files(
+def registries_to_loqi_files(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registries: Sequence[SituationRegistry],
     *,
     filename: str = "generated-domain.loqi",
 ) -> list[tuple[LoqiSerializer, Path]]:
-    loqi_results = pipeline_to_loqi(pipeline)
+    loqi_results = [registry_to_loqi(registry) for registry in registries]
     return [
         (
             serializer,
@@ -65,18 +63,18 @@ def pipeline_to_loqi_files(
 
 def pipeline_debug_json_artifacts(
     directory: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     filename_stem: str = "pipeline",
 ) -> dict[str, Path]:
     """Сохранить SourceMap, токены, Meaning Tree и Meaning Tree DOT в артефакты."""
     artifacts = {
-        "source_map": pipeline.code.source_map,
+        "source_map": registry.code.source_map,
         "tokens": {
             "type": "TokenList",
-            "items": _pipeline_tokens_to_json(pipeline),
+            "items": _tokens_to_json(registry.code),
         },
-        "meaning_tree": pipeline.code.ast.root,
+        "meaning_tree": registry.code.ast.root,
     }
     paths = {
         name: _write_json_file(directory, content, f"{filename_stem}-{suffix}.json")
@@ -146,7 +144,7 @@ def validate_code_file_domain_loqi(
     filename: str = "generated-domain.loqi",
 ) -> bool:
     pipeline = code_file_to_pipeline(code_file, language=language, mode=mode)
-    loqi_files = pipeline_to_loqi_files(directory, pipeline, filename=filename)
+    loqi_files = registries_to_loqi_files(directory, pipeline.results(), filename=filename)
     return all(
         validate_domain_loqi(loqi_file, model_dir, tag=tag)
         for _serializer, loqi_file in loqi_files
@@ -161,10 +159,10 @@ def _write_json_file(directory: Path, content: Any, filename: str) -> Path:
     )
 
 
-def _pipeline_tokens_to_json(pipeline: DomainDataGeneratorPipeline) -> list[dict[str, Any]]:
+def _tokens_to_json(code: CodeManager) -> list[dict[str, Any]]:
     tokens: list[dict[str, Any]] = []
-    for index in range(pipeline.code.token_count):
-        token = pipeline.code.get_token(index)
+    for index in range(code.token_count):
+        token = code.get_token(index)
         if token is not None:
             tokens.append(_token_to_json(token))
     return tokens

@@ -6,8 +6,8 @@ import textwrap
 from pathlib import Path
 
 from src.generator.helpers import action_line_position
-from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import code_snippet_to_pipeline
+from src.generator.pipeline import SituationRegistry
+from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg import solve_graph_full_reasoning
 from test.helpers.env import make_project_temp_dir, resolve_project_root
 
@@ -39,14 +39,13 @@ def trace_action_rows(
     include_transparent: bool = False,
     temp_root: Path | None = None,
 ) -> list[tuple[int, int, int]]:
-    pipeline = build_correct_trace_pipeline(
+    registry = build_correct_trace_registry(
         code,
         language=language,
         max_iterations=max_iterations,
         time_limit_seconds=time_limit_seconds,
         temp_root=temp_root,
     )
-    registry = pipeline.flatten_results()[0]
 
     rows: list[tuple[int, int, int]] = []
     for trace_act in registry.trace_acts:
@@ -61,7 +60,7 @@ def trace_action_rows(
     return rows
 
 
-def build_correct_trace_pipeline(
+def build_correct_trace_registry(
     code: str,
     *,
     language: str = "python",
@@ -69,10 +68,8 @@ def build_correct_trace_pipeline(
     time_limit_seconds: int = 30,
     temp_root: Path | None = None,
     solver_stops: set[int] | None = None,
-) -> DomainDataGeneratorPipeline:
-    pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
-    pipeline.fork_enabled = False
-    registry = pipeline.flatten_results()[0]
+) -> SituationRegistry:
+    registry = code_snippet_to_registry(textwrap.dedent(code), language=language)
     if registry.trace_acts:
         registry.variables["P"] = registry.trace_acts[0]
 
@@ -80,7 +77,7 @@ def build_correct_trace_pipeline(
     with (tmp_path / "reasoner_output.jsonl").open("a", encoding="utf-8") as output:
         solve_graph_full_reasoning(
             tmp_path,
-            pipeline,
+            registry,
             model_dir=resolve_project_root() / "domain",
             filename=DEFAULT_LOQI_FILENAME,
             tree=TREE_NAME,
@@ -91,7 +88,7 @@ def build_correct_trace_pipeline(
             max_iterations=max_iterations,
             solver_stops=solver_stops,
         )
-    return pipeline
+    return registry
 
 def _read_code(args: argparse.Namespace) -> str:
     if args.code is not None:

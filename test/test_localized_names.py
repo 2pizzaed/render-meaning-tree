@@ -6,8 +6,8 @@ from textwrap import dedent
 
 import pytest
 
-from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import code_snippet_to_pipeline, registry_to_loqi
+from src.generator.pipeline import SituationRegistry
+from src.generator.utilities import code_snippet_to_registry, registry_to_loqi
 from src.localization import MessageBundle, load_bundle, parse_properties
 from src.model.rules import Metadata
 from src.serialization.localized_names import (
@@ -149,7 +149,7 @@ def test_serializer_decorators_modify_copy_and_are_not_repeated() -> None:
 
 
 @pytest.fixture(scope="module")
-def trace_pipeline() -> DomainDataGeneratorPipeline:
+def trace_registry() -> SituationRegistry:
     code = dedent(
         """\
         def foo(a):
@@ -162,19 +162,19 @@ def trace_pipeline() -> DomainDataGeneratorPipeline:
                 break
         """
     )
-    return code_snippet_to_pipeline(code)
+    return code_snippet_to_registry(code)
 
 
 @pytest.fixture(scope="module")
-def trace_loqi(trace_pipeline: DomainDataGeneratorPipeline) -> str:
-    _, loqi = registry_to_loqi(trace_pipeline.flatten_results()[0])
+def trace_loqi(trace_registry: SituationRegistry) -> str:
+    _, loqi = registry_to_loqi(trace_registry)
     return loqi
 
 
 @pytest.fixture(scope="module")
-def lines(trace_pipeline: DomainDataGeneratorPipeline) -> dict[str, int]:
+def lines(trace_registry: SituationRegistry) -> dict[str, int]:
     """Номера строк в коде, сгенерированном Meaning Tree (его и видит студент)."""
-    rendered = trace_pipeline.code.code.splitlines()
+    rendered = trace_registry.code.code.splitlines()
     return {
         marker: next(number for number, text in enumerate(rendered, 1) if text.strip().startswith(marker))
         for marker in ("while", "break")

@@ -3,27 +3,27 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from src.generator.pipeline import DomainDataGeneratorPipeline
+from src.generator.pipeline import SituationRegistry
 from src.generator.utilities import registry_to_loqi
 from src.model.situation import Action, Construct
 from src.serialization.loqi import LoqiSerializer
 
 
 def resolve_button_action_name(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     button: dict[str, Any],
     *,
     serializer: LoqiSerializer | None = None,
 ) -> str | None:
-    action = resolve_button_action(pipeline, button)
+    action = resolve_button_action(registry, button)
     if action is None:
         return None
-    serializer = serializer or _serializer_for_pipeline(pipeline)
+    serializer = serializer or _serializer_for_registry(registry)
     return serializer.object_name(action)
 
 
 def resolve_button_action(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     button: dict[str, Any],
 ) -> Action | None:
     node_id = _int_or_none(_value(button, "node_id", "nodeId"))
@@ -32,9 +32,9 @@ def resolve_button_action(
 
     button_type = _str_or_none(_value(button, "button_type", "buttonType", "type"))
     position = _str_or_none(_value(button, "position"))
-    parent_ast_id = _parent_ast_id(pipeline, node_id)
+    parent_ast_id = _parent_ast_id(registry, node_id)
     candidates = _candidate_actions(
-        pipeline,
+        registry,
         button_type,
         node_id,
         parent_ast_id,
@@ -43,17 +43,17 @@ def resolve_button_action(
     if not candidates:
         return None
 
-    action = _resolve_single_candidate(pipeline, button, candidates, parent_ast_id)
-    return _resolve_inline_compound_action(pipeline, action)
+    action = _resolve_single_candidate(registry, button, candidates, parent_ast_id)
+    return _resolve_inline_compound_action(registry, action)
 
 
-def _serializer_for_pipeline(pipeline: DomainDataGeneratorPipeline) -> LoqiSerializer:
-    serializer, _ = registry_to_loqi(pipeline.registry)
+def _serializer_for_registry(registry: SituationRegistry) -> LoqiSerializer:
+    serializer, _ = registry_to_loqi(registry)
     return serializer
 
 
 def _candidate_actions(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     button_type: str | None,
     node_id: int,
     parent_ast_id: int | None,
@@ -61,22 +61,22 @@ def _candidate_actions(
 ) -> list[Action]:
     if button_type == "stop":
         return _all_actions_matching(
-            pipeline,
+            registry,
             lambda action: action.rule.role == "END",
         )
 
     if button_type == "play":
-        return _start_candidates(pipeline, node_id, parent_ast_id, position)
+        return _start_candidates(registry, node_id, parent_ast_id, position)
 
     if button_type == "step-into":
-        return _call_boundary_candidates(pipeline, "BEGIN")
+        return _call_boundary_candidates(registry, "BEGIN")
 
     if button_type == "step-out":
-        return _call_boundary_candidates(pipeline, "END")
+        return _call_boundary_candidates(registry, "END")
 
     if button_type == "question":
         return _all_actions_matching(
-            pipeline,
+            registry,
             lambda action: "condition" in action.rule.kind_classes
             and not _expands_to_non_inline_construct(action),
         )
@@ -85,44 +85,44 @@ def _candidate_actions(
 
 
 def _start_candidates(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     node_id: int,
     parent_ast_id: int | None,
     position: str | None,
 ) -> list[Action]:
     if position == "after":
         return _all_actions_matching(
-            pipeline,
+            registry,
             lambda action: action.rule.role == "BEGIN",
         )
 
     if position == "before":
         return _all_actions_matching(
-            pipeline,
+            registry,
             lambda action: action.parent.ast_id == parent_ast_id
             and not _expands_to_non_inline_construct(action),
         )
 
     return _all_actions_matching(
-        pipeline,
+        registry,
         lambda action: action.ast_id == node_id
         and not _expands_to_non_inline_construct(action),
     )
 
 
 def _call_boundary_candidates(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     role: str,
 ) -> list[Action]:
     return _all_actions_matching(
-        pipeline,
+        registry,
         lambda action: action.rule.role == role
         and "call" in action.parent.rule.kind_classes,
     )
 
 
 def _resolve_single_candidate(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     button: dict[str, Any],
     candidates: list[Action],
     parent_ast_id: int | None,
@@ -134,11 +134,11 @@ def _resolve_single_candidate(
         return candidates[0]
     if not candidates:
         raise AssertionError("Candidate filtering unexpectedly removed all actions")
-    raise LookupError(_ambiguous_button_action_message(pipeline, button, candidates))
+    raise LookupError(_ambiguous_button_action_message(registry, button, candidates))
 
 
 def _resolve_inline_compound_action(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     action: Action,
 ) -> Action:
     construct = action.expands_to()
@@ -149,7 +149,7 @@ def _resolve_inline_compound_action(
 
     opaque_actions = [
         candidate
-        for candidate in pipeline.get_related_actions(construct)
+        for candidate in registry.get_related_actions(construct)
         if candidate.is_opaque
     ]
     # Если внутри конструкта нет непрозрачных действий (служебное content прозрачно,
@@ -157,20 +157,18 @@ def _resolve_inline_compound_action(
     # действие - оператор или условие (first_cond), на него и ссылается кнопка.
     if not opaque_actions:
         return action
-    return sorted(opaque_actions, key=pipeline.registry.action_order)[0]
+    return sorted(opaque_actions, key=registry.action_order)[0]
 
 
 def _all_actions_matching(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     predicate: Callable[[Action], bool],
 ) -> list[Action]:
-    actions = [
+    return [
         action
-        for actions in pipeline.registry.actions.values()
-        for action in actions
+        for action in (*registry.all_actions(), *registry.anonymous_actions)
+        if predicate(action)
     ]
-    actions.extend(pipeline.registry.anonymous_actions)
-    return [action for action in actions if predicate(action)]
 
 
 def _prefer(
@@ -181,8 +179,8 @@ def _prefer(
     return preferred or actions
 
 
-def _parent_ast_id(pipeline: DomainDataGeneratorPipeline, node_id: int) -> int | None:
-    path = pipeline.code.ast.get_path(node_id)
+def _parent_ast_id(registry: SituationRegistry, node_id: int) -> int | None:
+    path = registry.code.ast.get_path(node_id)
     if path is None or path.parent is None:
         return None
     return path.parent.id
@@ -194,7 +192,7 @@ def _expands_to_non_inline_construct(action: Action) -> bool:
 
 
 def _ambiguous_button_action_message(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     button: dict[str, Any],
     candidates: list[Action],
 ) -> str:
@@ -203,7 +201,7 @@ def _ambiguous_button_action_message(
     position = _str_or_none(_value(button, "position"))
     button_type = _str_or_none(_value(button, "button_type", "buttonType", "type"))
     candidate_lines = "; ".join(
-        _format_action(pipeline, action) for action in candidates
+        _format_action(registry, action) for action in candidates
     )
     return (
         "Ambiguous button action mapping: "
@@ -214,7 +212,7 @@ def _ambiguous_button_action_message(
 
 
 def _format_action(
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     action: Action,
 ) -> str:
     expands_to = action.expands_to()
@@ -223,7 +221,7 @@ def _format_action(
         f"Action(role={action.rule.role!r}, ast_id={action.ast_id!r}, "
         f"kind={action.rule.kind!r}, parent_ast_id={action.parent.ast_id!r}, "
         f"parent={action.parent.rule.name!r}, expands_to={expands_to_name!r}, "
-        f"order={pipeline.registry.action_order(action)})"
+        f"order={registry.action_order(action)})"
     )
 
 

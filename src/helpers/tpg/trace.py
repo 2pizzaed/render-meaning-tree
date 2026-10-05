@@ -4,11 +4,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from src.generator.helpers.actions import _registry_for
-from src.generator.pipeline import (
-    DomainDataGeneratorPipeline,
-    SituationDomainDataRegistry,
-)
+from src.generator.pipeline import SituationRegistry
 from src.generator.utilities import registry_to_loqi
 from src.model.rules import InterruptionType, TransitionDeclaration
 from src.model.situation import Action, SemanticValue, TraceAct, TraceState
@@ -54,12 +50,11 @@ class _TraceStateSpec:
 
 def trace_acts_from_loqi(
     loqi_text: str,
-    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    registry: SituationRegistry,
     *,
     replace_existing: bool = True,
 ) -> list[TraceAct]:
     """Восстановить TraceAct из LOQI-текста и привязать их к текущему registry."""
-    registry = _registry_for(context)
     serializer, _ = registry_to_loqi(registry)
     trace_specs = _parse_trace_act_specs(loqi_text)
 
@@ -105,7 +100,7 @@ def trace_acts_from_loqi(
         trace_act = TraceAct(
             action=action,
             used_transition=used_transition,
-            situation=registry.owner,
+            situation=registry,
             value=value,
             unfolded_from=unfolded_from,
         )
@@ -120,10 +115,9 @@ def trace_acts_from_loqi(
 
 def trace_state_from_loqi(
     loqi_text: str,
-    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    registry: SituationRegistry,
 ) -> TraceState | None:
     """Восстановить TraceState из LOQI-текста и заменить registry.trace_state."""
-    registry = _registry_for(context)
     trace_state_spec = _parse_trace_state_spec(loqi_text)
     if trace_state_spec is None:
         return None
@@ -135,15 +129,15 @@ def trace_state_from_loqi(
 
 def restore_trace_from_loqi(
     loqi_text: str,
-    context: DomainDataGeneratorPipeline | SituationDomainDataRegistry,
+    registry: SituationRegistry,
     *,
     replace_existing: bool = True,
 ) -> tuple[list[TraceAct], TraceState | None]:
     """Восстановить TraceState и цепочку TraceAct из LOQI-текста."""
-    trace_state = trace_state_from_loqi(loqi_text, context)
+    trace_state = trace_state_from_loqi(loqi_text, registry)
     trace_acts = trace_acts_from_loqi(
         loqi_text,
-        context,
+        registry,
         replace_existing=replace_existing,
     )
     return trace_acts, trace_state

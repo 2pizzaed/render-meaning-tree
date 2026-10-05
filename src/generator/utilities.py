@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from src.ast_managers import CodeManager, prepare_code
-from src.generator.pipeline import DomainDataGeneratorPipeline, PipelineRegistry
+from src.generator.pipeline import DomainDataGeneratorPipeline, SituationRegistry
 from src.localization import load_bundle
 from src.model.rules import ConstructDeclaration
 from src.serialization.adapters.rules import build_rules_loqi_adapters
@@ -23,9 +23,23 @@ def code_snippet_to_pipeline(
     mode: str = "procedural",
 ) -> DomainDataGeneratorPipeline:
     manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
-    pipeline = DomainDataGeneratorPipeline(manager)
-    pipeline.process()
-    return pipeline
+    return DomainDataGeneratorPipeline.from_code(manager).run()
+
+
+def code_snippet_to_registry(
+    code: str,
+    *,
+    language: str = "python",
+    mode: str = "procedural",
+) -> SituationRegistry:
+    manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
+    return code_manager_to_registry(manager)
+
+
+def code_manager_to_registry(manager: CodeManager) -> SituationRegistry:
+    """Сгенерировать ситуацию, когда генерация даёт ровно один результат."""
+    [registry] = DomainDataGeneratorPipeline.from_code(manager).run().results()
+    return registry
 
 
 def code_file_to_pipeline(
@@ -36,12 +50,6 @@ def code_file_to_pipeline(
 ) -> DomainDataGeneratorPipeline:
     code = Path(code_file).read_text(encoding="utf-8")
     return code_snippet_to_pipeline(code, language=language, mode=mode)
-
-
-def collect_registry_objects(
-    registry: PipelineRegistry,
-) -> list[Any]:
-    return registry.collect()
 
 
 def default_loqi_decorators(
@@ -69,28 +77,6 @@ def serialize_domain_objects(
     return serializer
 
 
-def _registry_variables(
-    registry: PipelineRegistry,
-    variables: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    registry_variables = getattr(registry, "variables", None)
-    if not registry_variables:
-        return variables
-    if variables is None:
-        return dict(registry_variables)
-    return {**registry_variables, **variables}
-
-
-def _registry_code(registry: PipelineRegistry) -> CodeManager | None:
-    code = getattr(registry, "code", None)
-    return code if isinstance(code, CodeManager) else None
-
-
-def _registry_rules(registry: PipelineRegistry) -> list[ConstructDeclaration]:
-    rules = getattr(registry, "rules", None)
-    return list(rules) if isinstance(rules, list) else []
-
-
 def serialize_domain_objects_to_loqi(
     objects: list[Any],
     *,
@@ -102,16 +88,16 @@ def serialize_domain_objects_to_loqi(
 
 
 def registry_to_loqi(
-    registry: PipelineRegistry,
+    registry: SituationRegistry,
     *,
     variables: dict[str, Any] | None = None,
 ) -> tuple[LoqiSerializer, str]:
+    # В unit-тестах code бывает заглушкой: локализованные имена без кода не строятся.
+    code = registry.code if isinstance(registry.code, CodeManager) else None
     return serialize_domain_objects_to_loqi(
-        collect_registry_objects(registry),
-        variables=_registry_variables(registry, variables),
-        decorators=default_loqi_decorators(
-            _registry_code(registry), _registry_rules(registry)
-        ),
+        registry.domain_objects(),
+        variables={**registry.variables, **(variables or {})},
+        decorators=default_loqi_decorators(code, registry.rules),
     )
 
 
@@ -122,5 +108,5 @@ def pipeline_to_loqi(
 ) -> list[tuple[LoqiSerializer, str]]:
     return [
         registry_to_loqi(registry, variables=variables)
-        for registry in pipeline.flatten_results()
+        for registry in pipeline.results()
     ]

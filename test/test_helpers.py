@@ -4,7 +4,7 @@ from pathlib import Path
 import test.helpers.dot as helpers_dot_module
 import test.helpers.pipeline as helpers_pipeline_module
 from src.generator.helpers import add_trace_act_for_line
-from src.generator.utilities import code_snippet_to_pipeline, pipeline_to_loqi
+from src.generator.utilities import code_snippet_to_registry, registry_to_loqi
 from src.helpers.tpg import (
     restore_trace_from_loqi,
     trace_acts_from_loqi,
@@ -23,13 +23,13 @@ def test_trace_acts_from_loqi_restores_trace_chain() -> None:
     x = 1
     y = 2
     """
-    source_pipeline = code_snippet_to_pipeline(code, language="python")
-    add_trace_act_for_line(source_pipeline, 1)
-    add_trace_act_for_line(source_pipeline, 2)
-    _serializer, loqi_text = pipeline_to_loqi(source_pipeline)[0]
+    source_registry = code_snippet_to_registry(code, language="python")
+    add_trace_act_for_line(source_registry, 1)
+    add_trace_act_for_line(source_registry, 2)
+    _serializer, loqi_text = registry_to_loqi(source_registry)
 
-    target_pipeline = code_snippet_to_pipeline(code, language="python")
-    trace_acts = trace_acts_from_loqi(loqi_text, target_pipeline)
+    target_registry = code_snippet_to_registry(code, language="python")
+    trace_acts = trace_acts_from_loqi(loqi_text, target_registry)
 
     expected = [
         (
@@ -38,7 +38,7 @@ def test_trace_acts_from_loqi_restores_trace_chain() -> None:
             trace_act.used_transition.from_role if trace_act.used_transition else None,
             trace_act.used_transition.to_role if trace_act.used_transition else None,
         )
-        for trace_act in source_pipeline.registry.trace_acts
+        for trace_act in source_registry.trace_acts
     ]
     actual = [
         (
@@ -51,7 +51,7 @@ def test_trace_acts_from_loqi_restores_trace_chain() -> None:
     ]
 
     assert actual == expected
-    assert target_pipeline.registry.trace_acts == trace_acts
+    assert target_registry.trace_acts == trace_acts
 
 
 def test_trace_acts_from_loqi_orders_chain_by_directly_before_of() -> None:
@@ -59,10 +59,10 @@ def test_trace_acts_from_loqi_orders_chain_by_directly_before_of() -> None:
     x = 1
     y = 2
     """
-    source_pipeline = code_snippet_to_pipeline(code, language="python")
-    add_trace_act_for_line(source_pipeline, 1)
-    add_trace_act_for_line(source_pipeline, 2)
-    _serializer, loqi_text = pipeline_to_loqi(source_pipeline)[0]
+    source_registry = code_snippet_to_registry(code, language="python")
+    add_trace_act_for_line(source_registry, 1)
+    add_trace_act_for_line(source_registry, 2)
+    _serializer, loqi_text = registry_to_loqi(source_registry)
 
     trace_act_blocks = re.findall(
         r"(?:var\s+\w+\s*=\s*)?obj\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*TraceAct\s*\{.*?\}\n?",
@@ -74,11 +74,11 @@ def test_trace_acts_from_loqi_orders_chain_by_directly_before_of() -> None:
         reordered_loqi = reordered_loqi.replace(trace_act_block, "", 1)
     reordered_loqi += "\n" + "\n".join(reversed(trace_act_blocks))
 
-    target_pipeline = code_snippet_to_pipeline(code, language="python")
-    trace_acts = trace_acts_from_loqi(reordered_loqi, target_pipeline)
+    target_registry = code_snippet_to_registry(code, language="python")
+    trace_acts = trace_acts_from_loqi(reordered_loqi, target_registry)
 
     assert [trace_act.action.rule.role for trace_act in trace_acts] == [
-        trace_act.action.rule.role for trace_act in source_pipeline.registry.trace_acts
+        trace_act.action.rule.role for trace_act in source_registry.trace_acts
     ]
 
 
@@ -86,19 +86,19 @@ def test_trace_state_from_loqi_replaces_registry_state() -> None:
     code = """
     x = 1
     """
-    pipeline = code_snippet_to_pipeline(code, language="python")
+    registry = code_snippet_to_registry(code, language="python")
     loqi_text = """
     var S = obj trace_state_break : TraceState {
         interruption_mode = InterruptionType:break;
     }
     """
 
-    trace_state = trace_state_from_loqi(loqi_text, pipeline)
+    trace_state = trace_state_from_loqi(loqi_text, registry)
 
     assert trace_state is not None
     assert trace_state.interruption_mode.value == "break"
-    assert pipeline.registry.trace_state is trace_state
-    assert pipeline.registry.variables["S"] is trace_state
+    assert registry.trace_state is trace_state
+    assert registry.variables["S"] is trace_state
 
 
 def test_restore_trace_from_loqi_restores_state_and_trace_chain() -> None:
@@ -106,17 +106,17 @@ def test_restore_trace_from_loqi_restores_state_and_trace_chain() -> None:
     x = 1
     y = 2
     """
-    source_pipeline = code_snippet_to_pipeline(code, language="python")
-    add_trace_act_for_line(source_pipeline, 1)
-    add_trace_act_for_line(source_pipeline, 2)
-    _serializer, loqi_text = pipeline_to_loqi(source_pipeline)[0]
+    source_registry = code_snippet_to_registry(code, language="python")
+    add_trace_act_for_line(source_registry, 1)
+    add_trace_act_for_line(source_registry, 2)
+    _serializer, loqi_text = registry_to_loqi(source_registry)
 
-    target_pipeline = code_snippet_to_pipeline(code, language="python")
-    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, target_pipeline)
+    target_registry = code_snippet_to_registry(code, language="python")
+    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, target_registry)
 
-    assert trace_state is target_pipeline.registry.trace_state
-    assert trace_state is target_pipeline.registry.variables["S"]
-    assert trace_acts == target_pipeline.registry.trace_acts
+    assert trace_state is target_registry.trace_state
+    assert trace_state is target_registry.variables["S"]
+    assert trace_acts == target_registry.trace_acts
 
 
 def test_trace_acts_to_dot_groups_actions_by_construct_and_renders_artifacts(
@@ -127,9 +127,9 @@ def test_trace_acts_to_dot_groups_actions_by_construct_and_renders_artifacts(
 x = 1
 y = 2
 """
-    pipeline = code_snippet_to_pipeline(code, language="python")
-    add_trace_act_for_line(pipeline, 1)
-    add_trace_act_for_line(pipeline, 2)
+    registry = code_snippet_to_registry(code, language="python")
+    add_trace_act_for_line(registry, 1)
+    add_trace_act_for_line(registry, 2)
 
     def fake_render_dot_png(dot_text: str, path: Path) -> Path:
         path.write_bytes(dot_text.encode("utf-8"))
@@ -138,7 +138,7 @@ y = 2
     monkeypatch.setattr(helpers_dot_module, "render_dot_png", fake_render_dot_png)
     monkeypatch.setenv("PNG_DOT_OUTPUT", "1")
 
-    trace_acts = pipeline.registry.trace_acts
+    trace_acts = registry.trace_acts
     dot = trace_acts_to_dot(trace_acts)
     output_dir = resolve_test_output_dir(tmp_path)
     dot_path, png_path = render_trace_acts_artifacts(
@@ -158,8 +158,8 @@ y = 2
 def test_trace_acts_to_dot_marks_transparency_without_replacing_role_or_stop_color() -> (
     None
 ):
-    pipeline = code_snippet_to_pipeline("x = 1", language="python")
-    trace_acts = pipeline.registry.trace_acts
+    registry = code_snippet_to_registry("x = 1", language="python")
+    trace_acts = registry.trace_acts
 
     dot = trace_acts_to_dot(trace_acts, solver_stops={0})
 
@@ -176,8 +176,8 @@ def test_trace_acts_to_dot_skips_png_when_png_dot_output_disabled(
     code = """
 x = 1
 """
-    pipeline = code_snippet_to_pipeline(code, language="python")
-    add_trace_act_for_line(pipeline, 1)
+    registry = code_snippet_to_registry(code, language="python")
+    add_trace_act_for_line(registry, 1)
 
     monkeypatch.setenv("PNG_DOT_OUTPUT", "0")
 
@@ -186,7 +186,7 @@ x = 1
 
     monkeypatch.setattr(helpers_dot_module, "render_dot_png", fail_render_dot_png)
 
-    trace_acts = pipeline.registry.trace_acts
+    trace_acts = registry.trace_acts
     output_dir = resolve_test_output_dir(tmp_path)
     dot_path, png_path = render_trace_acts_artifacts(
         output_dir,
@@ -205,7 +205,7 @@ def test_pipeline_debug_json_artifacts_skips_png_when_png_dot_output_disabled(
     code = """
 x = 1
 """
-    pipeline = code_snippet_to_pipeline(code, language="python")
+    registry = code_snippet_to_registry(code, language="python")
     monkeypatch.setenv("PNG_DOT_OUTPUT", "false")
 
     def fail_render_dot_png(_dot_text: str, _path: Path) -> Path:
@@ -215,8 +215,8 @@ x = 1
 
     artifacts = helpers_pipeline_module.pipeline_debug_json_artifacts(
         tmp_path,
-        pipeline,
-        filename_stem="pipeline",
+        registry,
+        filename_stem="registry",
     )
 
     assert "meaning_tree_dot" in artifacts
@@ -228,10 +228,10 @@ def test_trace_acts_to_dot_labels_edges_for_non_none_interruption_mode() -> None
     x = 1
     y = 2
     """
-    pipeline = code_snippet_to_pipeline(code, language="python")
-    add_trace_act_for_line(pipeline, 1)
-    add_trace_act_for_line(pipeline, 2)
-    trace_acts = pipeline.registry.trace_acts
+    registry = code_snippet_to_registry(code, language="python")
+    add_trace_act_for_line(registry, 1)
+    add_trace_act_for_line(registry, 2)
+    trace_acts = registry.trace_acts
     dot = trace_acts_to_dot(
         trace_acts,
         trace_act_interruptions=[(0, InterruptionType.BREAK)],

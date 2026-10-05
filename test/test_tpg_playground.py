@@ -6,8 +6,7 @@ from typing import Any
 
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
-from src.generator.pipeline import DomainDataGeneratorPipeline
-from src.generator.utilities import registry_to_loqi
+from src.generator.utilities import code_manager_to_registry, registry_to_loqi
 from src.model.situation import Action
 from test.playground import app as playground_app
 from test.playground.app import build_answer_objects
@@ -62,9 +61,8 @@ def test_build_answer_objects_exports_action_names_only() -> None:
     answer_objects = build_answer_objects(manager, context, enable_trace=True)
     assert answer_objects
 
-    pipeline = DomainDataGeneratorPipeline(manager, fork_enabled=False)
-    pipeline.process()
-    serializer, _ = registry_to_loqi(pipeline.registry)
+    registry = code_manager_to_registry(manager)
+    serializer, _ = registry_to_loqi(registry)
 
     assert all(isinstance(value, str) for value in answer_objects.values())
     assert all(
@@ -93,12 +91,12 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
 
     def fake_check_graph_stepwise_reasoning(
         directory,
-        pipeline,
+        registry,
         selected_trace,
         **kwargs,
     ):  # type: ignore[no-untyped-def]
         captured["selected_trace"] = list(selected_trace)
-        serializer, _ = registry_to_loqi(pipeline.registry)
+        serializer, _ = registry_to_loqi(registry)
         captured["selected_trace_names"] = [
             serializer.object_name(action) for action in selected_trace
         ]
@@ -194,15 +192,15 @@ def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
     names = [str(value) for value in answer_objects.values()]
     trace, hint_name = names[:1], names[1]
 
-    def fake_check_graph_stepwise_reasoning(directory, pipeline, selected_trace, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_check_graph_stepwise_reasoning(directory, registry, selected_trace, **kwargs):  # type: ignore[no-untyped-def]
         return SimpleNamespace(
             step_index=len(selected_trace) - 1,
             loqi_text="obj check_input : ActionSpec {}",
             result=SimpleNamespace(result=True, exceptions=[]),
         )
 
-    def fake_find_graph_next_correct_action(directory, pipeline, **kwargs):  # type: ignore[no-untyped-def]
-        serializer, _ = registry_to_loqi(pipeline.registry)
+    def fake_find_graph_next_correct_action(directory, registry, **kwargs):  # type: ignore[no-untyped-def]
+        serializer, _ = registry_to_loqi(registry)
         action = None if finished else serializer.object_by_name(hint_name)
         return SimpleNamespace(
             action=action,

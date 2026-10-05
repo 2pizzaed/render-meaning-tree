@@ -8,11 +8,8 @@ from src.generator.helpers import (
     line_actions,
     require_line_action,
 )
-from src.generator.pipeline import (
-    DomainDataGeneratorPipeline,
-    SituationDomainDataRegistry,
-)
-from src.generator.utilities import code_snippet_to_pipeline
+from src.generator.pipeline import SituationRegistry
+from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.rules import InterruptionType
 from src.model.situation import Action, SemanticValue, TraceAct
@@ -20,7 +17,7 @@ from src.tpg_domain import ReasoningResult
 from test.helpers import (
     open_file_and_wait,
     pipeline_debug_json_artifacts,
-    pipeline_to_loqi_files,
+    registries_to_loqi_files,
     render_trace_acts_artifacts,
     resolve_project_root,
     should_open_test_artifacts,
@@ -1246,13 +1243,11 @@ def test_plain_statements(tmp_path: Path):
         y = 2
         a = x + y
     """)
-    pipeline = code_snippet_to_pipeline(code, language="python")
-    pipeline.fork_enabled = False
-    registry = pipeline.flatten_results()[0]
+    registry = code_snippet_to_registry(code, language="python")
 
     assert (
         registry.get_construct_for(
-            pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
+            registry.code.ast.find_paths_by_type("program_entry_point")[0].id
         )
         is not None
     )
@@ -1266,9 +1261,9 @@ def test_plain_statements(tmp_path: Path):
     assert [action.rule.role for action in line_actions(registry, 1)] == ["first"]
     assert [action.rule.role for action in line_actions(registry, 2)] == ["next"]
     assert [action.rule.role for action in line_actions(registry, 3)] == ["next"]
-    first_node = pipeline.code.line_number_to_ast_node(1)
-    second_node = pipeline.code.line_number_to_ast_node(2)
-    third_node = pipeline.code.line_number_to_ast_node(3)
+    first_node = registry.code.line_number_to_ast_node(1)
+    second_node = registry.code.line_number_to_ast_node(2)
+    third_node = registry.code.line_number_to_ast_node(3)
     assert first_node is not None
     assert second_node is not None
     assert third_node is not None
@@ -1282,14 +1277,14 @@ def test_plain_statements(tmp_path: Path):
     registry.variables["P"] = registry.trace_acts[0]
     pipeline_debug_json_artifacts(
         tmp_path,
-        pipeline,
+        registry,
         filename_stem=Path(loqi_filename).stem,
     )
 
     for expected_action in expected_actions:
         _advance_until_expected_action(
             tmp_path,
-            pipeline,
+            registry,
             expected_action,
             loqi_filename=loqi_filename,
             trace_act_interruptions=trace_state_history,
@@ -1297,7 +1292,7 @@ def test_plain_statements(tmp_path: Path):
 
     _write_final_loqi_trace_artifacts(
         tmp_path,
-        pipeline,
+        registry,
         loqi_filename=loqi_filename,
         trace_act_interruptions=trace_state_history,
     )
@@ -1338,11 +1333,11 @@ def test_solve_tree_sequences(
     loqi_filename: str,
     value_patches: ActionValuePatches | None,
 ):
-    pipeline, registry = _build_registry(code, language=language)
+    registry = _build_registry(code, language=language)
     _apply_action_value_patches(registry, value_patches)
     pipeline_debug_json_artifacts(
         tmp_path,
-        pipeline,
+        registry,
         filename_stem=Path(loqi_filename).stem,
     )
     _assert_line_roles(registry, expected_roles)
@@ -1357,7 +1352,7 @@ def test_solve_tree_sequences(
 
 
 def test_line_actions_excludes_transparent_by_default() -> None:
-    _pipeline, registry = _build_registry(
+    registry = _build_registry(
         """
         if True:
             x = 1
@@ -1383,21 +1378,14 @@ def test_line_actions_excludes_transparent_by_default() -> None:
 # -- Helpers ------------------------------------------------------------------
 
 
-def _build_registry(
-    code: str, *, language: str
-) -> tuple[
-    DomainDataGeneratorPipeline,
-    SituationDomainDataRegistry,
-]:
-    pipeline = code_snippet_to_pipeline(textwrap.dedent(code), language=language)
-    pipeline.fork_enabled = False
-    registry = pipeline.flatten_results()[0]
+def _build_registry(code: str, *, language: str) -> SituationRegistry:
+    registry = code_snippet_to_registry(textwrap.dedent(code), language=language)
     registry.variables["P"] = registry.trace_acts[0]
-    return pipeline, registry
+    return registry
 
 
 def _assert_line_roles(
-    registry: SituationDomainDataRegistry,
+    registry: SituationRegistry,
     expectations: dict[int, list[str]] | None,
     *,
     include_transparent: bool = False,
@@ -1416,7 +1404,7 @@ def _assert_line_roles(
 
 
 def _apply_action_value_patches(
-    registry: SituationDomainDataRegistry,
+    registry: SituationRegistry,
     patches: ActionValuePatches | None,
 ) -> None:
     if patches is None:
@@ -1440,15 +1428,15 @@ def _assert_solve_sequence(
     loqi_filename: str,
     value_patches: ActionValuePatches | None = None,
 ) -> None:
-    pipeline, registry = _build_registry(code, language=language)
+    registry = _build_registry(code, language=language)
     _apply_action_value_patches(registry, value_patches)
     trace_state_history: list[tuple[int, InterruptionType]] = []
     pipeline_debug_json_artifacts(
         tmp_path,
-        pipeline,
+        registry,
         filename_stem=Path(loqi_filename).stem,
     )
-    end_action = _require_root_end_action(pipeline, registry)
+    end_action = _require_root_end_action(registry)
     actions = [
         require_line_action(registry, line_number, action_index=action_index)
         for line_number, action_index in expected_actions
@@ -1459,30 +1447,27 @@ def _assert_solve_sequence(
     for expected_action in actions:
         _advance_until_expected_action(
             tmp_path,
-            pipeline,
+            registry,
             expected_action,
             loqi_filename=loqi_filename,
             trace_act_interruptions=trace_state_history,
         )
-        p_act = pipeline.registry.variables.get("P")
-        if isinstance(p_act, TraceAct) and p_act in pipeline.registry.trace_acts:
-            solver_stops.add(pipeline.registry.trace_acts.index(p_act))
+        p_act = registry.variables.get("P")
+        if isinstance(p_act, TraceAct) and p_act in registry.trace_acts:
+            solver_stops.add(registry.trace_acts.index(p_act))
 
     _write_final_loqi_trace_artifacts(
         tmp_path,
-        pipeline,
+        registry,
         loqi_filename=loqi_filename,
         trace_act_interruptions=trace_state_history,
         solver_stops=solver_stops,
     )
 
 
-def _require_root_end_action(
-    pipeline: DomainDataGeneratorPipeline,
-    registry: SituationDomainDataRegistry,
-) -> Action:
-    entry_point_id = pipeline.code.ast.find_paths_by_type("program_entry_point")[0].id
-    entry_point = pipeline.get_construct_for(entry_point_id)
+def _require_root_end_action(registry: SituationRegistry) -> Action:
+    entry_point_id = registry.code.ast.find_paths_by_type("program_entry_point")[0].id
+    entry_point = registry.get_construct_for(entry_point_id)
     assert entry_point is not None
     return next(
         action
@@ -1493,19 +1478,19 @@ def _require_root_end_action(
 
 def _write_final_loqi_trace_artifacts(
     tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     loqi_filename: str,
     trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
     solver_stops: set[int] | None = None,
 ) -> Path:
-    _serializer, loqi_file = pipeline_to_loqi_files(
+    _serializer, loqi_file = registries_to_loqi_files(
         tmp_path,
-        pipeline,
+        [registry],
         filename=loqi_filename,
     )[0]
     loqi_text = loqi_file.read_text(encoding="utf-8")
-    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, pipeline)
+    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, registry)
     assert trace_state is not None
     render_trace_acts_artifacts(
         tmp_path,
@@ -1516,7 +1501,7 @@ def _write_final_loqi_trace_artifacts(
     )
     pipeline_debug_json_artifacts(
         tmp_path,
-        pipeline,
+        registry,
         filename_stem=Path(loqi_filename).stem,
     )
     return loqi_file
@@ -1524,35 +1509,35 @@ def _write_final_loqi_trace_artifacts(
 
 def _advance_until_expected_action(
     tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     expected_action: Action,
     *,
     loqi_filename: str,
     trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
 ) -> ReasoningResult:
-    serializer, _ = pipeline_to_loqi_files(
+    serializer, _ = registries_to_loqi_files(
         tmp_path,
-        pipeline,
+        [registry],
         filename=loqi_filename,
     )[0]
     expected_action_name = serializer.object_name(expected_action)
     assert expected_action_name is not None
 
-    previous_trace_length = len(pipeline.registry.trace_acts)
+    previous_trace_length = len(registry.trace_acts)
     last_output: ReasoningResult | None = None
     solve_output = _solve_once(
         tmp_path,
-        pipeline,
+        registry,
         loqi_filename=loqi_filename,
         trace_act_interruptions=trace_act_interruptions,
     )
     last_output = solve_output
-    current_trace_length = len(pipeline.registry.trace_acts)
+    current_trace_length = len(registry.trace_acts)
     if current_trace_length <= previous_trace_length:
         _write_trace_artifacts(
             tmp_path,
-            f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
-            pipeline.registry.trace_acts,
+            f"{Path(loqi_filename).stem}-failtrace-{len(registry.trace_acts) - 1:02d}",
+            registry.trace_acts,
             _require_specific_domain(solve_output),
             trace_act_interruptions=trace_act_interruptions,
         )
@@ -1560,7 +1545,7 @@ def _advance_until_expected_action(
             f"Trace did not grow while waiting for {expected_action_name!r} "
         )
     previous_trace_length = current_trace_length
-    actual_trace_act = pipeline.registry.variables.get("P")
+    actual_trace_act = registry.variables.get("P")
     actual_action = (
         actual_trace_act.action if isinstance(actual_trace_act, TraceAct) else None
     )
@@ -1569,8 +1554,8 @@ def _advance_until_expected_action(
 
     _write_trace_artifacts(
         tmp_path,
-        f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
-        pipeline.registry.trace_acts,
+        f"{Path(loqi_filename).stem}-failtrace-{len(registry.trace_acts) - 1:02d}",
+        registry.trace_acts,
         _require_specific_domain(last_output),
         trace_act_interruptions=trace_act_interruptions,
     )
@@ -1585,7 +1570,7 @@ def _advance_until_expected_action(
 
 def _solve_once(
     tmp_path: Path,
-    pipeline: DomainDataGeneratorPipeline,
+    registry: SituationRegistry,
     *,
     loqi_filename: str,
     trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
@@ -1594,7 +1579,7 @@ def _solve_once(
     with reasoner_output_file.open("a", encoding="utf-8") as reasoner_out:
         reasoning = solve_pipeline_reasoning(
             tmp_path,
-            pipeline,
+            registry,
             model_dir=resolve_project_root() / "domain",
             filename=loqi_filename,
             tree=TREE_NAME,
@@ -1613,7 +1598,7 @@ def _solve_once(
     exported_loqi = reasoning.exported_loqi
     if solve_output.result is not True or solve_output.exceptions:
         restored_trace_acts, restored_trace_state = restore_trace_from_loqi(
-            exported_loqi or reasoning.loqi_text, pipeline, replace_existing=False
+            exported_loqi or reasoning.loqi_text, registry, replace_existing=False
         )
         if (
             trace_act_interruptions is not None
@@ -1626,7 +1611,7 @@ def _solve_once(
             )
         _write_trace_artifacts(
             tmp_path,
-            f"{Path(loqi_filename).stem}-failtrace-{len(pipeline.registry.trace_acts) - 1:02d}",
+            f"{Path(loqi_filename).stem}-failtrace-{len(registry.trace_acts) - 1:02d}",
             restored_trace_acts,
             exported_loqi if isinstance(exported_loqi, str) else reasoning.loqi_text,
             trace_act_interruptions=trace_act_interruptions,
@@ -1635,7 +1620,7 @@ def _solve_once(
     assert not solve_output.exceptions, str(solve_output)
     assert isinstance(exported_loqi, str)
 
-    trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, pipeline)
+    trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, registry)
     assert trace_state is not None
     assert trace_acts
     if (
@@ -1646,7 +1631,7 @@ def _solve_once(
             (len(trace_acts) - 1, trace_state.interruption_mode)
         )
 
-    assert pipeline.registry.variables["P"] is trace_acts[-1]
+    assert registry.variables["P"] is trace_acts[-1]
     return solve_output
 
 

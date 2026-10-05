@@ -15,7 +15,7 @@ from test.helpers.pipeline import (
     code_snippet_to_loqi_files,
     code_snippet_to_pipeline_registries,
     pipeline_debug_json_artifacts,
-    pipeline_to_loqi_files,
+    registries_to_loqi_files,
     validate_code_file_domain_loqi,
     validate_code_snippet_domain_loqi,
 )
@@ -29,7 +29,7 @@ __all__ = [
     "make_project_temp_dir",
     "open_file_and_wait",
     "pipeline_debug_json_artifacts",
-    "pipeline_to_loqi_files",
+    "registries_to_loqi_files",
     "render_trace_acts_artifacts",
     "resolve_project_root",
     "resolve_test_output_dir",

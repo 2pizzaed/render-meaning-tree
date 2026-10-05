@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import yaml
 
@@ -31,6 +31,18 @@ class CallStackAction(StrEnum):
     NONE = "none"
     ADD_FRAME = "add_frame"
     DROP_FRAME = "drop_frame"
+
+
+class SharedDeclaration:
+    """Декларация правил - общая конфигурация всех веток pipeline.
+
+    Клон ситуации (deepcopy) ссылается на те же объекты деклараций, а не копирует их.
+    """
+
+    __slots__ = ()
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
+        return self
 
 
 @dataclass(slots=True)
@@ -153,7 +165,7 @@ class Behaviour:
 
 
 @dataclass(slots=True)
-class EffectDeclaration:
+class EffectDeclaration(SharedDeclaration):
     interruption_start: InterruptionType | None = None
     interruption_stop: InterruptionType | None = None
     call_stack: CallStackAction | None = None
@@ -193,7 +205,7 @@ class ConstraintsDeclaration:
 
 
 @dataclass(slots=True)
-class ActionDeclaration:
+class ActionDeclaration(SharedDeclaration):
     role: str
     kind: str
     opaque: bool | None = None
@@ -235,7 +247,7 @@ class ActionDeclaration:
 
 
 @dataclass(slots=True)
-class TransitionDeclaration:
+class TransitionDeclaration(SharedDeclaration):
     from_role: str
     to_role: str
     to_when_absent: str | list[str] | None = None
@@ -257,7 +269,7 @@ class TransitionDeclaration:
 
 
 @dataclass(slots=True)
-class ConstructDeclaration:
+class ConstructDeclaration(SharedDeclaration):
     name: str
     kind: str
     ast_node: AstNodeQuerySource

@@ -1,0 +1,33 @@
+# Pipeline генератора ситуаций
+
+Генератор строит по фрагменту кода ситуацию: конструкты, действия, начальную трассу и значения условий. Генерация выполняется поэтапно в pipeline. Когда у генерации появляется вариативность (например, разные значения условий), pipeline ветвится, и каждая ветка даёт свою ситуацию.
+
+## Каркас (`src/pipeline.py`)
+
+`PipelineRegistry` — рабочая память pipeline. Наследники объявляют поля как изменяемый dataclass. `clone()` копирует registry целиком (deepcopy), кроме полей из `shared`: на них клон ссылается, а не копирует их.
+
+`Pipeline[R]` выполняет по порядку стадии из классового кортежа `stages`. Это имена методов класса, а сам кортеж объявляется в начале тела класса. Если имя не соответствует методу, при определении класса возникает `TypeError`. Подкласс расширяет список так: `stages = (*Base.stages, "extra")`. У всех pipeline один конструктор `__init__(registry)`.
+
+- `execute()` — генератор: после каждой стадии отдаёт `(pipeline, имя стадии)`, включая стадии веток. `run()` прогоняет его до конца.
+- `fork_redirect(PipelineType)` создаёт ветку типа `PipelineType` с `registry.clone()` и добавляет её в `forked`. Стадии ветки выполняются сразу после завершения текущей стадии родителя. Pyright проверяет, что ветка принимает registry того же типа.
+- `terminate()` помечает pipeline неудачным. Его оставшиеся стадии не выполняются, и он вместе с ветками исключается из результатов.
+- `reduce(predicate)` проверяет **листья** всех веток и вызывает `terminate()` у тех, что не прошли `predicate`. Затем из `forked` убираются отброшенные ветки. Если у ветки не осталось живых потомков, она тоже отбрасывается — вплоть до самого pipeline.
+- `results()` — результаты живых листьев (`collect()`, по умолчанию registry листа). После ветвления pipeline сам больше не является результатом. Pipeline без веток — свой единственный лист.
+- Вычисляемые поля: `stage_num`, `current_stage` (имя стадии или `None`), `is_terminated`, `is_finished`.
+
+Копирование при ветвлении жадное, не Copy-On-Write. Состояние ветки живёт в графе объектов (`Action.values`, `Construct.rule`, `TraceAct`), а не только в полях registry, поэтому отслеживать запись на уровне полей бессмысленно.
+
+## Генератор (`src/generator/pipeline/`)
+
+- `registry.py` — `SituationRegistry`: объекты одной ситуации. Он же служит `SituationContext`: в поле `owner` у `Construct` и `Action` и в поле `situation` у `TraceAct` хранится registry, а не pipeline. Поэтому клон ситуации самодостаточен. Общие поля: `code` (`CodeManager`) и `rules`.
+- `__init__.py` — `DomainDataGeneratorPipeline`, стадии `load_rules` → `generate_constructs` → `fill_actions` → `create_default_situation` → `generate_values`. Последняя стадия ответвляет `BoolValuesPipeline`.
+- `bool_values.py` — `BoolValuesPipeline`: назначает значения условиям. Пока строит один вариант, поэтому у генератора ровно один результат.
+
+Декларации правил (`ConstructDeclaration`, `ActionDeclaration`, `TransitionDeclaration`, `EffectDeclaration`) наследуют `SharedDeclaration`: при deepcopy они возвращают себя, и все ветки ссылаются на одни и те же правила. Иначе у клона `Action.rule`, `Construct.rule` и `TraceAct.used_transition` указывали бы на копии деклараций, а не на объекты из `registry.rules`. Тогда отбор использованных правил по идентичности (`_used_rules`) находит 0 правил, и LOQI клона отличается от исходного. `SituationRegistry.action_orders` хранит порядок по `id(action)`, поэтому `clone()` переносит ключи на новые объекты.
+
+## Использование
+
+- Ситуация для одного результата: `code_snippet_to_registry(code)` или `code_manager_to_registry(manager)` из `src/generator/utilities.py`.
+- Все результаты: `code_snippet_to_pipeline(code).results()`; LOQI по каждому — `pipeline_to_loqi(pipeline)`.
+- Хелперы трассы и рассуждателя (`src/generator/helpers`, `src/helpers/tpg`) принимают `SituationRegistry`.
+- Новую вариативность добавляют стадией с `fork_redirect` (по ветке на вариант), а отбор вариантов — стадией с `reduce`.

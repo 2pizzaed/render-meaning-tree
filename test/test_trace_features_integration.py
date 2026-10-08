@@ -6,10 +6,10 @@ import pytest
 
 from src.generator.concepts import collect_concepts
 from src.generator.skills import collect_skills, is_everything_evaluated
+from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg.reasoning import solve_graph_full_reasoning
 from src.model.situation import SemanticValue
 from test.helpers.env import resolve_project_root
-from test.helpers.pipeline import code_snippet_to_pipeline_registries
 
 
 @pytest.mark.parametrize(
@@ -50,7 +50,7 @@ def test_features_on_correct_traces(
     expected: set[str],
     excluded: set[str],
 ) -> None:
-    [registry] = code_snippet_to_pipeline_registries(code)
+    registry = code_snippet_to_registry(code)
     registry.variables["P"] = registry.trace_acts[0]
     for action in registry.all_actions():
         if (

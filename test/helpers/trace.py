@@ -3,7 +3,7 @@
 from typing import cast
 
 from src.ast_managers import ASTNodeManager, CodeManager
-from src.generator.pipeline.registry import SituationRegistry
+from src.generator.registry import SituationRegistry
 from src.model.rules import (
     ActionDeclaration,
     ConstructDeclaration,

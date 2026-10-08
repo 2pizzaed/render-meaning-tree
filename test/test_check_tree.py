@@ -37,7 +37,7 @@ from typing import Any
 import pytest
 
 from src.generator.helpers import line_actions
-from src.generator.pipeline import SituationRegistry
+from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.situation import Action, SemanticValue, TraceAct

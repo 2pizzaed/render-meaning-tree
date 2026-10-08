@@ -51,6 +51,8 @@ class Action:
     effects: EffectDeclaration | None = None
     ast_type: str | None = None
     assumed_value: bool | None = None
+    # Ручная цепочка из комментария <! … >; в LOQI не сериализуется.
+    annotation: ValueAnnotation | None = None
 
     def __post_init__(self) -> None:
         self.bind_values()
@@ -89,6 +91,10 @@ class Action:
     @property
     def is_opaque(self) -> bool:
         return self.rule.is_opaque
+
+    @property
+    def is_condition(self) -> bool:
+        return "condition" in self.rule.kind_classes
 
     def expands_to(self) -> Construct | None:
         return (
@@ -172,6 +178,18 @@ class TraceAct:
 @dataclass(slots=True)
 class TraceState:
     interruption_mode: InterruptionType
+
+
+@dataclass(frozen=True, slots=True)
+class ValueAnnotation:
+    """Цепочка значений условия, заданная вручную комментарием ``<! … >``."""
+
+    values: tuple[bool, ...]
+    line: int | None
+
+    @property
+    def marker(self) -> str:
+        return "<! " + "".join("T" if value else "F" for value in self.values) + " >"
 
 
 @dataclass(slots=True)

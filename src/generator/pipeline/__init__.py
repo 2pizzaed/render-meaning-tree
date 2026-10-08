@@ -13,8 +13,12 @@ from src.generator.lookup import (
     lookup_function_call_definition_by_ast_id,
     lookup_next_inline_compound_call_node,
 )
-from src.generator.pipeline.bool_values import BoolValuesPipeline
-from src.generator.pipeline.registry import SituationRegistry
+from src.generator.registry import SituationRegistry
+from src.generator.value_annotations import (
+    ValueAnnotationError,
+    bind_value_annotations,
+)
+from src.generator.value_plan import default_condition_values
 from src.json_search import JSONPath
 from src.model.rules import (
     ActionDeclaration,
@@ -28,21 +32,23 @@ from src.model.situation import Action, Construct, SemanticValue, TraceAct
 from src.pipeline import Pipeline
 from src.types import Node, NodeQueryFormat
 
-__all__ = ["BoolValuesPipeline", "DomainDataGeneratorPipeline", "SituationRegistry"]
+__all__ = ["LearningProblemGeneratorPipeline"]
 
 
-class DomainDataGeneratorPipeline(Pipeline[SituationRegistry]):
+class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
     """Строит ситуацию по коду: rules -> конструкты -> actions -> начальная трасса.
 
-    Значения условий генерируются в ветке BoolValuesPipeline; результаты - её листья.
+    ``run_until("assign_default_values")`` даёт одну ситуацию со значениями условий
+    по умолчанию, без рассуждателя.
     """
 
     stages = (
         "load_rules",
         "generate_constructs",
         "fill_actions",
+        "bind_value_annotations",
         "create_default_situation",
-        "generate_values",
+        "assign_default_values",
     )
 
     @classmethod
@@ -438,6 +444,12 @@ class DomainDataGeneratorPipeline(Pipeline[SituationRegistry]):
             if rebound_rule is not None:
                 action.rule = rebound_rule
 
+    def bind_value_annotations(self) -> None:
+        try:
+            bind_value_annotations(self.registry)
+        except ValueAnnotationError as error:
+            self.terminate(str(error))
+
     def create_default_situation(self) -> None:
         entry_point = self.registry.get_construct_for(
             self.code.ast.find_paths_by_type("program_entry_point")[0].id
@@ -451,8 +463,12 @@ class DomainDataGeneratorPipeline(Pipeline[SituationRegistry]):
             )
         )
 
-    def generate_values(self) -> None:
-        self.fork_redirect(BoolValuesPipeline)
+    def assign_default_values(self) -> None:
+        for action in (*self.registry.all_actions(), *self.registry.anonymous_actions):
+            action.values = [
+                SemanticValue(value) for value in default_condition_values(action)
+            ]
+            action.bind_values()
 
 
 def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:

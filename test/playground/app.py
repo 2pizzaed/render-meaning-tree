@@ -12,7 +12,8 @@ from src.coderenderer.html import extract_buttons_from_context, prepare_html_con
 from src.dot import render_dot_svg
 from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
-from src.generator.utilities import code_manager_to_registry, registry_to_loqi
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_manager_to_registry
 from src.helpers.tpg import (
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,

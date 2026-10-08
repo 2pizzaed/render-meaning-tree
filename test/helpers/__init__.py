@@ -13,7 +13,6 @@ from test.helpers.env import (
 )
 from test.helpers.pipeline import (
     code_snippet_to_loqi_files,
-    code_snippet_to_pipeline_registries,
     pipeline_debug_json_artifacts,
     registries_to_loqi_files,
     validate_code_file_domain_loqi,
@@ -25,7 +24,6 @@ __all__ = [
     "PNG_DOT_OUTPUT_ENV_VAR",
     "TEST_OUTPUT_DIR_ENV_VAR",
     "code_snippet_to_loqi_files",
-    "code_snippet_to_pipeline_registries",
     "make_project_temp_dir",
     "open_file_and_wait",
     "pipeline_debug_json_artifacts",

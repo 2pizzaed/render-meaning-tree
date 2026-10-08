@@ -8,12 +8,9 @@ from typing import Any, cast
 
 from src.ast_managers import CodeManager
 from src.dot import render_dot_png
-from src.generator.pipeline import SituationRegistry
-from src.generator.utilities import (
-    code_file_to_pipeline,
-    code_snippet_to_pipeline,
-    registry_to_loqi,
-)
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_file_to_registry, code_snippet_to_registry
 from src.meaning_tree import to_dot
 from src.serialization.loqi import LoqiSerializer
 from src.tpg_domain import validate_domain_loqi
@@ -29,18 +26,8 @@ def code_snippet_to_loqi_files(
     mode: str = "procedural",
     filename: str = "generated-domain.loqi",
 ) -> list[tuple[LoqiSerializer, Path]]:
-    registries = code_snippet_to_pipeline_registries(code, language=language, mode=mode)
-    return registries_to_loqi_files(directory, registries, filename=filename)
-
-
-def code_snippet_to_pipeline_registries(
-    code: str,
-    *,
-    language: str = "python",
-    mode: str = "procedural",
-) -> Sequence[SituationRegistry]:
-    pipeline = code_snippet_to_pipeline(code, language=language, mode=mode)
-    return pipeline.results()
+    registry = code_snippet_to_registry(code, language=language, mode=mode)
+    return registries_to_loqi_files(directory, [registry], filename=filename)
 
 
 def registries_to_loqi_files(
@@ -143,8 +130,8 @@ def validate_code_file_domain_loqi(
     tag: str | None = None,
     filename: str = "generated-domain.loqi",
 ) -> bool:
-    pipeline = code_file_to_pipeline(code_file, language=language, mode=mode)
-    loqi_files = registries_to_loqi_files(directory, pipeline.results(), filename=filename)
+    registry = code_file_to_registry(code_file, language=language, mode=mode)
+    loqi_files = registries_to_loqi_files(directory, [registry], filename=filename)
     return all(
         validate_domain_loqi(loqi_file, model_dir, tag=tag)
         for _serializer, loqi_file in loqi_files

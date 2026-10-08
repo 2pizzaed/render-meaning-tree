@@ -6,7 +6,8 @@ from typing import Any
 
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
-from src.generator.utilities import code_manager_to_registry, registry_to_loqi
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_manager_to_registry
 from src.model.situation import Action
 from test.playground import app as playground_app
 from test.playground.app import build_answer_objects

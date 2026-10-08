@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.generator.pipeline import SituationRegistry
+from src.generator.registry import SituationRegistry
 from src.model.rules import TransitionDeclaration
 from src.model.situation import Action, TraceAct
 from src.serialization.loqi import LoqiSerializer

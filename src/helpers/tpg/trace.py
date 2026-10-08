@@ -4,8 +4,8 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from src.generator.pipeline import SituationRegistry
-from src.generator.utilities import registry_to_loqi
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
 from src.model.rules import InterruptionType, TransitionDeclaration
 from src.model.situation import Action, SemanticValue, TraceAct, TraceState
 

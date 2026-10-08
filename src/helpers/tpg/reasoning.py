@@ -5,8 +5,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
-from src.generator.pipeline import SituationRegistry
-from src.generator.utilities import registry_to_loqi
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
 from src.helpers.tpg.trace import restore_trace_from_loqi
 from src.model.situation import Action, TraceAct, TraceState
 from src.serialization.loqi import LoqiSerializer

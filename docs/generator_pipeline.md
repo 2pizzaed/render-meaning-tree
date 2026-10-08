@@ -9,9 +9,10 @@
 `Pipeline[R]` выполняет по порядку стадии из классового кортежа `stages`. Это имена методов класса, а сам кортеж объявляется в начале тела класса. Если имя не соответствует методу, при определении класса возникает `TypeError`. Подкласс расширяет список так: `stages = (*Base.stages, "extra")`. У всех pipeline один конструктор `__init__(registry)`.
 
 - `execute()` — генератор: после каждой стадии отдаёт `(pipeline, имя стадии)`, включая стадии веток. `run()` прогоняет его до конца.
+- `run_until(stage)` выполняет стадии до `stage` включительно вместе с ветками, созданными по пути, и останавливается; `run()` продолжает со следующей стадии. Неизвестное имя стадии даёт `ValueError`. Завершённый раньше через `terminate` pipeline просто возвращается: `is_terminated` проверяет вызывающий код.
 - `fork_redirect(PipelineType)` создаёт ветку типа `PipelineType` с `registry.clone()` и добавляет её в `forked`. Стадии ветки выполняются сразу после завершения текущей стадии родителя. Pyright проверяет, что ветка принимает registry того же типа.
-- `terminate()` помечает pipeline неудачным. Его оставшиеся стадии не выполняются, и он вместе с ветками исключается из результатов.
-- `reduce(predicate)` проверяет **листья** всех веток и вызывает `terminate()` у тех, что не прошли `predicate`. Затем из `forked` убираются отброшенные ветки. Если у ветки не осталось живых потомков, она тоже отбрасывается — вплоть до самого pipeline.
+- `terminate(reason=None)` помечает pipeline неудачным. Его оставшиеся стадии не выполняются, и он вместе с ветками исключается из результатов. Причина сохраняется в `termination_reason` и пишется в лог (`src.pipeline`, INFO) вместе с `describe()` — по умолчанию имя класса, наследники добавляют описание варианта.
+- `reduce(predicate)` проверяет **листья** всех веток и вызывает `terminate()` у тех, что не прошли `predicate`. Затем из `forked` убираются отброшенные ветки. Если у ветки не осталось живых потомков, она тоже отбрасывается — вплоть до самого pipeline. Ту же уборку без predicate делает `prune()`.
 - `results()` — результаты живых листьев (`collect()`, по умолчанию registry листа). После ветвления pipeline сам больше не является результатом. Pipeline без веток — свой единственный лист.
 - Вычисляемые поля: `stage_num`, `current_stage` (имя стадии или `None`), `is_terminated`, `is_finished`.
 
@@ -19,16 +20,19 @@
 
 ## Генератор (`src/generator/pipeline/`)
 
-- `registry.py` — `SituationRegistry`: объекты одной ситуации. Он же служит `SituationContext`: в поле `owner` у `Construct` и `Action` и в поле `situation` у `TraceAct` хранится registry, а не pipeline. Поэтому клон ситуации самодостаточен. Общие поля: `code` (`CodeManager`) и `rules`.
-- `__init__.py` — `DomainDataGeneratorPipeline`, стадии `load_rules` → `generate_constructs` → `fill_actions` → `create_default_situation` → `generate_values`. Последняя стадия ответвляет `BoolValuesPipeline`.
-- `bool_values.py` — `BoolValuesPipeline`: назначает значения условиям. Пока строит один вариант, поэтому у генератора ровно один результат.
+- `src/generator/registry.py` — `SituationRegistry`: объекты одной ситуации. Он же служит `SituationContext`: в поле `owner` у `Construct` и `Action` и в поле `situation` у `TraceAct` хранится registry, а не pipeline. Поэтому клон ситуации самодостаточен. Общие поля: `code` (`CodeManager`) и `rules`.
+- `__init__.py` — `LearningProblemGeneratorPipeline`, стадии `load_rules` → `generate_constructs` → `fill_actions` → `bind_value_annotations` → `create_default_situation` → `assign_default_values`.
+- `bind_value_annotations` привязывает комментарии `<! TTF >` к условиям (`Action.annotation`, логика в `src/generator/value_annotations.py`); ошибка разметки завершает pipeline с причиной.
+- `assign_default_values` назначает значения условиям: разметка, затем `assumed_value`, затем `[T, T, F]` для цикла и `[T]` для ветвления (`default_condition_values` в `src/generator/value_plan.py`).
+
+Модули рассуждателя (`src/helpers/tpg`) не зависят от пакета `src.generator.pipeline`: `SituationRegistry` лежит в `src/generator/registry.py`, сериализация в LOQI (`registry_to_loqi`, `serialize_domain_objects_to_loqi`) — в `src/generator/serialization.py`.
 
 Декларации правил (`ConstructDeclaration`, `ActionDeclaration`, `TransitionDeclaration`, `EffectDeclaration`) наследуют `SharedDeclaration`: при deepcopy они возвращают себя, и все ветки ссылаются на одни и те же правила. Иначе у клона `Action.rule`, `Construct.rule` и `TraceAct.used_transition` указывали бы на копии деклараций, а не на объекты из `registry.rules`. Тогда отбор использованных правил по идентичности (`_used_rules`) находит 0 правил, и LOQI клона отличается от исходного. `SituationRegistry.action_orders` хранит порядок по `id(action)`, поэтому `clone()` переносит ключи на новые объекты.
 
 ## Использование
 
-- Ситуация для одного результата: `code_snippet_to_registry(code)` или `code_manager_to_registry(manager)` из `src/generator/utilities.py`.
-- Все результаты: `code_snippet_to_pipeline(code).results()`; LOQI по каждому — `pipeline_to_loqi(pipeline)`.
+- Одна ситуация со значениями по умолчанию, без рассуждателя: `code_snippet_to_registry(code)`, `code_file_to_registry(path)` или `code_manager_to_registry(manager)` из `src/generator/utilities.py`. Они запускают pipeline через `run_until("assign_default_values")` и бросают `ValueError` с `termination_reason`, если pipeline остановлен раньше (например, ошибкой разметки). Повторные заходы в функцию с циклом при этом по-прежнему исчерпывают цепочку `[T, T, F]`: для них нужна разметка или полная генерация задач.
+- LOQI ситуации — `registry_to_loqi(registry)` из `src/generator/serialization.py`.
 - Хелперы трассы и рассуждателя (`src/generator/helpers`, `src/helpers/tpg`) принимают `SituationRegistry`.
 - Новую вариативность добавляют стадией с `fork_redirect` (по ветке на вариант), а отбор вариантов — стадией с `reduce`.
 

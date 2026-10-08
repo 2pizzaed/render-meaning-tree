@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.generator.pipeline import SituationRegistry
+from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
 from src.tpg_domain import validate_domain_loqi
 from test.helpers import (

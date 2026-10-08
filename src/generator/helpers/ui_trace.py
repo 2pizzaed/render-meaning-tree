@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from src.generator.pipeline import SituationRegistry
-from src.generator.utilities import registry_to_loqi
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
 from src.model.situation import Action, Construct
 from src.serialization.loqi import LoqiSerializer
 

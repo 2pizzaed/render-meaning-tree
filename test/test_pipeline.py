@@ -1,14 +1,15 @@
+import textwrap
 from unittest.mock import Mock
 
 import pytest
 
-from src.generator.pipeline import BoolValuesPipeline, DomainDataGeneratorPipeline
-from src.generator.utilities import (
-    code_snippet_to_pipeline,
-    pipeline_to_loqi,
+from src.ast_managers import prepare_code
+from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.serialization import (
     registry_to_loqi,
     serialize_domain_objects_to_loqi,
 )
+from src.generator.utilities import code_snippet_to_registry
 from src.model.rules import (
     ActionDeclaration,
     Behaviour,
@@ -23,7 +24,7 @@ from src.types import Node
 
 
 def test_non_python_rule_patch_makes_compound_actions_transparent():
-    pipeline = DomainDataGeneratorPipeline.from_code(Mock(language="c++"))
+    pipeline = LearningProblemGeneratorPipeline.from_code(Mock(language="c++"))
     body = ActionDeclaration(role="body", kind="compound")
     block_begin = ActionDeclaration(role="BEGIN", kind="BEGIN")
     block_end = ActionDeclaration(role="END", kind="END")
@@ -52,7 +53,7 @@ def test_non_python_rule_patch_makes_compound_actions_transparent():
 def test_domain_pipeline_build_construct_skips_atomic_inline_and_noop_rules():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(name="root", kind="compound", ast_node="root_node"),
         ConstructDeclaration(name="atom", kind="inline", ast_node="atom_node"),
@@ -72,7 +73,7 @@ def test_domain_pipeline_build_construct_keeps_external_noop_rule():
         "id": ast_id,
         "type": "external_node",
     }
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(
             name="external",
@@ -102,7 +103,7 @@ def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_ac
         "id": ast_id,
         "type": "call_node",
     }
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(
             name="call",
@@ -129,7 +130,7 @@ def test_domain_pipeline_first_construct_declaration_is_root_rule_without_parent
         "id": ast_id,
         "type": "root_node",
     }
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         _construct_rule("root", "compound", "root_node"),
         _construct_rule("child", "compound", "child_node"),
@@ -146,7 +147,7 @@ def test_domain_pipeline_non_root_construct_requires_construct_parent():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.return_value = None
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         _construct_rule("root", "compound", "root_node"),
         _construct_rule("child", "compound", "child_node"),
@@ -167,7 +168,7 @@ def test_domain_pipeline_uses_nearest_constructable_ancestor_as_parent():
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.side_effect = lambda ast_id: parents[ast_id]
     manager.get_node_by_id.side_effect = lambda ast_id: nodes[ast_id]
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         _construct_rule("root", "compound", "root_node"),
         _construct_rule("atom", "inline", "atom_node"),
@@ -196,7 +197,7 @@ def _construct_rule(name: str, kind: str, ast_node: str) -> ConstructDeclaration
 
 def test_domain_pipeline_implements_situation_context_registry_methods():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="demo",
         kind="compound",
@@ -237,7 +238,7 @@ def test_domain_pipeline_implements_situation_context_registry_methods():
 
 def test_situation_registry_can_be_used_directly_to_lookup_actions_and_store_trace_acts():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="demo",
         kind="compound",
@@ -274,7 +275,7 @@ def test_situation_registry_can_be_used_directly_to_lookup_actions_and_store_tra
 
 def test_situation_registry_require_action_rejects_ambiguous_matches():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="demo",
         kind="compound",
@@ -296,7 +297,7 @@ def test_situation_registry_require_action_rejects_ambiguous_matches():
 
 def test_situation_registry_collects_used_rules_before_situation_objects():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     used_rule = _construct_rule("used", "compound", "used_node")
     unused_rule = _construct_rule("unused", "compound", "unused_node")
     pipeline.registry.rules = [unused_rule, used_rule]
@@ -313,7 +314,7 @@ def test_situation_registry_collects_used_rules_before_situation_objects():
 
 def test_situation_registry_collects_rules_used_by_actions():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     parent_rule = _construct_rule("parent", "compound", "parent_node")
     action_rule_owner = _construct_rule("action_owner", "compound", "action_owner_node")
     action_rule = action_rule_owner.actions[0]
@@ -337,19 +338,17 @@ def test_situation_registry_collects_rules_used_by_actions():
     assert collected.index(action_rule_owner) < collected.index(action)
 
 
-def test_pipeline_to_loqi_serializes_each_registry_with_variable_map():
+def test_registry_to_loqi_serializes_registry_with_variable_map():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = _construct_rule("demo", "compound", "demo_node")
     pipeline.registry.rules = [rule]
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
     pipeline.registry.add(construct)
 
-    rendered = pipeline_to_loqi(pipeline, variables={"DemoRule": rule})
+    serializer, loqi = registry_to_loqi(pipeline.registry, variables={"DemoRule": rule})
 
-    assert len(rendered) == 1
-    serializer, loqi = rendered[0]
     assert serializer.object_name(rule) == "construct_demo"
     assert serializer.object_by_name("construct_demo") is rule
     assert "var DemoRule = obj construct_demo : ConstructSpec {" in loqi
@@ -358,7 +357,7 @@ def test_pipeline_to_loqi_serializes_each_registry_with_variable_map():
 
 def test_registry_trace_state_is_singleton_and_can_be_replaced():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     initial_state = pipeline.registry.trace_state
     replacement = TraceState(InterruptionType.BREAK)
 
@@ -372,26 +371,25 @@ def test_registry_trace_state_is_singleton_and_can_be_replaced():
 
 def test_registry_default_variables_can_be_overridden_by_call_variables():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     override_state = TraceState(InterruptionType.BREAK)
 
-    rendered = pipeline_to_loqi(pipeline, variables={"S": override_state})
+    serializer, loqi = registry_to_loqi(pipeline.registry, variables={"S": override_state})
 
-    serializer, loqi = rendered[0]
     assert serializer.object_name(override_state) == "trace_state_2"
     assert "var S = obj trace_state_2 : TraceState {" in loqi
 
 
-def test_pipeline_to_loqi_keeps_forked_registries_separate():
+def test_registry_to_loqi_keeps_forked_registries_separate():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = _construct_rule("demo", "compound", "demo_node")
     pipeline.registry.rules = [rule]
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
     pipeline.registry.add(construct)
-    pipeline.fork_redirect(DomainDataGeneratorPipeline)
-    child = pipeline.fork_redirect(DomainDataGeneratorPipeline)
+    pipeline.fork_redirect(LearningProblemGeneratorPipeline)
+    child = pipeline.fork_redirect(LearningProblemGeneratorPipeline)
     child.registry.add(
         TraceAct(
             action=child.registry.require_action(ast_id=10, role="BEGIN"),
@@ -400,7 +398,7 @@ def test_pipeline_to_loqi_keeps_forked_registries_separate():
         )
     )
 
-    rendered = pipeline_to_loqi(pipeline)
+    rendered = [registry_to_loqi(registry) for registry in pipeline.results()]
 
     assert len(rendered) == 2
     assert "obj act_root : TraceAct {" not in rendered[0][1]
@@ -410,7 +408,7 @@ def test_pipeline_to_loqi_keeps_forked_registries_separate():
 def test_pipeline_registry_utilities_allow_editing_before_serialization():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = _construct_rule("demo", "compound", "demo_node")
     pipeline.registry.rules = [rule]
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
@@ -434,7 +432,7 @@ def test_pipeline_registry_utilities_allow_editing_before_serialization():
 def test_registry_to_loqi_serializes_registry_roots():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = _construct_rule("demo", "compound", "demo_node")
     pipeline.registry.rules = [rule]
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
@@ -448,7 +446,7 @@ def test_registry_to_loqi_serializes_registry_roots():
 
 def test_action_possible_transitions_uses_compiled_concrete_transitions():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="sequence",
         kind="compound",
@@ -489,7 +487,7 @@ def test_domain_pipeline_fill_actions_adds_loop_values_for_condition_actions():
         11: {"id": 11, "type": "identifier"},
         12: {"id": 12, "type": "compound_statement"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="while_loop",
         kind="compound.loop",
@@ -531,7 +529,7 @@ def test_domain_pipeline_fill_actions_adds_loop_values_for_condition_actions():
     pipeline.registry.add(construct)
 
     pipeline.fill_actions()
-    BoolValuesPipeline(pipeline.registry).assign_values()
+    pipeline.assign_default_values()
 
     cond_actions = pipeline.registry.get_actions_for(11)
     body_actions = pipeline.registry.get_actions_for(12)
@@ -551,7 +549,7 @@ def test_domain_pipeline_fill_actions_adds_single_true_for_non_loop_condition():
         },
         11: {"id": 11, "type": "identifier"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="if_structure",
         kind="compound.alternative",
@@ -574,7 +572,7 @@ def test_domain_pipeline_fill_actions_adds_single_true_for_non_loop_condition():
     pipeline.registry.add(construct)
 
     pipeline.fill_actions()
-    BoolValuesPipeline(pipeline.registry).assign_values()
+    pipeline.assign_default_values()
 
     cond_actions = pipeline.registry.get_actions_for(11)
     assert len(cond_actions) == 1
@@ -586,7 +584,7 @@ def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
     manager.get_node_by_id.side_effect = lambda ast_id: {
         10: {"id": 10, "type": "for_loop"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="for_structure",
         kind="compound.loop",
@@ -610,7 +608,7 @@ def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
     pipeline.registry.add(construct)
 
     pipeline.fill_actions()
-    BoolValuesPipeline(pipeline.registry).assign_values()
+    pipeline.assign_default_values()
 
     cond_actions = construct.action_by_role("cond")
     assert len(cond_actions) == 1
@@ -629,7 +627,7 @@ def test_domain_pipeline_fill_actions_skips_absent_optional_action():
         },
         11: {"id": 11, "type": "identifier"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="for_structure",
         kind="compound.loop",
@@ -654,7 +652,7 @@ def test_domain_pipeline_fill_actions_skips_absent_optional_action():
     pipeline.registry.add(construct)
 
     pipeline.fill_actions()
-    BoolValuesPipeline(pipeline.registry).assign_values()
+    pipeline.assign_default_values()
 
     assert pipeline.registry.get_actions_for(0) == []
     assert construct.action_by_role("init") == []
@@ -679,7 +677,7 @@ def test_domain_pipeline_fill_actions_creates_multiple_actions_for_self_loop_rol
         12: {"id": 12, "type": "expression_statement"},
         13: {"id": 13, "type": "expression_statement"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="block",
         kind="compound.sequence.block",
@@ -729,7 +727,7 @@ def test_domain_pipeline_fill_actions_skips_noop_nodes_without_materializing_con
         11: {"id": 11, "type": "comment"},
         12: {"id": 12, "type": "expression_statement"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="block",
         kind="compound.sequence.block",
@@ -784,7 +782,7 @@ def test_domain_pipeline_fill_actions_skips_external_noop_inside_block_sequence(
         11: {"id": 11, "type": "function_definition"},
         12: {"id": 12, "type": "expression_statement"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="block",
         kind="compound.sequence.block",
@@ -823,7 +821,7 @@ def test_domain_pipeline_fill_actions_materializes_inline_construct_effects_on_c
         },
         11: {"id": 11, "type": "return_statement"},
     }.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(
             name="root",
@@ -888,7 +886,7 @@ def test_domain_pipeline_fill_actions_expands_inline_call_content_from_inner_to_
     }
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(
             name="inline_compound_atom",
@@ -955,7 +953,7 @@ def test_domain_pipeline_function_call_lookup_returns_definition_node_for_declar
     call_path.get.return_value = nodes[10]
     manager.ast.get_path.return_value = call_path
 
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     construct = Construct(
         parent=None,
         ast_id=10,
@@ -979,16 +977,11 @@ def test_domain_pipeline_function_call_lookup_returns_definition_node_for_declar
 
 
 def test_domain_pipeline_skips_call_construct_for_non_user_defined_function():
-    pipeline = code_snippet_to_pipeline(
-        """
-        result = len([1, 2, 3])
-        """,
-        language="python",
-    )
+    registry = code_snippet_to_registry("result = len([1, 2, 3])")
 
-    call_nodes = pipeline.code.ast.find_paths_by_type("function_call")
+    call_nodes = registry.code.ast.find_paths_by_type("function_call")
     assert len(call_nodes) == 1
-    assert pipeline.registry.get_construct_for(call_nodes[0].id) is None
+    assert registry.get_construct_for(call_nodes[0].id) is None
 
 
 def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program_or_block():
@@ -1015,7 +1008,7 @@ def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program
     call_path.get.return_value = nodes[10]
     manager.ast.get_path.return_value = call_path
 
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     call_rule = ConstructDeclaration(
         name="function_call",
         kind="inline.call",
@@ -1041,7 +1034,7 @@ def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program
 
 def test_situation_registry_clone_is_independent_situation():
     manager = Mock(language="python")
-    pipeline = DomainDataGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     rule = ConstructDeclaration(
         name="demo",
         kind="compound",
@@ -1079,29 +1072,22 @@ def test_situation_registry_clone_is_independent_situation():
     assert cond.values == []
 
 
-def test_domain_pipeline_results_are_bool_values_branch_leaves():
-    pipeline = code_snippet_to_pipeline(
-        """
-        while x:
-            x = 0
-        """,
-        language="python",
+def test_single_situation_stops_at_default_values_without_branches():
+    pipeline = LearningProblemGeneratorPipeline.from_code(
+        prepare_code(
+            textwrap.dedent(
+                """
+                while x:
+                    x = 0
+                """
+            ),
+            "python",
+        )
     )
 
-    [registry] = pipeline.results()
+    pipeline.run_until("assign_default_values")
 
-    assert registry is not pipeline.registry
-    assert pipeline.stages[-1] == "generate_values"
-    [condition] = [
-        action
-        for action in registry.all_actions()
-        if "condition" in action.rule.kind_classes
-    ]
+    assert pipeline.forked == []
+    [condition] = [action for action in pipeline.registry.all_actions() if action.is_condition]
     assert [value.bool_value for value in condition.values] == [True, True, False]
     assert condition in condition.chain
-    [parent_condition] = [
-        action
-        for action in pipeline.registry.all_actions()
-        if "condition" in action.rule.kind_classes
-    ]
-    assert parent_condition.values == []

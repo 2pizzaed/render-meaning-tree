@@ -6,8 +6,9 @@ from textwrap import dedent
 
 import pytest
 
-from src.generator.pipeline import SituationRegistry
-from src.generator.utilities import code_snippet_to_registry, registry_to_loqi
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_snippet_to_registry
 from src.localization import MessageBundle, load_bundle, parse_properties
 from src.model.rules import Metadata
 from src.serialization.localized_names import (

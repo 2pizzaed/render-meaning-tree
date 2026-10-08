@@ -6,7 +6,7 @@ import textwrap
 from pathlib import Path
 
 from src.generator.helpers import action_line_position
-from src.generator.pipeline import SituationRegistry
+from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg import solve_graph_full_reasoning
 from test.helpers.env import make_project_temp_dir, resolve_project_root

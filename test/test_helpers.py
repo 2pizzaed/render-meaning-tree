@@ -4,7 +4,8 @@ from pathlib import Path
 import test.helpers.dot as helpers_dot_module
 import test.helpers.pipeline as helpers_pipeline_module
 from src.generator.helpers import add_trace_act_for_line
-from src.generator.utilities import code_snippet_to_registry, registry_to_loqi
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_snippet_to_registry
 from src.helpers.tpg import (
     restore_trace_from_loqi,
     trace_acts_from_loqi,

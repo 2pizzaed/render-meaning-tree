@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import re
 
-from src.ast_managers import NodePathElement
+from src.ast_managers import CodeManager, NodePathElement
+from src.coderenderer.entities import RendererEntity, Token
 from src.generator.registry import SituationRegistry
 from src.model.situation import Action, ValueAnnotation
 
@@ -18,6 +19,8 @@ from src.model.situation import Action, ValueAnnotation
 # в маркере давала ошибку, а не превращала его в обычный комментарий.
 _MARKER_RE = re.compile(r"^\s*<!(?P<body>.*)>\s*$", re.DOTALL)
 _VALUES_RE = re.compile(r"^\s*(?P<values>[TF]+)\s*$")
+# Префикс однострочного комментария в тексте токена.
+_COMMENT_PREFIX_RE = re.compile(r"^\s*(?:#|//)")
 # Поля, через которые владелец комментария попадает в тело конструкции.
 _BODY_FIELDS = frozenset({"body", "elseBranch", "statements"})
 # Конструкции, у которых условие стоит после тела. Комментарий в конце их последней
@@ -32,6 +35,32 @@ class ValueAnnotationError(ValueError):
 
 def is_value_marker(content: str) -> bool:
     return _MARKER_RE.match(content) is not None
+
+
+def is_value_marker_token(entity: RendererEntity) -> bool:
+    """Токен комментария-маркера: в коде задачи его не показывают."""
+    return (
+        isinstance(entity, Token)
+        and entity.type == "comment"
+        and is_value_marker(_COMMENT_PREFIX_RE.sub("", entity.value, count=1))
+    )
+
+
+def strip_value_markers(code: CodeManager) -> str:
+    """Код без комментариев-маркеров в конце строк.
+
+    Удаляются ровно тексты комментариев-маркеров из токенов, поэтому строковые
+    литералы с похожим содержимым не затрагиваются.
+    """
+    text = code.code
+    markers = {
+        token.value
+        for index in range(code.token_count)
+        if isinstance(token := code.get_token(index), Token) and is_value_marker_token(token)
+    }
+    for marker in markers:
+        text = re.sub(rf"[ \t]*{re.escape(marker)}[ \t]*$", "", text, flags=re.MULTILINE)
+    return text
 
 
 def bind_value_annotations(registry: SituationRegistry) -> None:

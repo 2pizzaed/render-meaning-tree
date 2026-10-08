@@ -2,7 +2,11 @@ import textwrap
 
 import pytest
 
+from src.ast_managers import prepare_code
+from src.coderenderer.entities import Token
+from src.coderenderer.html import prepare_html_context
 from src.generator.utilities import code_snippet_to_registry
+from src.generator.value_annotations import strip_value_markers
 
 
 def _annotations(code: str, language: str) -> dict[tuple[str, str], str]:
@@ -142,3 +146,36 @@ def test_annotated_condition_gets_manual_values_by_default():
 def test_marker_errors_stop_situation_generation(code: str, language: str, message: str):
     with pytest.raises(ValueError, match=message):
         code_snippet_to_registry(textwrap.dedent(code), language=language)
+
+
+@pytest.mark.parametrize(
+    ("code", "language", "kept_comment"),
+    [
+        ("x = 3\nwhile x > 0:  # <! TF >\n    x -= 1  # step\n", "python", "# step"),
+        (
+            (
+                "int main() {\n    int x = 3;\n    while (x > 0) { // <! TF >\n"
+                "        x--; // step\n    }\n    return 0;\n}\n"
+            ),
+            "c++",
+            "// step",
+        ),
+    ],
+    ids=["python", "c++"],
+)
+def test_markers_are_hidden_from_task_code(code: str, language: str, kept_comment: str):
+    manager = prepare_code(code, language)  # type: ignore[arg-type]
+
+    task_code = strip_value_markers(manager)
+    rendered = [
+        entity.value
+        for line in prepare_html_context(manager)["lines"]
+        for entity in line
+        if isinstance(entity, Token)
+    ]
+
+    assert "<!" not in task_code
+    assert kept_comment in task_code
+    assert all(line == line.rstrip() for line in task_code.splitlines())
+    assert not [value for value in rendered if "<!" in value]
+    assert kept_comment in rendered

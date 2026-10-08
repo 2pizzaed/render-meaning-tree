@@ -24,6 +24,7 @@ from src.generator.problems import (
 )
 from src.generator.registry import SituationRegistry
 from src.generator.skills import collect_skills
+from src.generator.value_annotations import strip_value_markers
 from src.generator.value_plan import ValueVariant, action_key
 from src.helpers.tpg.reasoning import solve_graph_full_reasoning
 from src.model.situation import Action, SemanticValue
@@ -138,6 +139,7 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         metrics = _required(registry.metrics, "metrics")
         return LearningProblem(
             registry=registry,
+            code=strip_value_markers(registry.code),
             values={
                 action_key(action): _values_of(action)
                 for action in registry.all_actions()

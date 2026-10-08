@@ -113,6 +113,8 @@ class ProblemMetrics:
 class LearningProblem:
     # Ситуация ветки: код, обрезанные цепочки значений, корректная трасса.
     registry: SituationRegistry
+    # Код задачи без комментариев-маркеров <! … >.
+    code: str
     # Итоговые цепочки значений всех условий.
     values: dict[ActionKey, tuple[bool, ...]]
     steps: int

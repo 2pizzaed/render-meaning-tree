@@ -8,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 from src.ast_managers import CodeManager
 from src.coderenderer.entities import Button, RendererEntity, Token
 from src.coderenderer.injections import ControlFlowButtons
+from src.generator.value_annotations import is_value_marker_token
 
 NO_SPACE_BEFORE = frozenset(
     {"(", ")", ";", ":", ",", ".", "[", "]", "++", "--", "::", "->", ".*", "->*"}
@@ -209,7 +210,10 @@ def prepare_html_context(manager: CodeManager,
     manager.apply_injections(ControlFlowButtons)
 
     # Получение потока и форматирование
-    stream = manager.last_processed or []
+    # Комментарии-маркеры <! … > задают значения условий и в код задачи не попадают.
+    stream = [
+        entity for entity in manager.last_processed or [] if not is_value_marker_token(entity)
+    ]
     spaced_stream = add_spacing_to_stream(stream)
     lines = group_stream_into_lines(spaced_stream)
 

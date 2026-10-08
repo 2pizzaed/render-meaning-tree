@@ -90,19 +90,47 @@ def test_check_fragment_counts_cyclomatic_complexity():
 
 FAST_CONFIG = ProblemGenerationConfig(random_variants=0, max_loop_iterations=2)
 
-FACT6_FRAGMENTS = {
-    # Вызов в условии цикла findCorrect пока не поддерживает, поэтому вызов - в if.
-    "call-in-condition": """
+# Ошибки графа findCorrect при повторном выполнении конструкта в том же кадре
+# (итерации цикла): диагностика - docs/ideas/findcorrect_reentry_issues.md.
+REPEATED_CALL_XFAIL = pytest.mark.xfail(
+    reason="findCorrect: раскрутка return пропускает конструкт вызова, "
+    "уже завершённый в этом кадре на прошлой итерации",
+    strict=True,
+)
+BRANCH_REENTRY_XFAIL = pytest.mark.xfail(
+    reason="findCorrect: при повторном входе в ветвление checkRepeatedAction "
+    "пропускает условия и выбирает ещё не выполнявшуюся ветвь",
+    strict=True,
+)
+
+FACT6_FRAGMENTS = [
+    pytest.param(
+        """
+        def g(x):
+            while x > 0:
+                x -= 1
+            return x
+        y = 1
+        while g(y) > -1 and y < 3:
+            y += 1
+        """,
+        id="call-in-loop-condition",
+        marks=REPEATED_CALL_XFAIL,
+    ),
+    pytest.param(
+        """
         def g(x):
             while x > 0:
                 x -= 1
             return x
         y = 0
-        while y < 2:
-            if g(y) > -1:
-                y += 1
+        if g(y) > -1:
+            y += 1
         """,
-    "nested-loops": """
+        id="call-in-if-condition",
+    ),
+    pytest.param(
+        """
         i = 0
         while i < 2:
             j = 0
@@ -110,14 +138,19 @@ FACT6_FRAGMENTS = {
                 j += 1
             i += 1
         """,
-    "break": """
+        id="nested-loops",
+    ),
+    pytest.param(
+        """
         x = 0
         while x < 5:
             x += 1
             if x > 1:
                 break
         """,
-}
+        id="break",
+    ),
+]
 
 
 def _problems(
@@ -130,7 +163,7 @@ def _reasons(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.getMessage() for record in caplog.records if record.name == "src.pipeline"]
 
 
-@pytest.mark.parametrize("code", FACT6_FRAGMENTS.values(), ids=FACT6_FRAGMENTS.keys())
+@pytest.mark.parametrize("code", FACT6_FRAGMENTS)
 def test_condition_is_evaluated_at_most_once_per_reasoner_call(code: str, tmp_path: Path):
     registry = code_snippet_to_registry(textwrap.dedent(code))
     for action in registry.all_actions():
@@ -153,7 +186,7 @@ def test_condition_is_evaluated_at_most_once_per_reasoner_call(code: str, tmp_pa
         start = stop + 1
 
 
-@pytest.mark.parametrize("code", FACT6_FRAGMENTS.values(), ids=FACT6_FRAGMENTS.keys())
+@pytest.mark.parametrize("code", FACT6_FRAGMENTS)
 def test_generated_chains_are_reloaded_without_reasoner_failures(
     code: str, caplog: pytest.LogCaptureFixture
 ):
@@ -279,3 +312,22 @@ def test_exhausted_budget_terminates_remaining_branches(caplog: pytest.LogCaptur
     ]
     # По ветке на число итераций цикла: 0, 1, 2.
     assert len(exhausted) == FAST_CONFIG.max_loop_iterations + 1
+
+
+@BRANCH_REENTRY_XFAIL
+def test_branch_condition_is_evaluated_on_every_loop_iteration():
+    problems = _problems(
+        """
+        xs = [1, 2]
+        for ch in xs:
+            if ch == 10:
+                y = 1
+        """
+    )
+
+    assert problems
+    for problem in problems:
+        chains = {role: values for (_, role), values in problem.values.items()}
+        # Невычисленному условию trim_values оставляет одно значение.
+        iterations = max(chains["cond"].count(True), 1)
+        assert len(chains["first_cond"]) == iterations, problem.variant

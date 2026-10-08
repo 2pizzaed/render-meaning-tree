@@ -91,7 +91,7 @@ def test_check_fragment_counts_cyclomatic_complexity():
 FAST_CONFIG = ProblemGenerationConfig(random_variants=0, max_loop_iterations=2)
 
 # Ошибки графа findCorrect при повторном выполнении конструкта в том же кадре
-# (итерации цикла): диагностика - docs/ideas/findcorrect_reentry_issues.md.
+# (итерации цикла): диагностика - docs/handoff/findcorrect_reentry_issues.md.
 REPEATED_CALL_XFAIL = pytest.mark.xfail(
     reason="findCorrect: раскрутка return пропускает конструкт вызова, "
     "уже завершённый в этом кадре на прошлой итерации",

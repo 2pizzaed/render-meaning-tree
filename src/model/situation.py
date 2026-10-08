@@ -78,6 +78,23 @@ class Action:
     def is_empty(self) -> bool:
         return self.ast_id == -1
 
+    def consumed_value_count(self, *, exclude: TraceAct | None = None) -> int:
+        """Сколько значений цепочки израсходовала трасса: по одному на акт действия.
+
+        Акт с явной ссылкой на значение расходует цепочку до этого значения включительно.
+        """
+        acts = [
+            trace_act
+            for trace_act in self.owner.trace_acts
+            if trace_act is not exclude and trace_act.action is self
+        ]
+        explicit_count = 1 + max(
+            (act.value.index for act in acts if isinstance(act.value, SemanticValue)),
+            default=-1,
+        )
+        inferred_count = sum(1 for act in acts if act.value is None)
+        return max(explicit_count, inferred_count)
+
     def possible_transitions(self) -> list[TransitionDeclaration]:
         return self.parent.rule.compiled_transitions_for_action(self.rule)
 

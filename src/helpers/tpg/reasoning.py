@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
@@ -83,7 +83,13 @@ def solve_graph_full_reasoning(
     reasoner_output_stream: TextIO | None = None,
     max_iterations: int = 100,
     solver_stops: set[int] | None = None,
+    before_iteration: Callable[[SituationRegistry], None] | None = None,
 ) -> PipelineReasoningOutput:
+    """Строить трассу вызовами findCorrect, пока она не дойдёт до END программы.
+
+    ``before_iteration`` вызывается перед каждым вызовом рассуждателя; исключение из
+    него прерывает построение, registry остаётся в состоянии последней итерации.
+    """
     if max_iterations < 1:
         raise ValueError("max_iterations must be at least 1")
 
@@ -92,6 +98,8 @@ def solve_graph_full_reasoning(
 
     for iteration in range(max_iterations):
         last_trace_act = registry.trace_acts[-1] if registry.trace_acts else None
+        if before_iteration is not None:
+            before_iteration(registry)
         try:
             last_output = _solve_pipeline_reasoning_once(
                 directory,

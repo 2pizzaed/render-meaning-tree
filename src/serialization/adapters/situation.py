@@ -57,7 +57,8 @@ class ActionAdapter:
         return "ConcreteAction"
 
     def describe(self, obj: Action, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        consumed_count = _consumed_value_count_for_action(obj)
+        # Значение текущего акта P при сериализации ещё не считается израсходованным.
+        consumed_count = obj.consumed_value_count(exclude=_current_trace_act(obj))
         obj.bind_values()
         for index, value in enumerate(obj.values):
             value.used = index < consumed_count
@@ -255,27 +256,6 @@ def _trace_act_value_occurrence_index(trace_act: TraceAct) -> int:
         for prior_trace_act in chain[:order]
         if prior_trace_act.action is trace_act.action
     )
-
-
-def _consumed_value_count_for_action(action: Action) -> int:
-    current_trace_act = _current_trace_act(action)
-    trace_acts = action.owner.trace_acts
-    explicit_indexes = [
-        trace_act.value.index
-        for trace_act in trace_acts
-        if trace_act is not current_trace_act
-        and trace_act.action is action
-        and isinstance(trace_act.value, SemanticValue)
-    ]
-    inferred_count = sum(
-        1
-        for trace_act in trace_acts
-        if trace_act is not current_trace_act
-        and trace_act.action is action
-        and trace_act.value is None
-    )
-    explicit_count = max(explicit_indexes, default=-1) + 1
-    return max(explicit_count, inferred_count)
 
 
 def _current_trace_act(action: Action) -> TraceAct | None:

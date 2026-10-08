@@ -791,6 +791,34 @@ def test_serialize_loqi_repeated_trace_act_uses_next_semantic_value() -> None:
     assert "bool_value = false;" in rendered
 
 
+def test_action_consumed_value_count_counts_acts_and_explicit_values() -> None:
+    ctx = SituationContextStub()
+    construct_rule = ConstructDeclaration(
+        name="demo_loop",
+        kind="compound.loop",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="cond", kind="inline.condition"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=20, rule=construct_rule, owner=ctx)
+    values = [SemanticValue(True), SemanticValue(True), SemanticValue(False)]
+    action = Action(
+        ast_id=21, values=values, rule=construct_rule.actions[1], parent=construct, owner=ctx
+    )
+    ctx.add(construct)
+    ctx.add(action)
+    first = TraceAct(action=action, used_transition=None, situation=ctx)
+    second = TraceAct(action=action, used_transition=None, situation=ctx, value=values[2])
+    ctx.add(first)
+    ctx.add(second)
+
+    assert action.consumed_value_count() == 3
+    assert action.consumed_value_count(exclude=second) == 1
+
+
 def test_serialize_loqi_situation_trace_state() -> None:
     rendered = serialize_loqi(
         TraceState(interruption_mode=InterruptionType.BREAK),

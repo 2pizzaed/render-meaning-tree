@@ -2,19 +2,30 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from src.ast_managers import CodeManager
+from src.generator.problems import DEFAULT_SEED
 from src.model.rules import ConstructDeclaration, InterruptionType
 from src.model.situation import Action, Construct, TraceAct, TraceState
 from src.pipeline import PipelineRegistry
+
+if TYPE_CHECKING:
+    from src.generator.problems import (
+        FragmentMetrics,
+        ProblemGenerationConfig,
+        ProblemMetrics,
+        ReasonerBudget,
+    )
+    from src.generator.value_plan import ValuePlan, ValueVariant
 
 
 @dataclass
 class SituationRegistry(PipelineRegistry):
     """Объекты одной ситуации; служит SituationContext для Construct/Action/TraceAct."""
 
-    shared: ClassVar[tuple[str, ...]] = ("code", "rules")
+    # Бюджет общий: все ветки фрагмента тратят одни вызовы рассуждателя.
+    shared: ClassVar[tuple[str, ...]] = ("code", "rules", "config", "budget")
 
     code: CodeManager
     rules: list[ConstructDeclaration] = field(default_factory=list)
@@ -33,6 +44,14 @@ class SituationRegistry(PipelineRegistry):
     # Порядок появления action при структурном обходе автомата, по id(action).
     action_orders: dict[int, int] = field(default_factory=dict)
     _next_action_order: int = 0
+    # Генерация задач (см. LearningProblemGeneratorPipeline).
+    config: ProblemGenerationConfig | None = None
+    budget: ReasonerBudget | None = None
+    seed: int = DEFAULT_SEED
+    fragment: FragmentMetrics | None = None
+    value_plan: ValuePlan | None = None
+    variant: ValueVariant | None = None
+    metrics: ProblemMetrics | None = None
 
     def __post_init__(self) -> None:
         self.variables.setdefault("S", self.trace_state)

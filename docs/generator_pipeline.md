@@ -1,6 +1,6 @@
-# Pipeline генератора ситуаций
+# Pipeline генератора задач
 
-Генератор строит по фрагменту кода ситуацию: конструкты, действия, начальную трассу и значения условий. Генерация выполняется поэтапно в pipeline. Когда у генерации появляется вариативность (например, разные значения условий), pipeline ветвится, и каждая ветка даёт свою ситуацию.
+Генератор строит по фрагменту кода ситуацию: конструкты, действия, начальную трассу и значения условий, а затем учебные задачи — варианты значений условий с корректной трассой findCorrect. Генерация выполняется поэтапно в pipeline. Когда у генерации появляется вариативность (разные значения условий), pipeline ветвится, и каждая ветка даёт свою задачу.
 
 ## Каркас (`src/pipeline.py`)
 
@@ -20,21 +20,62 @@
 
 ## Генератор (`src/generator/pipeline/`)
 
-- `src/generator/registry.py` — `SituationRegistry`: объекты одной ситуации. Он же служит `SituationContext`: в поле `owner` у `Construct` и `Action` и в поле `situation` у `TraceAct` хранится registry, а не pipeline. Поэтому клон ситуации самодостаточен. Общие поля: `code` (`CodeManager`) и `rules`.
-- `__init__.py` — `LearningProblemGeneratorPipeline`, стадии `load_rules` → `generate_constructs` → `fill_actions` → `bind_value_annotations` → `create_default_situation` → `assign_default_values`.
-- `bind_value_annotations` привязывает комментарии `<! TTF >` к условиям (`Action.annotation`, логика в `src/generator/value_annotations.py`); ошибка разметки завершает pipeline с причиной.
-- `assign_default_values` назначает значения условиям: разметка, затем `assumed_value`, затем `[T, T, F]` для цикла и `[T]` для ветвления (`default_condition_values` в `src/generator/value_plan.py`).
+- `src/generator/registry.py` — `SituationRegistry`: объекты одной ситуации. Он же служит `SituationContext`: в поле `owner` у `Construct` и `Action` и в поле `situation` у `TraceAct` хранится registry, а не pipeline. Поэтому клон ситуации самодостаточен. Общие для веток поля: `code` (`CodeManager`), `rules`, `config` и `budget`. Поля генерации задач: `seed`, `fragment`, `value_plan`, `variant`, `metrics`.
+- `__init__.py` — `LearningProblemGeneratorPipeline`, стадии:
 
-Модули рассуждателя (`src/helpers/tpg`) не зависят от пакета `src.generator.pipeline`: `SituationRegistry` лежит в `src/generator/registry.py`, сериализация в LOQI (`registry_to_loqi`, `serialize_domain_objects_to_loqi`) — в `src/generator/serialization.py`.
+  ```
+  load_rules → generate_constructs → fill_actions → bind_value_annotations
+    → create_default_situation → assign_default_values
+    → check_fragment → plan_values → generate_values (fork ×V) → select_problems
+  ```
+
+- `classification.py` — ветка `LearningProblemClassificationPipeline`, по одной на вариант значений: `assign_values` → `solve_correct_trace` → `trim_values` → `classify`; `collect()` возвращает `LearningProblem`.
+
+Модули рассуждателя (`src/helpers/tpg`) не зависят от пакета `src.generator.pipeline`: `SituationRegistry` лежит в `src/generator/registry.py`, сериализация в LOQI (`registry_to_loqi`, `serialize_domain_objects_to_loqi`) — в `src/generator/serialization.py`, конфиг, бюджет и DTO — в `src/generator/problems.py`. Поэтому пакет pipeline может импортировать ветку, которая вызывает рассуждатель.
 
 Декларации правил (`ConstructDeclaration`, `ActionDeclaration`, `TransitionDeclaration`, `EffectDeclaration`) наследуют `SharedDeclaration`: при deepcopy они возвращают себя, и все ветки ссылаются на одни и те же правила. Иначе у клона `Action.rule`, `Construct.rule` и `TraceAct.used_transition` указывали бы на копии деклараций, а не на объекты из `registry.rules`. Тогда отбор использованных правил по идентичности (`_used_rules`) находит 0 правил, и LOQI клона отличается от исходного. `SituationRegistry.action_orders` хранит порядок по `id(action)`, поэтому `clone()` переносит ключи на новые объекты.
 
+### Значения условий по умолчанию
+
+`bind_value_annotations` привязывает комментарии-маркеры к условиям (`Action.annotation`, см. «Разметка значений»). `assign_default_values` назначает каждому условию цепочку: разметка, затем `assumed_value`, затем `[T, T, F]` для цикла и `[T]` для ветвления (`default_condition_values` в `src/generator/value_plan.py`).
+
+Цепочка значений общая на всю трассу и не сбрасывается между заходами (`docs/domain.md`), поэтому повторные заходы в функцию с циклом исчерпывают `[T, T, F]`, и рассуждатель падает с `NullPointerException`. Ситуация по умолчанию это не исправляет; генерация задач догружает цепочки (см. ниже).
+
+### Генерация задач
+
+- **`check_fragment`** (`src/generator/fragment.py`) отклоняет фрагмент целиком: бесконечный цикл (`infinite_loop`, в том числе `while True`, или оценка `infinite`), цикл без условия (`cond` с `assumed_value` и `ast_id = 0`), неразмеченный цикл с точным числом итераций больше `max_loop_iterations`, неразмеченное условие в рекурсивной функции (циклы графа вызовов, включая взаимную рекурсию). Иначе записывает `FragmentMetrics`: цикломатическую сложность `M = 1 + условия ветвей + циклы + тернарные операторы + case` и первую строку кода для логов.
+- **`plan_values`** (`src/generator/value_plan.py`, без рассуждателя). Точка выбора — неразмеченная конструкция с условием. Исход цикла — число итераций одного захода: `{0..max}`, у do-while `{1..max}`, при надёжной оценке MT `exact_iterations` — только оно. Исход ветвления из m условий — номер выбранной ветви `j ∈ {0..m}` (`m` — ни одна), константное условие сужает область. Шаблон одного захода: у цикла `T^n F` (у do-while `T^(n-1) F`), у ветвления `F` для условий до `j` и `T` начиная с `j`. Достижимость точки вычисляется по родительским конструктам (тело цикла требует `n ≥ 1`, ветвь `k` — `j = k`, условие ветви `k` — `j ≥ k`) и через места вызова функции (`call_graph` в `src/generator/helpers/call_graph.py`); вызов из рекурсивной функции считается достижимым. Варианты: жадное покрытие всех пар «точка, исход», затем `random_variants` случайных; выборы для недостижимых точек стираются, повторы отбрасываются, всего не больше `max_variants`. Случайность — `random.Random(f"{seed}:plan")`.
+- **`generate_values`** создаёт по ветке на вариант (`registry.variant`).
+- **Ветка.** `assign_values` записывает каждому неразмеченному условию шаблон одного захода. `solve_correct_trace` запускает `solve_graph_full_reasoning` (findCorrect, `max_iterations = max_steps`) с хуком `before_iteration`: перед каждым вызовом рассуждателя он прерывает уже слишком длинную трассу, списывает вызов из бюджета и дописывает шаблон захода условию, у которого не осталось неизрасходованных значений (`Action.consumed_value_count()`). За один вызов условие вычисляется не больше одного раза, поэтому догруженная цепочка не кончается, а шаблоны с `n ≤ max_loop_iterations` не дают циклу больше итераций. `trim_values` срезает неизрасходованные хвосты (у ни разу не вычисленного условия остаётся первое значение; ручная цепочка обрезается с предупреждением). `classify` считает N (непрозрачные акты), скиллы и концепты. Сбой рассуждателя гасит ветку с причиной; если у размеченного условия кончилась цепочка, причина называет его строку. LOQI сбойного вызова остаётся во временном каталоге ветки (путь — в причине), в остальных случаях каталог удаляется.
+- **`select_problems`** гасит ветки с одинаковыми итоговыми цепочками (остаётся меньший номер варианта), считает `Q = (α·S + (1−α)·C) / (1 + N/N₀)`, где `S` — доля `ERRORNEOUS_SKILLS` среди скиллов, `C` — доля концептов от объединения концептов выживших веток, и оставляет `top_k` веток: по убыванию Q (`selection="score"`, равные — по номеру варианта) или случайно (`"random"`, `random.Random(f"{seed}:select")`). Остальные гасятся с причиной, затем `prune()`.
+
+`ProblemGenerationConfig` (`src/generator/problems.py`) задаёт числа: `max_loop_iterations=4`, `random_variants=16`, `max_variants=48`, `max_steps=40`, `reasoner_call_budget=600`, `fragment_time_limit_seconds=180`, `reasoner_time_limit_seconds=30`, `top_k=15`, `selection="score"`, `alpha=0.7`, `steps_scale=20`, `model_dir`, `temp_root`. Калибровка 2026-10-08 на 27 фрагментах из `test/data/task_code` (до 26 строк, M до 7): самый долгий фрагмент — 125 с и 260 вызовов (`double_cycle.py`, вложенные циклы: 10 из 14 вариантов длиннее `max_steps`), остальные — до 36 с; бюджет и лимит времени не срабатывали, поэтому числа оставлены стартовыми. `ReasonerBudget` общий для всех веток фрагмента: основной лимит — число вызовов рассуждателя (детерминирован), лимит времени — страховка, и отказ по нему помечается в логе как зависящий от скорости машины.
+
+**Логи.** Каждый отказ (фрагмента или ветки) пишется через `terminate(reason)` в логгер `src.pipeline` (INFO) с описанием фрагмента или варианта. `select_problems` пишет сводку в `src.generator.pipeline`: число вариантов, отказы по причинам, не вошедшие в отбор, отобранные, вызовы рассуждателя и время; если задач нет — на уровне WARNING.
+
+**Детерминированность.** Seed — входной параметр (по умолчанию 1806); строковые seed генераторов случайных чисел воспроизводимы между процессами. При одинаковых коде, seed и конфиге результат одинаков, кроме отказов по лимитам времени.
+
+**Ограничения findCorrect.** Такие ветки гасятся с причиной `findCorrect не построил трассу`, остальные варианты фрагмента генерируются:
+
+- вызов функции в условии цикла (`while g(x) > 0:`): граф падает на первой итерации; вызов в условии `if` работает;
+- повторный вход в цикле в `if`/`elif` без `else`, когда все условия ложны: `AmbiguousObjectException` (два подходящих `if_branch`) в `FindActionNode` графа findCorrect.
+
+### Разметка значений
+
+Комментарий `<! TTF >` в конце строки заголовка задаёт цепочку значений условия целиком, на все вычисления: по итерациям, вызовам и уровням рекурсии. Префикс комментария зависит от языка (`#`, `//`); у do-while маркер ставится после `} while (…);`. Размеченное условие не становится точкой выбора, и хук его не догружает.
+
+Привязка идёт по дереву MT (`src/generator/value_annotations.py`): от узла, которому MT отдал комментарий, вверх до ближайшей конструкции с условием, не проходя через `body`, `elseBranch` или `statements`. Если владелец комментария — сам узел конструкции, маркер допустим только у do-while: у остальных конструкций последняя строка — строка тела (`if (a) x = 1; // <! T >`). Комментарий на отдельной строке (в том числе после `else:`), владелец в теле, отсутствие условия выше, содержимое кроме `T`/`F` и повторная разметка одного условия — ошибки разметки: pipeline завершается с причиной и номером строки.
+
+Маркеры не попадают в код задачи: HTML-рендер пропускает их токены, а `LearningProblem.code` содержит код без них.
+
 ## Использование
 
-- Одна ситуация со значениями по умолчанию, без рассуждателя: `code_snippet_to_registry(code)`, `code_file_to_registry(path)` или `code_manager_to_registry(manager)` из `src/generator/utilities.py`. Они запускают pipeline через `run_until("assign_default_values")` и бросают `ValueError` с `termination_reason`, если pipeline остановлен раньше (например, ошибкой разметки). Повторные заходы в функцию с циклом при этом по-прежнему исчерпывают цепочку `[T, T, F]`: для них нужна разметка или полная генерация задач.
+- Задачи по фрагменту: `code_snippet_to_problems(code, language=..., seed=..., config=...)` из `src/generator/utilities.py` возвращает список `LearningProblem` (код без маркеров, registry ветки с обрезанными цепочками и корректной трассой, итоговые цепочки, N, скиллы, концепты, Q, M, описание варианта, seed). Пустой список означает, что фрагмент отклонён или ни одна ветка не дала трассу; причины — в логах.
+- `uv run generate-problems [файл | --code ...] [--language] [--seed] [--top-k] [--selection]` печатает отобранные задачи и логи pipeline: для подбора чисел конфига и разбора, почему фрагмент не дал задач.
+- Одна ситуация со значениями по умолчанию, без рассуждателя: `code_snippet_to_registry(code)`, `code_file_to_registry(path)` или `code_manager_to_registry(manager)`. Они запускают pipeline через `run_until("assign_default_values")` и бросают `ValueError` с `termination_reason`, если pipeline остановлен раньше (например, ошибкой разметки).
 - LOQI ситуации — `registry_to_loqi(registry)` из `src/generator/serialization.py`.
-- Хелперы трассы и рассуждателя (`src/generator/helpers`, `src/helpers/tpg`) принимают `SituationRegistry`.
-- Новую вариативность добавляют стадией с `fork_redirect` (по ветке на вариант), а отбор вариантов — стадией с `reduce`.
+- Хелперы трассы и рассуждателя (`src/generator/helpers`, `src/helpers/tpg`) принимают `SituationRegistry`. `solve_graph_full_reasoning(..., before_iteration=hook)` вызывает хук перед каждым вызовом рассуждателя; исключение из хука прерывает построение трассы.
+- Новую вариативность добавляют стадией с `fork_redirect` (по ветке на вариант), а отбор вариантов — стадией с `reduce` или с `terminate(reason)` и `prune()`.
 
 ## Определение концептов и скиллов по готовой трассе
 
@@ -42,8 +83,9 @@
 `collect_skills(ast, trace)` из `src/generator/skills.py` принимают подготовленный
 `ASTNodeManager` и последовательность `TraceAct` той же ситуации. Возвращают
 множества имён; существующий `pack_flags(CONCEPTS, names)` или
-`pack_flags(SKILLS, names)` преобразует их в битовую маску. В pipeline эти функции
-пока не включены: они только читают переданные данные и не запускают выполнение.
+`pack_flags(SKILLS, names)` преобразует их в битовую маску. Функции только читают
+переданные данные и не запускают выполнение; в pipeline их вызывает стадия `classify`
+ветки генерации задач.
 
 Для каждого имени есть отдельная функция в `CONCEPT_PREDICATES` или
 `SKILL_PREDICATES`. Скиллы здесь означают умения, задействованные при выполнении,

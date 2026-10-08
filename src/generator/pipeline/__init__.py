@@ -608,9 +608,9 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
     def _log_summary(
         self, variants: int, rejected: list[Branch], not_selected: int, selected: int
     ) -> None:
-        # Причины группируются без чисел: «повторяет вариант #N».
+        # Причины группируются по первой части без чисел: «повторяет вариант #N».
         reasons = Counter(
-            re.sub(r"\d+", "N", branch.termination_reason or "без причины")
+            re.sub(r"\d+", "N", (branch.termination_reason or "без причины").split(";")[0])
             for branch in rejected
         )
         details = ", ".join(f"{reason}: {count}" for reason, count in reasons.items())

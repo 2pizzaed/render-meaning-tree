@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -77,25 +78,31 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         self.registry.variables["P"] = self.registry.trace_acts[-1]
         if config.temp_root is not None:
             config.temp_root.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(
-            prefix=f"problem-{self.variant.index}-", dir=config.temp_root
-        ) as directory:
-            try:
-                solve_graph_full_reasoning(
-                    Path(directory),
-                    self.registry,
-                    model_dir=config.model_dir,
-                    tree="findCorrect",
-                    max_iterations=config.max_steps,
-                    time_limit_seconds=config.reasoner_time_limit_seconds,
-                    before_iteration=self._before_reasoner_call,
-                )
-            except TraceTooLong:
-                self.terminate(self._too_long_reason())
-            except BudgetExhausted as error:
-                self.terminate(str(error))
-            except (ReasoningCallError, RuntimeError) as error:
-                self.terminate(self._failure_reason(error))
+        directory = Path(
+            tempfile.mkdtemp(prefix=f"problem-{self.variant.index}-", dir=config.temp_root)
+        )
+        keep_directory = False
+        try:
+            solve_graph_full_reasoning(
+                directory,
+                self.registry,
+                model_dir=config.model_dir,
+                tree="findCorrect",
+                max_iterations=config.max_steps,
+                time_limit_seconds=config.reasoner_time_limit_seconds,
+                before_iteration=self._before_reasoner_call,
+            )
+        except TraceTooLong:
+            self.terminate(self._too_long_reason())
+        except BudgetExhausted as error:
+            self.terminate(str(error))
+        except (ReasoningCallError, RuntimeError) as error:
+            # LOQI сбойного вызова остаётся для разбора: путь к нему есть в причине.
+            keep_directory = True
+            self.terminate(self._failure_reason(error))
+        finally:
+            if not keep_directory:
+                shutil.rmtree(directory, ignore_errors=True)
 
     def trim_values(self) -> None:
         """Срезать неизрасходованные хвосты цепочек.
@@ -172,10 +179,13 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         # не дошедший до END за N_max итераций, длиннее N_max.
         if isinstance(error, RuntimeError) and self._opaque_steps() >= self.config.max_steps:
             return self._too_long_reason()
-        # Текст ошибки рассуждателя многострочный: для лога хватает его начала
-        # (сообщение и узел, на котором остановился граф).
+        # Текст ошибки рассуждателя многострочный: для лога хватает первой строки
+        # и узла, на котором остановился граф.
         lines = [line.strip() for line in str(error).splitlines() if line.strip()]
-        message = " ".join(lines[:4]) or type(error).__name__
+        message = lines[0] if lines else type(error).__name__
+        if "Final node:" in lines:
+            final_node = lines.index("Final node:")
+            message += " " + " ".join(lines[final_node : final_node + 3])
         details = "; ".join([message, *getattr(error, "__notes__", [])])
         return f"findCorrect не построил трассу: {details}"
 

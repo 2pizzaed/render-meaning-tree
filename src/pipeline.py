@@ -9,8 +9,11 @@ Pipeline выполняет по порядку стадии - методы, п�
 from __future__ import annotations
 
 import copy
+import logging
 from collections.abc import Callable, Iterator
 from typing import Any, ClassVar, Self
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineRegistry:
@@ -43,6 +46,7 @@ class Pipeline[R: PipelineRegistry]:
         self.forked: list[Pipeline[R]] = []
         self.stage_num = 0
         self._terminated = False
+        self.termination_reason: str | None = None
 
     @property
     def is_terminated(self) -> bool:
@@ -60,20 +64,35 @@ class Pipeline[R: PipelineRegistry]:
 
     def execute(self) -> Iterator[tuple[Pipeline[Any], str]]:
         """Выполнять стадии, отдавая (pipeline, имя стадии) после каждой, включая стадии веток."""
-        while not self.is_finished:
-            stage = self.stages[self.stage_num]
-            getattr(self, stage)()
-            yield self, stage
-            if not self._terminated:
-                # Незавершённые ветки - только что созданные этой стадией.
-                for child in [child for child in self.forked if not child.is_finished]:
-                    yield from child.execute()
-            self.stage_num += 1
+        return self._execute(len(self.stages))
 
     def run(self) -> Self:
         for _ in self.execute():
             pass
         return self
+
+    def run_until(self, stage: str) -> Self:
+        """Выполнить стадии до ``stage`` включительно вместе с ветками, созданными по пути.
+
+        ``run()`` после этого продолжает со следующей стадии.
+        """
+        if stage not in self.stages:
+            raise ValueError(f"{type(self).__name__} has no stage {stage!r}")
+        for _ in self._execute(self.stages.index(stage) + 1):
+            pass
+        return self
+
+    def _execute(self, stop: int) -> Iterator[tuple[Pipeline[Any], str]]:
+        while not self.is_finished and self.stage_num < stop:
+            stage = self.stages[self.stage_num]
+            getattr(self, stage)()
+            # Счётчик растёт до yield: остановленный снаружи pipeline не повторит стадию.
+            self.stage_num += 1
+            yield self, stage
+            if not self._terminated:
+                # Незавершённые ветки - только что созданные этой стадией.
+                for child in [child for child in self.forked if not child.is_finished]:
+                    yield from child.execute()
 
     def fork_redirect[P: Pipeline[Any]](self, pipeline_type: Callable[[R], P]) -> P:
         """Создать ветку с копией registry; её стадии выполнятся после текущей стадии."""
@@ -81,9 +100,16 @@ class Pipeline[R: PipelineRegistry]:
         self.forked.append(child)
         return child
 
-    def terminate(self) -> None:
+    def terminate(self, reason: str | None = None) -> None:
         """Пометить pipeline неудачным: он и его ветки исключаются из результатов."""
         self._terminated = True
+        if reason is not None:
+            self.termination_reason = reason
+            logger.info("%s: %s", self.describe(), reason)
+
+    def describe(self) -> str:
+        """Описание pipeline для логов; наследники добавляют описание варианта."""
+        return type(self).__name__
 
     def reduce(self, predicate: Callable[[Pipeline[Any]], bool]) -> None:
         """Отбросить листья веток, не прошедшие predicate, и убрать terminated ветки.
@@ -94,7 +120,7 @@ class Pipeline[R: PipelineRegistry]:
             for leaf in child.leaves():
                 if not predicate(leaf):
                     leaf.terminate()
-        self._prune_terminated()
+        self.prune()
 
     def leaves(self) -> list[Pipeline[Any]]:
         if self._terminated:
@@ -110,11 +136,12 @@ class Pipeline[R: PipelineRegistry]:
     def results(self) -> list[Any]:
         return [leaf.collect() for leaf in self.leaves()]
 
-    def _prune_terminated(self) -> None:
+    def prune(self) -> None:
+        """Убрать terminated ветки; pipeline без живых веток тоже завершается."""
         if not self.forked:
             return
         for child in self.forked:
-            child._prune_terminated()
+            child.prune()
         self.forked = [child for child in self.forked if not child.is_terminated]
         if not self.forked:
             self.terminate()

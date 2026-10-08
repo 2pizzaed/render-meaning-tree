@@ -166,3 +166,67 @@ def test_reduce_rejecting_all_leaves_terminates_pipeline():
     assert pipeline.forked == []
     assert pipeline.is_terminated
     assert pipeline.results() == []
+
+
+def test_run_until_stops_after_stage_with_its_branches_and_run_continues():
+    pipeline = ForkingPipeline(ListRegistry())
+
+    pipeline.run_until("fork_twice")
+
+    assert pipeline.registry.items == ["first", "fork"]
+    assert pipeline.current_stage == "last"
+    assert _items(pipeline) == [
+        ["first", "fork", "a", "branch"],
+        ["first", "fork", "b", "branch"],
+    ]
+
+    pipeline.run()
+
+    assert pipeline.registry.items == ["first", "fork", "last"]
+    assert pipeline.is_finished
+
+
+def test_run_until_rejects_unknown_stage():
+    with pytest.raises(ValueError, match="no stage 'missing'"):
+        ForkingPipeline(ListRegistry()).run_until("missing")
+
+
+def test_run_until_returns_when_pipeline_terminates_earlier():
+    class StoppingPipeline(Pipeline[ListRegistry]):
+        stages = ("stop", "unreachable")
+
+        def stop(self) -> None:
+            self.terminate("stopped")
+
+        def unreachable(self) -> None:
+            self.registry.items.append("unreachable")
+
+    pipeline = StoppingPipeline(ListRegistry()).run_until("unreachable")
+
+    assert pipeline.is_terminated
+    assert pipeline.registry.items == []
+
+
+def test_terminate_keeps_reason_and_logs_it(caplog: pytest.LogCaptureFixture):
+    class VariantPipeline(BranchPipeline):
+        def describe(self) -> str:
+            return "VariantPipeline while@3=2"
+
+    pipeline = VariantPipeline(ListRegistry())
+
+    with caplog.at_level("INFO", logger="src.pipeline"):
+        pipeline.terminate("trace is too long")
+
+    assert pipeline.termination_reason == "trace is too long"
+    assert caplog.messages == ["VariantPipeline while@3=2: trace is too long"]
+
+
+def test_prune_removes_terminated_branches():
+    pipeline = RootPipeline(ListRegistry()).run()
+
+    pipeline.forked[0].forked[0].terminate("rejected")
+    pipeline.forked[1].terminate("rejected")
+    pipeline.prune()
+
+    assert len(pipeline.forked) == 1
+    assert _items(pipeline) == [["a", "y", "branch"]]

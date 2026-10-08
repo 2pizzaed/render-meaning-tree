@@ -170,8 +170,10 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         # не дошедший до END за N_max итераций, длиннее N_max.
         if isinstance(error, RuntimeError) and self._opaque_steps() >= self.config.max_steps:
             return self._too_long_reason()
-        # Текст ошибки рассуждателя многострочный: для лога хватает первой строки.
-        message = str(error).strip().splitlines()[0] if str(error).strip() else type(error).__name__
+        # Текст ошибки рассуждателя многострочный: для лога хватает его начала
+        # (сообщение и узел, на котором остановился граф).
+        lines = [line.strip() for line in str(error).splitlines() if line.strip()]
+        message = " ".join(lines[:4]) or type(error).__name__
         details = "; ".join([message, *getattr(error, "__notes__", [])])
         return f"findCorrect не построил трассу: {details}"
 

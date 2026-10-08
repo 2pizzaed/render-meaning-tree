@@ -84,6 +84,10 @@ class ProblemGenerationConfig:
     # Где создавать временные каталоги LOQI веток; None - системный временный каталог.
     temp_root: Path | None = None
 
+    def __post_init__(self) -> None:
+        if self.selection not in ("score", "random"):
+            raise ValueError(f"Unknown selection strategy: {self.selection!r}")
+
     def new_budget(self) -> ReasonerBudget:
         return ReasonerBudget(self.reasoner_call_budget, self.fragment_time_limit_seconds)
 

@@ -4,8 +4,6 @@ import pytest
 
 from src.generator.utilities import code_snippet_to_registry
 
-pytestmark = pytest.mark.filterwarnings("ignore:No construct declaration found")
-
 
 def _annotations(code: str, language: str) -> dict[tuple[str, str], str]:
     registry = code_snippet_to_registry(textwrap.dedent(code), language=language)

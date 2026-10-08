@@ -1,24 +1,42 @@
 from __future__ import annotations
 
+import logging
+import random
+import re
 import warnings
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Sequence
+from dataclasses import replace
 from importlib.resources import as_file, files
 from typing import Self, cast
 
 from src.ast_managers import CodeManager, NodePathElement
 from src.generator.automaton import ConstructTransitionAutomaton
+from src.generator.fragment import (
+    cyclomatic_complexity,
+    first_code_line,
+    fragment_rejections,
+)
 from src.generator.lookup import (
     lookup_function_call_definition,
     lookup_function_call_definition_by_ast_id,
     lookup_next_inline_compound_call_node,
 )
+from src.generator.pipeline.classification import LearningProblemClassificationPipeline
+from src.generator.problems import (
+    DEFAULT_SEED,
+    FragmentMetrics,
+    ProblemGenerationConfig,
+    ProblemMetrics,
+)
 from src.generator.registry import SituationRegistry
+from src.generator.skills import ERRORNEOUS_SKILLS
 from src.generator.value_annotations import (
     ValueAnnotationError,
     bind_value_annotations,
 )
-from src.generator.value_plan import default_condition_values
+from src.generator.value_plan import ValuePlan, action_key, default_condition_values
+from src.generator.value_plan import plan_values as build_value_plan
 from src.json_search import JSONPath
 from src.model.rules import (
     ActionDeclaration,
@@ -32,14 +50,21 @@ from src.model.situation import Action, Construct, SemanticValue, TraceAct
 from src.pipeline import Pipeline
 from src.types import Node, NodeQueryFormat
 
-__all__ = ["LearningProblemGeneratorPipeline"]
+__all__ = ["LearningProblemClassificationPipeline", "LearningProblemGeneratorPipeline"]
+
+logger = logging.getLogger(__name__)
+
+type Branch = Pipeline[SituationRegistry]
 
 
 class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
-    """Строит ситуацию по коду: rules -> конструкты -> actions -> начальная трасса.
+    """Генерирует учебные задачи по фрагменту кода.
 
-    ``run_until("assign_default_values")`` даёт одну ситуацию со значениями условий
-    по умолчанию, без рассуждателя.
+    Первые стадии строят ситуацию: rules -> конструкты -> actions -> начальная трасса
+    -> значения условий по умолчанию; ``run_until("assign_default_values")`` даёт её
+    без рассуждателя. Дальше фрагмент проверяется, планируются варианты значений (по
+    ветке LearningProblemClassificationPipeline на вариант), и select_problems
+    отбирает до top_k задач. Результаты - LearningProblem отобранных веток.
     """
 
     stages = (
@@ -49,11 +74,35 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         "bind_value_annotations",
         "create_default_situation",
         "assign_default_values",
+        "check_fragment",
+        "plan_values",
+        "generate_values",
+        "select_problems",
     )
 
     @classmethod
-    def from_code(cls, code: CodeManager) -> Self:
-        return cls(SituationRegistry(code=code))
+    def from_code(
+        cls,
+        code: CodeManager,
+        *,
+        seed: int = DEFAULT_SEED,
+        config: ProblemGenerationConfig | None = None,
+    ) -> Self:
+        config = config or ProblemGenerationConfig()
+        return cls(
+            SituationRegistry(code=code, config=config, budget=config.new_budget(), seed=seed)
+        )
+
+    @property
+    def config(self) -> ProblemGenerationConfig:
+        if self.registry.config is None:
+            raise RuntimeError("SituationRegistry.config is not set")
+        return self.registry.config
+
+    def describe(self) -> str:
+        fragment = self.registry.fragment
+        description = fragment.description if fragment else first_code_line(self.code)
+        return f"фрагмент {description!r}"
 
     @property
     def code(self) -> CodeManager:
@@ -470,6 +519,116 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             ]
             action.bind_values()
 
+    def check_fragment(self) -> None:
+        reasons = fragment_rejections(
+            self.registry, max_loop_iterations=self.config.max_loop_iterations
+        )
+        if reasons:
+            self.terminate("; ".join(reasons))
+            return
+        self.registry.fragment = FragmentMetrics(
+            cyclomatic_complexity=cyclomatic_complexity(self.code),
+            description=first_code_line(self.code),
+        )
+
+    def plan_values(self) -> None:
+        config = self.config
+        self.registry.value_plan = build_value_plan(
+            self.registry,
+            max_loop_iterations=config.max_loop_iterations,
+            random_variants=config.random_variants,
+            max_variants=config.max_variants,
+            seed=self.registry.seed,
+        )
+
+    def generate_values(self) -> None:
+        for variant in self._value_plan.variants:
+            child = self.fork_redirect(LearningProblemClassificationPipeline)
+            child.registry.variant = variant
+
+    def select_problems(self) -> None:
+        """Дедупликация, оценка Q и отбор до top_k задач среди выживших веток."""
+        branches = list(self.forked)
+        survivors = self._drop_duplicates([branch for branch in branches if not branch.is_terminated])
+        rejected = [branch for branch in branches if branch.is_terminated]
+        self._score(survivors)
+
+        config = self.config
+        selected = survivors
+        if len(survivors) > config.top_k:
+            if config.selection == "score":
+                ranked = sorted(survivors, key=lambda branch: (-_score(branch), _index(branch)))
+                selected = ranked[: config.top_k]
+            else:
+                rng = random.Random(f"{self.registry.seed}:select")
+                selected = rng.sample(survivors, config.top_k)
+            for branch in survivors:
+                if branch not in selected:
+                    branch.terminate(
+                        f"не вошла в отбор ({config.selection}, Q={_score(branch):.2f})"
+                    )
+        self._log_summary(len(branches), rejected, len(survivors) - len(selected), len(selected))
+        self.prune()
+
+    @property
+    def _value_plan(self) -> ValuePlan:
+        if self.registry.value_plan is None:
+            raise RuntimeError("SituationRegistry.value_plan is not set")
+        return self.registry.value_plan
+
+    def _drop_duplicates(self, branches: list[Branch]) -> list[Branch]:
+        """Из веток с одинаковыми итоговыми цепочками остаётся вариант с меньшим номером."""
+        first_by_values: dict[object, int] = {}
+        unique: list[Branch] = []
+        for branch in branches:
+            key = tuple(
+                (action_key(action), tuple(value.bool_value for value in action.values))
+                for action in branch.registry.all_actions()
+                if action.is_condition
+            )
+            if key in first_by_values:
+                branch.terminate(f"повторяет вариант #{first_by_values[key]}")
+                continue
+            first_by_values[key] = _index(branch)
+            unique.append(branch)
+        return unique
+
+    def _score(self, branches: list[Branch]) -> None:
+        """Q = (α·S + (1−α)·C) / (1 + N/N₀); C нормируется по концептам всех веток."""
+        config = self.config
+        all_concepts = set().union(*(_metrics(branch).concepts for branch in branches))
+        for branch in branches:
+            metrics = _metrics(branch)
+            skills = len(metrics.skills & ERRORNEOUS_SKILLS) / len(ERRORNEOUS_SKILLS)
+            concepts = len(metrics.concepts) / len(all_concepts) if all_concepts else 0.0
+            quality = config.alpha * skills + (1 - config.alpha) * concepts
+            score = quality / (1 + metrics.steps / config.steps_scale)
+            branch.registry.metrics = replace(metrics, score=score)
+
+    def _log_summary(
+        self, variants: int, rejected: list[Branch], not_selected: int, selected: int
+    ) -> None:
+        # Причины группируются без чисел: «повторяет вариант #N».
+        reasons = Counter(
+            re.sub(r"\d+", "N", branch.termination_reason or "без причины")
+            for branch in rejected
+        )
+        details = ", ".join(f"{reason}: {count}" for reason, count in reasons.items())
+        budget = self.registry.budget
+        logger.log(
+            logging.INFO if selected else logging.WARNING,
+            "%s: вариантов %d, отказов %d%s, не вошли в отбор %d, отобрано %d, "
+            "вызовов рассуждателя %d, %.0f с",
+            self.describe(),
+            variants,
+            len(rejected),
+            f" ({details})" if details else "",
+            not_selected,
+            selected,
+            budget.calls if budget else 0,
+            budget.elapsed_seconds if budget else 0.0,
+        )
+
 
 def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ...]:
     """Нормализовать to_when_absent в кортеж ролей."""
@@ -495,3 +654,18 @@ def _assumed_value(action_decl: ActionDeclaration) -> bool | None:
         if action_decl.behaviour is not None
         else None
     )
+
+
+def _metrics(branch: Branch) -> ProblemMetrics:
+    if branch.registry.metrics is None:
+        raise RuntimeError("SituationRegistry.metrics is not set")
+    return branch.registry.metrics
+
+
+def _score(branch: Branch) -> float:
+    return _metrics(branch).score or 0.0
+
+
+def _index(branch: Branch) -> int:
+    variant = branch.registry.variant
+    return variant.index if variant is not None else -1

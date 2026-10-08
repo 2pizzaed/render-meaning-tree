@@ -1,7 +1,5 @@
 import textwrap
 
-import pytest
-
 from src.generator.helpers.call_graph import (
     call_graph,
     function_name,
@@ -10,8 +8,6 @@ from src.generator.helpers.call_graph import (
 from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
 from src.generator.value_plan import ValuePlan, plan_values
-
-pytestmark = pytest.mark.filterwarnings("ignore:No construct declaration found")
 
 
 def _registry(code: str, language: str = "python") -> SituationRegistry:

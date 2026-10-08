@@ -4,6 +4,11 @@ from pathlib import Path
 
 from src.ast_managers import CodeManager, prepare_code
 from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.problems import (
+    DEFAULT_SEED,
+    LearningProblem,
+    ProblemGenerationConfig,
+)
 from src.generator.registry import SituationRegistry
 
 
@@ -34,3 +39,17 @@ def code_manager_to_registry(manager: CodeManager) -> SituationRegistry:
     if pipeline.is_terminated:
         raise ValueError(f"Situation generation stopped: {pipeline.termination_reason}")
     return pipeline.registry
+
+
+def code_snippet_to_problems(
+    code: str,
+    *,
+    language: str = "python",
+    mode: str = "procedural",
+    seed: int = DEFAULT_SEED,
+    config: ProblemGenerationConfig | None = None,
+) -> list[LearningProblem]:
+    """Учебные задачи по фрагменту: до ``config.top_k`` вариантов значений условий."""
+    manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed, config=config)
+    return pipeline.run().results()

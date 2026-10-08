@@ -231,6 +231,13 @@ for i in range(3):
 y = 2
 """
 
+# Цепочки на все выполнения условия: цикл factorial - по две итерации в каждом из
+# двух вызовов, условие if в цикле истинно на обеих итерациях.
+FACTORIAL_REPEATED_CALL_VALUES: tuple[ValuePatch, ...] = (
+    (3, "cond", [True, True, False, True, True, False]),
+)
+FOR_IF_REENTRY_VALUES: tuple[ValuePatch, ...] = ((2, "first_cond", [True, True]),)
+
 CPP_IF_BLOCK = """
 int a = 1;
 if (a > 0) {
@@ -338,17 +345,6 @@ RECURSION_XFAIL = pytest.mark.xfail(
     strict=True,
 )
 RECURSION_VALUES: tuple[ValuePatch, ...] = ((2, "first_cond", [True, True, False]),)
-
-# Значения условий больше не сбрасываются при повторном входе в конструкт и
-# расходуются по всей трассе, а цепочки SemanticValue пока строятся на одно
-# выполнение конструкта: при повторном вызове функции или новой итерации внешнего
-# цикла у условия не остаётся значений, эталонная трасса findCorrect падает.
-# Снять, когда цепочки будут учитывать все выполнения действия в задаче.
-REENTRY_VALUES_XFAIL = pytest.mark.xfail(
-    reason="цепочки семантических значений не учитывают повторные выполнения конструкта",
-    strict=True,
-)
-
 
 # -- Сценарии ------------------------------------------------------------------
 
@@ -742,7 +738,7 @@ CHECK_CASES: list[Any] = [
             (2, "first_cond", [True]),
         ),
     ),
-    # --- Повторный вход в конструкт (REENTRY_VALUES_XFAIL) ---
+    # --- Повторный вход в конструкт: цепочки заданы на все выполнения ---
     pytest.param(
         CheckCase(
             # Во втором вызове тело функции снова доступно с первого оператора.
@@ -753,9 +749,9 @@ CHECK_CASES: list[Any] = [
             action=(2, "first"),
             expected_skills=("actions_in_order",),
             expected_correct=True,
+            value_patches=FACTORIAL_REPEATED_CALL_VALUES,
         ),
         id="function_repeated_call_body",
-        marks=REENTRY_VALUES_XFAIL,
     ),
     pytest.param(
         CheckCase(
@@ -768,9 +764,9 @@ CHECK_CASES: list[Any] = [
             action=(3, "cond"),
             expected_skills=("actions_in_order",),
             expected_correct=True,
+            value_patches=FACTORIAL_REPEATED_CALL_VALUES,
         ),
         id="function_repeated_call_loop_condition",
-        marks=REENTRY_VALUES_XFAIL,
     ),
     pytest.param(
         CheckCase(
@@ -784,9 +780,9 @@ CHECK_CASES: list[Any] = [
             action=(10, "END", "func_call_structure"),
             expected_skills=("inner_construct_finished_before_next",),
             expected_correct=True,
+            value_patches=FACTORIAL_REPEATED_CALL_VALUES,
         ),
         id="function_repeated_call_exit",
-        marks=REENTRY_VALUES_XFAIL,
     ),
     pytest.param(
         CheckCase(
@@ -799,9 +795,9 @@ CHECK_CASES: list[Any] = [
             action=(2, "first_cond"),
             expected_skills=("actions_in_order",),
             expected_correct=True,
+            value_patches=FOR_IF_REENTRY_VALUES,
         ),
         id="loop_reentry_if_condition",
-        marks=REENTRY_VALUES_XFAIL,
     ),
     # --- C++: непрозрачные скобки блоков ---
     CheckCase(

@@ -992,7 +992,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
     ),
     (
         # Повторный вызов функции с циклом в теле: во втором вызове условие цикла
-        # снова проходит все значения (REENTRY_VALUES_XFAIL).
+        # снова проходит все значения. Цепочка задана на оба вызова.
         "python",
         """
         def factorial(x):
@@ -1043,10 +1043,11 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             (10, 0),
         ],
         "python_factorial_repeated_call.loqi",
+        {(3, 1): [True, True, False, True, True, False]},
     ),
     (
-        # Повторный вход в тело цикла: условие вложенного if на каждой итерации
-        # получает первое значение заново (REENTRY_VALUES_XFAIL).
+        # Повторный вход в тело цикла: условие вложенного if вычисляется на каждой
+        # итерации. Цепочка задана на обе итерации.
         "python",
         """
         for i in range(3):
@@ -1061,6 +1062,7 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         },
         [(1, 2), (1, 1), (2, 2), (3, 1), (1, 1), (2, 2), (3, 1), (1, 1), (4, 0)],
         "python_for_if_reentry.loqi",
+        {(2, 2): [True, True]},
     ),
 ]
 
@@ -1108,18 +1110,6 @@ RECURSION_XFAIL = pytest.mark.xfail(
     reason="семантические значения общие для всех активаций функции: рекурсия не завершается",
     strict=True,
 )
-
-# Значения условий больше не сбрасываются при повторном входе в конструкт и
-# расходуются по всей трассе, а цепочки SemanticValue пока строятся на одно
-# выполнение конструкта: при повторном вызове функции или новой итерации внешнего
-# цикла у условия не остаётся значений. Снять, когда цепочки будут учитывать
-# все выполнения действия в задаче (ожидаемые последовательности, возможно,
-# придётся переснять).
-REENTRY_VALUES_XFAIL = pytest.mark.xfail(
-    reason="цепочки семантических значений не учитывают повторные выполнения конструкта",
-    strict=True,
-)
-REENTRY_VALUES_XFAIL_IDS = frozenset({"python_factorial_repeated_call", "python_for_if_reentry"})
 
 RECURSION_SEQUENCE_CASES: list[tuple[object, ...]] = [
     (
@@ -1310,11 +1300,7 @@ def test_plain_statements(tmp_path: Path):
     ),
     [
         *(
-            pytest.param(
-                *case,
-                id=Path(case[4]).stem,
-                marks=REENTRY_VALUES_XFAIL if Path(case[4]).stem in REENTRY_VALUES_XFAIL_IDS else (),
-            )
+            pytest.param(*case, id=Path(case[4]).stem)
             for case in SEQUENCE_CASE_PARAMS
         ),
         *(

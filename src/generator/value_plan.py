@@ -4,14 +4,15 @@
 цикл (исход - число итераций одного захода) или ветвление (исход - номер выбранной
 ветви, ``m`` - ни одна). Варианты сначала покрывают все пары «точка, исход», затем
 добавляются случайные. Выборы для недостижимых точек стираются, поэтому варианты,
-различающиеся только недостижимым кодом, совпадают.
+различающиеся только недостижимым кодом, совпадают. Цепочка условия на всю трассу -
+шаблон одного захода, повторённый по числу заходов в его конструкцию.
 """
 
 from __future__ import annotations
 
 import logging
 import random
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -33,6 +34,8 @@ type Requirement = dict[int, frozenset[int]]
 # Дизъюнкция требований: [] - код недостижим, [{}] - достижим всегда.
 type Reachability = list[Requirement]
 type PointKind = Literal["loop", "do_while", "branch"]
+# Поля AST от узла вниз до потомка: (имя поля, индекс в контейнере).
+type AstSteps = list[tuple[str | None, int | str | None]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +63,17 @@ class ChoicePoint:
         iterations = outcome - 1 if self.kind == "do_while" else outcome
         return {self.conditions[0]: (True,) * iterations + (False,)}
 
+    def outcome_of(self, patterns: dict[ActionKey, tuple[bool, ...]]) -> int:
+        """Исход одного захода по шаблонам условий: обратное к ``patterns``."""
+        if self.kind == "branch":
+            return next(
+                (index for index, key in enumerate(self.conditions) if patterns[key][0]),
+                len(self.conditions),
+            )
+        pattern = patterns[self.conditions[0]]
+        iterations = pattern.index(False) if False in pattern else len(pattern)
+        return iterations + 1 if self.kind == "do_while" else iterations
+
     def describe(self, outcome: int) -> str:
         if self.kind != "branch":
             return f"{self.label}={outcome}"
@@ -75,6 +89,8 @@ class ValueVariant:
     outcomes: dict[int, int]
     # Шаблон одного захода для каждого неразмеченного условия.
     patterns: dict[ActionKey, tuple[bool, ...]]
+    # Цепочки на все заходы (chains_for_all_entries).
+    chains: dict[ActionKey, tuple[bool, ...]]
     description: str
 
 
@@ -99,6 +115,15 @@ def default_condition_values(action: Action) -> tuple[bool, ...]:
     if is_loop(action.parent):
         return DEFAULT_LOOP_VALUES
     return DEFAULT_BRANCH_VALUES
+
+
+def default_patterns(registry: SituationRegistry) -> dict[ActionKey, tuple[bool, ...]]:
+    """Шаблоны одного захода по умолчанию для всех неразмеченных условий."""
+    return {
+        action_key(action): default_condition_values(action)
+        for action in registry.all_actions()
+        if action.is_condition and action.annotation is None
+    }
 
 
 def is_loop(construct: Construct) -> bool:
@@ -218,14 +243,33 @@ def _constant_value(action: Action) -> bool | None:
 def _point_reachability(
     registry: SituationRegistry, points: list[ChoicePoint]
 ) -> list[Reachability]:
-    reachability = _ReachabilityAnalysis(registry, points)
-    return [
-        reachability.of(registry.constructs[point.construct_ast_id]) for point in points
-    ]
+    analysis = _ExecutionAnalysis(registry, points)
+    return [analysis.of(registry.constructs[point.construct_ast_id]) for point in points]
 
 
-class _ReachabilityAnalysis:
-    """При каких исходах точек выполняется конструкт (хотя бы начинается)."""
+def chains_for_all_entries(
+    registry: SituationRegistry,
+    points: list[ChoicePoint],
+    patterns: dict[ActionKey, tuple[bool, ...]],
+) -> dict[ActionKey, tuple[bool, ...]]:
+    """Цепочки на все выполнения: шаблон захода, повторённый по числу заходов в конструкт.
+
+    Число заходов считается при исходах, которые задают сами шаблоны. Если оно
+    неизвестно или равно нулю, остаётся шаблон одного захода.
+    """
+    outcomes = {index: point.outcome_of(patterns) for index, point in enumerate(points)}
+    entries = _ExecutionAnalysis(registry, points).entry_counts(outcomes)
+    chains = dict(patterns)
+    for action in registry.all_actions():
+        key = action_key(action)
+        count = entries.get(action.parent.ast_id)
+        if key in patterns and count:
+            chains[key] = patterns[key] * count
+    return chains
+
+
+class _ExecutionAnalysis:
+    """При каких исходах точек выполняется конструкт и сколько раз."""
 
     def __init__(self, registry: SituationRegistry, points: list[ChoicePoint]) -> None:
         self.registry = registry
@@ -274,28 +318,112 @@ class _ReachabilityAnalysis:
         if point.kind != "branch":
             in_body = any(field == "body" for field, _ in steps)
             return frozenset(outcome for outcome in domain if outcome >= 1) if in_body else None
-        if not steps:
-            return None
-        field, branch = steps[0]
-        if field == "elseBranch":
-            return domain & {len(point.conditions)}
-        if field != "branches" or not isinstance(branch, int):
-            return None
-        if len(steps) > 1 and steps[1][0] == "condition":
-            # Условие ветви k вычисляется, когда все предыдущие ложны.
-            return frozenset(outcome for outcome in domain if outcome >= branch)
-        return domain & {branch}
+        allowed = _branch_outcomes(point, steps)
+        return None if allowed is None else domain & allowed
 
-    def _path_below(
-        self, parent: Construct, child: Construct
-    ) -> list[tuple[str | None, int | str | None]]:
-        """Поля AST от узла parent вниз до узла child: (имя поля, индекс в контейнере)."""
-        steps: list[tuple[str | None, int | str | None]] = []
+    def entry_counts(self, outcomes: dict[int, int]) -> dict[int, int | None]:
+        """Число заходов в каждый конструкт (AST id) при исходах всех точек.
+
+        None - число неизвестно: вызов из рекурсивной функции или потомок
+        ветвления с разметкой.
+        """
+        counts: dict[int, int | None] = {}
+
+        def count(construct: Construct) -> int | None:
+            if construct.ast_id not in counts:
+                counts[construct.ast_id] = self._entries(construct, outcomes, count)
+            return counts[construct.ast_id]
+
+        for construct in self.registry.constructs.values():
+            count(construct)
+        return counts
+
+    def _entries(
+        self,
+        construct: Construct,
+        outcomes: dict[int, int],
+        count: Callable[[Construct], int | None],
+    ) -> int | None:
+        if is_function_construct(self.registry.code.ast, construct):
+            # Заходы в функцию - сумма заходов в места её вызова.
+            total = 0
+            for site in self.sites_by_callee.get(construct.ast_id, []):
+                calls = None if site.caller.ast_id in self.recursive else count(site.call)
+                if calls is None:
+                    return None
+                total += calls
+            return total
+        parent = construct.parent
+        if parent is None:
+            return 1
+        parent_entries = count(parent)
+        if parent_entries is None:
+            return None
+        steps = self._path_below(parent, construct)
+        index = self.point_index.get(parent.ast_id)
+        if index is None:
+            return _entries_below_unplanned(parent, parent_entries, steps)
+        return parent_entries * _entries_per_point_entry(self.points[index], outcomes[index], steps)
+
+    def _path_below(self, parent: Construct, child: Construct) -> AstSteps:
+        """Поля AST от узла parent вниз до узла child."""
+        steps: AstSteps = []
         current = self.registry.code.ast.get_path(child.ast_id)
         while current is not None and current.id != parent.ast_id:
             steps.append((current.field_name, current.container_field_id))
             current = current.parent
         return list(reversed(steps))
+
+
+def _branch_outcomes(point: ChoicePoint, steps: AstSteps) -> frozenset[int] | None:
+    """Исходы ветвления, при которых выполняется потомок по пути steps; None - при любых."""
+    if not steps:
+        return None
+    field, branch = steps[0]
+    if field == "elseBranch":
+        return frozenset({len(point.conditions)})
+    if field != "branches" or not isinstance(branch, int):
+        return None
+    if len(steps) > 1 and steps[1][0] == "condition":
+        # Условие ветви k вычисляется, когда все предыдущие ложны.
+        return frozenset(range(branch, len(point.conditions) + 1))
+    return frozenset({branch})
+
+
+def _entries_per_point_entry(point: ChoicePoint, outcome: int, steps: AstSteps) -> int:
+    """Сколько раз за один заход в точку с исходом outcome выполняется её потомок."""
+    if point.kind == "branch":
+        allowed = _branch_outcomes(point, steps)
+        return int(allowed is None or outcome in allowed)
+    # Исход цикла - число выполнений тела, в том числе у do-while.
+    field = steps[0][0] if steps else None
+    if field in ("body", "update"):
+        return outcome
+    if field == "condition":
+        # Условие вычисляется после каждой итерации, а у while/for ещё и перед первой.
+        return outcome if point.kind == "do_while" else outcome + 1
+    return 1
+
+
+def _entries_below_unplanned(
+    construct: Construct, entries: int, steps: AstSteps
+) -> int | None:
+    """Заходы в потомка конструкта, который не точка выбора: без условий или с разметкой."""
+    conditions = [action for action in construct.actions if action.is_condition]
+    if not conditions:
+        return entries
+    annotation = conditions[0].annotation
+    if not is_loop(construct) or annotation is None:
+        # Выбранные ветви размеченного ветвления по заходам не выводятся.
+        return None
+    # Разметка цикла задаёт цепочку сразу на все заходы.
+    field = steps[0][0] if steps else None
+    do_while = construct.ast_node.get("type") == "do_while_loop"
+    if field in ("body", "update"):
+        return len(annotation.values) if do_while else annotation.values.count(True)
+    if field == "condition":
+        return len(annotation.values)
+    return entries
 
 
 def _require(
@@ -412,11 +540,8 @@ def _variant(
     outcomes: dict[int, int],
     index: int,
 ) -> ValueVariant:
-    patterns: dict[ActionKey, tuple[bool, ...]] = {}
     # Условия вне точек (в частично размеченном ветвлении) повторяют умолчание.
-    for action in registry.all_actions():
-        if action.is_condition and action.annotation is None:
-            patterns[action_key(action)] = default_condition_values(action)
+    patterns = default_patterns(registry)
     for point_index, point in enumerate(points):
         # Недостижимой точке нужен любой корректный шаблон: она не вычисляется,
         # а если анализ ошибся, хук всё равно догрузит цепочку.
@@ -428,5 +553,6 @@ def _variant(
         index=index,
         outcomes={points[point_index].construct_ast_id: outcome for point_index, outcome in outcomes.items()},
         patterns=patterns,
+        chains=chains_for_all_entries(registry, points, patterns),
         description=description or "без точек выбора",
     )

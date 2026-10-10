@@ -28,6 +28,17 @@ def _patterns(plan: ValuePlan) -> list[list[tuple[bool, ...]]]:
     return [list(variant.patterns.values()) for variant in plan.variants]
 
 
+def _default_chains(registry: SituationRegistry) -> dict[tuple[int | None, str], tuple[bool, ...]]:
+    """Цепочки ситуации по умолчанию: (строка условия, роль) -> значения."""
+    return {
+        (registry.code.code_line_number_by_id(action.ast_id), action.rule.role): tuple(
+            value.bool_value for value in action.values
+        )
+        for action in registry.all_actions()
+        if action.is_condition and action.ast_id is not None
+    }
+
+
 def test_loop_with_nested_branch_is_covered_by_iteration_count_variants():
     registry = _registry(
         """
@@ -229,3 +240,119 @@ def test_call_graph_finds_direct_and_mutual_recursion():
     names = {site.callee.ast_id: function_name(site.callee) for site in sites}
     assert {names[ast_id] for ast_id in recursive} == {"even", "odd", "fact"}
     assert len(sites) == 6
+
+
+# --- Цепочки на все заходы ---
+
+
+def test_branch_in_loop_gets_value_for_every_iteration():
+    registry = _registry(
+        """
+        while x > 0:
+            if y:
+                x = 1
+        """
+    )
+
+    # Умолчание: две итерации цикла, условие ветвления вычисляется на каждой.
+    assert _default_chains(registry) == {(1, "cond"): (True, True, False), (2, "first_cond"): (True, True)}
+
+
+def test_function_entries_sum_over_call_sites():
+    registry = _registry(
+        """
+        def f(x):
+            while x > 0:
+                if x == 1:
+                    x -= 1
+        f(5)
+        for i in range(2):
+            f(i)
+        """
+    )
+
+    chains = _default_chains(registry)
+    # f вызывается 1 + 2 раза, тело цикла в f выполняется по 2 раза за вызов.
+    assert chains[(2, "cond")] == (True, True, False) * 3
+    assert chains[(3, "first_cond")] == (True,) * 6
+
+
+def test_calls_in_loop_header_are_counted_per_evaluation():
+    registry = _registry(
+        """
+        int g(int x) {
+            if (x > 0) {
+                x--;
+            }
+            return x;
+        }
+        int main() {
+            int s = 0;
+            for (int i = g(0); i < g(3); i += g(1)) {
+                s += i;
+            }
+            return s;
+        }
+        """,
+        "c++",
+    )
+
+    # При двух итерациях: инициализатор 1 раз, условие 3, обновление 2.
+    [chain] = [chain for (_, role), chain in _default_chains(registry).items() if role == "first_cond"]
+    assert chain == (True,) * 6
+
+
+def test_annotated_loop_gives_body_entries_from_its_chain():
+    registry = _registry(
+        """
+        while x > 0:  # <! TTTF >
+            if y:
+                x = 1
+        """
+    )
+
+    assert _default_chains(registry)[(2, "first_cond")] == (True,) * 3
+
+
+def test_call_from_recursive_function_keeps_one_entry_pattern():
+    registry = _registry(
+        """
+        def helper(n):
+            if n > 0:
+                n -= 1
+            return n
+        def fact(n):
+            if n <= 1:  # <! FFT >
+                return 1
+            return helper(n) * fact(n - 1)
+        fact(3)
+        """
+    )
+
+    # Число вызовов helper из рекурсии не выводится: остаётся шаблон одного захода.
+    assert _default_chains(registry)[(2, "first_cond")] == (True,)
+
+
+def test_variant_chains_repeat_point_patterns_by_entries():
+    registry = _registry(
+        """
+        while x > 0:
+            if y:
+                x = 1
+            else:
+                x = 2
+        """
+    )
+
+    plan = _plan(registry)
+
+    [loop, branch] = plan.points
+    variant = next(
+        variant
+        for variant in plan.variants
+        if variant.outcomes == {loop.construct_ast_id: 2, branch.construct_ast_id: 1}
+    )
+    assert variant.chains == {
+        loop.conditions[0]: (True, True, False),
+        branch.conditions[0]: (False, False),
+    }

@@ -35,7 +35,14 @@ from src.generator.value_annotations import (
     ValueAnnotationError,
     bind_value_annotations,
 )
-from src.generator.value_plan import ValuePlan, action_key, default_condition_values
+from src.generator.value_plan import (
+    ValuePlan,
+    action_key,
+    chains_for_all_entries,
+    choice_points,
+    default_condition_values,
+    default_patterns,
+)
 from src.generator.value_plan import plan_values as build_value_plan
 from src.json_search import JSONPath
 from src.model.rules import (
@@ -513,10 +520,11 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         )
 
     def assign_default_values(self) -> None:
+        points = choice_points(self.registry, max_loop_iterations=self.config.max_loop_iterations)
+        chains = chains_for_all_entries(self.registry, points, default_patterns(self.registry))
         for action in (*self.registry.all_actions(), *self.registry.anonymous_actions):
-            action.values = [
-                SemanticValue(value) for value in default_condition_values(action)
-            ]
+            values = chains.get(action_key(action), default_condition_values(action))
+            action.values = [SemanticValue(value) for value in values]
             action.bind_values()
 
     def check_fragment(self) -> None:

@@ -61,10 +61,10 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         return f"вариант #{variant.index} ({variant.description})"
 
     def assign_values(self) -> None:
-        """Шаблон захода вместо умолчания; разметку и assumed_value не трогаем."""
-        for key, pattern in self.variant.patterns.items():
+        """Цепочки варианта на все заходы вместо умолчания; разметку и assumed_value не трогаем."""
+        for key, chain in self.variant.chains.items():
             action = self._action(key)
-            action.values = [SemanticValue(value) for value in pattern]
+            action.values = [SemanticValue(value) for value in chain]
             action.bind_values()
 
     def solve_correct_trace(self) -> None:
@@ -165,6 +165,8 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         if self._opaque_steps() > self.config.max_steps:
             raise TraceTooLong
         self.budget.spend_call()
+        # Страховка: цепочки варианта уже рассчитаны на все заходы, догрузка нужна,
+        # только если число заходов неизвестно или оценено неточно.
         for key, pattern in self.variant.patterns.items():
             action = self._action(key)
             if action.consumed_value_count() >= len(action.values):

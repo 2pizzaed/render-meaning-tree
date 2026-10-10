@@ -173,7 +173,7 @@ def test_condition_is_evaluated_at_most_once_per_reasoner_call(code: str, tmp_pa
 
 
 @pytest.mark.parametrize("code", FACT6_FRAGMENTS)
-def test_generated_chains_are_reloaded_without_reasoner_failures(
+def test_generated_chains_build_traces_without_reasoner_failures(
     code: str, caplog: pytest.LogCaptureFixture
 ):
     with caplog.at_level(logging.INFO):
@@ -183,7 +183,7 @@ def test_generated_chains_are_reloaded_without_reasoner_failures(
     assert not [reason for reason in _reasons(caplog) if "findCorrect" in reason]
 
 
-def test_repeated_calls_reload_loop_chain_per_entry():
+def test_repeated_calls_get_loop_chain_per_entry():
     problems = _problems(
         """
         def f(x):

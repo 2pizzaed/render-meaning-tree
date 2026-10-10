@@ -46,6 +46,41 @@ if (renderCodeTextarea && savedRenderCode !== null && renderCodeTextarea.value =
 restoreSelectValue(renderLanguageSelect, RENDER_LANGUAGE_STORAGE_KEY);
 restoreSelectValue(renderTargetLanguageSelect, RENDER_TARGET_LANGUAGE_STORAGE_KEY);
 
+// --- Code Editor ---
+// Подсветка синтаксиса поля Code. Textarea остаётся источником кода для остального JS:
+// редактор записывает в неё каждое изменение. Без CodeMirror (CDN недоступен) работает
+// обычная textarea.
+const CODE_EDITOR_MODES = {java: "text/x-java", python: "python", "c++": "text/x-c++src"};
+const codeEditor = renderCodeTextarea && window.CodeMirror
+    ? CodeMirror.fromTextArea(renderCodeTextarea, {
+        mode: CODE_EDITOR_MODES[renderLanguageSelect?.value],
+        lineNumbers: true,
+        indentUnit: 4,
+        extraKeys: {
+            // Tab вставляет пробелы, а не символ табуляции: важно для отступов Python.
+            Tab: (editor) => editor.execCommand(editor.somethingSelected() ? "indentMore" : "insertSoftTab"),
+        },
+    })
+    : null;
+
+if (codeEditor) {
+    codeEditor.on("change", () => codeEditor.save());
+    // Высота меняется перетаскиванием угла (resize: vertical): редактору нужна перерисовка.
+    new ResizeObserver(() => codeEditor.refresh()).observe(codeEditor.getWrapperElement());
+}
+
+function setRenderCode(code) {
+    if (codeEditor) {
+        codeEditor.setValue(code);
+    } else if (renderCodeTextarea) {
+        renderCodeTextarea.value = code;
+    }
+}
+
+function updateCodeEditorMode() {
+    codeEditor?.setOption("mode", CODE_EDITOR_MODES[renderLanguageSelect?.value]);
+}
+
 const savedRenderSeed = readStoredValue(RENDER_SEED_STORAGE_KEY);
 if (renderSeedInput && savedRenderSeed !== null && renderSeedInput.value === "") {
     renderSeedInput.value = savedRenderSeed;
@@ -68,6 +103,7 @@ if (renderForm && renderCodeTextarea) {
 
 if (renderLanguageSelect) {
     renderLanguageSelect.addEventListener("change", () => {
+        updateCodeEditorMode();
         storeValue(RENDER_LANGUAGE_STORAGE_KEY, renderLanguageSelect.value);
     });
 }
@@ -121,8 +157,9 @@ async function loadSnippet(path) {
         if (!payload.ok) {
             throw new Error(payload.error || `HTTP ${response.status}`);
         }
-        renderCodeTextarea.value = payload.code;
         renderLanguageSelect.value = payload.language;
+        updateCodeEditorMode();
+        setRenderCode(payload.code);
         storeValue(RENDER_CODE_STORAGE_KEY, payload.code);
         storeValue(RENDER_LANGUAGE_STORAGE_KEY, payload.language);
         loadedSnippetPath = path;

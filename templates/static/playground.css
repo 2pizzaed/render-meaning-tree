@@ -53,6 +53,17 @@ textarea {
     resize: vertical;
 }
 
+/* CodeMirror поверх textarea поля Code: те же размеры, шрифт и рамка. */
+.render-form .CodeMirror {
+    height: 250px;
+    min-height: 80px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: "Consolas", monospace;
+    font-size: 13px;
+    resize: vertical;
+}
+
 button.submit-btn {
     background: #0066cc;
     color: white;

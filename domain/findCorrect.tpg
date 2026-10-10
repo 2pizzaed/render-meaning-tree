@@ -74,6 +74,16 @@ lambda unfoldBeginAct(t: TraceAct) = findExtreme latest [
     $b=>unfoldedFrom()
 };
 
+// BEGIN-акт текущего выполнения конструкта C в кадре акта t: кадр различает активации
+// функций, но не итерации цикла, поэтому акты прошлых выполнений C лежат до этого BEGIN
+lambda currentBeginAct(C: ConcreteConstruct, t: TraceAct) = findExtreme latest [
+    not $latest=>beforeOf($b)
+] among TraceAct b {
+    $b->inFrame == t->inFrame and
+    $b->hasAction->belongsTo == C and
+    $b->hasAction->derivedFrom.role == "BEGIN"
+};
+
 // t - последний акт трассы и он END preorder-конструкта, породившее действие которого ещё не в трассе
 lambda hasPendingUnfold(t: TraceAct) =
     t->hasAction->derivedFrom.role == "END" and
@@ -465,12 +475,15 @@ fragment classifyAction(N: ConcreteAction) {
 }
 
 fragment checkRepeatedAction(N: ConcreteAction) {
-    // Если действия уже было в трассе (в текущем кадре: во внешней активации той же
-    // функции действия выполнялись, но к текущей активации это не относится)
-    ask (forAny TraceAct t {$t->inFrame == L->inFrame and $t->hasAction == N}) out false else {
+    // Если действие уже было в текущем выполнении конструкта (в текущем кадре: во внешней
+    // активации той же функции действия выполнялись, но к текущей активации это не относится;
+    // после BEGIN текущего выполнения: акты прошлых итераций цикла тоже не относятся)
+    ask (forAny TraceAct t {$t->inFrame == L->inFrame and $t->hasAction == N
+            and $t=>afterOf(currentBeginAct(N->belongsTo, L))}) out false else {
         // Проверяем, является ли действие повторяемым и выбираем следующее возможное действие из цепочки
         var N1: ConcreteAction = find ConcreteAction n {$n=>afterOf(N)
-            and not (forAny TraceAct t {$t->inFrame == L->inFrame and $t->hasAction == $n})
+            and not (forAny TraceAct t {$t->inFrame == L->inFrame and $t->hasAction == $n
+                and $t=>afterOf(currentBeginAct(N->belongsTo, L))})
             and $n=>isCloserToThan(
                 N,
                 findExtreme lastN [not $lastN=>beforeOf($c)] among ConcreteAction c {$c=>afterOf(N)}

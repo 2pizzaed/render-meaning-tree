@@ -90,14 +90,6 @@ def test_check_fragment_counts_cyclomatic_complexity():
 
 FAST_CONFIG = ProblemGenerationConfig(random_variants=0, max_loop_iterations=2)
 
-# Ошибка графа findCorrect при повторном входе в ветвление в том же кадре
-# (итерации цикла): диагностика - docs/handoff/findcorrect_reentry_issues.md.
-BRANCH_REENTRY_XFAIL = pytest.mark.xfail(
-    reason="findCorrect: при повторном входе в ветвление checkRepeatedAction "
-    "пропускает условия и выбирает ещё не выполнявшуюся ветвь",
-    strict=True,
-)
-
 FACT6_FRAGMENTS = [
     pytest.param(
         """
@@ -308,7 +300,6 @@ def test_exhausted_budget_terminates_remaining_branches(caplog: pytest.LogCaptur
     assert len(exhausted) == FAST_CONFIG.max_loop_iterations + 1
 
 
-@BRANCH_REENTRY_XFAIL
 def test_branch_condition_is_evaluated_on_every_loop_iteration():
     problems = _problems(
         """

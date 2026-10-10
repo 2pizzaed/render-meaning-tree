@@ -70,6 +70,25 @@ def build_correct_trace_registry(
     solver_stops: set[int] | None = None,
 ) -> SituationRegistry:
     registry = code_snippet_to_registry(textwrap.dedent(code), language=language)
+    solve_correct_trace(
+        registry,
+        max_iterations=max_iterations,
+        time_limit_seconds=time_limit_seconds,
+        temp_root=temp_root,
+        solver_stops=solver_stops,
+    )
+    return registry
+
+
+def solve_correct_trace(
+    registry: SituationRegistry,
+    *,
+    max_iterations: int = 100,
+    time_limit_seconds: int = 30,
+    temp_root: Path | None = None,
+    solver_stops: set[int] | None = None,
+) -> None:
+    """Достроить трассу ситуации вызовами findCorrect до END программы."""
     if registry.trace_acts:
         registry.variables["P"] = registry.trace_acts[0]
 
@@ -88,7 +107,7 @@ def build_correct_trace_registry(
             max_iterations=max_iterations,
             solver_stops=solver_stops,
         )
-    return registry
+
 
 def _read_code(args: argparse.Namespace) -> str:
     if args.code is not None:

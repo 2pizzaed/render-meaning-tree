@@ -66,6 +66,53 @@ button.submit-btn:hover {
     background: #0052a3;
 }
 
+.seed-row {
+    display: flex;
+    gap: 8px;
+}
+
+.seed-row .seed-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+}
+
+.clear-cache-button {
+    flex: none;
+    width: 34px;
+    padding: 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    color: #243142;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.clear-cache-button:hover {
+    background: #f4f7fb;
+}
+
+.clear-cache-button:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+.clear-cache-button.done {
+    color: #1a7f37;
+    border-color: #1a7f37;
+}
+
+.problem-info {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #555;
+    word-break: break-word;
+}
+
 .main {
     flex: 1;
     display: flex;

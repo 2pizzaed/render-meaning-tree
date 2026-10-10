@@ -5,9 +5,10 @@ var pendingErrorStepIndex = null;
 // Имя действия трассы, чьи кнопки подсвечены во фрагменте кода.
 var highlightedTraceAction = null;
 var traceActionIdsByName = buildTraceActionIdsByName();
-// LOQI, поданный в reasoner последним запуском Reason/Hint.
-var lastReasonerLoqi = null;
-var lastReasonerLoqiSource = "";
+// LOQI окна просмотра: задачи, сгенерированной по seed, до первого Reason/Hint,
+// затем LOQI, поданный в reasoner последним запуском.
+var loqiViewerText = null;
+var loqiViewerSource = "";
 var loqiMatches = [];
 var loqiMatchIndex = -1;
 
@@ -304,6 +305,7 @@ async function reasonTrace() {
                 code: document.querySelector('textarea[name="code"]')?.value || "",
                 language: document.querySelector('select[name="language"]')?.value || "java",
                 target_language: document.querySelector('select[name="target_language"]')?.value || "",
+                seed: document.querySelector('input[name="seed"]')?.value || "",
                 trace: traceData,
             }),
         });
@@ -334,6 +336,7 @@ async function requestHint() {
                 code: document.querySelector('textarea[name="code"]')?.value || "",
                 language: document.querySelector('select[name="language"]')?.value || "java",
                 target_language: document.querySelector('select[name="target_language"]')?.value || "",
+                seed: document.querySelector('input[name="seed"]')?.value || "",
                 trace: checkedTracePrefix(),
             }),
         });
@@ -379,6 +382,8 @@ function openCorrectTrace() {
     form.style.display = "none";
     appendHiddenInput(form, "code", document.querySelector('textarea[name="code"]')?.value || "");
     appendHiddenInput(form, "language", document.querySelector('select[name="language"]')?.value || "java");
+    appendHiddenInput(form, "target_language", document.querySelector('select[name="target_language"]')?.value || "");
+    appendHiddenInput(form, "seed", document.querySelector('input[name="seed"]')?.value || "");
     document.body.appendChild(form);
     form.submit();
     form.remove();
@@ -463,11 +468,38 @@ const LOQI_IDENTIFIER_CHAR = "[A-Za-z0-9_]";
 
 function rememberReasonerLoqi(payload, source) {
     if (!payload || typeof payload.loqi !== "string") return;
-    lastReasonerLoqi = payload.loqi;
-    lastReasonerLoqiSource = `${source}, ${new Date().toLocaleTimeString()}`;
+    showLoqiInViewer(
+        payload.loqi,
+        `${source}, ${new Date().toLocaleTimeString()}`,
+        "Show LOQI from the last reasoner run",
+    );
+}
+
+function showLoqiInViewer(text, source, buttonTitle) {
+    loqiViewerText = text;
+    loqiViewerSource = source;
     const button = document.getElementById("loqi-button");
-    if (button) button.disabled = false;
+    if (button) {
+        button.disabled = false;
+        button.title = buttonTitle;
+        button.setAttribute("aria-label", buttonTitle);
+    }
     if (isLoqiModalOpen()) renderLoqiModal();
+}
+
+function initializeProblemLoqi() {
+    const scriptTag = document.getElementById("problem_loqi");
+    if (!scriptTag) return;
+    try {
+        const problem = JSON.parse(scriptTag.textContent);
+        showLoqiInViewer(
+            problem.loqi,
+            `generated problem, seed ${problem.seed}`,
+            "Show LOQI of the problem generated with the seed (until the first Reason or Hint run)",
+        );
+    } catch (error) {
+        console.error("Error parsing problem_loqi:", error);
+    }
 }
 
 function isLoqiModalOpen() {
@@ -477,7 +509,7 @@ function isLoqiModalOpen() {
 
 function openLoqiModal() {
     const modal = document.getElementById("loqi-modal");
-    if (!modal || lastReasonerLoqi === null) return;
+    if (!modal || loqiViewerText === null) return;
     modal.classList.remove("hidden");
     renderLoqiModal();
     const input = document.getElementById("loqi-search-input");
@@ -494,8 +526,8 @@ function renderLoqiModal() {
     const title = document.getElementById("loqi-modal-title");
     const textBox = document.getElementById("loqi-text");
     if (!title || !textBox) return;
-    title.textContent = `LOQI (${lastReasonerLoqiSource})`;
-    const lines = (lastReasonerLoqi || "").split("\n").map((line) => line.replace(/\r$/, ""));
+    title.textContent = `LOQI (${loqiViewerSource})`;
+    const lines = (loqiViewerText || "").split("\n").map((line) => line.replace(/\r$/, ""));
     const declarations = indexLoqiDeclarations(lines);
     let insideObject = false;
     textBox.innerHTML = lines.map((line, index) => {
@@ -644,7 +676,7 @@ function findLoqiDeclarations(text, query) {
 
 function updateLoqiSearch() {
     const query = document.getElementById("loqi-search-input")?.value.trim() || "";
-    loqiMatches = query && lastReasonerLoqi ? findLoqiDeclarations(lastReasonerLoqi, query) : [];
+    loqiMatches = query && loqiViewerText ? findLoqiDeclarations(loqiViewerText, query) : [];
     loqiMatchIndex = loqiMatches.length > 0 ? 0 : -1;
     showLoqiMatch(query);
 }
@@ -685,7 +717,7 @@ function showLoqiMatch(query) {
 
 async function copyLoqiText() {
     try {
-        await navigator.clipboard.writeText(lastReasonerLoqi || "");
+        await navigator.clipboard.writeText(loqiViewerText || "");
     } catch (error) {
         alert(`Could not copy LOQI: ${error}`);
     }
@@ -729,4 +761,5 @@ function initializeLoqiModal() {
 }
 
 initializeLoqiModal();
+initializeProblemLoqi();
 updateTraceView();

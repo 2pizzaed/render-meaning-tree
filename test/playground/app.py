@@ -1,6 +1,7 @@
 import argparse
 import traceback
-from functools import cache
+from dataclasses import dataclass
+from functools import cache, lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -12,8 +13,11 @@ from src.coderenderer.html import extract_buttons_from_context, prepare_html_con
 from src.dot import render_dot_svg
 from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
+from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
+from src.generator.value_plan import action_key
 from src.helpers.tpg import (
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,
@@ -26,17 +30,20 @@ from src.helpers.tpg.explanations import (
     flatten_explanation_texts,
 )
 from src.helpers.tpg.loqi_values import LoqiPropertyResolver
+from src.model.situation import SemanticValue
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
 from test.helpers.env import make_project_temp_dir
-from test.scripts.find_correct_trace_actions import build_correct_trace_registry
+from test.scripts.find_correct_trace_actions import solve_correct_trace
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"
 PLAYGROUND_REASON_TREE: str | None = None
 PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
 PLAYGROUND_SNIPPETS_DIR = PROJECT_ROOT / "test" / "data"
+# Ситуаций (код, языки, seed) в памяти: генерация задачи по seed занимает до минут.
+PLAYGROUND_SITUATION_CACHE_SIZE = 16
 # Расширение файла примера → исходный язык playground.
 SNIPPET_LANGUAGES_BY_SUFFIX: dict[str, SupportedProgrammingLanguage] = {
     ".java": "java",
@@ -82,11 +89,62 @@ def read_target_language(value: str | None) -> SupportedProgrammingLanguage | Li
     return value
 
 
+def read_seed(value: object) -> int | None:
+    text = str(value or "").strip()
+    return int(text) if text else None
+
+
+@dataclass(frozen=True, slots=True)
+class PlaygroundSituation:
+    # Не изменяется: рассуждатель достраивает трассу, поэтому запросы берут registry.clone().
+    registry: SituationRegistry
+    # Вариант значений и исходный LOQI задачи генератора; None у ситуации по умолчанию.
+    problem: str | None = None
+    problem_loqi: str | None = None
+
+
+@lru_cache(maxsize=PLAYGROUND_SITUATION_CACHE_SIZE)
+def load_situation(
+    code: str,
+    language: SupportedProgrammingLanguage,
+    target_language: SupportedProgrammingLanguage | Literal[""],
+    seed: int | None,
+) -> PlaygroundSituation:
+    """Ситуация по умолчанию, а при seed — первая по Q задача генератора."""
+    manager = prepare_code(code, language, target_language=target_language or None)
+    if seed is None:
+        return PlaygroundSituation(code_manager_to_registry(manager))
+
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed)
+    problems = pipeline.run().results()
+    if not problems:
+        reason = pipeline.termination_reason or "all value variants were rejected, see the server log"
+        raise ValueError(f"No problems generated for seed {seed}: {reason}")
+    # results() упорядочены по номеру варианта, max берёт первую из равных по Q.
+    problem = max(problems, key=lambda problem: problem.score or 0.0)
+
+    # Registry родителя после ветвления остаётся исходной ситуацией: корневой акт
+    # и значения по умолчанию. Значения задачи заменяют их, трасса строится заново.
+    registry = pipeline.registry
+    for action in registry.all_actions():
+        values = problem.values.get(action_key(action))
+        if values is not None:
+            action.values = [SemanticValue(value) for value in values]
+            action.bind_values()
+    _, problem_loqi = registry_to_loqi(registry)
+    return PlaygroundSituation(
+        registry,
+        problem=f"{problem.variant}; N={problem.steps}; Q={problem.score or 0.0:.2f}",
+        problem_loqi=problem_loqi,
+    )
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     code = ""
     language: SupportedProgrammingLanguage = "java"
     target_language: SupportedProgrammingLanguage | Literal[""] = ""
+    seed_text = ""
     enable_trace = True
     context = {
         "lines": [],
@@ -102,18 +160,22 @@ def index():
         code = request.form.get("code", "")
         language = read_language(request.form.get("language"), "java")
         target_language = read_target_language(request.form.get("target_language"))
+        seed_text = request.form.get("seed", "").strip()
 
         if not language:
             error = "No language specified"
         else:
             try:
-                manager = prepare_code(code, language, target_language=target_language or None)
-                context = prepare_html_context(manager, answer_objects={})
+                situation = load_situation(code, language, target_language, read_seed(seed_text))
+                registry = situation.registry.clone()
+                context = prepare_html_context(registry.code, answer_objects={})
                 answer_objects = build_answer_objects(
-                    manager,
+                    registry,
                     context,
                     enable_trace=enable_trace,
                 )
+                context["problem"] = situation.problem
+                context["problem_loqi"] = situation.problem_loqi
                 context["answer_objects"] = answer_objects
                 context["answer_objects_json"] = (
                     app.json.dumps(answer_objects, ensure_ascii=False, indent=4)
@@ -138,6 +200,7 @@ def index():
     context.setdefault("language", language)
     context.setdefault("target_language", target_language)
     context.setdefault("enable_trace", enable_trace)
+    context["seed"] = seed_text
     context["language_options"] = LANGUAGE_OPTIONS
     context["snippet"] = request.form.get("snippet", "") if request.method == "POST" else ""
     context["snippet_options"] = list_snippet_files(_snippets_dir())
@@ -211,12 +274,9 @@ def reason_trace():
 
     reasoning_tmp: Path | None = None
     try:
-        manager = prepare_code(
-            code,
-            language,
-            target_language=target_language or None,
-        )
-        registry = code_manager_to_registry(manager)
+        registry = load_situation(
+            code, language, target_language, read_seed(payload.get("seed"))
+        ).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_actions = resolve_actions_from_trace(serializer, selected_trace)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
@@ -267,12 +327,9 @@ def hint_trace():
 
     hint_tmp: Path | None = None
     try:
-        manager = prepare_code(
-            code,
-            language,
-            target_language=target_language or None,
-        )
-        registry = code_manager_to_registry(manager)
+        registry = load_situation(
+            code, language, target_language, read_seed(payload.get("seed"))
+        ).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_actions = resolve_actions_from_trace(serializer, selected_trace)
         hint_tmp = _playground_temp_dir("playground-hint-")
@@ -327,16 +384,25 @@ def hint_trace():
     )
 
 
+@app.post("/clear-cache")
+def clear_cache():
+    load_situation.cache_clear()
+    return jsonify({"ok": True})
+
+
 @app.post("/tracing")
 def tracing():
     code = request.form.get("code", "")
     language = read_language(request.form.get("language"), "java")
+    target_language = read_target_language(request.form.get("target_language"))
 
     try:
         solver_stops: set[int] = set()
-        registry = build_correct_trace_registry(
-            code,
-            language=language,
+        registry = load_situation(
+            code, language, target_language, read_seed(request.form.get("seed"))
+        ).registry.clone()
+        solve_correct_trace(
+            registry,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
             temp_root=_playground_temp_root(),
             solver_stops=solver_stops,
@@ -368,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def build_answer_objects(
-    manager,
+    registry: SituationRegistry,
     context: dict[str, object],
     *,
     enable_trace: bool,
@@ -376,7 +442,6 @@ def build_answer_objects(
     """Temporary hook for answer-trace payload generation."""
     if not enable_trace:
         return None
-    registry = code_manager_to_registry(manager)
     serializer, _ = registry_to_loqi(registry)
     return {
         str(button["action_id"]): resolve_button_action_name(

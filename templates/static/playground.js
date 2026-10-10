@@ -2,11 +2,13 @@
 const RENDER_CODE_STORAGE_KEY = "playground.render.code";
 const RENDER_LANGUAGE_STORAGE_KEY = "playground.render.language";
 const RENDER_TARGET_LANGUAGE_STORAGE_KEY = "playground.render.targetLanguage";
+const RENDER_SEED_STORAGE_KEY = "playground.render.seed";
 const ACTIVE_TAB_STORAGE_KEY = "playground.activeTabIndex";
 const renderForm = document.querySelector('form[action="/"]');
 const renderCodeTextarea = renderForm?.querySelector('textarea[name="code"]');
 const renderLanguageSelect = renderForm?.querySelector('select[name="language"]');
 const renderTargetLanguageSelect = renderForm?.querySelector('select[name="target_language"]');
+const renderSeedInput = renderForm?.querySelector('input[name="seed"]');
 
 function readStoredValue(key) {
     try {
@@ -44,6 +46,11 @@ if (renderCodeTextarea && savedRenderCode !== null && renderCodeTextarea.value =
 restoreSelectValue(renderLanguageSelect, RENDER_LANGUAGE_STORAGE_KEY);
 restoreSelectValue(renderTargetLanguageSelect, RENDER_TARGET_LANGUAGE_STORAGE_KEY);
 
+const savedRenderSeed = readStoredValue(RENDER_SEED_STORAGE_KEY);
+if (renderSeedInput && savedRenderSeed !== null && renderSeedInput.value === "") {
+    renderSeedInput.value = savedRenderSeed;
+}
+
 if (renderForm && renderCodeTextarea) {
     renderForm.addEventListener("submit", () => {
         storeValue(RENDER_CODE_STORAGE_KEY, renderCodeTextarea.value);
@@ -52,6 +59,9 @@ if (renderForm && renderCodeTextarea) {
         }
         if (renderTargetLanguageSelect) {
             storeValue(RENDER_TARGET_LANGUAGE_STORAGE_KEY, renderTargetLanguageSelect.value);
+        }
+        if (renderSeedInput) {
+            storeValue(RENDER_SEED_STORAGE_KEY, renderSeedInput.value);
         }
     });
 }
@@ -66,6 +76,30 @@ if (renderTargetLanguageSelect) {
     renderTargetLanguageSelect.addEventListener("change", () => {
         storeValue(RENDER_TARGET_LANGUAGE_STORAGE_KEY, renderTargetLanguageSelect.value);
     });
+}
+
+if (renderSeedInput) {
+    renderSeedInput.addEventListener("input", () => {
+        storeValue(RENDER_SEED_STORAGE_KEY, renderSeedInput.value);
+    });
+}
+
+async function clearSituationCache() {
+    const button = document.getElementById("clear-cache-button");
+    if (!button) return;
+    button.disabled = true;
+    try {
+        const response = await fetch("/clear-cache", {method: "POST"});
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        button.classList.add("done");
+        setTimeout(() => button.classList.remove("done"), 1500);
+    } catch (error) {
+        alert(`Unable to clear cache: ${error}`);
+    } finally {
+        button.disabled = false;
+    }
 }
 
 // --- Code Examples ---

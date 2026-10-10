@@ -6,11 +6,17 @@ from typing import Any
 
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
+from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
+from src.generator.value_plan import action_key
 from src.model.situation import Action
 from test.playground import app as playground_app
-from test.playground.app import build_answer_objects
+from test.playground.app import (
+    PlaygroundSituation,
+    build_answer_objects,
+    load_situation,
+)
 
 
 def test_playground_serves_template_static_assets() -> None:
@@ -59,11 +65,10 @@ def test_build_answer_objects_exports_action_names_only() -> None:
     buttons = extract_buttons_from_context(context)
     assert buttons
 
-    answer_objects = build_answer_objects(manager, context, enable_trace=True)
+    answer_objects = build_answer_objects(code_manager_to_registry(manager), context, enable_trace=True)
     assert answer_objects
 
-    registry = code_manager_to_registry(manager)
-    serializer, _ = registry_to_loqi(registry)
+    serializer, _ = registry_to_loqi(code_manager_to_registry(manager))
 
     assert all(isinstance(value, str) for value in answer_objects.values())
     assert all(
@@ -83,7 +88,7 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     )
     manager = prepare_code(code, "python")
     context = prepare_html_context(manager, answer_objects={})
-    answer_objects = build_answer_objects(manager, context, enable_trace=True)
+    answer_objects = build_answer_objects(code_manager_to_registry(manager), context, enable_trace=True)
     assert answer_objects is not None
     trace = [str(value) for value in answer_objects.values()][:2]
     assert trace
@@ -188,7 +193,7 @@ def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
     )
     manager = prepare_code(code, "python")
     context = prepare_html_context(manager, answer_objects={})
-    answer_objects = build_answer_objects(manager, context, enable_trace=True)
+    answer_objects = build_answer_objects(code_manager_to_registry(manager), context, enable_trace=True)
     assert answer_objects is not None
     names = [str(value) for value in answer_objects.values()]
     trace, hint_name = names[:1], names[1]
@@ -236,6 +241,74 @@ def test_hint_trace_reports_finished_program(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["finished"] is True
     assert payload["action"] is None
+
+
+def test_load_situation_with_seed_uses_first_generated_problem_values() -> None:
+    code = textwrap.dedent(
+        """
+        if x:
+            y = 1
+        else:
+            y = 2
+        """
+    )
+    manager = prepare_code(code, "python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=7)
+    problems = pipeline.run().results()
+    best = max(problems, key=lambda problem: problem.score or 0.0)
+
+    situation = load_situation(code, "python", "", 7)
+
+    assert load_situation(code, "python", "", 7) is situation
+    assert situation.problem is not None and best.variant in situation.problem
+    registry = situation.registry
+    assert len(registry.trace_acts) == 1
+    assert {
+        action_key(action): tuple(value.bool_value for value in action.values)
+        for action in registry.all_actions()
+        if action.is_condition
+    } == best.values
+
+
+def test_load_situation_without_seed_keeps_default_values() -> None:
+    situation = load_situation("if x:\n    y = 1\n", "python", "", None)
+
+    assert situation.problem is None
+    [condition] = [action for action in situation.registry.all_actions() if action.is_condition]
+    assert [value.bool_value for value in condition.values] == [True]
+
+
+def test_index_embeds_problem_loqi_only_for_generated_problem(monkeypatch) -> None:
+    code = "if x:\n    y = 1\n"
+    default = load_situation(code, "python", "", None)
+    problem = PlaygroundSituation(
+        default.registry, problem="if@1=if; N=3; Q=0.50", problem_loqi="obj p : Act {}"
+    )
+    monkeypatch.setattr(
+        playground_app,
+        "load_situation",
+        lambda code, language, target_language, seed: default if seed is None else problem,
+    )
+    client = playground_app.app.test_client()
+    form = {"code": code, "language": "python", "target_language": ""}
+
+    seeded = client.post("/", data={**form, "seed": "5"}).get_data(as_text=True)
+    plain = client.post("/", data={**form, "seed": ""}).get_data(as_text=True)
+
+    assert 'id="problem_loqi"' in seeded
+    assert '"loqi": "obj p : Act {}"' in seeded and '"seed": "5"' in seeded
+    assert "if@1=if; N=3; Q=0.50" in seeded
+    assert 'id="problem_loqi"' not in plain
+
+
+def test_clear_cache_endpoint_drops_cached_situations() -> None:
+    situation = load_situation("y = 1\n", "python", "", None)
+
+    response = playground_app.app.test_client().post("/clear-cache")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True}
+    assert load_situation("y = 1\n", "python", "", None) is not situation
 
 
 def test_trace_template_renders_loqi_viewer_only_outside_static_page() -> None:

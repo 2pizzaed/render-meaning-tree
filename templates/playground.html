@@ -36,6 +36,21 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="form-group">
+                <label for="seed-input">Seed</label>
+                <div class="seed-row">
+                    <input id="seed-input" name="seed" class="seed-input" type="number" step="1" value="{{ seed|default('') }}"
+                           placeholder="Default condition values"
+                           title="Render the first top-k problem generated with this seed. Empty: default condition values.">
+                    <button type="button" id="clear-cache-button" class="clear-cache-button" onclick="clearSituationCache()"
+                            title="Clear cached situations and generated problems" aria-label="Clear cached situations and generated problems">
+                        <i class="ri-refresh-line" aria-hidden="true"></i>
+                    </button>
+                </div>
+                {% if problem %}
+                <div class="problem-info" title="Selected problem: condition values variant, steps N and score Q">{{ problem }}</div>
+                {% endif %}
+            </div>
             <button type="submit" class="submit-btn">Render</button>
             {% if snippet_options %}
             <div class="form-group snippet-group">
@@ -125,6 +140,9 @@
     <script type="application/json" id="answer_objects">
         {{ answer_objects_json | safe }}
     </script>
+    {% if problem_loqi %}
+    <script type="application/json" id="problem_loqi">{{ {"seed": seed, "loqi": problem_loqi} | tojson }}</script>
+    {% endif %}
     {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/jsoneditor@10.4.3/dist/jsoneditor.min.js"></script>

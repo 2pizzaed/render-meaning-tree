@@ -138,7 +138,10 @@ fragment findLastTracedAction(last: TraceAct) {
     ) {
         body -> {
         // Найти последнее действие последнего вложенного конструкта, из которого еще не вышли
-        // (BEGIN/END конструкта ищутся в кадре акта: END вложенной активации той же функции его не закрывает)
+        // (BEGIN/END конструкта ищутся в кадре акта: END вложенной активации той же функции его не закрывает).
+        // Закрывает только END в акте prev или после него: END прошлого выполнения конструкта
+        // в том же кадре (прошлая итерация цикла) лежит раньше. Сам prev учитывается, потому что
+        // только что добавленный END-акт становится кандидатом prev.
         var currentAct: TraceAct = findExtreme act [$act == last or $act=>isCloserToThan(last, $prev)] among TraceAct prev {
             forAny TraceAct c {
                 $c->inFrame == $prev->inFrame
@@ -147,7 +150,8 @@ fragment findLastTracedAction(last: TraceAct) {
             and not forAny TraceAct c {
                 $c->inFrame == $prev->inFrame
                 and $c->hasAction->belongsTo == $prev->hasAction->belongsTo
-                and $c->hasAction->derivedFrom.role == "END"}
+                and $c->hasAction->derivedFrom.role == "END"
+                and ($c == $prev or $c=>afterOf($prev))}
         } out true else {
             conclude: error [exception = true; exceptionName = "UnclosedInterruption"];
         };

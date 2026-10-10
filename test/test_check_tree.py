@@ -333,17 +333,8 @@ print(f(2))
 """
 
 # Рекурсия: активации одной функции различаются кадрами вызова (TraceAct.inFrame).
-# Семантические значения пока общие для всех активаций, и resetUsedValues при каждом
-# входе в функцию начинает цепочку условия заново: условие, охраняющее рекурсивный
-# вызов, всегда истинно, рекурсия не завершается (эталонная трасса findCorrect не
-# доходит до конца). Сценарии проверены с отключённым сбросом (значения расходуются
-# по трассе: патч задаёт их для всех активаций подряд); при привязке значений к
-# активации патчи, вероятно, придётся переписать под новую модель. Кейсы уже в общем
-# CHECK_CASES: после исправления значений снять RECURSION_XFAIL (оставив обычные CheckCase).
-RECURSION_XFAIL = pytest.mark.xfail(
-    reason="семантические значения общие для всех активаций функции: рекурсия не завершается",
-    strict=True,
-)
+# Значения условий расходуются по всей трассе, поэтому патч задаёт их для всех активаций
+# подряд; при привязке значений к активации патчи, вероятно, придётся переписать.
 RECURSION_VALUES: tuple[ValuePatch, ...] = ((2, "first_cond", [True, True, False]),)
 
 # -- Сценарии ------------------------------------------------------------------
@@ -963,85 +954,65 @@ CHECK_CASES: list[Any] = [
         value_patches=((2, "first_cond", [True]),),
     ),
     # --- Рекурсия ---
-    pytest.param(
-        CheckCase(
-            # Рекурсивный вызов из тела f: вызов лежит в теле той же функции,
-            # связь «вызов -> тело функции» не должна считать, что он уже идёт.
-            id="recursion_call_entered",
-            language="python",
-            code=RECURSION_DEPTH2,
-            advance_to=(2, "first_cond"),
-            action=(3, "BEGIN", "func_call_structure"),
-            expected_skills=("construct_entered_before_inner",),
-            expected_correct=True,
-            value_patches=RECURSION_VALUES,
-        ),
+    CheckCase(
+        # Рекурсивный вызов из тела f: вызов лежит в теле той же функции,
+        # связь «вызов -> тело функции» не должна считать, что он уже идёт.
         id="recursion_call_entered",
-        marks=RECURSION_XFAIL,
+        language="python",
+        code=RECURSION_DEPTH2,
+        advance_to=(2, "first_cond"),
+        action=(3, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
     ),
-    pytest.param(
-        CheckCase(
-            # Второй рекурсивный вызов (из активации f(1)): тот же конструкт
-            # вызова уже выполняется во внешней активации f(2).
-            id="recursion_second_call_entered",
-            language="python",
-            code=RECURSION_DEPTH2,
-            advance_to=(2, "first_cond"),
-            advance_occurrence=2,
-            action=(3, "BEGIN", "func_call_structure"),
-            expected_skills=("construct_entered_before_inner",),
-            expected_correct=True,
-            value_patches=RECURSION_VALUES,
-        ),
+    CheckCase(
+        # Второй рекурсивный вызов (из активации f(1)): тот же конструкт
+        # вызова уже выполняется во внешней активации f(2).
         id="recursion_second_call_entered",
-        marks=RECURSION_XFAIL,
+        language="python",
+        code=RECURSION_DEPTH2,
+        advance_to=(2, "first_cond"),
+        advance_occurrence=2,
+        action=(3, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
     ),
-    pytest.param(
-        CheckCase(
-            # После print самой вложенной активации f(0) выполнение возвращается
-            # в активацию f(1): завершается её рекурсивный вызов.
-            id="recursion_return_to_outer_activation",
-            language="python",
-            code=RECURSION_DEPTH2,
-            advance_to=(4, "next"),
-            action=(3, "END", "func_call_structure"),
-            expected_skills=("inner_construct_finished_before_next",),
-            expected_correct=True,
-            value_patches=RECURSION_VALUES,
-        ),
+    CheckCase(
+        # После print самой вложенной активации f(0) выполнение возвращается
+        # в активацию f(1): завершается её рекурсивный вызов.
         id="recursion_return_to_outer_activation",
-        marks=RECURSION_XFAIL,
+        language="python",
+        code=RECURSION_DEPTH2,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        expected_skills=("inner_construct_finished_before_next",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
     ),
-    pytest.param(
-        CheckCase(
-            # Оттуда же сразу к завершению внешнего вызова f(2) нельзя: активации
-            # f(1) и f(2) ещё выполняются.
-            id="recursion_outer_call_end_too_early",
-            language="python",
-            code=RECURSION_DEPTH2,
-            advance_to=(4, "next"),
-            action=(7, "END", "func_call_structure"),
-            expected_skills=("inner_construct_finished_before_next",),
-            value_patches=RECURSION_VALUES,
-        ),
+    CheckCase(
+        # Оттуда же сразу к завершению внешнего вызова f(2) нельзя: активации
+        # f(1) и f(2) ещё выполняются.
         id="recursion_outer_call_end_too_early",
-        marks=RECURSION_XFAIL,
+        language="python",
+        code=RECURSION_DEPTH2,
+        advance_to=(4, "next"),
+        action=(7, "END", "func_call_structure"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=RECURSION_VALUES,
     ),
-    pytest.param(
-        CheckCase(
-            # Выход из рекурсии по return: прерывание снимается на вызове
-            # своей активации, завершается рекурсивный вызов активации f(1).
-            id="recursion_return_statement_to_outer_activation",
-            language="python",
-            code=RECURSION_RETURN,
-            advance_to=(4, "next"),
-            action=(3, "END", "func_call_structure"),
-            expected_skills=("inner_construct_finished_before_next",),
-            expected_correct=True,
-            value_patches=RECURSION_VALUES,
-        ),
+    CheckCase(
+        # Выход из рекурсии по return: прерывание снимается на вызове
+        # своей активации, завершается рекурсивный вызов активации f(1).
         id="recursion_return_statement_to_outer_activation",
-        marks=RECURSION_XFAIL,
+        language="python",
+        code=RECURSION_RETURN,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        expected_skills=("inner_construct_finished_before_next",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
     ),
 ]
 

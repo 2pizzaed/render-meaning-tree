@@ -1062,54 +1062,11 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         "python_for_if_reentry.loqi",
         {(2, 2): [True, True]},
     ),
-]
-
-
-def _normalize_sequence_case(case: tuple[object, ...]) -> SequenceCase:
-    if len(case) == 5:
-        language, code, expected_roles, expected_actions, loqi_filename = case
-        return (
-            cast(str, language),
-            cast(str, code),
-            cast(dict[int, list[str]] | None, expected_roles),
-            cast(list[tuple[int, int]], expected_actions),
-            cast(str, loqi_filename),
-            None,
-        )
-
-    language, code, expected_roles, expected_actions, loqi_filename, value_patches = (
-        case
-    )
-    return (
-        cast(str, language),
-        cast(str, code),
-        cast(dict[int, list[str]] | None, expected_roles),
-        cast(list[tuple[int, int]], expected_actions),
-        cast(str, loqi_filename),
-        cast(ActionValuePatches | None, value_patches),
-    )
-
-
-SEQUENCE_CASE_PARAMS: list[SequenceCase] = [
-    _normalize_sequence_case(case) for case in SEQUENCE_CASES
-]
-
-# Рекурсия: активации одной функции различаются кадрами вызова (TraceAct.inFrame),
-# возврат из вложенной активации продолжает внешнюю. Семантические значения пока
-# общие для всех активаций, и resetUsedValues при каждом входе в функцию начинает
-# цепочку условия заново, поэтому условие, охраняющее рекурсивный вызов, всегда
-# истинно и рекурсия не завершается. Ожидаемые последовательности сняты с
-# отключённым сбросом (значения расходуются по трассе: патч задаёт их для всех
-# активаций подряд); при привязке значений к активации патчи, вероятно, придётся
-# переписать под новую модель. Кейсы уже идут в общей параметризации
-# test_solve_tree_sequences: после исправления значений снять RECURSION_XFAIL и
-# перенести их в SEQUENCE_CASES.
-RECURSION_XFAIL = pytest.mark.xfail(
-    reason="семантические значения общие для всех активаций функции: рекурсия не завершается",
-    strict=True,
-)
-
-RECURSION_SEQUENCE_CASES: list[tuple[object, ...]] = [
+    # --- Рекурсия ---
+    # Активации одной функции различаются кадрами вызова (TraceAct.inFrame), возврат
+    # из вложенной активации продолжает внешнюю. Значения условий расходуются по всей
+    # трассе, поэтому патч задаёт их для всех активаций подряд; при привязке значений
+    # к активации патчи, вероятно, придётся переписать.
     (
         # Глубина 2: после возврата из вложенного вызова внешняя активация
         # продолжается с того же места (END вызова, оператор, print).
@@ -1221,6 +1178,36 @@ RECURSION_SEQUENCE_CASES: list[tuple[object, ...]] = [
 ]
 
 
+def _normalize_sequence_case(case: tuple[object, ...]) -> SequenceCase:
+    if len(case) == 5:
+        language, code, expected_roles, expected_actions, loqi_filename = case
+        return (
+            cast(str, language),
+            cast(str, code),
+            cast(dict[int, list[str]] | None, expected_roles),
+            cast(list[tuple[int, int]], expected_actions),
+            cast(str, loqi_filename),
+            None,
+        )
+
+    language, code, expected_roles, expected_actions, loqi_filename, value_patches = (
+        case
+    )
+    return (
+        cast(str, language),
+        cast(str, code),
+        cast(dict[int, list[str]] | None, expected_roles),
+        cast(list[tuple[int, int]], expected_actions),
+        cast(str, loqi_filename),
+        cast(ActionValuePatches | None, value_patches),
+    )
+
+
+SEQUENCE_CASE_PARAMS: list[SequenceCase] = [
+    _normalize_sequence_case(case) for case in SEQUENCE_CASES
+]
+
+
 # -- Tests --------------------------------------------------------------------
 
 
@@ -1300,10 +1287,6 @@ def test_plain_statements(tmp_path: Path):
         *(
             pytest.param(*case, id=Path(case[4]).stem)
             for case in SEQUENCE_CASE_PARAMS
-        ),
-        *(
-            pytest.param(*case, id=Path(case[4]).stem, marks=RECURSION_XFAIL)
-            for case in map(_normalize_sequence_case, RECURSION_SEQUENCE_CASES)
         ),
     ],
 )

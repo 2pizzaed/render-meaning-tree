@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         FragmentMetrics,
         ProblemGenerationConfig,
         ProblemMetrics,
+        QuestionOrigin,
         ReasonerBudget,
     )
     from src.generator.value_plan import ValuePlan, ValueVariant
@@ -52,6 +53,9 @@ class SituationRegistry(PipelineRegistry):
     value_plan: ValuePlan | None = None
     variant: ValueVariant | None = None
     metrics: ProblemMetrics | None = None
+    # Индексы актов трассы, на которых останавливался findCorrect (см. solver_stops).
+    solver_stops: set[int] = field(default_factory=set)
+    origin: QuestionOrigin | None = None
 
     def __post_init__(self) -> None:
         self.variables.setdefault("S", self.trace_state)

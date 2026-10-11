@@ -93,6 +93,14 @@ class ProblemGenerationConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class QuestionOrigin:
+    """Источник фрагмента для метаданных вопроса банка CompPrehension."""
+
+    origin: str
+    license: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class FragmentMetrics:
     cyclomatic_complexity: int
     # Первая непустая строка кода - для логов.
@@ -103,8 +111,12 @@ class FragmentMetrics:
 class ProblemMetrics:
     # Число непрозрачных действий корректной трассы (N).
     steps: int
+    # Число шагов студента: остановок findCorrect на непрозрачных действиях.
+    student_steps: int
     skills: frozenset[str]
     concepts: frozenset[str]
+    # Интегральная сложность задачи в (0, 1), по шагам студента.
+    complexity: float
     # Оценка Q; считается при отборе задач фрагмента.
     score: float | None = None
 
@@ -118,10 +130,19 @@ class LearningProblem:
     # Итоговые цепочки значений всех условий.
     values: dict[ActionKey, tuple[bool, ...]]
     steps: int
+    # Индексы актов трассы registry, которые студент отмечает сам.
+    student_step_indexes: tuple[int, ...]
     skills: frozenset[str]
     concepts: frozenset[str]
+    complexity: float
     score: float | None
     cyclomatic_complexity: int
-    # Описание варианта значений, например ``while@3=2, if@5=else``.
+    # Номер и описание варианта значений, например ``while@3=2, if@5=else``.
+    variant_index: int
     variant: str
     seed: int
+    origin: QuestionOrigin | None
+
+    @property
+    def student_steps(self) -> int:
+        return len(self.student_step_indexes)

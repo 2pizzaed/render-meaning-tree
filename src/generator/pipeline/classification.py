@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import shutil
 import tempfile
 from pathlib import Path
@@ -91,6 +92,7 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
                 max_iterations=config.max_steps,
                 time_limit_seconds=config.reasoner_time_limit_seconds,
                 before_iteration=self._before_reasoner_call,
+                solver_stops=self.registry.solver_stops,
             )
         except TraceTooLong:
             self.terminate(self._too_long_reason())
@@ -135,10 +137,15 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
             return
         ast = self.registry.code.ast
         trace = self.registry.trace_acts
+        concepts = frozenset(collect_concepts(ast, trace))
+        student_steps = len(self._student_step_indexes())
+        cyclomatic = _required(self.registry.fragment, "fragment").cyclomatic_complexity
         self.registry.metrics = ProblemMetrics(
             steps=steps,
+            student_steps=student_steps,
             skills=frozenset(collect_skills(ast, trace)),
-            concepts=frozenset(collect_concepts(ast, trace)),
+            concepts=concepts,
+            complexity=integral_complexity(student_steps, cyclomatic, len(concepts)),
         )
 
     def collect(self) -> LearningProblem:
@@ -153,12 +160,16 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
                 if action.is_condition
             },
             steps=metrics.steps,
+            student_step_indexes=self._student_step_indexes(),
             skills=metrics.skills,
             concepts=metrics.concepts,
+            complexity=metrics.complexity,
             score=metrics.score,
             cyclomatic_complexity=_required(registry.fragment, "fragment").cyclomatic_complexity,
+            variant_index=self.variant.index,
             variant=self.variant.description,
             seed=registry.seed,
+            origin=registry.origin,
         )
 
     def _before_reasoner_call(self, registry: SituationRegistry) -> None:
@@ -211,6 +222,19 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
     def _too_long_reason(self) -> str:
         return f"трасса длиннее N_max={self.config.max_steps} непрозрачных действий"
 
+    def _student_step_indexes(self) -> tuple[int, ...]:
+        """Шаги студента - остановки findCorrect на непрозрачных действиях.
+
+        За вызов findCorrect останавливается на одном шаге студента, а последний вызов -
+        на END программы: прозрачный END - признак завершения, а не шаг. Структурные
+        непрозрачные действия (``next`` перед ветвлением, ``if_branch``) проходятся
+        автоматически и шагами не считаются.
+        """
+        trace = self.registry.trace_acts
+        return tuple(
+            index for index in sorted(self.registry.solver_stops) if trace[index].action.is_opaque
+        )
+
     def _opaque_steps(self) -> int:
         return sum(1 for trace_act in self.registry.trace_acts if trace_act.action.is_opaque)
 
@@ -224,6 +248,26 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
     def _action(self, key: tuple[int | None, str]) -> Action:
         ast_id, role = key
         return self.registry.require_action(ast_id=ast_id, role=role)
+
+
+def integral_complexity(
+    student_steps: int, cyclomatic_complexity: int, concept_count: int
+) -> float:
+    """Интегральная сложность задачи в (0, 1).
+
+    Линейная модель с прошлой версии генератора (qgen_utils), откалиброванная на
+    других метриках: число всех актов трассы, 1 + число условий CFG и прежний набор
+    концептов. Здесь в неё подставляются шаги студента, M и концепты текущей
+    классификации, поэтому значения сопоставимы только приблизительно.
+    """
+    score = (
+        0.39399354
+        + 0.16434003 * (concept_count + 2)
+        + 0.01391854 * student_steps
+        + 0.05685927 * cyclomatic_complexity
+    )
+    # Линейная оценка лежит примерно в [1, 3]; сдвиг и масштаб центрируют её для сигмоиды.
+    return 1 / (1 + math.exp(-(score - 2) * 5))
 
 
 def _values_of(action: Action) -> tuple[bool, ...]:

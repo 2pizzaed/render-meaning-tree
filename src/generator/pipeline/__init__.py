@@ -28,6 +28,7 @@ from src.generator.problems import (
     FragmentMetrics,
     ProblemGenerationConfig,
     ProblemMetrics,
+    QuestionOrigin,
 )
 from src.generator.registry import SituationRegistry
 from src.generator.skills import ERRORNEOUS_SKILLS
@@ -99,6 +100,11 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         return cls(
             SituationRegistry(code=code, config=config, budget=config.new_budget(), seed=seed)
         )
+
+    def set_origin(self, origin: str, license: str | None = None) -> Self:
+        """Источник и лицензия фрагмента для метаданных задач; вызывать до генерации веток."""
+        self.registry.origin = QuestionOrigin(origin, license)
+        return self
 
     @property
     def config(self) -> ProblemGenerationConfig:

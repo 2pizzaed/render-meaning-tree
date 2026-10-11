@@ -16,8 +16,7 @@ from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
-from src.generator.utilities import code_manager_to_registry
-from src.generator.value_plan import action_key
+from src.generator.utilities import code_manager_to_registry, problem_statement_registry
 from src.helpers.tpg import (
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,
@@ -30,7 +29,6 @@ from src.helpers.tpg.explanations import (
     flatten_explanation_texts,
 )
 from src.helpers.tpg.loqi_values import LoqiPropertyResolver
-from src.model.situation import SemanticValue
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
@@ -123,14 +121,8 @@ def load_situation(
     # results() упорядочены по номеру варианта, max берёт первую из равных по Q.
     problem = max(problems, key=lambda problem: problem.score or 0.0)
 
-    # Registry родителя после ветвления остаётся исходной ситуацией: корневой акт
-    # и значения по умолчанию. Значения задачи заменяют их, трасса строится заново.
-    registry = pipeline.registry
-    for action in registry.all_actions():
-        values = problem.values.get(action_key(action))
-        if values is not None:
-            action.values = [SemanticValue(value) for value in values]
-            action.bind_values()
+    # Ситуация условия задачи: корневой акт и значения задачи, трасса строится заново.
+    registry = problem_statement_registry(pipeline.registry, problem)
     _, problem_loqi = registry_to_loqi(registry)
     return PlaygroundSituation(
         registry,

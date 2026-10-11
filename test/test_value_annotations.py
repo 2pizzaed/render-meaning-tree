@@ -108,6 +108,41 @@ def test_annotated_condition_gets_manual_values_by_default():
 
 
 @pytest.mark.parametrize(
+    ("code", "language"),
+    [
+        (
+            (
+                'def f(n):\n    if n > 0:  # <! (T, "n > 0, n=1"), (F, "f(0)") >\n'
+                "        f(n - 1)\nf(1)\n"
+            ),
+            "python",
+        ),
+        (
+            (
+                "void f(int n) {\n"
+                '    if (n > 0) { // <!(T,"n > 0, n=1") ,( F , "f(0)")>\n'
+                "        f(n - 1);\n    }\n}\n"
+                "int main() {\n    f(1);\n    return 0;\n}\n"
+            ),
+            "c++",
+        ),
+    ],
+    ids=["python", "c++"],
+)
+def test_tuple_marker_sets_value_hints(code: str, language: str):
+    registry = code_snippet_to_registry(code, language=language)
+
+    [condition] = [action for action in registry.all_actions() if action.is_condition]
+
+    assert condition.annotation is not None
+    assert condition.annotation.marker == '<! (T, "n > 0, n=1"), (F, "f(0)") >'
+    assert [(value.bool_value, value.hint) for value in condition.values] == [
+        (True, "n > 0, n=1"),
+        (False, "f(0)"),
+    ]
+
+
+@pytest.mark.parametrize(
     ("code", "language", "message"),
     [
         pytest.param(
@@ -140,6 +175,12 @@ def test_annotated_condition_gets_manual_values_by_default():
             "python",
             r"строка 1: некорректная разметка <! TX >",
             id="malformed",
+        ),
+        pytest.param(
+            'while x:  # <! (T, "a") (F, "b") >\n    x = 0\n',
+            "python",
+            r"строка 1: некорректная разметка .*: ожидалось «,», а не «\(»",
+            id="malformed-tuples",
         ),
     ],
 )

@@ -13,12 +13,14 @@ import re
 from src.ast_managers import CodeManager, NodePathElement
 from src.coderenderer.entities import RendererEntity, Token
 from src.generator.registry import SituationRegistry
+from src.generator.value_marker import (
+    ValueMarkerSyntaxError,
+    format_value_marker,
+    is_value_marker,
+    parse_value_marker,
+)
 from src.model.situation import Action, ValueAnnotation
 
-# Комментарий, похожий на маркер; содержимое проверяется отдельно, чтобы опечатка
-# в маркере давала ошибку, а не превращала его в обычный комментарий.
-_MARKER_RE = re.compile(r"^\s*<!(?P<body>.*)>\s*$", re.DOTALL)
-_VALUES_RE = re.compile(r"^\s*(?P<values>[TF]+)\s*$")
 # Префикс однострочного комментария в тексте токена.
 _COMMENT_PREFIX_RE = re.compile(r"^\s*(?:#|//)")
 # Поля, через которые владелец комментария попадает в тело конструкции.
@@ -31,10 +33,6 @@ _TRAILING_CONDITION_TYPES = frozenset({"do_while_loop"})
 
 class ValueAnnotationError(ValueError):
     """Ошибка разметки; сообщение готово для лога."""
-
-
-def is_value_marker(content: str) -> bool:
-    return _MARKER_RE.match(content) is not None
 
 
 def is_value_marker_token(entity: RendererEntity) -> bool:
@@ -69,15 +67,16 @@ def bind_value_annotations(registry: SituationRegistry) -> None:
     for comment in code.ast.find_paths_by_type("comment"):
         node = code.ast.get(comment.id)
         content = str(node.get("content", "")) if node is not None else ""
-        marker = _MARKER_RE.match(content)
-        if marker is None:
-            continue
-
         line = code.code_line_number_by_id(comment.id)
         prefix = f"строка {line}: " if line is not None else ""
-        values = _VALUES_RE.match(marker.group("body"))
+        try:
+            values = parse_value_marker(content)
+        except ValueMarkerSyntaxError as error:
+            raise ValueAnnotationError(
+                f"{prefix}некорректная разметка {content.strip()}: {error}"
+            ) from error
         if values is None:
-            raise ValueAnnotationError(f"{prefix}некорректная разметка {content.strip()}")
+            continue
 
         action = _annotated_condition(registry, comment)
         if action is None:
@@ -90,7 +89,9 @@ def bind_value_annotations(registry: SituationRegistry) -> None:
                 f"{action.annotation.line}"
             )
         action.annotation = ValueAnnotation(
-            values=tuple(char == "T" for char in values.group("values")),
+            values=tuple(item.value for item in values),
+            hints=tuple(item.hint for item in values),
+            marker=format_value_marker(values),
             line=line,
         )
 

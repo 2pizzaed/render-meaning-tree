@@ -531,8 +531,11 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         points = choice_points(self.registry, max_loop_iterations=self.config.max_loop_iterations)
         chains = chains_for_all_entries(self.registry, points, default_patterns(self.registry))
         for action in (*self.registry.all_actions(), *self.registry.anonymous_actions):
-            values = chains.get(action_key(action), default_condition_values(action))
-            action.values = [SemanticValue(value) for value in values]
+            if action.annotation is not None:
+                action.values = action.annotation.semantic_values()
+            else:
+                values = chains.get(action_key(action), default_condition_values(action))
+                action.values = [SemanticValue(value) for value in values]
             action.bind_values()
 
     def check_fragment(self) -> None:

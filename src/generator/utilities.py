@@ -97,9 +97,14 @@ def problem_statement_registry(
     statement = base.clone()
     for action in statement.all_actions():
         values = problem.values.get(action_key(action))
-        if values is not None:
+        if values is None:
+            continue
+        # Цепочка разметки в задаче - префикс разметки (хвост срезан), подсказки берутся из неё.
+        if action.annotation is not None:
+            action.values = action.annotation.semantic_values(len(values))
+        else:
             action.values = [SemanticValue(value) for value in values]
-            action.bind_values()
+        action.bind_values()
     return statement
 
 

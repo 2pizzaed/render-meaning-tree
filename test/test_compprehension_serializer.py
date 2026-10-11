@@ -95,6 +95,26 @@ def test_statement_registry_is_root_act_with_problem_values(
     assert _condition_values(pipeline.registry) == base_values
 
 
+def test_statement_registry_keeps_marker_hints_of_used_values():
+    code = textwrap.dedent(
+        """
+        def fact(n):
+            if n <= 1:  # <! (F, "n=3"), (F, "n=2"), (T, "n=1"), (T, "unused") >
+                return 1
+            return n * fact(n - 1)
+        fact(3)
+        """
+    )
+    manager = prepare_code(code, "python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, config=FAST_CONFIG)
+    [problem] = pipeline.run().results()
+
+    statement = problem_statement_registry(pipeline.registry, problem)
+
+    [condition] = [action for action in statement.all_actions() if action.is_condition]
+    assert [value.hint for value in condition.values] == ["n=3", "n=2", "n=1"]
+
+
 def _condition_values(registry: SituationRegistry) -> dict[ActionKey, tuple[bool, ...]]:
     return {
         action_key(action): tuple(value.bool_value for value in action.values)

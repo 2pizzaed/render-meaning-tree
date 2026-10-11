@@ -202,11 +202,18 @@ class ValueAnnotation:
     """Цепочка значений условия, заданная вручную комментарием ``<! … >``."""
 
     values: tuple[bool, ...]
+    # Подсказки значений по позициям; None - подсказка по умолчанию.
+    hints: tuple[str | None, ...]
+    # Каноническая запись маркера для сообщений.
+    marker: str
     line: int | None
 
-    @property
-    def marker(self) -> str:
-        return "<! " + "".join("T" if value else "F" for value in self.values) + " >"
+    def semantic_values(self, count: int | None = None) -> list[SemanticValue]:
+        """Новые значения первых ``count`` позиций цепочки (по умолчанию всей)."""
+        return [
+            SemanticValue(value, hint_override=hint)
+            for value, hint in zip(self.values[:count], self.hints, strict=False)
+        ]
 
 
 @dataclass(slots=True)

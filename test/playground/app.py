@@ -11,9 +11,15 @@ from flask import Flask, jsonify, render_template, request, send_file
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.dot import render_dot_svg
+from src.generator.compprehension_serializer import (
+    QuestionTemplateError,
+    problem_to_question_template,
+)
 from src.generator.helpers.actions import resolve_actions_from_trace
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.problems import LearningProblem
+from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry, problem_statement_registry
@@ -99,6 +105,10 @@ class PlaygroundSituation:
     # Вариант значений и исходный LOQI задачи генератора; None у ситуации по умолчанию.
     problem: str | None = None
     problem_loqi: str | None = None
+    # Для экспорта вопросов: задачи генератора по убыванию Q и исходная ситуация
+    # фрагмента (registry генератора после ветвления); пусты у ситуации по умолчанию.
+    problems: tuple[LearningProblem, ...] = ()
+    base_registry: SituationRegistry | None = None
 
 
 @lru_cache(maxsize=PLAYGROUND_SITUATION_CACHE_SIZE)
@@ -118,8 +128,10 @@ def load_situation(
     if not problems:
         reason = pipeline.termination_reason or "all value variants were rejected, see the server log"
         raise ValueError(f"No problems generated for seed {seed}: {reason}")
-    # results() упорядочены по номеру варианта, max берёт первую из равных по Q.
-    problem = max(problems, key=lambda problem: problem.score or 0.0)
+    # results() упорядочены по номеру варианта, сортировка устойчива: из равных по Q
+    # первой остаётся задача с меньшим номером варианта.
+    problems = sorted(problems, key=lambda problem: -(problem.score or 0.0))
+    problem = problems[0]
 
     # Ситуация условия задачи: корневой акт и значения задачи, трасса строится заново.
     registry = problem_statement_registry(pipeline.registry, problem)
@@ -128,6 +140,8 @@ def load_situation(
         registry,
         problem=f"{problem.variant}; N={problem.steps}; Q={problem.score or 0.0:.2f}",
         problem_loqi=problem_loqi,
+        problems=tuple(problems),
+        base_registry=pipeline.registry,
     )
 
 
@@ -138,6 +152,7 @@ def index():
     target_language: SupportedProgrammingLanguage | Literal[""] = ""
     seed_text = ""
     enable_trace = True
+    export_situation: dict[str, object] | None = None
     context = {
         "lines": [],
         "nodes_json": "{}",
@@ -178,6 +193,14 @@ def index():
                 context["language"] = language
                 context["target_language"] = target_language
                 context["enable_trace"] = enable_trace
+                # Параметры отрисованной ситуации: экспорт не зависит от правок формы после Render.
+                export_situation = {
+                    "code": code,
+                    "language": language,
+                    "target_language": target_language,
+                    "seed": seed_text,
+                    "questionCount": len(situation.problems),
+                }
 
             except Exception as e:
                 traceback.print_exc()
@@ -193,6 +216,7 @@ def index():
     context.setdefault("target_language", target_language)
     context.setdefault("enable_trace", enable_trace)
     context["seed"] = seed_text
+    context["export_situation"] = export_situation
     context["language_options"] = LANGUAGE_OPTIONS
     context["snippet"] = request.form.get("snippet", "") if request.method == "POST" else ""
     context["snippet_options"] = list_snippet_files(_snippets_dir())
@@ -372,6 +396,45 @@ def hint_trace():
             "finished": hint.finished,
             "action": action_name,
             "loqi": hint.output.loqi_text,
+        }
+    )
+
+
+@app.post("/export-question")
+def export_question():
+    """Вопрос CompPrehension по задаче с номером ``index`` (по убыванию Q) для seed."""
+    payload = request.get_json(silent=True) or {}
+    code = str(payload.get("code") or "")
+    language = read_language(payload.get("language"), "java")
+    target_language = read_target_language(payload.get("target_language"))
+    index = payload.get("index")
+    if not isinstance(index, int) or isinstance(index, bool):
+        return jsonify({"ok": False, "error": "Question index must be an integer."}), 400
+
+    try:
+        seed = read_seed(payload.get("seed"))
+        if seed is None:
+            return jsonify({"ok": False, "error": "Questions are exported only for a seed."}), 400
+        situation = load_situation(code, language, target_language, seed)
+        if situation.base_registry is None or not 0 <= index < len(situation.problems):
+            return jsonify({"ok": False, "error": f"No problem #{index} for seed {seed}."}), 400
+        problem = situation.problems[index]
+        statement = problem_statement_registry(situation.base_registry, problem)
+        question = problem_to_question_template(
+            problem, statement, render_question_html(statement.code)
+        )
+    except QuestionTemplateError as e:
+        app.logger.warning("Question #%d for seed %s skipped: %s", index, payload.get("seed"), e)
+        return jsonify({"ok": False, "skipped": True, "error": str(e)}), 422
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": format_error(e)}), 500
+
+    return jsonify(
+        {
+            "ok": True,
+            "name": question["commonQuestion"]["questionData"]["questionName"],
+            "question": question,
         }
     )
 

@@ -246,21 +246,6 @@ function initializeSourceMapEditor() {
 
 initializeSourceMapEditor();
 
-function openSourceMapJson() {
-    if (typeof SOURCE_MAP_DATA === "undefined" || SOURCE_MAP_DATA === null) {
-        return;
-    }
-    // Blob с типом application/json браузер показывает как сырой текст в новой вкладке.
-    const blob = new Blob([JSON.stringify(SOURCE_MAP_DATA, null, 2)], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const tab = window.open(url, "_blank");
-    if (!tab) {
-        alert("Could not open a new tab: the browser blocked the popup.");
-    }
-    // Вкладка успевает загрузить документ; ссылку освобождаем позже.
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
 function findSourceMapNodePath(value, nodeId, nodeType = null, path = ["origin"]) {
     if (!value || typeof value !== "object") {
         return null;
@@ -422,6 +407,142 @@ function handleTokenClick(element) {
         });
     });
 }
+
+// --- Export ---
+const exportSituationTag = document.getElementById("export_situation");
+// Параметры отрисованной ситуации: экспорт не зависит от правок формы после Render.
+const EXPORT_SITUATION = exportSituationTag ? JSON.parse(exportSituationTag.textContent) : null;
+// Вкладка успевает загрузить документ, а браузер — начать скачивание; ссылку освобождаем позже.
+const EXPORT_URL_LIFETIME_MS = 60000;
+
+function jsonBlob(data) {
+    // Blob с типом application/json браузер показывает как сырой текст в новой вкладке.
+    return new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+}
+
+// tab — вкладка, открытая заранее по клику: после await браузер блокирует window.open.
+function deliverBlob(blob, filename, mode, tab = null) {
+    const url = URL.createObjectURL(blob);
+    if (mode === "download") {
+        // Ссылку вне документа часть браузеров открывает без имени из download (UUID без расширения).
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+    } else if (tab) {
+        tab.location.href = url;
+    } else if (!window.open(url, "_blank")) {
+        showExportError("Could not open a new tab: the browser blocked the popup.");
+    }
+    setTimeout(() => URL.revokeObjectURL(url), EXPORT_URL_LIFETIME_MS);
+}
+
+function exportJson(filename, data, mode) {
+    deliverBlob(jsonBlob(data), filename, mode);
+}
+
+function showExportError(message) {
+    document.getElementById("export-error-text").textContent = message;
+    document.getElementById("export-error-dialog").showModal();
+}
+
+function setExportStatus(done, total, text) {
+    const status = document.getElementById("export-status");
+    const progress = document.getElementById("export-progress");
+    status.hidden = false;
+    progress.max = total;
+    progress.value = done;
+    document.getElementById("export-status-text").textContent = text;
+}
+
+// Несколько вопросов упаковываются в ZIP, а его можно только скачать.
+function updateExportQuestionButtons(busy = false) {
+    const input = document.getElementById("export-question-count");
+    const openButton = document.getElementById("export-questions-open");
+    const downloadButton = document.getElementById("export-questions-download");
+    if (!input || !openButton || !downloadButton) return;
+    const zipped = Number(input.value) > 1;
+    input.disabled = busy;
+    downloadButton.disabled = busy;
+    openButton.disabled = busy || zipped;
+    openButton.title = zipped ? "Several questions are packed into a ZIP archive: download it" : "";
+}
+
+async function fetchExportQuestion(index) {
+    const response = await fetch("/export-question", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            code: EXPORT_SITUATION.code,
+            language: EXPORT_SITUATION.language,
+            target_language: EXPORT_SITUATION.target_language,
+            seed: EXPORT_SITUATION.seed,
+            index,
+        }),
+    });
+    return response.json().catch(() => ({ok: false, error: `HTTP ${response.status}`}));
+}
+
+async function exportQuestions(mode) {
+    const input = document.getElementById("export-question-count");
+    if (!EXPORT_SITUATION || !input?.reportValidity()) return;
+    const count = Number(input.value);
+    if (count > 1 && typeof JSZip !== "function") {
+        showExportError("JSZip is not loaded: the ZIP archive cannot be built.");
+        return;
+    }
+    const tab = mode === "open" ? window.open("", "_blank") : null;
+    if (mode === "open" && !tab) {
+        showExportError("Could not open a new tab: the browser blocked the popup.");
+        return;
+    }
+
+    updateExportQuestionButtons(true);
+    const questions = [];
+    // Задачу, которую нельзя упаковать, сервер пропускает (warning в логе playground).
+    const skipped = [];
+    try {
+        for (let index = 0; index < count; index++) {
+            setExportStatus(index, count, `Packing question ${index + 1} of ${count}...`);
+            const payload = await fetchExportQuestion(index);
+            if (payload.ok) {
+                questions.push(payload);
+            } else if (payload.skipped) {
+                skipped.push(`#${index + 1}: ${payload.error}`);
+            } else {
+                throw new Error(payload.error);
+            }
+        }
+        if (questions.length === 0) {
+            throw new Error(`No question could be packed:\n${skipped.join("\n")}`);
+        }
+
+        if (questions.length === 1) {
+            const [{name, question}] = questions;
+            deliverBlob(jsonBlob(question), `${name}.json`, mode, tab);
+        } else {
+            setExportStatus(count, count, "Building ZIP archive...");
+            const zip = new JSZip();
+            questions.forEach(({name, question}) => zip.file(`${name}.json`, JSON.stringify(question, null, 2)));
+            const archive = await zip.generateAsync({type: "blob", mimeType: "application/zip"});
+            deliverBlob(archive, `questions-seed-${EXPORT_SITUATION.seed}.zip`, "download");
+        }
+        const skippedText = skipped.length ? `, ${skipped.length} skipped (see the playground log)` : "";
+        setExportStatus(count, count, `Exported ${questions.length} of ${count}${skippedText}.`);
+    } catch (error) {
+        tab?.close();
+        setExportStatus(0, count, "Export failed.");
+        showExportError(String(error.message || error));
+    } finally {
+        updateExportQuestionButtons();
+    }
+}
+
+document.getElementById("export-question-count")?.addEventListener("input", () => updateExportQuestionButtons());
+updateExportQuestionButtons();
 
 function handleButtonClick(btn) {
     const actionId = btn.getAttribute("data-action-id");

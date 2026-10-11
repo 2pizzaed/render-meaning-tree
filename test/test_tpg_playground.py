@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import textwrap
 from types import SimpleNamespace
 from typing import Any
 
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
+from src.generator.compprehension_serializer import QuestionTemplateError
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
@@ -49,6 +51,7 @@ def test_playground_renders_node_id_search_when_source_map_is_available() -> Non
     assert 'id="node-id-search-input"' in rendered
     assert 'id="node-id-search-form"' in rendered
     assert 'class="ri-search-line"' in rendered
+    assert "source-map-json-button" not in rendered
 
 
 def test_build_answer_objects_exports_action_names_only() -> None:
@@ -261,6 +264,10 @@ def test_load_situation_with_seed_uses_first_generated_problem_values() -> None:
 
     assert load_situation(code, "python", "", 7) is situation
     assert situation.problem is not None and best.variant in situation.problem
+    assert situation.problems[0].variant == best.variant
+    scores = [problem.score or 0.0 for problem in situation.problems]
+    assert scores == sorted(scores, reverse=True)
+    assert situation.base_registry is not None
     registry = situation.registry
     assert len(registry.trace_acts) == 1
     assert {
@@ -299,6 +306,109 @@ def test_index_embeds_problem_loqi_only_for_generated_problem(monkeypatch) -> No
     assert '"loqi": "obj p : Act {}"' in seeded and '"seed": "5"' in seeded
     assert "if@1=if; N=3; Q=0.50" in seeded
     assert 'id="problem_loqi"' not in plain
+
+
+def test_index_renders_export_tab_with_question_count_only_for_seed(monkeypatch) -> None:
+    code = "if x:\n    y = 1\n"
+    default = load_situation(code, "python", "", None)
+    seeded =PlaygroundSituation(
+        default.registry,
+        problem="if@1=if; N=3; Q=0.50",
+        problems=(SimpleNamespace(), SimpleNamespace()),  # type: ignore[arg-type]
+        base_registry=default.registry,
+    )
+    monkeypatch.setattr(
+        playground_app,
+        "load_situation",
+        lambda code, language, target_language, seed: default if seed is None else seeded,
+    )
+    client = playground_app.app.test_client()
+    form = {"code": code, "language": "python", "target_language": ""}
+
+    with_seed = client.post("/", data={**form, "seed": "5"}).get_data(as_text=True)
+    without_seed = client.post("/", data={**form, "seed": ""}).get_data(as_text=True)
+
+    assert 'data-tab-name="tab-export"' in with_seed
+    assert 'id="export-question-count"' in with_seed and 'max="2"' in with_seed
+    assert '"questionCount": 2' in with_seed and '"seed": "5"' in with_seed
+    assert 'data-tab-name="tab-export"' in without_seed
+    assert 'id="export-question-count"' not in without_seed
+    assert "Render with a seed to export generated questions." in without_seed
+
+
+def _export_situation(monkeypatch) -> PlaygroundSituation:
+    default = load_situation("if x:\n    y = 1\n", "python", "", None)
+    situation = PlaygroundSituation(
+        default.registry,
+        problems=(SimpleNamespace(values={}),),  # type: ignore[arg-type]
+        base_registry=default.registry,
+    )
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: situation)
+    return situation
+
+
+def test_export_question_returns_question_template(monkeypatch) -> None:
+    situation = _export_situation(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_problem_to_question_template(problem, statement, html):  # type: ignore[no-untyped-def]
+        captured["problem"] = problem
+        captured["statement"] = statement
+        return {"commonQuestion": {"questionData": {"questionName": "if_x_1_0"}}}
+
+    monkeypatch.setattr(
+        playground_app, "problem_to_question_template", fake_problem_to_question_template
+    )
+
+    response = playground_app.app.test_client().post(
+        "/export-question",
+        json={"code": "c", "language": "python", "target_language": "", "seed": "5", "index": 0},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True and payload["name"] == "if_x_1_0"
+    assert payload["question"]["commonQuestion"]["questionData"]["questionName"] == "if_x_1_0"
+    assert captured["problem"] is situation.problems[0]
+    # Условие строится на копии исходной ситуации, кэш не меняется.
+    assert captured["statement"] is not situation.base_registry
+
+
+def test_export_question_logs_and_reports_skipped_problem(monkeypatch, caplog) -> None:
+    _export_situation(monkeypatch)
+
+    def fail(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise QuestionTemplateError("no buttons for trace steps: act_1")
+
+    monkeypatch.setattr(playground_app, "problem_to_question_template", fail)
+
+    with caplog.at_level(logging.WARNING, logger=playground_app.app.logger.name):
+        response = playground_app.app.test_client().post(
+            "/export-question", json={"code": "c", "language": "python", "seed": "5", "index": 0}
+        )
+
+    assert response.status_code == 422
+    assert response.get_json() == {
+        "ok": False,
+        "skipped": True,
+        "error": "no buttons for trace steps: act_1",
+    }
+    assert "no buttons for trace steps: act_1" in caplog.text
+
+
+def test_export_question_rejects_missing_seed_and_unknown_index(monkeypatch) -> None:
+    _export_situation(monkeypatch)
+    client = playground_app.app.test_client()
+    body = {"code": "c", "language": "python"}
+
+    no_seed = client.post("/export-question", json={**body, "seed": "", "index": 0})
+    out_of_range = client.post("/export-question", json={**body, "seed": "5", "index": 1})
+    bad_index = client.post("/export-question", json={**body, "seed": "5", "index": "0"})
+
+    assert no_seed.status_code == 400
+    assert out_of_range.status_code == 400
+    assert bad_index.status_code == 400
+    assert out_of_range.get_json()["ok"] is False
 
 
 def test_clear_cache_endpoint_drops_cached_situations() -> None:

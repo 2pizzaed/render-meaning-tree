@@ -91,6 +91,7 @@
                 <button class="tab active" data-tab-name="tab-inspector" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
                 {% if source_map %}<button class="tab" data-tab-name="tab-source-map" onclick="openTab(event, 'tab-source-map')">Source Map</button>{% endif %}
                 {% if enable_trace and answer_objects %}<button class="tab" data-tab-name="tab-trace" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
+                {% if export_situation and not static_used %}<button class="tab" data-tab-name="tab-export" onclick="openTab(event, 'tab-export')">Export</button>{% endif %}
             </div>
             
             <div id="tab-inspector" class="tab-content active">
@@ -105,11 +106,6 @@
                         <button type="submit" aria-label="Find node in Source Map"
                                 title="Find node in Source Map">
                             <i class="ri-search-line" aria-hidden="true"></i>
-                        </button>
-                        <button type="button" id="source-map-json-button" class="source-map-json-button"
-                                onclick="openSourceMapJson()" aria-label="Open Source Map JSON in a new tab"
-                                title="Open Source Map JSON in a new tab">
-                            JSON
                         </button>
                     </form>
                     {% endif %}
@@ -130,6 +126,66 @@
                 {% include 'playground_trace.html' %}
             </div>
             {% endif %}
+
+            {% if export_situation and not static_used %}
+            <div id="tab-export" class="tab-content">
+                <div class="export-list">
+                    {% if source_map %}
+                    <div class="export-row">
+                        <div class="export-label">Source Map <span class="export-format">JSON</span></div>
+                        <div class="export-actions">
+                            <button type="button" class="export-button" onclick="exportJson('source-map.json', SOURCE_MAP_DATA, 'open')">
+                                <i class="ri-external-link-line" aria-hidden="true"></i> Open
+                            </button>
+                            <button type="button" class="export-button" onclick="exportJson('source-map.json', SOURCE_MAP_DATA, 'download')">
+                                <i class="ri-download-2-line" aria-hidden="true"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="export-row">
+                        <div class="export-label">Meaning Tree <span class="export-format">JSON, origin of Source Map</span></div>
+                        <div class="export-actions">
+                            <button type="button" class="export-button" onclick="exportJson('meaning-tree.json', SOURCE_MAP_DATA.origin, 'open')">
+                                <i class="ri-external-link-line" aria-hidden="true"></i> Open
+                            </button>
+                            <button type="button" class="export-button" onclick="exportJson('meaning-tree.json', SOURCE_MAP_DATA.origin, 'download')">
+                                <i class="ri-download-2-line" aria-hidden="true"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="export-row">
+                        <div class="export-label">Questions <span class="export-format">CompPrehension JSON, ZIP for several</span></div>
+                        {% if export_situation.questionCount %}
+                        <div class="export-actions">
+                            <input id="export-question-count" class="export-count" type="number" step="1"
+                                   min="1" max="{{ export_situation.questionCount }}" value="{{ export_situation.questionCount }}"
+                                   aria-label="Number of questions to export"
+                                   title="Top questions by Q generated with seed {{ export_situation.seed }}">
+                            <span class="export-hint">of {{ export_situation.questionCount }} (seed {{ export_situation.seed }})</span>
+                            <button type="button" id="export-questions-open" class="export-button" onclick="exportQuestions('open')">
+                                <i class="ri-external-link-line" aria-hidden="true"></i> Open
+                            </button>
+                            <button type="button" id="export-questions-download" class="export-button" onclick="exportQuestions('download')">
+                                <i class="ri-download-2-line" aria-hidden="true"></i> Download
+                            </button>
+                        </div>
+                        {% else %}
+                        <div class="export-hint">Render with a seed to export generated questions.</div>
+                        {% endif %}
+                    </div>
+                    <div id="export-status" class="export-status" aria-live="polite" hidden>
+                        <progress id="export-progress" max="1" value="0"></progress>
+                        <span id="export-status-text"></span>
+                    </div>
+                </div>
+            </div>
+            <dialog id="export-error-dialog" class="export-error-dialog" aria-labelledby="export-error-title">
+                <div id="export-error-title" class="export-error-title">Export failed</div>
+                <pre id="export-error-text" class="export-error-text"></pre>
+                <form method="dialog"><button class="export-button">Close</button></form>
+            </dialog>
+            {% endif %}
         </div>
     </div>
 
@@ -138,6 +194,10 @@
         const AST_DATA = {{ nodes_json | safe }};
         const SOURCE_MAP_DATA = {{ source_map | tojson }};
     </script>
+
+    {% if export_situation and not static_used %}
+    <script type="application/json" id="export_situation">{{ export_situation | tojson }}</script>
+    {% endif %}
 
     {% if enable_trace and answer_objects %}
     <script type="application/json" id="answer_objects">
@@ -153,6 +213,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     {% endif %}
     <script src="/static/playground.js"></script>
     {% if enable_trace and answer_objects %}

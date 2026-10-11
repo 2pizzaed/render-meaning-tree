@@ -133,12 +133,10 @@ def solve_graph_full_reasoning(
         previous_trace_length = len(last_output.trace_acts)
 
         current_trace_act = registry.variables.get("P")
-        if (
-            solver_stops is not None
-            and isinstance(current_trace_act, TraceAct)
-            and current_trace_act in registry.trace_acts
-        ):
-            solver_stops.add(registry.trace_acts.index(current_trace_act))
+        if solver_stops is not None and isinstance(current_trace_act, TraceAct):
+            stop_index = registry.trace_act_index(current_trace_act)
+            if stop_index is not None:
+                solver_stops.add(stop_index)
         current_action = (
             current_trace_act.action
             if isinstance(current_trace_act, TraceAct)

@@ -1086,6 +1086,8 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             4: ["next"],
             7: ["first", "BEGIN", "END"],
         },
+        # Оператор-вызов (`f(n - 1)`, `f(2)`) - не шаг студента: после выхода из
+        # вызова (END) сразу следующий оператор.
         [
             (7, 1),
             (2, 2),
@@ -1096,14 +1098,11 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             (4, 0),
             # возврат в активацию f(1)
             (3, 3),
-            (3, 1),
             (4, 0),
             # возврат в активацию f(2)
             (3, 3),
-            (3, 1),
             (4, 0),
             (7, 2),
-            (7, 0),
         ],
         "python_recursion_depth2.loqi",
         {(2, 2): [True, True, False]},
@@ -1165,12 +1164,9 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
             (6, 2),
             (8, 0),
             (2, 3),
-            (2, 1),
             (7, 3),
-            (7, 1),
             (8, 0),
             (11, 2),
-            (11, 0),
         ],
         "python_recursion_mutual.loqi",
         {(6, 2): [True, False]},
@@ -1420,8 +1416,9 @@ def _assert_solve_sequence(
             trace_act_interruptions=trace_state_history,
         )
         p_act = registry.variables.get("P")
-        if isinstance(p_act, TraceAct) and p_act in registry.trace_acts:
-            solver_stops.add(registry.trace_acts.index(p_act))
+        stop_index = registry.trace_act_index(p_act) if isinstance(p_act, TraceAct) else None
+        if stop_index is not None:
+            solver_stops.add(stop_index)
 
     _write_final_loqi_trace_artifacts(
         tmp_path,

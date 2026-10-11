@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from src.ast_managers import prepare_code
+from src.generator.lookup import lookup_function_call_definition_by_ast_id
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.serialization import (
     registry_to_loqi,
@@ -294,6 +295,18 @@ def test_situation_registry_require_action_rejects_ambiguous_matches():
 
     with pytest.raises(LookupError, match="Expected exactly one action"):
         pipeline.registry.require_action(role="body", construct_ast_id=10)
+
+
+def test_trace_act_index_distinguishes_equal_acts_of_repeated_action():
+    registry = code_snippet_to_registry("x = 1\n")
+    action = registry.trace_acts[0].action
+    first = TraceAct(action, None, registry)
+    repeated = TraceAct(action, None, registry)
+    registry.trace_acts.extend([first, repeated])
+
+    assert first == repeated
+    assert registry.trace_act_index(repeated) == len(registry.trace_acts) - 1
+    assert registry.trace_act_index(TraceAct(action, None, registry)) is None
 
 
 def test_situation_registry_collects_used_rules_before_situation_objects():
@@ -979,6 +992,42 @@ def test_domain_pipeline_skips_call_construct_for_non_user_defined_function():
     call_nodes = registry.code.ast.find_paths_by_type("function_call")
     assert len(call_nodes) == 1
     assert registry.get_construct_for(call_nodes[0].id) is None
+
+
+def test_user_function_call_with_call_argument_gets_call_construct():
+    registry = code_snippet_to_registry(
+        "def f(a, b):\n    return a + b\n\narr = [1, 2]\ny = f(1, len(arr))\n"
+    )
+
+    [user_call] = [
+        path
+        for path in registry.code.ast.find_paths_by_type("function_call")
+        if lookup_function_call_definition_by_ast_id(registry.code, path.id) is not None
+    ]
+    construct = registry.get_construct_for(user_call.id)
+    assert construct is not None
+    assert construct.rule.name == "func_call_structure"
+
+
+@pytest.mark.parametrize(
+    ("statement", "rule_name"),
+    [
+        ("g(1)", "call_statement_structure"),
+        ("g(g(1))", "call_statement_structure"),
+        ("print(g(1))", "inline_compound_atom_structure"),
+        ("d.add(1)", "inline_compound_atom_structure"),
+        ("len(d)", "inline_compound_atom_structure"),
+    ],
+)
+def test_only_user_function_call_statement_is_call_statement(statement: str, rule_name: str):
+    registry = code_snippet_to_registry(
+        f"def g(a):\n    return a\n\nd = set()\n{statement}\n"
+    )
+
+    [statement_path] = registry.code.ast.find_paths_by_type("expression_statement")
+    construct = registry.get_construct_for(statement_path.id)
+    assert construct is not None
+    assert construct.rule.name == rule_name
 
 
 def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program_or_block():

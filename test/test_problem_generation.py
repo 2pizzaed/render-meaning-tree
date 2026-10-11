@@ -235,6 +235,38 @@ def test_rejected_fragment_gives_no_problems_with_logged_reason(
     assert any(reason in message for message in _reasons(caplog))
 
 
+def test_student_steps_count_every_loop_iteration():
+    problems = _problems(
+        """
+        x = 0
+        while x < 5:
+            x += 1
+        print(x)
+        """
+    )
+
+    assert {problem.variant for problem in problems} == {"while@2=0", "while@2=1", "while@2=2"}
+    for problem in problems:
+        iterations = int(problem.variant.split("=")[1])
+        # x = 0, условие на каждом заходе и при выходе, тело на каждой итерации, print.
+        assert problem.student_steps == 3 + 2 * iterations
+
+
+def test_student_steps_count_every_call_of_repeated_function():
+    [problem] = _problems(
+        """
+        def g(a):
+            return a + 1
+
+        g(1)
+        g(2)
+        """
+    )
+
+    # На каждый вызов: вход, return в теле, выход; операторы-вызовы - не шаги.
+    assert problem.student_steps == 6
+
+
 def test_annotated_recursion_gives_problem():
     [problem] = _problems(RECURSIVE_FACT.format(marker="  # <! FFT >"))
 

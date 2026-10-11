@@ -194,6 +194,16 @@ class SituationRegistry(PipelineRegistry):
 
         self.utilities.add(object)
 
+    def trace_act_index(self, trace_act: TraceAct) -> int | None:
+        """Индекс именно этого акта в трассе.
+
+        Поиск по идентичности: TraceAct сравнивается по полям, и акты повторного
+        выполнения действия (итерация цикла, повторный вызов) равны первому.
+        """
+        return next(
+            (index for index, act in enumerate(self.trace_acts) if act is trace_act), None
+        )
+
     def remember_action_order(self, action: Action) -> None:
         """Запомнить порядок появления action при структурном обходе автомата."""
 

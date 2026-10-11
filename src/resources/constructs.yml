@@ -626,6 +626,11 @@ inline_compound_atom_structure:
   preorder: true  # вложенные вызовы выполняются раньше самого оператора
   ast_node:
     query:
+      # Сам вызов - expression, но раскрывается func_call_structure, даже если в его
+      # аргументах есть другие вызовы.
+      - not:
+          type:
+            instanceof: ['function_call', 'method_call']
       - type:
           instanceof: *inline_atom_ast_nodes
         contains_any:
@@ -638,6 +643,34 @@ inline_compound_atom_structure:
     - role: content
       kind: optional
       opaque: false  # технический шаг к вложенным вызовам; шагом студента является сам оператор/условие
+  transitions:
+    - from: BEGIN
+      to: content
+      to_when_absent: END
+    - from: content
+      to: content
+      to_when_absent: END
+
+# Оператор - вызов пользовательской функции (`g(1)`): сам оператор не шаг студента.
+# Конструкт раскрывается после действия оператора с прозрачным BEGIN, поэтому
+# findCorrect добавляет оператор автоматически, и следующим шагом становится вход в
+# вызов. resolved_declaration_id у вызова есть только для функций из кода программы;
+# библиотечные вызовы (`print(x)`, `d.add(1)`) остаются обычными шагами.
+call_statement_structure:
+  kind: inline.compound
+  preorder: false
+  ast_node:
+    query:
+      - type: expression_statement
+        equals:
+          path: "expression / type"
+          value: function_call
+      - type: expression_statement
+        exists: "expression / resolved_declaration_id"
+  actions:
+    - role: content
+      kind: optional
+      opaque: false  # технический шаг к вложенным вызовам
   transitions:
     - from: BEGIN
       to: content

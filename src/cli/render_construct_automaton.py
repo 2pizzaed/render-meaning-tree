@@ -4,8 +4,8 @@ import argparse
 from pathlib import Path
 
 from src.generator.automaton import ConstructTransitionAutomaton
+from src.helpers.files import open_file_and_wait, resolve_project_root
 from src.model.rules import ConstructDeclaration, load_construct_declarations
-from test.helpers.env import open_file_and_wait, resolve_project_root
 
 DEFAULT_OUTPUT_DIR = Path("test") / "output"
 

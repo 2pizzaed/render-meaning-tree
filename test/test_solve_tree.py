@@ -10,16 +10,15 @@ from src.generator.helpers import (
 )
 from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
+from src.helpers.files import open_file_and_wait, resolve_project_root
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.rules import InterruptionType
 from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult
 from test.helpers import (
-    open_file_and_wait,
     pipeline_debug_json_artifacts,
     registries_to_loqi_files,
     render_trace_acts_artifacts,
-    resolve_project_root,
     should_open_test_artifacts,
 )
 

@@ -9,6 +9,7 @@ from typing import Literal
 from flask import Flask, jsonify, render_template, request, send_file
 
 from src.ast_managers import prepare_code
+from src.cli.find_correct_trace_actions import solve_correct_trace
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.dot import render_dot_svg
 from src.generator.compprehension_serializer import (
@@ -23,6 +24,7 @@ from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry, problem_statement_registry
+from src.helpers.files import make_project_temp_dir
 from src.helpers.tpg import (
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,
@@ -38,8 +40,6 @@ from src.helpers.tpg.loqi_values import LoqiPropertyResolver
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
-from test.helpers.env import make_project_temp_dir
-from test.scripts.find_correct_trace_actions import solve_correct_trace
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"

@@ -542,6 +542,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "colorama" },
+    { name = "flask" },
     { name = "httpx" },
     { name = "jinja2" },
     { name = "lxml" },
@@ -555,7 +556,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "flask" },
     { name = "jsonschema" },
     { name = "pyright" },
     { name = "pytest" },
@@ -567,6 +567,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.2" },
     { name = "colorama", specifier = ">=0.4.6" },
+    { name = "flask", specifier = ">=3.1.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "lxml", specifier = ">=6.0.2" },
@@ -580,7 +581,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "flask", specifier = ">=3.1.2" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "pyright", specifier = ">=1.1.409" },
     { name = "pytest", specifier = ">=8.3.5" },

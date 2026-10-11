@@ -7,9 +7,9 @@ import pytest
 from src.generator.concepts import collect_concepts
 from src.generator.skills import collect_skills, is_everything_evaluated
 from src.generator.utilities import code_snippet_to_registry
+from src.helpers.files import resolve_project_root
 from src.helpers.tpg.reasoning import solve_graph_full_reasoning
 from src.model.situation import SemanticValue
-from test.helpers.env import resolve_project_root
 
 
 @pytest.mark.parametrize(

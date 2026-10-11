@@ -62,9 +62,28 @@ def code_snippet_to_problems(
     config: ProblemGenerationConfig | None = None,
 ) -> list[LearningProblem]:
     """Учебные задачи по фрагменту: до ``config.top_k`` вариантов значений условий."""
+    pipeline = code_snippet_to_problem_pipeline(
+        code, language=language, mode=mode, seed=seed, config=config
+    )
+    return pipeline.results()
+
+
+def code_snippet_to_problem_pipeline(
+    code: str,
+    *,
+    language: str = "python",
+    mode: str = "procedural",
+    seed: int = DEFAULT_SEED,
+    config: ProblemGenerationConfig | None = None,
+    origin: str | None = None,
+    origin_license: str | None = None,
+) -> LearningProblemGeneratorPipeline:
+    """Выполненный pipeline задач по фрагменту: задачи - ``pipeline.results()``."""
     manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
     pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed, config=config)
-    return pipeline.run().results()
+    if origin is not None:
+        pipeline.set_origin(origin, origin_license)
+    return pipeline.run()
 
 
 def problem_statement_registry(
@@ -94,20 +113,31 @@ def code_snippet_to_question_templates(
     origin: str | None = None,
     origin_license: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Задачи по фрагменту в формате SerializableQuestionTemplate банка CompPrehension.
+    """Задачи по фрагменту в формате SerializableQuestionTemplate банка CompPrehension."""
+    pipeline = code_snippet_to_problem_pipeline(
+        code,
+        language=language,
+        mode=mode,
+        seed=seed,
+        config=config,
+        origin=origin,
+        origin_license=origin_license,
+    )
+    return problems_to_question_templates(pipeline, pipeline.results())
+
+
+def problems_to_question_templates(
+    pipeline: LearningProblemGeneratorPipeline, problems: list[LearningProblem]
+) -> list[dict[str, Any]]:
+    """Задачи выполненного ``pipeline`` в формате SerializableQuestionTemplate.
 
     Задача, которую нельзя упаковать (нет кнопок для действий трассы, сбой выгрузки
     RDF), пропускается с предупреждением в логе.
     """
-    manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
-    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed, config=config)
-    if origin is not None:
-        pipeline.set_origin(origin, origin_license)
-    problems = pipeline.run().results()
     if not problems:
         return []
 
-    html = render_question_html(manager)
+    html = render_question_html(pipeline.code)
     created_at = datetime.now(UTC)
     templates: list[dict[str, Any]] = []
     for problem in problems:

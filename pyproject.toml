@@ -16,6 +16,7 @@ dependencies = [
     "typing-extensions>=4.16.0",
     "pymorphy3>=2.0.6",
     "pymorphy3-dicts-ru>=2.4.417150.4580142",
+    "flask>=3.1.2",
 ]
 
 [build-system]
@@ -24,7 +25,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "flask>=3.1.2",
     "jsonschema>=4.26.0",
     "pyright>=1.1.409",
     "pytest>=8.3.5",
@@ -33,9 +33,10 @@ dev = [
 ]
 
 [project.scripts]
-find-correct-trace-actions = "test.scripts.find_correct_trace_actions:main"
-render-construct-automaton = "test.scripts.render_construct_automaton:main"
-generate-problems = "test.scripts.generate_problems:main"
+find-correct-trace-actions = "src.cli.find_correct_trace_actions:main"
+render-construct-automaton = "src.cli.render_construct_automaton:main"
+# main.py is not a package: importable only in the editable install (uv sync), not from a wheel.
+generate-problems = "main:main"
 playground = "test.playground.app:main"
 tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
 validate-dsm = "src.validate_dsm:main"
@@ -63,3 +64,6 @@ exclude = ["test/data", "**/node_modules", "**/__pycache__", "**/.*", ".venv"]
 [tool.uv.build-backend]
 module-name = ["src", "test"]
 module-root = ""
+# Generated test artifacts stay out of both sdist and wheel; test inputs stay only in sdist.
+source-exclude = ["test/output"]
+wheel-exclude = ["test/data"]

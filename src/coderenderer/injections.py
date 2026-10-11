@@ -38,6 +38,11 @@ def is_compound_type(node: NodePathElement) -> bool:
 
 
 
+def _call_node(node: NodePathElement) -> NodePathElement | None:
+    """Ближайший вызов функции, содержащий узел (или сам узел)."""
+    return node.find_first(lambda p: p.instanceof("function_call"))
+
+
 class ControlFlowButtons(InjectionPool):
     @observable_token()
     def is_simple_statement(cursor: TokenCursor):
@@ -76,26 +81,17 @@ class ControlFlowButtons(InjectionPool):
 
     @observable_token()
     def is_defined_function(cursor: TokenCursor):
-        node = stream_require(cursor.ast_node(0))
-        target = node.find_first(lambda p: p.instanceof("function_call"))
-        if not target:
-            return False
-        if target.instanceof("method_call"):
-            return True
-
-        node_source = target.get(cursor.manager.ast)
-        name = node_source.get("function", {}).get("repr_name")  # type: ignore
-        return node_source and \
-            name in cursor.manager.user_defined_function_names # type: ignore
-
+        # Кнопки вызова - только у вызовов, которые трассирует генератор задач.
+        target = _call_node(stream_require(cursor.ast_node(0)))
+        return (
+            target is not None
+            and cursor.manager.program_procedure_definition(target.id) is not None
+        )
 
     @observable_token(before=[is_defined_function])
     def is_function_call_start(cursor: TokenCursor):
-        node = stream_require(cursor.ast_node(0))
         token = cursor[0]
-
-        target = node.find_first(
-                lambda p : p.instanceof("function_call"))
+        target = _call_node(stream_require(cursor.ast_node(0)))
 
         return (
             target
@@ -110,12 +106,8 @@ class ControlFlowButtons(InjectionPool):
 
     @observable_token(before=[is_defined_function])
     def is_function_call_end(cursor: TokenCursor):
-        node = stream_require(cursor.ast_node(0))
         token = cursor[0]
-
-        target = node.find_first(
-            lambda p : p.instanceof("function_call")
-        )
+        target = _call_node(stream_require(cursor.ast_node(0)))
 
         return (
             target
@@ -402,8 +394,9 @@ class ControlFlowButtons(InjectionPool):
 
     @injection_for_all(is_function_call_start)
     def stepinto_button(point: InjectionPoint):
-        ast_node = point.ast_node(0)
-        target = point.context_node or ast_node
+        # Не context_node: у оператора, который начинается с вызова (`g(1)`), контекст
+        # первым выставляет is_simple_statement, а кнопка относится к самому вызову.
+        target = _call_node(stream_require(point.ast_node(0)))
         point.push_before(
             Button(
                 "step-into",
@@ -418,8 +411,7 @@ class ControlFlowButtons(InjectionPool):
 
     @injection_for_all(is_function_call_end)
     def stepout_button(point: InjectionPoint):
-        ast_node = point.ast_node(0)
-        target = point.context_node or ast_node
+        target = _call_node(stream_require(point.ast_node(0)))
         point.push_after(
             Button(
                 "step-out",

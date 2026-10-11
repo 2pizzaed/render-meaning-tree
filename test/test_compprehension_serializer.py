@@ -162,3 +162,18 @@ def test_templates_without_origin_omit_origin_fields():
     metadata = template["metadataList"][0]
     assert "origin" not in metadata
     assert "originLicense" not in metadata
+
+
+def test_repeated_function_calls_are_exported_with_answer_per_call():
+    [template] = code_snippet_to_question_templates(
+        "def g(a):\n    return a + 1\n\ng(1)\ng(2)\n", config=FAST_CONFIG
+    )
+
+    data = template["commonQuestion"]["questionData"]
+    entries = [
+        answer["domainInfo"] for answer in data["answerObjects"] if answer["hyperText"] == "step-into"
+    ]
+    assert len(entries) == 2
+    assert len(set(entries)) == 2
+    # На каждый вызов: вход, return в теле, выход.
+    assert template["metadataList"][0]["solutionSteps"] == 6

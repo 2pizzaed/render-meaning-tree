@@ -4,9 +4,9 @@ from typing import cast
 
 import pytest
 
-from src.ast_managers import ASTNodeManager, CodeManager, NodePathElement
+from src.ast_managers import ASTNodeManager, CodeManager, NodePathElement, prepare_code
 from src.coderenderer.entities import Token
-from src.types import Node, SourceMap
+from src.types import Node, SourceMap, SupportedProgrammingLanguage
 
 
 def _path(
@@ -216,3 +216,45 @@ def test_ast_node_manager_finds_paths_and_nodes_by_exact_type() -> None:
         second_statement,
     ]
     assert manager.ast.find_paths_by_type("missing") == []
+
+
+@pytest.mark.parametrize(
+    ("language", "code", "expected"),
+    [
+        pytest.param(
+            "python",
+            "def g(a):\n    return a\n\nd = set()\ng(1)\nlen(d)\nd.add(1)\n",
+            {"g(1)": True, "set()": False, "len(d)": False, "d.add(1)": False},
+            id="python",
+        ),
+        pytest.param(
+            "c++",
+            "int h(int a);\nint g(int a);\nint g(int a) { return a; }\n"
+            "int main() {\n  g(1);\n  h(2);\n  return 0;\n}\n",
+            {"g(1)": True, "h(2)": False},
+            id="cpp-prototype-without-body",
+        ),
+        pytest.param(
+            "java",
+            "class A {\n  static int g(int a) { return a; }\n"
+            "  public static void main(String[] args) {\n    g(1);\n"
+            "    StringBuilder d = new StringBuilder();\n    d.append(1);\n  }\n}\n",
+            {"g(1)": True, "d.append(1)": False},
+            id="java",
+        ),
+    ],
+)
+def test_program_procedure_definition_accepts_only_program_procedures_with_body(
+    language: SupportedProgrammingLanguage, code: str, expected: dict[str, bool]
+) -> None:
+    manager = prepare_code(code, language)
+
+    calls = {
+        manager.code_piece(path.id): manager.program_procedure_definition(path.id)
+        for path in manager.ast.find_paths_by_type("function_call")
+        + manager.ast.find_paths_by_type("method_call")
+    }
+
+    assert {call: definition is not None for call, definition in calls.items()} == expected
+    for definition in calls.values():
+        assert definition is None or definition["type"] == "function_definition"

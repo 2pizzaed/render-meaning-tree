@@ -10,7 +10,11 @@ import yaml
 
 from src.json_property_path import ResolvedJSONPath, resolve_json_property_path
 from src.json_search import JSONPath, get_node_by_path
-from src.model.ast_node_query import AstNodeQuery, AstNodeQuerySource
+from src.model.ast_node_query import (
+    AstNodeQuery,
+    AstNodeQuerySource,
+    ProgramCallMatcher,
+)
 from src.types import JSON, NodeQueryFormat
 
 type AstNodeTypeMatcher = Callable[[NodeQueryFormat, str], bool]
@@ -323,8 +327,11 @@ class ConstructDeclaration(SharedDeclaration):
         self,
         node: NodeQueryFormat,
         type_matcher: AstNodeTypeMatcher | None = None,
+        call_matcher: ProgramCallMatcher | None = None,
     ) -> bool:
-        return self.ast_node_query.matches(node, type_matcher=type_matcher)
+        return self.ast_node_query.matches(
+            node, type_matcher=type_matcher, call_matcher=call_matcher
+        )
 
     @property
     def ast_node_query(self) -> AstNodeQuery:
@@ -437,13 +444,16 @@ def locate_construct_declaration_by_ast_node(
     declarations: list[ConstructDeclaration],
     safe_mode: bool = True,
     type_matcher: AstNodeTypeMatcher | None = None,
+    call_matcher: ProgramCallMatcher | None = None,
 ) -> ConstructDeclaration | None:
     node: NodeQueryFormat = (
         {"type": ast_data} if isinstance(ast_data, str) else ast_data
     )
     matches: list[ConstructDeclaration] = []
     for declaration in declarations:
-        if declaration.matches_ast_node(node, type_matcher=type_matcher):
+        if declaration.matches_ast_node(
+            node, type_matcher=type_matcher, call_matcher=call_matcher
+        ):
             matches.append(declaration)
         if matches and not safe_mode:
             break

@@ -654,8 +654,8 @@ inline_compound_atom_structure:
 # Оператор - вызов пользовательской функции (`g(1)`): сам оператор не шаг студента.
 # Конструкт раскрывается после действия оператора с прозрачным BEGIN, поэтому
 # findCorrect добавляет оператор автоматически, и следующим шагом становится вход в
-# вызов. resolved_declaration_id у вызова есть только для функций из кода программы;
-# библиотечные вызовы (`print(x)`, `d.add(1)`) остаются обычными шагами.
+# вызов. Только вызов процедуры с телом из кода программы; библиотечные вызовы (`len(x)`,
+# `d.add(1)`) остаются обычными шагами.
 call_statement_structure:
   kind: inline.compound
   preorder: false
@@ -666,7 +666,7 @@ call_statement_structure:
           path: "expression / type"
           value: function_call
       - type: expression_statement
-        exists: "expression / resolved_declaration_id"
+        calls_program_procedure: "expression"
   actions:
     - role: content
       kind: optional

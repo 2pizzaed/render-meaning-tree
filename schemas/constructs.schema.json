@@ -168,6 +168,9 @@
           "$ref": "#/$defs/astNodeAtomicContainsAny"
         },
         {
+          "$ref": "#/$defs/astNodeAtomicCallsProgramProcedure"
+        },
+        {
           "$ref": "#/$defs/astNodeAnd"
         },
         {
@@ -248,6 +251,24 @@
       "required": [
         "type",
         "exists"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicCallsProgramProcedure": {
+      "type": "object",
+      "description": "Путь к узлу вызова; условие истинно, если вызывается процедура (пока только функция) с телом из кода программы (CodeManager.program_procedure_definition).",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "calls_program_procedure": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "type",
+        "calls_program_procedure"
       ],
       "additionalProperties": false
     },

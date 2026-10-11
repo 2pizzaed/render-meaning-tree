@@ -17,11 +17,7 @@ from src.generator.fragment import (
     first_code_line,
     fragment_rejections,
 )
-from src.generator.lookup import (
-    lookup_function_call_definition,
-    lookup_function_call_definition_by_ast_id,
-    lookup_next_inline_compound_call_node,
-)
+from src.generator.lookup import lookup_next_inline_compound_call_node
 from src.generator.pipeline.classification import LearningProblemClassificationPipeline
 from src.generator.problems import (
     DEFAULT_SEED,
@@ -160,6 +156,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             node,
             self.registry.rules,
             type_matcher=self._matches_ast_node_type,
+            call_matcher=self._calls_program_procedure,
         )
         if not construct_decl:
             if node_type != "condition_branch" and self.code.ast.instanceof(
@@ -173,8 +170,8 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         if not construct_decl.should_build_construct:
             # конструкты для этих AST структур либо атомарные actions, либо не нужны рассуждателю
             return
-        if "call" in construct_decl.kind_classes and lookup_function_call_definition_by_ast_id(self.code, ast_id) is None:
-                return
+        if "call" in construct_decl.kind_classes and self.code.program_procedure_definition(ast_id) is None:
+            return
         parent = self._build_parent_construct(ast_id)
         if parent is None and construct_decl is not self.root_rule:
             raise ValueError(
@@ -203,6 +200,9 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             return False
         return self.code.ast.instanceof(ast_id, node_type)
 
+    def _calls_program_procedure(self, call_id: int) -> bool:
+        return self.code.program_procedure_definition(call_id) is not None
+
     def generate_constructs(self) -> None:
         for ast_id, node in self.code.nodes_cache.items():
             self._build_construct(ast_id, node)
@@ -219,7 +219,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             )
             return inline_call_node if inline_call_node is not None else (None, None)
 
-        found = lookup_function_call_definition(self.code, construct)
+        found = self.code.program_procedure_definition(construct.ast_id)
         if found is not None:
             return found, None
         raise ValueError(
@@ -257,6 +257,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             node,
             self.registry.rules,
             type_matcher=self._matches_ast_node_type,
+            call_matcher=self._calls_program_procedure,
         )
         if inline_rule is None:
             return None
@@ -423,6 +424,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             node,
             self.registry.rules,
             type_matcher=self._matches_ast_node_type,
+            call_matcher=self._calls_program_procedure,
         )
         if matched_rule is None or "noop" not in matched_rule.kind_classes:
             return False

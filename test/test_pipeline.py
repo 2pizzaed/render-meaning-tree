@@ -4,7 +4,6 @@ from unittest.mock import Mock
 import pytest
 
 from src.ast_managers import prepare_code
-from src.generator.lookup import lookup_function_call_definition_by_ast_id
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.serialization import (
     registry_to_loqi,
@@ -91,14 +90,9 @@ def test_domain_pipeline_build_construct_keeps_external_noop_rule():
     assert construct.rule.name == "external"
 
 
-def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setattr(
-        "src.generator.pipeline.lookup_function_call_definition_by_ast_id",
-        lambda code, ast_id: {"id": 1, "type": "function_definition"},
-    )
+def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions():
     manager = Mock(language="python")
+    manager.program_procedure_definition.return_value = {"id": 1, "type": "function_definition"}
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.return_value = None
     manager.get_node_by_id.side_effect = lambda ast_id: {
@@ -593,6 +587,7 @@ def test_domain_pipeline_fill_actions_adds_single_true_for_non_loop_condition():
 
 def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
     manager = Mock(language="python")
+    manager.program_procedure_definition.return_value = None
     manager.get_node_by_id.side_effect = lambda ast_id: {
         10: {"id": 10, "type": "for_loop"},
     }.get(ast_id)
@@ -630,6 +625,7 @@ def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
 
 def test_domain_pipeline_fill_actions_skips_absent_optional_action():
     manager = Mock(language="python")
+    manager.program_procedure_definition.return_value = None
     manager.get_node_by_id.side_effect = lambda ast_id: {
         10: {
             "id": 10,
@@ -939,53 +935,6 @@ def test_domain_pipeline_fill_actions_expands_inline_call_content_from_inner_to_
     assert [action.ast_id for action in content_actions] == [12, 11]
 
 
-def test_domain_pipeline_function_call_lookup_returns_definition_node_for_declaration():
-    nodes = {
-        10: {
-            "id": 10,
-            "type": "function_call",
-            "function": {"type": "identifier", "repr_name": "add"},
-        },
-        14: {"id": 14, "type": "function_declaration", "name": "add"},
-        15: {
-            "id": 15,
-            "type": "function_definition",
-            "declaration": {"id": 14, "type": "function_declaration", "name": "add"},
-        },
-    }
-    manager = Mock(language="python")
-    manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
-    manager.user_defined_function_names = {"add": 14}
-    manager.ast.get_parent_of.side_effect = lambda ast_id: nodes[15] if ast_id == 14 else None
-
-    call_path = Mock()
-    call_path.instanceof.side_effect = lambda node_type: node_type == "function_call"
-    call_path.get.return_value = nodes[10]
-    manager.ast.get_path.return_value = call_path
-
-    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
-    construct = Construct(
-        parent=None,
-        ast_id=10,
-        rule=ConstructDeclaration(
-            name="function_call",
-            kind="inline.call",
-            ast_node="function_call",
-            actions=[ActionDeclaration(role="func", kind="compound")],
-        ),
-        owner=pipeline.registry,
-    )
-
-    found, path = pipeline._lookup_node_without_identification(
-        construct,
-        construct.rule.action_declaration_by_role("func"),  # type: ignore[arg-type]
-        previous_path=None,
-    )
-
-    assert found is nodes[15]
-    assert path is None
-
-
 def test_domain_pipeline_skips_call_construct_for_non_user_defined_function():
     registry = code_snippet_to_registry("result = len([1, 2, 3])")
 
@@ -1002,7 +951,7 @@ def test_user_function_call_with_call_argument_gets_call_construct():
     [user_call] = [
         path
         for path in registry.code.ast.find_paths_by_type("function_call")
-        if lookup_function_call_definition_by_ast_id(registry.code, path.id) is not None
+        if registry.code.program_procedure_definition(path.id) is not None
     ]
     construct = registry.get_construct_for(user_call.id)
     assert construct is not None
@@ -1046,13 +995,9 @@ def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program
     }
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
-    manager.user_defined_function_names = {"add": 14}
-    manager.ast.get_parent_of.side_effect = lambda ast_id: nodes[15] if ast_id == 14 else None
-
-    call_path = Mock()
-    call_path.instanceof.side_effect = lambda node_type: node_type == "function_call"
-    call_path.get.return_value = nodes[10]
-    manager.ast.get_path.return_value = call_path
+    manager.program_procedure_definition.side_effect = lambda ast_id: (
+        nodes[15] if ast_id == 10 else None
+    )
 
     pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     call_rule = ConstructDeclaration(

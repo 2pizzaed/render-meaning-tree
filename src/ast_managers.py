@@ -464,6 +464,25 @@ class CodeManager:
         """
         return dict(self._declarations.get("functions", []))  # type: ignore
 
+    def program_procedure_definition(self, call_id: int) -> Node | None:
+        """Определение процедуры (пока только функции) из кода программы, которую вызывает узел ``call_id``."""
+        path = self.ast.get_path(call_id)
+        if path is None or not path.instanceof("function_call") or path.instanceof("method_call"):
+            return None
+        function = (self.get_node_by_id(call_id) or {}).get("function")
+        if not isinstance(function, dict):
+            return None
+        name = function.get("name") or function.get("repr_name")
+        declaration_id = self.user_defined_function_names.get(name) if isinstance(name, str) else None
+        if declaration_id is None:
+            return None
+        # В C++ таблица областей видимости даёт само определение, в Python и Java -
+        # объявление внутри определения.
+        for candidate in (self.get_node_by_id(declaration_id), self.ast.get_parent_of(declaration_id)):
+            if isinstance(candidate, dict) and candidate.get("type") == "function_definition":
+                return cast(Node, candidate)
+        return None
+
     @property
     def metrics(self) -> dict[str, Any]:
         return dict(self._metrics)

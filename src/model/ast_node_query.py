@@ -14,7 +14,11 @@ The `ast_node` field in `constructs.yml` supports two compatible forms:
    - An atomic item must contain `type`, where the value is either one type string
      or a non-empty list of type strings.
    - An atomic item may contain zero or one check operator. Supported checks are:
-     `exists`, `equals`, `length`, `contains`, and `contains_any`.
+     `exists`, `equals`, `length`, `contains`, `contains_any`, and
+     `calls_program_procedure`. The last one takes a path to a call node and asks
+     the caller-provided `call_matcher` whether it calls a procedure with a body
+     declared in the program (for now, functions only) (`CodeManager.program_procedure_definition`); without
+     a matcher it never matches.
    - Logical items are `{"and": [...]}`, `{"or": [...]}`, and `{"not": item}`.
      `and` and `or` contain non-empty lists, while `not` contains exactly one item.
 
@@ -51,8 +55,12 @@ from src.types import NodeQueryFormat
 
 type AstNodeQuerySource = str | list[str] | dict[str, Any] | AstNodeQuery
 type AstNodeTypeMatcher = Callable[[NodeQueryFormat, str], bool]
+# AST id узла вызова -> вызывается ли процедура с телом из кода программы.
+type ProgramCallMatcher = Callable[[int], bool]
 
-_CHECK_OPERATORS = frozenset({"exists", "equals", "length", "contains", "contains_any"})
+_CHECK_OPERATORS = frozenset(
+    {"exists", "equals", "length", "contains", "contains_any", "calls_program_procedure"}
+)
 _LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
 _CONTAINS_ANY_LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
 _MISSING = object()
@@ -105,9 +113,14 @@ class AstNodeQuery:
         raise TypeError(f"Unsupported ast_node query {data!r}")
 
     def matches(
-        self, node: NodeQueryFormat, type_matcher: AstNodeTypeMatcher | None = None
+        self,
+        node: NodeQueryFormat,
+        type_matcher: AstNodeTypeMatcher | None = None,
+        call_matcher: ProgramCallMatcher | None = None,
     ) -> bool:
-        return self.expression.matches(node, type_matcher=type_matcher)
+        return self.expression.matches(
+            node, type_matcher=type_matcher, call_matcher=call_matcher
+        )
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
         return self.expression.duplicate_keys()
@@ -194,25 +207,30 @@ class AstNodeExpression:
         node: NodeQueryFormat,
         *,
         type_matcher: AstNodeTypeMatcher | None = None,
+        call_matcher: ProgramCallMatcher | None = None,
     ) -> bool:
         if self.kind == "atom":
             if self.type_predicate is None:
                 raise ValueError("ast_node atom expression has no type predicate")
             if not self.type_predicate.matches(node, type_matcher=type_matcher):
                 return False
-            return self.condition is None or self.condition.matches(node)
+            return self.condition is None or self.condition.matches(
+                node, call_matcher=call_matcher
+            )
         if self.kind == "and":
             return all(
-                child.matches(node, type_matcher=type_matcher)
+                child.matches(node, type_matcher=type_matcher, call_matcher=call_matcher)
                 for child in self.children
             )
         if self.kind == "or":
             return any(
-                child.matches(node, type_matcher=type_matcher)
+                child.matches(node, type_matcher=type_matcher, call_matcher=call_matcher)
                 for child in self.children
             )
         if self.kind == "not":
-            return not self.children[0].matches(node, type_matcher=type_matcher)
+            return not self.children[0].matches(
+                node, type_matcher=type_matcher, call_matcher=call_matcher
+            )
         raise ValueError(f"Unsupported ast_node expression kind {self.kind!r}")
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
@@ -465,9 +483,16 @@ class AstNodeCondition:
                 path="",
                 contains_any=ContainsAnyExpression.from_raw(payload),
             )
+        if kind == "calls_program_procedure":
+            return cls(
+                kind="calls_program_procedure",
+                path=_parse_path_value(payload, operation="calls_program_procedure"),
+            )
         raise ValueError(f"Unsupported ast_node query condition {kind!r}")
 
-    def matches(self, node: NodeQueryFormat) -> bool:
+    def matches(
+        self, node: NodeQueryFormat, *, call_matcher: ProgramCallMatcher | None = None
+    ) -> bool:
         if self.kind == "contains_any":
             if self.contains_any is None:
                 raise ValueError("ast_node contains_any condition has no expression")
@@ -484,6 +509,9 @@ class AstNodeCondition:
             return isinstance(resolved, list) and self._matches_length(len(resolved))
         if self.kind == "contains":
             return isinstance(resolved, list) and self.value in resolved
+        if self.kind == "calls_program_procedure":
+            call_id = resolved.get("id") if isinstance(resolved, dict) else None
+            return call_matcher is not None and isinstance(call_id, int) and call_matcher(call_id)
         raise ValueError(f"Unsupported ast_node condition kind {self.kind!r}")
 
     def key(self) -> tuple[Any, ...]:

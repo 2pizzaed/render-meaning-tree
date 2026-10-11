@@ -9,7 +9,6 @@ from src.generator.helpers.trace_features import (
     function_entries,
     has_node_types,
 )
-from src.generator.lookup import lookup_function_call_definition_by_ast_id
 from src.helpers.bitflags import bit
 from src.model.situation import TraceAct
 
@@ -240,10 +239,7 @@ def has_program_function_call(ast: ASTNodeManager, trace: Sequence[TraceAct]) ->
         if (
             trace
             and trace[0].situation.code.ast is ast
-            and lookup_function_call_definition_by_ast_id(
-                trace[0].situation.code, path.id
-            )
-            is not None
+            and trace[0].situation.code.program_procedure_definition(path.id) is not None
         ):
             return True
     return False

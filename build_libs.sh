@@ -15,6 +15,8 @@ Targets:
   mt            Alias for meaning_tree
   <empty>       Rebuild all projects: its_DomainModel, its_Reasoner, meaning_tree
 
+After the libraries, the toolchain server is rebuilt via `./rpc_server.sh build`.
+
 .env variables:
   ITS_DOMAINMODEL_PATH  Path to its_DomainModel
   ITS_REASONER_PATH     Path to its_Reasoner
@@ -120,3 +122,6 @@ if [[ "${target}" == "all" || "${target}" == "meaning_tree" || "${target}" == "m
   meaning_tree_path="$(require_project_dir "meaning_tree" "${meaning_tree_path}")"
   rebuild_project "meaning_tree" "${meaning_tree_path}"
 fi
+
+echo
+bash "${SCRIPT_DIR}/rpc_server.sh" build

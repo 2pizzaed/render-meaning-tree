@@ -11,18 +11,20 @@ RUNNING_SOURCE=""
 usage() {
   cat <<'EOF'
 Usage:
+  ./rpc_server.sh build
   ./rpc_server.sh start [--build] [port]
   ./rpc_server.sh stop
   ./rpc_server.sh status
 
 Commands:
+  build         Build the toolchain server (`mvn -DskipTests package`) without launching it.
   start         Build (optional) and launch the RPC server as a background daemon.
   stop          Stop the running daemon (using the PID saved in .rpc_pid).
   status        Check whether the daemon is running or listening on the configured port.
   -h, --help    Show this help.
 
 Start options:
-  --build       Run `mvn -DskipTests package` before launching.
+  --build       Build the server before launching (same as `build`).
   port          Port override (otherwise JSON_RPC_TOOLCHAIN_PORT or 8080).
 
 .env variables:
@@ -52,15 +54,33 @@ resolve_path() {
   printf '%s\n' "${path}"
 }
 
+# Picks the jar with the highest version: target/ may keep jars of older versions.
 find_jar() {
   local target_dir="$1"
-  local jar=""
-  while IFS= read -r candidate; do
-    jar="${candidate}"
-    break
-  done < <(find "${target_dir}" -maxdepth 1 -type f -name '*.jar' \
-    ! -name 'original-*' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | sort)
-  printf '%s\n' "${jar}"
+  find "${target_dir}" -maxdepth 1 -type f -name '*.jar' \
+    ! -name 'original-*' ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+    | sort -V | tail -n 1
+}
+
+server_path() {
+  local path="${TOOLCHAIN_SERVER_PATH:-}"
+  if [[ -z "${path}" ]]; then
+    echo "Missing TOOLCHAIN_SERVER_PATH. Set it in ${ENV_FILE}." >&2
+    exit 1
+  fi
+  path="$(resolve_path "${path}")"
+  if [[ ! -f "${path}/pom.xml" ]]; then
+    echo "TOOLCHAIN_SERVER_PATH has no pom.xml: ${path}" >&2
+    exit 1
+  fi
+  printf '%s\n' "${path}"
+}
+
+build_server() {
+  local path="$1"
+  echo "==> Building toolchain server"
+  echo "    ${path}"
+  (cd "${path}" && mvn -DskipTests package)
 }
 
 server_port() {
@@ -175,6 +195,10 @@ is_running() {
 
 # --------------------------------------------------------------------------
 
+cmd_build() {
+  build_server "$(server_path)"
+}
+
 cmd_start() {
   if is_running; then
     echo "RPC server is already running (PID ${RUNNING_PID}, ${RUNNING_SOURCE}, port $(server_port))."
@@ -191,33 +215,23 @@ cmd_start() {
     esac
   done
 
-  local server_path="${TOOLCHAIN_SERVER_PATH:-}"
-  if [[ -z "${server_path}" ]]; then
-    echo "Missing TOOLCHAIN_SERVER_PATH. Set it in ${ENV_FILE}." >&2
-    exit 1
-  fi
-  server_path="$(resolve_path "${server_path}")"
-  if [[ ! -f "${server_path}/pom.xml" ]]; then
-    echo "TOOLCHAIN_SERVER_PATH has no pom.xml: ${server_path}" >&2
-    exit 1
-  fi
+  local server_path
+  server_path="$(server_path)"
 
   if [[ "${do_build}" == "1" ]]; then
-    echo "==> Building toolchain server"
-    echo "    ${server_path}"
-    (cd "${server_path}" && mvn -DskipTests package)
+    build_server "${server_path}"
   fi
 
   local target_dir="${server_path}/target"
   if [[ ! -d "${target_dir}" ]]; then
-    echo "No target/ directory in ${server_path}. Build first with: ./rpc_server.sh start --build" >&2
+    echo "No target/ directory in ${server_path}. Build first with: ./rpc_server.sh build" >&2
     exit 1
   fi
 
   local jar
   jar="$(find_jar "${target_dir}")"
   if [[ -z "${jar}" ]]; then
-    echo "No runnable jar found in ${target_dir}. Build first with: ./rpc_server.sh start --build" >&2
+    echo "No runnable jar found in ${target_dir}. Build first with: ./rpc_server.sh build" >&2
     exit 1
   fi
 
@@ -292,6 +306,7 @@ command="$1"
 shift
 
 case "${command}" in
+  build)   cmd_build ;;
   start)   cmd_start "$@" ;;
   stop)    cmd_stop ;;
   status)  cmd_status ;;

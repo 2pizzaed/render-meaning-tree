@@ -24,8 +24,8 @@ from .models import (
 )
 
 VERSION: dict[TpgProject, str] = {
-    "its_DomainModel": "3.0.0-rc.1",
-    "its_Reasoner": "3.0.0-rc.1",
+    "its_DomainModel": "3.0.0-rc.8",
+    "its_Reasoner": "3.0.0-rc.9",
 }
 
 logger = logging.getLogger(__name__)

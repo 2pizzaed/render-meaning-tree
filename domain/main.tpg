@@ -343,6 +343,17 @@ lambda startsInterruption(D: ConcreteAction) =
     (D->derivedFrom=>hasEffects() and D->derivedFrom->hasEffects.interruption_start != InterruptionType:none) or
     (D=>hasEffects() and D->hasEffects.interruption_start != InterruptionType:none);
 
+// Акт END выхода по прерыванию: вынужденного (без перехода) или по переходу,
+// заданному для конкретного прерывания (break из тела цикла).
+lambda isInterruptionExit(t: TraceAct) =
+    t->hasAction->derivedFrom.role == "END" and (
+        not t=>hasTransition() or (
+            t->hasTransition=>hasConstraints() and
+            t->hasTransition->hasConstraints.interruption_mode != InterruptionType:any and
+            t->hasTransition->hasConstraints.interruption_mode != InterruptionType:none
+        )
+    );
+
 // Действие последнего акта трассы, начавшего прерывание.
 lambda lastInterrupterAction() = find ConcreteAction ia {
     startsInterruption($ia) and
@@ -388,9 +399,7 @@ fragment commitCorrectAction() {
         };
         creditInterruption -> {
             ask (S.interruption_mode != InterruptionType:none or forAny TraceAct t {
-                $t=>afterOf(P0) and
-                $t->hasAction->derivedFrom.role == "END" and
-                not $t=>hasTransition()
+                $t=>afterOf(P0) and isInterruptionExit($t)
             }) out false else {
                 conclude: correct [ skill = "interruption_exits_constructs" ; ];
             };
@@ -521,24 +530,23 @@ fragment commitCorrectAction() {
 }
 
 // Уточнение ошибки после шага 2а: выяснить, почему выполнение покинуло конструкцию
-// с выбранным действием после исходной границы трассы. Завершение без перехода —
-// вынужденный выход по прерыванию; по ограничению на условие — выбор по его значению.
+// с выбранным действием после исходной границы трассы. Завершение по прерыванию (без
+// перехода или по переходу для прерывания) — выход по прерыванию; по ограничению на условие —
+// выбор по его значению.
 fragment autoPassedRefinement() {
     // После исходной границы прерывание вывело выполнение из конструкции с выбранным действием.
     ask (forAny TraceAct t {
         $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
-        $t->hasAction->derivedFrom.role == "END" and
-        isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo) and
-        not $t=>hasTransition()
+        isInterruptionExit($t) and
+        isAncestorOrSelf(A->belongsTo, $t->hasAction->belongsTo)
     }) out false else {
         // Объясняем выход из самой внешней закрытой конструкции с выбранным действием.
         var ForcedExit: ConcreteConstruct = findExtreme outer [isAncestorOrSelf($c, $outer)] among ConcreteConstruct c {
             isAncestorOrSelf(A->belongsTo, $c) and
             forAny TraceAct t {
                 $t=>afterOf(P0) and inCurrentActivation($t, A->belongsTo) and
-                $t->hasAction->derivedFrom.role == "END" and
-                $t->hasAction->belongsTo == $c and
-                not $t=>hasTransition()
+                isInterruptionExit($t) and
+                $t->hasAction->belongsTo == $c
             }
         } out true else {
             conclude: error [ exception = true; exceptionName = "NoForcedExitConstruct"; ];

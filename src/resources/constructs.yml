@@ -109,8 +109,6 @@ while_structure:
     locale_trace_name: "loop"
     locale_pronoun: "he"
     keyword: while
-  effects:
-    - interruption_stop: break
   actions:
     - role: cond
       kind: inline.condition.annotated
@@ -143,6 +141,12 @@ while_structure:
         condition_value: false       # если ложно → в else или выходим из цикла
     - from: body
       to: cond                   # после тела возвращаемся к условию
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
     - from: else
       to: END
 
@@ -156,8 +160,6 @@ do_while_structure:
     locale_trace_name: "loop"
     locale_pronoun: "he"
     keyword: do while
-  effects:
-    - interruption_stop: break
   actions:
     - role: body
       kind: compound
@@ -177,6 +179,12 @@ do_while_structure:
       to: body
     - from: body
       to: cond              # сначала выполняем тело
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
     - from: cond
       to: body
       constraints:
@@ -196,8 +204,6 @@ for_structure:
     locale_trace_name: "loop"
     locale_pronoun: "he"
     keyword: for
-  effects:
-    - interruption_stop: break
   actions:
     - role: init
       identification:
@@ -243,6 +249,12 @@ for_structure:
         condition_value: false       # false → выход
     - from: body
       to: update
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
     - from: update
       to: cond
 
@@ -256,8 +268,6 @@ for_each_structure:
     locale_trace_name: "loop"
     locale_pronoun: "he"
     keyword: for
-  effects:
-    - interruption_stop: break
   actions:
     - role: init
       kind: inline
@@ -301,6 +311,12 @@ for_each_structure:
         condition_value: false       # false → в else или выход
     - from: body
       to: cond
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
     - from: else
       to: END
 
@@ -314,8 +330,6 @@ for_range_structure:
     locale_trace_name: "loop"
     locale_pronoun: "he"
     keyword: for
-  effects:
-    - interruption_stop: break
   actions:
     - role: init
       kind: inline
@@ -357,6 +371,12 @@ for_range_structure:
         condition_value: false       # false → в else или выход
     - from: body
       to: cond
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
     - from: else
       to: END
 
@@ -533,8 +553,6 @@ try_except_structure:
     locale_trace_name: 'catch'
     locale_pronoun: 'he'
   ast_node: exception_catch_statement 
-  effects:
-    - interruption_stop: exception
   actions:
     - role: try
       kind: compound

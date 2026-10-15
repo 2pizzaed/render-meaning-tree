@@ -91,14 +91,6 @@ class ActionDeclarationAdapter:
             relationships.append(ctx.relationship("hasEffects", obj.effects))
         if obj.parent is not None:
             relationships.append(ctx.relationship("belongsTo", obj.parent))
-            # У preorder-конструкта эффекты конструкта переезжают на конкретное
-            # породившее действие: оно выполняется уже после END конструкта.
-            if (
-                obj.role == "END"
-                and obj.parent.effects is not None
-                and not obj.parent.preorder
-            ):
-                relationships.append(ctx.relationship("hasEffects", obj.parent.effects))
 
         properties = [
             ctx.property("role", obj.role),

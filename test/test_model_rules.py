@@ -1,3 +1,5 @@
+import pytest
+
 from src.json_property_path import ResolvedJSONPath
 from src.model.rules import (
     ActionDeclaration,
@@ -261,10 +263,6 @@ def test_construct_declaration_compiled_transition_search_supports_generalizatio
 
 
 def test_construct_declaration_compiled_transitions_merge_effects_without_overwriting_transition_effect():
-    construct_effect = EffectDeclaration(
-        interruption_start=InterruptionType.BREAK,
-        interruption_stop=InterruptionType.CONTINUE,
-    )
     action_effect = EffectDeclaration(
         interruption_stop=InterruptionType.RETURN,
         call_stack=CallStackAction.ADD_FRAME,
@@ -274,7 +272,6 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
         name="loop",
         kind="compound",
         ast_node="loop_node",
-        effects=construct_effect,
         actions=[
             ActionDeclaration(role="BEGIN", kind="BEGIN", effects=action_effect),
             ActionDeclaration(role="body", kind="inline"),
@@ -300,6 +297,32 @@ def test_construct_declaration_compiled_transitions_merge_effects_without_overwr
     assert end_transition.effects.interruption_start is InterruptionType.NONE
     assert end_transition.effects.interruption_stop is None
     assert end_transition.effects.call_stack is None
+
+
+def test_construct_effects_are_allowed_only_for_statement_constructs():
+    stop_break = EffectDeclaration(interruption_stop=InterruptionType.BREAK)
+
+    # Эффект оператора: атомарный inline и preorder-конструкт его несут.
+    ConstructDeclaration(
+        name="break", kind="inline", ast_node="break_statement", effects=stop_break
+    )
+    ConstructDeclaration(
+        name="return_call",
+        kind="inline.compound",
+        ast_node="return_statement",
+        preorder=True,
+        effects=stop_break,
+        actions=[ActionDeclaration(role="content", kind="optional")],
+    )
+    # У составного конструкта у выхода в END нет единственного источника.
+    with pytest.raises(ValueError, match="construct effects are allowed only"):
+        ConstructDeclaration(
+            name="loop",
+            kind="compound.loop",
+            ast_node="while_loop",
+            effects=stop_break,
+            actions=[ActionDeclaration(role="body", kind="compound")],
+        )
 
 
 def test_construct_declaration_compiled_transitions_merge_action_effect_into_all_outgoing_transitions():

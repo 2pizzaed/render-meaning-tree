@@ -134,6 +134,7 @@ fragment findLastTracedAction(last: TraceAct) {
     };
 
     // было начато прерывание, нужно последовательно выходить из всех конструктов, пока не найдем остановку прерывания
+    // либо переход, заданный для этого прерывания
     while (
         S.interruption_mode != InterruptionType:none 
         and last->hasAction->belongsTo->derivedFrom.name != "global_statements_structure"
@@ -168,6 +169,16 @@ fragment findLastTracedAction(last: TraceAct) {
                 applyInterruptionMode(current->derivedFrom->hasEffects, S);
                 if (current=>hasEffects()) applyInterruptionMode(current->hasEffects, S);
             });
+        };
+
+        // Если у текущего действия есть переход именно для текущего прерывания — выходим по нему:
+        // раскрутка останавливается, переход выберет обычный поиск (interruptionSpecific) и применит его эффекты
+        ask (forAny TransitionSpec t {
+            $t->from_ == current->derivedFrom and
+            $t->belongsTo == current->belongsTo->derivedFrom and
+            interruptionSpecific($t, S)
+        }) out false else {
+            conclude: true with (last = currentAct);
         };
 
         var exit: ConcreteAction = find ConcreteAction a {

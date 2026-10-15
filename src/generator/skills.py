@@ -259,13 +259,20 @@ def has_actions_in_order(ast: ASTNodeManager, trace: Sequence[TraceAct]) -> bool
 def has_no_early_exit_without_interruption(
     ast: ASTNodeManager, trace: Sequence[TraceAct]
 ) -> bool:
-    """An executed role offers an END transition requiring interruption (5.2.2.4)."""
+    """An executed role offers an END transition requiring interruption (5.2.2.4).
+
+    Only an opaque END counts: the student can select it, so the check graph can judge
+    an early exit. A transparent END (break exit of a loop body) is never a student step.
+    """
     for act, mode in _interruption_modes(ast, trace):
         if _action_mode(ast, act, mode) != InterruptionType.NONE or not ast.exists(
             act.action.parent.ast_id
         ):
             continue
         if act.action.rule.role in {"BEGIN", "END"}:
+            continue
+        end = act.action.parent.rule.action_declaration_by_role("END")
+        if end is None or not end.is_opaque:
             continue
         for transition in act.action.possible_transitions():
             if transition.to_role != "END" or transition.constraints is None:

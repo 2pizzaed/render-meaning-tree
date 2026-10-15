@@ -502,7 +502,7 @@
         <mxCell id="1" parent="0" />
         <object label="&lt;b&gt;Фрагмент: нормализация точки отсчёта&lt;/b&gt;&amp;#160;&amp;#160;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;findLastTracedAction(last — последний акт трассы)&lt;/font&gt;" tpgKind="Fragment" tpgProcedure="fragment findLastTracedAction(last: TraceAct)" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" tpgNote="вызывается как `fragment`:findLastTracedAction(L) out true, null; исходы CORRECT и NULL возвращаются в основной граф, ERROR терминален" id="g_flta">
           <mxCell parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;container=1;pointerEvents=0;collapsible=0;movable=1;resizable=1;fontSize=17;" vertex="1">
-            <mxGeometry height="1477" width="2600" x="10" y="113" as="geometry" />
+            <mxGeometry height="1677" width="2600" x="10" y="113" as="geometry" />
           </mxCell>
         </object>
         <object label="&lt;b&gt;Дано&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;last&lt;/font&gt; — последний &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; &lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;(при вызове = &lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;&lt;font color=&quot;#B38F00&quot;&gt;L&lt;/font&gt;&lt;/font&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:13px&quot;&gt;)&lt;/font&gt;" tpgKind="FragmentInputs" tpgVar="last: TraceAct" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_entry">
@@ -535,14 +535,34 @@
             <mxGeometry height="120" width="300" x="30" y="957" as="geometry" />
           </mxCell>
         </object>
-        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;, которому &lt;font color=&quot;#0099A8&quot;&gt;принадлежит&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;current&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;exit&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="exit: ConcreteAction" tpgExpr="find ConcreteAction a { $a-&gt;derivedFrom.role == &quot;END&quot; and $a-&gt;belongsTo == current-&gt;belongsTo }" tpgNote="исход false в модели не объявлен: у узла есть только продолжение true" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_find_exit">
-          <mxCell parent="g_flta" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
-            <mxGeometry height="100" width="420" x="400" y="1147" as="geometry" />
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Есть ли&lt;/font&gt; у этого &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt;, заданный именно для текущего &lt;font color=&quot;#009900&quot;&gt;режима прерывания&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="forAny TransitionSpec t {&#xa;    $t-&gt;from_ == current-&gt;derivedFrom and&#xa;    $t-&gt;belongsTo == current-&gt;belongsTo-&gt;derivedFrom and&#xa;    interruptionSpecific($t, S)&#xa;}" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_q_exit">
+          <mxCell parent="g_flta" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
+            <mxGeometry height="140" width="440" x="390" y="1147" as="geometry" />
           </mxCell>
         </object>
-        <object label="&lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt;&lt;b&gt; конструкта добавлен в трассу&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;применены&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;эффекты&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt; и &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;;&lt;br&gt;выход наружу продолжается на следующей итерации" tpgKind="BranchResultNode" tpgResult="NULL" tpgEffect="last = +obj : TraceAct ({&#xa;    hasAction(exit);&#xa;    (exit=&gt;hasValue()) ? hasValue(findUnusedValue(exit));&#xa;});&#xa;if (exit=&gt;hasValue()) last-&gt;hasValue.used = true;&#xa;if (exit-&gt;derivedFrom=&gt;hasEffects()) applyInterruptionMode(exit-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (current-&gt;derivedFrom=&gt;hasEffects()) applyInterruptionMode(current-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (exit=&gt;hasEffects()) applyInterruptionMode(exit-&gt;hasEffects, S);&#xa;if (current=&gt;hasEffects()) applyInterruptionMode(current-&gt;hasEffects, S);&#xa;exitPrev +=&gt; directlyBeforeOf(last);&#xa;// exitPrev: TraceAct = last  (служебная переменная связывания)" tpgExpr="conclude : null with ({ … });" tpgAdaptation="служебный узел var exitPrev: TraceAct = last не показан отдельно; его роль отражена в tpgEffect" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_res_exit">
+        <object label="&lt;b&gt;Выход по этому переходу&lt;/b&gt;&lt;br&gt;точка отсчёта = &lt;font color=&quot;#CC0066&quot;&gt;акт&lt;/font&gt; этого &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt;;&lt;br&gt;&lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; выберет основной граф и &lt;font color=&quot;#3333CC&quot;&gt;применит&lt;/font&gt; его &lt;font color=&quot;#CC0066&quot;&gt;эффекты&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="CORRECT" tpgExpr="conclude: true with (last = currentAct);" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_res_exit_tr">
+          <mxCell parent="g_flta" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=16;dashed=1;dashPattern=6 4;" vertex="1">
+            <mxGeometry height="140" width="320" x="20" y="1147" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="f_e6a">
+          <mxCell edge="1" parent="1" source="f_q_exit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="f_res_exit_tr">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="f_e6b">
+          <mxCell edge="1" parent="1" source="f_q_exit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="f_find_exit">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#3333CC&quot;&gt;Найти&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;, которому &lt;font color=&quot;#0099A8&quot;&gt;принадлежит&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;current&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;exit&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="exit: ConcreteAction" tpgExpr="find ConcreteAction a { $a-&gt;derivedFrom.role == &quot;END&quot; and $a-&gt;belongsTo == current-&gt;belongsTo }" tpgNote="исход false в модели не объявлен: у узла есть только продолжение true" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_find_exit">
+          <mxCell parent="g_flta" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#FFFFFF;strokeColor=#000000;fontSize=16;" vertex="1">
+            <mxGeometry height="100" width="420" x="400" y="1347" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="&lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt;&lt;b&gt; конструкта добавлен в трассу&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#3333CC&quot;&gt;применены&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;эффекты&lt;/font&gt; &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; и &lt;font color=&quot;#CC0066&quot;&gt;действия&lt;/font&gt;;&lt;br&gt;выход наружу продолжается на следующей итерации" tpgKind="BranchResultNode" tpgResult="NULL" tpgEffect="last = +obj : TraceAct ({&#xa;    hasAction(exit);&#xa;    (exit=&gt;hasValue()) ? hasValue(findUnusedValue(exit));&#xa;});&#xa;if (exit=&gt;hasValue()) last-&gt;hasValue.used = true;&#xa;if (exit-&gt;derivedFrom=&gt;hasEffects()) applyInterruptionMode(exit-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (current-&gt;derivedFrom=&gt;hasEffects()) applyInterruptionMode(current-&gt;derivedFrom-&gt;hasEffects, S);&#xa;if (exit=&gt;hasEffects()) applyInterruptionMode(exit-&gt;hasEffects, S);&#xa;if (current=&gt;hasEffects()) applyInterruptionMode(current-&gt;hasEffects, S);&#xa;exitPrev +=&gt; directlyBeforeOf(last);&#xa;// exitPrev: TraceAct = last  (служебная переменная связывания)" tpgExpr="conclude : null with ({ … });" tpgAdaptation="служебный узел var exitPrev: TraceAct = last не показан отдельно; его роль отражена в tpgEffect" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_res_exit">
           <mxCell parent="g_flta" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#E6E6E6;strokeColor=#666666;fontSize=16;dashed=1;dashPattern=6 4;" vertex="1">
-            <mxGeometry height="130" width="420" x="400" y="1317" as="geometry" />
+            <mxGeometry height="130" width="420" x="400" y="1517" as="geometry" />
           </mxCell>
         </object>
         <object label="&lt;font color=&quot;#3333CC&quot;&gt;Является ли&lt;/font&gt; текущая точка &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; своего &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;?" tpgKind="QuestionNode" tpgExpr="last-&gt;hasAction-&gt;derivedFrom.role == &quot;END&quot;" tpgSource="domain/findCorrect.tpg :: fragment findLastTracedAction(last: TraceAct)" id="f_q_isend">
@@ -610,19 +630,19 @@
             <mxGeometry height="26" width="1800" x="40" y="58" as="geometry" />
           </mxCell>
         </object>
-        <object label="&lt;b&gt;Выход из конструктов при прерывании&lt;/b&gt;&lt;br&gt;Пока активен &lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt; (&lt;font color=&quot;#009900&quot;&gt;прерывание цикла&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;прерывание итерации&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;возврат из функции&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;исключение&lt;/font&gt;), граф принудительно закрывает незавершённые &lt;font color=&quot;#CC0066&quot;&gt;конструкты&lt;/font&gt;, добавляя их &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; в трассу.&lt;br&gt;&lt;br&gt;Выход прекращается, когда встречается &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, &lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt; которого снимает это прерывание, либо когда достигнут корень программы." tpgKind="Comment" id="f_note_loop">
+        <object label="&lt;b&gt;Выход из конструктов при прерывании&lt;/b&gt;&lt;br&gt;Пока активен &lt;font color=&quot;#009900&quot;&gt;режим прерывания&lt;/font&gt; (&lt;font color=&quot;#009900&quot;&gt;прерывание цикла&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;прерывание итерации&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;возврат из функции&lt;/font&gt;, &lt;font color=&quot;#009900&quot;&gt;исключение&lt;/font&gt;), граф принудительно закрывает незавершённые &lt;font color=&quot;#CC0066&quot;&gt;конструкты&lt;/font&gt;, добавляя их &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; в трассу.&lt;br&gt;&lt;br&gt;Выход прекращается, когда встречается &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;, &lt;font color=&quot;#CC0066&quot;&gt;эффект&lt;/font&gt; которого снимает это прерывание, или &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; с &lt;font color=&quot;#CC0066&quot;&gt;переходом&lt;/font&gt; для этого прерывания (выход из цикла по &lt;b&gt;break&lt;/b&gt; из тела), либо когда достигнут корень программы." tpgKind="Comment" id="f_note_loop">
           <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=14;" vertex="1">
-            <mxGeometry height="175" width="640" x="60" y="1660" as="geometry" />
+            <mxGeometry height="215" width="640" x="60" y="1860" as="geometry" />
           </mxCell>
         </object>
         <object label="&lt;b&gt;Четыре ситуации нормализации&lt;/b&gt;&lt;br&gt;1. Текущий &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; — &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;конструкта&lt;/font&gt;, который &lt;font color=&quot;#009900&quot;&gt;раскрывается раньше своего действия&lt;/font&gt;, — добавить это &lt;font color=&quot;#009900&quot;&gt;отложенное&lt;/font&gt; &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt; (цикл сверху).&lt;br&gt;2. Активно прерывание — выйти из вложенных &lt;font color=&quot;#CC0066&quot;&gt;конструктов&lt;/font&gt; (цикл слева).&lt;br&gt;3. Текущий &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; уже &lt;font color=&quot;#009900&quot;&gt;END&lt;/font&gt; — подняться к ближайшему незавершённому внешнему &lt;font color=&quot;#CC0066&quot;&gt;конструкту&lt;/font&gt;.&lt;br&gt;4. Последний &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; менял стек вызовов — добавить вход в тело вызываемой функции.&lt;br&gt;&lt;br&gt;Если ничего из этого не требуется, точка отсчёта остаётся прежней." tpgKind="Comment" id="f_note_norm">
           <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=14;" vertex="1">
-            <mxGeometry height="215" width="640" x="740" y="1660" as="geometry" />
+            <mxGeometry height="215" width="640" x="740" y="1860" as="geometry" />
           </mxCell>
         </object>
         <object label="&lt;b&gt;Что возвращается в основной граф&lt;/b&gt;&lt;br&gt;&lt;b&gt;успех&lt;/b&gt; и &lt;b&gt;не определено&lt;/b&gt; — оба исхода продолжают основной граф: дальше ищется &lt;font color=&quot;#CC0066&quot;&gt;переход&lt;/font&gt; &lt;font color=&quot;#B38F00&quot;&gt;T&lt;/font&gt;.&lt;br&gt;&lt;br&gt;&lt;b&gt;ошибка&lt;/b&gt; прерывает рассуждение: все красные результаты здесь помечены метаданными &lt;i&gt;exception&lt;/i&gt;.&lt;br&gt;&lt;br&gt;Пунктирная рамка результата означает, что он передаётся наружу — в объемлющий цикл или вызвавшей ветви." tpgKind="Comment" id="f_note_out">
           <mxCell parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=16;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;spacingRight=6;fillColor=#FFFFFF;strokeColor=#666666;fontSize=14;" vertex="1">
-            <mxGeometry height="175" width="640" x="1420" y="1660" as="geometry" />
+            <mxGeometry height="175" width="640" x="1420" y="1860" as="geometry" />
           </mxCell>
         </object>
         <object label="" id="f_e1">
@@ -651,7 +671,7 @@
           </mxCell>
         </object>
         <object label="Нет" tpgOutcome="false" id="f_e6">
-          <mxCell edge="1" parent="1" source="f_q_stop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="f_find_exit">
+          <mxCell edge="1" parent="1" source="f_q_stop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="f_q_exit">
             <mxGeometry relative="1" as="geometry" />
           </mxCell>
         </object>
@@ -716,7 +736,7 @@
           </mxCell>
         </object>
         <object label="" id="f_note_loop_e">
-          <mxCell edge="1" parent="1" source="f_note_loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeWidth=2;strokeColor=#999999;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.15;entryY=1;entryDx=0;entryDy=0;" target="f_while">
+          <mxCell edge="1" parent="1" source="f_note_loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeWidth=2;strokeColor=#999999;labelBackgroundColor=#FFFFFF;fontSize=14;exitX=0.6875;exitY=0;exitDx=0;exitDy=0;entryX=0.2143;entryY=1;entryDx=0;entryDy=0;" target="f_res_exit">
             <mxGeometry relative="1" as="geometry" />
           </mxCell>
         </object>

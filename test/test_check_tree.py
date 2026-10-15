@@ -204,6 +204,18 @@ while flag:
 x = 1
 """
 
+# MT генерирует после цикла с else пустую строку: x = 1 - строка 8, y = 2 - строка 9.
+NESTED_LOOP_ELSE_BREAK = """
+for i in range(2):
+    j = 0
+    while j < 1:
+        j = j + 1
+    else:
+        break
+    x = 1
+y = 2
+"""
+
 NESTED_IFS = """
 if a > b:
     if b > c:
@@ -712,6 +724,17 @@ CHECK_CASES: list[Any] = [
         action=(1, "cond"),
         expected_skills=("interruption_exits_constructs",),
         value_patches=((1, "cond", [True]),),
+    ),
+    CheckCase(
+        # break в else вложенного цикла выводит и из внешнего цикла: оператор
+        # после вложенного цикла не выполняется.
+        id="loop_else_break_skips_outer_body",
+        language="python",
+        code=NESTED_LOOP_ELSE_BREAK,
+        advance_to=(6, "first"),
+        action=(8, "next"),
+        expected_skills=("interruption_exits_constructs",),
+        value_patches=((3, "cond", [True, False]),),
     ),
     # --- Вложенные условия (пример из идеи, «конструкты вложены друг в друга») ---
     CheckCase(

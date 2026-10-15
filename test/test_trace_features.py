@@ -523,6 +523,13 @@ def test_no_early_exit_requires_an_interruption_constrained_exit() -> None:
             ),
         )
     )
+    # Прозрачный END студент не выбирает: досрочный выход граф проверки не оценивает.
+    assert "no_early_exit_without_interruption" not in collect_skills(
+        builder.ast, builder.trace
+    )
+    end = block.rule.action_declaration_by_role("END")
+    assert end is not None
+    end.opaque = True
     assert "no_early_exit_without_interruption" in collect_skills(
         builder.ast, builder.trace
     )

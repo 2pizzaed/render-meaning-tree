@@ -84,7 +84,6 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
         name="if_statement",
         kind="branch",
         ast_node="IfStatement",
-        effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
         actions=[
             ActionDeclaration(
                 role="BEGIN",
@@ -92,7 +91,11 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
                 generalization="entry",
                 effects=EffectDeclaration(call_stack=CallStackAction.ADD_FRAME),
             ),
-            ActionDeclaration(role="END", kind="marker"),
+            ActionDeclaration(
+                role="END",
+                kind="marker",
+                effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
+            ),
         ],
         transitions=[
             TransitionDeclaration(
@@ -101,6 +104,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
                 constraints=ConstraintsDeclaration(
                     condition_value=True, interruption_mode=InterruptionType.NONE
                 ),
+                effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
             )
         ],
     )
@@ -139,8 +143,8 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             role = "END";
             kind = "marker";
             is_opaque = false;
-            belongsTo(construct_if_statement);
             hasEffects(effect_break);
+            belongsTo(construct_if_statement);
         }
 
         obj effect_break : Effect {
@@ -246,17 +250,21 @@ def test_serialize_loqi_omits_action_effect_but_keeps_transition_effect_relation
     assert rendered.count("hasEffects(effect_break);") == 1
 
 
-def test_serialize_loqi_uses_compiled_transitions_for_construct_effects_and_generalization() -> (
+def test_serialize_loqi_uses_compiled_transitions_for_action_effects_and_generalization() -> (
     None
 ):
     construct = ConstructDeclaration(
         name="sequence",
         kind="compound",
         ast_node="Sequence",
-        effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
         actions=[
             ActionDeclaration(role="BEGIN", kind="marker"),
-            ActionDeclaration(role="first", kind="step", generalization="item"),
+            ActionDeclaration(
+                role="first",
+                kind="step",
+                generalization="item",
+                effects=EffectDeclaration(interruption_stop=InterruptionType.BREAK),
+            ),
             ActionDeclaration(role="next", kind="step", generalization="item"),
             ActionDeclaration(role="END", kind="marker"),
         ],

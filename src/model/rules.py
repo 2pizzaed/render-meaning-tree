@@ -319,6 +319,14 @@ class ConstructDeclaration(SharedDeclaration):
                     f"Transition {transition.from_role!r}->{transition.to_role!r} in construct {self.name!r} has multiple parents: {transition.parent.name!r} and {self.name!r}"
                 )
             transition.parent = self
+        # Эффект конструкта - эффект самого оператора: его несёт действие, которым узел
+        # представлен у родителя. Внутри составного конструкта эффекты задаются на действиях
+        # и переходах: у выхода в END нет единственного источника.
+        if self.effects is not None and not (self.is_atomic_inline or self.preorder):
+            raise ValueError(
+                f"Construct {self.name!r}: construct effects are allowed only for atomic inline "
+                "or preorder constructs; declare them on actions or transitions instead"
+            )
 
     def applicable_to_language(self, language: str) -> bool:
         return not self.applicable_languages or language in self.applicable_languages
@@ -358,11 +366,6 @@ class ConstructDeclaration(SharedDeclaration):
                 compiled.effects = _merge_effects(
                     compiled.effects, effects_by_role.get(from_role)
                 )
-                # У preorder-конструкта эффекты конструкта применяются к породившему его
-                # действию (оно попадает в трассу уже после END), поэтому в переходы к END
-                # они не встраиваются - см. Pipeline._inline_effects_for_node.
-                if compiled.to_role == "END" and not self.preorder:
-                    compiled.effects = _merge_effects(compiled.effects, self.effects)
                 result.append(compiled)
         return _add_optional_absent_targets(result, self.actions)
 

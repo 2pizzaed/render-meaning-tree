@@ -752,6 +752,7 @@
           "$ref": "#/$defs/metadata"
         },
         "effects": {
+          "description": "Effect of the statement itself, carried by the action that represents the node in its parent. Allowed only for atomic inline and preorder constructs; inside a compound construct declare effects on actions or transitions.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/effect"

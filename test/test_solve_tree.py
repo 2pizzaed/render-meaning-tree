@@ -1147,6 +1147,33 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         "python_for_each_else_no_break.loqi",
         {(2, 2): [False, False]},
     ),
+    (
+        # break в else вложенного цикла относится к внешнему циклу: выход из обоих,
+        # x = 1 и вторая итерация внешнего цикла пропускаются.
+        "python",
+        """
+        for i in range(2):
+            j = 0
+            while j < 1:
+                j = j + 1
+            else:
+                break
+            x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first"],
+            3: ["next", "cond"],
+            4: ["body", "first"],
+            6: ["else", "first"],
+            8: ["next"],
+            9: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 1), (3, 1), (4, 1), (3, 1), (6, 1), (9, 0)],
+        "python_nested_else_break.loqi",
+        {(3, 1): [True, False]},
+    ),
     # --- Рекурсия ---
     # Активации одной функции различаются кадрами вызова (TraceAct.inFrame), возврат
     # из вложенной активации продолжает внешнюю. Значения условий расходуются по всей

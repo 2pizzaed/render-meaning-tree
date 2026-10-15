@@ -261,11 +261,9 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         )
         if inline_rule is None:
             return None
-        # Атомарный inline конструкт не строится, поэтому его эффекты несёт действие.
-        # У preorder-конструкта действие выполняется уже после END конструкта, поэтому
-        # эффекты конструкта тоже применяются к действию, а не к END (см. rules.py).
-        if not inline_rule.is_atomic_inline and not inline_rule.preorder:
-            return None
+        # Эффект конструкта - эффект самого оператора, его несёт действие узла. Такие эффекты
+        # есть только у атомарных inline (конструкт не строится) и preorder-конструктов
+        # (действие выполняется после их END) - см. ConstructDeclaration.__post_init__.
         return inline_rule.effects
 
     def _resolve_action_node(

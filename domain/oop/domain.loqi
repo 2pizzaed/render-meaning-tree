@@ -52,6 +52,24 @@ enum CallStackAction {
 	EN.localizedName = "call stack action" ;
 ]
 
+enum InterruptionStackAction {
+	none [
+		RU.localizedName = "без изменений стека прерываний" ;
+		EN.localizedName = "no interruption stack change" ;
+	],
+	push [
+		RU.localizedName = "отложить текущее прерывание" ;
+		EN.localizedName = "suspend current interruption" ;
+	],
+	pop [
+		RU.localizedName = "вернуть отложенное прерывание" ;
+		EN.localizedName = "resume suspended interruption" ;
+	],
+} [
+	RU.localizedName = "действие стека прерываний" ;
+	EN.localizedName = "interruption stack action" ;
+]
+
 // -------- Правила предметной области --------
 
 class AbstractSpec {
@@ -81,6 +99,8 @@ class Effect {
 	obj prop interruption_stop: InterruptionType ;
 	obj prop interruption_start: InterruptionType ;
 	obj prop call_stack: CallStackAction ;
+	// push - при входе в finally / цепочку деструкторов, pop - при любом выходе из них
+	obj prop interruption_stack: InterruptionStackAction ;
 } [
 	RU.localizedName = "эффект" ;
 	EN.localizedName = "effect" ;
@@ -275,9 +295,21 @@ class TraceState {
 	obj prop interruption_mode: InterruptionType ;
 
 	rel hasInterruptionSemantic(SemanticValue) : {* -> 1}; // вспомогательная информация о прерывании - например, тип исключения
+	rel hasSuspended(SuspendedInterruption) : {* -> 1}; // вершина стека отложенных прерываний (текущее прерывание в стеке не лежит)
 } [
 	RU.localizedName = "состояние трассировки" ;
 	EN.localizedName = "trace state" ;
+]
+
+// прерывание, отложенное на время finally / цепочки деструкторов
+class SuspendedInterruption {
+	obj prop interruption_mode: InterruptionType ;
+
+	rel hasInterruptionSemantic(SemanticValue) : {* -> 1};
+	rel below(SuspendedInterruption) : {* -> 1}; // следующий элемент стека
+} [
+	RU.localizedName = "отложенное прерывание" ;
+	EN.localizedName = "suspended interruption" ;
 ]
 
 class TraceConfigSpec {

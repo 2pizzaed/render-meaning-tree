@@ -27,7 +27,7 @@ from src.generator.problems import (
 from src.generator.registry import SituationRegistry
 from src.generator.skills import collect_skills
 from src.generator.value_annotations import strip_value_markers
-from src.generator.value_plan import ValueVariant, action_key
+from src.generator.value_plan import ActionKey, ValueVariant, action_key
 from src.helpers.tpg.reasoning import solve_graph_full_reasoning
 from src.model.situation import Action, SemanticValue
 from src.pipeline import Pipeline
@@ -245,9 +245,11 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
             if action.is_condition and action.annotation is not None
         ]
 
-    def _action(self, key: tuple[int | None, str]) -> Action:
-        ast_id, role = key
-        return self.registry.require_action(ast_id=ast_id, role=role)
+    def _action(self, key: ActionKey) -> Action:
+        construct_ast_id, ast_id, role = key
+        return self.registry.require_action(
+            ast_id=ast_id, role=role, construct_ast_id=construct_ast_id
+        )
 
 
 def integral_complexity(

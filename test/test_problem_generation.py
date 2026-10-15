@@ -344,7 +344,7 @@ def test_branch_condition_is_evaluated_on_every_loop_iteration():
 
     assert problems
     for problem in problems:
-        chains = {role: values for (_, role), values in problem.values.items()}
+        chains = {role: values for (_, _, role), values in problem.values.items()}
         # Невычисленному условию trim_values оставляет одно значение.
         iterations = max(chains["cond"].count(True), 1)
         assert len(chains["first_cond"]) == iterations, problem.variant

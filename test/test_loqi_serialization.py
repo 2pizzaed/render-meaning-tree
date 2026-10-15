@@ -590,13 +590,13 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "belongsTo(construct_demo_ast10);" in rendered
     assert "derivedFrom(action_body);" in rendered
     assert "jump_ast_id" not in rendered
-    assert "hasValue(semantic_value_action_11_body_0);" in rendered
-    assert "hasValue(semantic_value_action_11_body_1);" not in rendered
-    assert "obj semantic_value_action_11_body_0 : SemanticValue {" in rendered
+    assert "hasValue(semantic_value_action_10_11_body_0);" in rendered
+    assert "hasValue(semantic_value_action_10_11_body_1);" not in rendered
+    assert "obj semantic_value_action_10_11_body_0 : SemanticValue {" in rendered
     assert "bool_value = OptionalBool:`true`;" in rendered
     assert 'hint = "True"' in rendered
     assert 'hint = "custom"' in rendered
-    assert "directlyBeforeOf(semantic_value_action_11_body_1);" in rendered
+    assert "directlyBeforeOf(semantic_value_action_10_11_body_1);" in rendered
     assert "directlyBeforeOf(demo_action_body_ast11);" in rendered
 
 
@@ -667,7 +667,7 @@ def test_serialize_loqi_situation_trace_act_links_transition_and_chain() -> None
     assert "hasAction(demo_trace_action_BEGIN_ast20);" in rendered
     assert "hasTransition(transition_demo_trace_BEGIN_to_body);" in rendered
     assert "directlyBeforeOf(act_demo_trace_body_1_ast21);" in rendered
-    assert "hasValue(semantic_value_action_21_body_0);" in rendered
+    assert "hasValue(semantic_value_action_20_21_body_0);" in rendered
     assert "semantic_value_owner_" not in rendered
 
 
@@ -784,9 +784,9 @@ def test_serialize_loqi_repeated_trace_act_uses_next_semantic_value() -> None:
     rendered = serialize_loqi(first_trace, adapters_by_type=_all_model_adapters())
 
     assert "obj act_root : TraceAct {" in rendered
-    assert "hasValue(semantic_value_action_21_cond_0);" in rendered
+    assert "hasValue(semantic_value_action_20_21_cond_0);" in rendered
     assert "obj act_demo_loop_cond_1_ast21 : TraceAct {" in rendered
-    assert "hasValue(semantic_value_action_21_cond_1);" in rendered
+    assert "hasValue(semantic_value_action_20_21_cond_1);" in rendered
     assert "used = true;" in rendered
     assert "bool_value = OptionalBool:`false`;" in rendered
 

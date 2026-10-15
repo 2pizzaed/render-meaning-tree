@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_LOOP_VALUES = (True, True, False)
 DEFAULT_BRANCH_VALUES = (True,)
 
-# Действие-условие ищется по (ast_id, role): ветка получает вариант после clone(),
-# поэтому ссылки на объекты Action указывали бы на действия родителя.
-type ActionKey = tuple[int | None, str]
+# Действие ищется по (ast_id конструкта, ast_id, role): ветка получает вариант после
+# clone(), поэтому ссылки на объекты Action указывали бы на действия родителя. Конструкт
+# нужен действию func вызова: его ast_id - определение функции, общее для всех вызовов.
+type ActionKey = tuple[int, int | None, str]
 # Допустимые исходы точек (индекс точки -> исходы); пустой словарь - без условий.
 type Requirement = dict[int, frozenset[int]]
 # Дизъюнкция требований: [] - код недостижим, [{}] - достижим всегда.
@@ -101,7 +102,7 @@ class ValuePlan:
 
 
 def action_key(action: Action) -> ActionKey:
-    return (action.ast_id, action.rule.role)
+    return (action.parent.ast_id, action.ast_id, action.rule.role)
 
 
 def default_condition_values(action: Action) -> tuple[bool, ...]:

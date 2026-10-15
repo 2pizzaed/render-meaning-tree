@@ -374,5 +374,7 @@ def _ast_type(obj: Action | Construct) -> str:
 
 def _semantic_scope(owner: Any) -> str:
     if isinstance(owner, Action):
-        return f"action_{owner.ast_id}_{owner.rule.role}"
+        # Конструкт различает действия func разных вызовов: их ast_id - общее определение
+        # функции. Имя должно быть уникальным: ссылки акта на значение строятся по нему.
+        return f"action_{owner.parent.ast_id}_{owner.ast_id}_{owner.rule.role}"
     return f"owner_{id(owner)}"

@@ -219,14 +219,15 @@ lambda actAlreadyCurrent(Da: ConcreteAction, Dp: ConcreteAction) = forAny TraceA
 };
 
 // Переход ведёт от предыдущей роли к выбранной на этом уровне.
-// Запасная цель учитывается только при отсутствии основной среди действий конструкции.
+// Запасная цель учитывается, когда основной нет после предыдущей роли (как в findCorrect).
 lambda transitionLeads(t: TransitionSpec, fromA: ConcreteAction, toA: ConcreteAction, C: ConcreteConstruct) =
     t->belongsTo == C->derivedFrom and
     t->from_ == fromA->derivedFrom and
     (
         t->to_ == toA->derivedFrom or (
             (not forAny ConcreteAction primary {
-                $primary->belongsTo == C and $primary->derivedFrom == t->to_
+                $primary->belongsTo == C and $primary->derivedFrom == t->to_ and
+                $primary=>afterOf(fromA)
             }) and
             toWhenAbsent(t, C) == toA->derivedFrom
         )

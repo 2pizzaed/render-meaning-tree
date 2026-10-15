@@ -2,7 +2,8 @@
 # Универсальные управляющие структуры
 # ================================
 
-# kind: compound, condition, auto
+# kind - классы через точку (compound, condition, annotated, procedure, auto, ...),
+# их смысл описан в docs/domain.md, «Возможные виды действий и конструктов»
 
 # --------------------------------
 # Глобальные операторы -- разновидность блока { ... }
@@ -54,7 +55,7 @@ if_structure:
     locale_pronoun: "it"
   actions:
     - role: first_cond             # первое условие ветвления
-      kind: inline.condition        # true / false
+      kind: inline.condition.annotated        # true / false
       identification:
         property_path: 'branches / [0] / condition'
         role_in_list: first_in_list
@@ -63,7 +64,7 @@ if_structure:
         locale_pronoun: "it"
       generalization: cond
     - role: next_cond             # следующее условие ветвления
-      kind: inline.condition
+      kind: inline.condition.annotated
       identification:
         origin: previous
         property_path: '^ / [next] / condition'
@@ -112,7 +113,7 @@ while_structure:
     - interruption_stop: break
   actions:
     - role: cond
-      kind: inline.condition
+      kind: inline.condition.annotated
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -153,7 +154,7 @@ while_else_structure:
     - interruption_stop: break
   actions:
     - role: cond
-      kind: inline.condition
+      kind: inline.condition.annotated
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -199,7 +200,7 @@ do_while_structure:
       effects:
         - interruption_stop: continue
     - role: cond
-      kind: inline.condition
+      kind: inline.condition.annotated
       identification:
         property: condition
       metadata:
@@ -240,7 +241,7 @@ for_structure:
         locale_trace_name: "init"
         locale_pronoun: "she"
     - role: cond
-      kind: inline.condition
+      kind: inline.condition.annotated
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -300,7 +301,7 @@ for_each_structure:
         locale_trace_name: "container"
         locale_pronoun: "he"
     - role: cond
-      kind: inline.condition
+      kind: inline.condition.annotated
       behaviour:
         assumed_value: true
       metadata:
@@ -351,7 +352,7 @@ for_range_structure:
       identification:
         property: 'range'
     - role: cond
-      kind: inline.condition
+      kind: inline.condition.annotated
       metadata:
         locale_trace_name: "condition_range_for"
         locale_pronoun: "it"
@@ -412,7 +413,7 @@ block_structure:
 # Определение функции
 # --------------------------------
 func_def_structure:
-  kind: compound.external.noop
+  kind: compound.procedure.noop
   ast_node: ['function_definition', 'method_definition']
   metadata:
     locale_trace_name: "function_def"
@@ -454,7 +455,7 @@ func_call_structure:
       identification:
         property_path: 'function / name'
     - role: func
-      kind: external
+      kind: procedure.annotated
       # identification: func def lookup (see Python code)
       effects:
         - interruption_stop: return

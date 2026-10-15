@@ -340,7 +340,7 @@ def test_repeated_calls_are_distinct_from_recursion(recursive: bool) -> None:
     )
     root = builder.construct(1)
     function = builder.construct(
-        2, name="func_def_structure", kind="compound.external.noop", parent=root
+        2, name="func_def_structure", kind="compound.procedure.noop", parent=root
     )
     builder.act(function.begin_action())
     if not recursive:
@@ -368,8 +368,8 @@ def test_mutual_recursion_uses_active_function_stack() -> None:
         )
     )
     root = builder.construct(1)
-    first = builder.construct(2, kind="compound.external.noop", parent=root)
-    second = builder.construct(3, kind="compound.external.noop", parent=root)
+    first = builder.construct(2, kind="compound.procedure.noop", parent=root)
+    second = builder.construct(3, kind="compound.procedure.noop", parent=root)
     builder.act(first.begin_action())
     builder.act(second.begin_action())
     assert "call_depth" in collect_concepts(builder.ast, builder.trace)

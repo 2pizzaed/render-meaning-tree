@@ -66,28 +66,28 @@ def test_domain_pipeline_build_construct_skips_atomic_inline_and_noop_rules():
     assert pipeline.registry.constructs == {}
 
 
-def test_domain_pipeline_build_construct_keeps_external_noop_rule():
+def test_domain_pipeline_build_construct_keeps_procedure_noop_rule():
     manager = Mock(language="python")
     manager.ast.instanceof.return_value = False
     manager.ast.get_parent_of.return_value = None
     manager.get_node_by_id.side_effect = lambda ast_id: {
         "id": ast_id,
-        "type": "external_node",
+        "type": "procedure_node",
     }
     pipeline = LearningProblemGeneratorPipeline.from_code(manager)
     pipeline.registry.rules = [
         ConstructDeclaration(
-            name="external",
-            kind="compound.external.noop",
-            ast_node="external_node",
+            name="procedure",
+            kind="compound.procedure.noop",
+            ast_node="procedure_node",
             actions=[ActionDeclaration(role="body", kind="compound")],
         ),
     ]
 
-    construct = pipeline._build_construct(4, {"id": 4, "type": "external_node"})
+    construct = pipeline._build_construct(4, {"id": 4, "type": "procedure_node"})
 
     assert construct is not None
-    assert construct.rule.name == "external"
+    assert construct.rule.name == "procedure"
 
 
 def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions():
@@ -774,7 +774,7 @@ def test_domain_pipeline_fill_actions_skips_noop_nodes_without_materializing_con
     assert [action.rule.role for action in visible_actions] == ["first"]
 
 
-def test_domain_pipeline_fill_actions_skips_external_noop_inside_block_sequence():
+def test_domain_pipeline_fill_actions_skips_procedure_noop_inside_block_sequence():
     manager = Mock(language="python")
     manager.get_node_by_id.side_effect = lambda ast_id: {
         10: {
@@ -804,7 +804,7 @@ def test_domain_pipeline_fill_actions_skips_external_noop_inside_block_sequence(
     )
     pipeline.registry.rules = [
         rule,
-        ConstructDeclaration(name="function", kind="compound.external.noop", ast_node="function_definition"),
+        ConstructDeclaration(name="function", kind="compound.procedure.noop", ast_node="function_definition"),
         ConstructDeclaration(name="atom", kind="inline", ast_node="expression_statement"),
     ]
     construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
@@ -1011,7 +1011,7 @@ def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program
         call_rule,
         ConstructDeclaration(
             name="function",
-            kind="compound.external.noop",
+            kind="compound.procedure.noop",
             ast_node="function_definition",
         ),
     ]

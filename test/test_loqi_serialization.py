@@ -679,7 +679,7 @@ def test_serialize_loqi_trace_act_in_frame_separates_recursive_activations() -> 
         ast_node="call_node",
         actions=[
             ActionDeclaration(role="BEGIN", kind="BEGIN"),
-            ActionDeclaration(role="func", kind="external"),
+            ActionDeclaration(role="func", kind="procedure.annotated"),
             ActionDeclaration(role="END", kind="END"),
         ],
         transitions=[

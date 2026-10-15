@@ -300,7 +300,7 @@ class ConstructDeclaration(SharedDeclaration):
 
     @property
     def should_build_construct(self) -> bool:
-        return "external" in self.kind_classes or (
+        return "procedure" in self.kind_classes or (
             "noop" not in self.kind_classes and not self.is_atomic_inline
         )
 

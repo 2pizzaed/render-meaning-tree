@@ -428,7 +428,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         )
         if matched_rule is None or "noop" not in matched_rule.kind_classes:
             return False
-        if "external" in matched_rule.kind_classes:
+        if "procedure" in matched_rule.kind_classes:
             return bool({"program", "block"} & construct.rule.kind_classes)
         return True
 

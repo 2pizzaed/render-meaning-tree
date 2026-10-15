@@ -23,7 +23,6 @@ _CONTAINER_TYPES = frozenset(
         "range_for_loop",
         "for_each_loop",
         "while_loop",
-        "while_else_loop",
         "do_while_loop",
         "infinite_loop",
         "exception_catch_statement",

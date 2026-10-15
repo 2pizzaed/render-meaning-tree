@@ -125,6 +125,10 @@ while_structure:
         property: body
       effects:
         - interruption_stop: continue
+    - role: else                 # while-else (Python): выполняется при выходе по условию, не по break
+      kind: compound
+      identification:
+        property: elseBranch
   transitions:
     - from: BEGIN
       to: cond
@@ -133,50 +137,12 @@ while_structure:
       constraints:
         condition_value: true        # если условие истинно → выполняем тело
     - from: cond
-      to: END
-      constraints:
-        condition_value: false       # если ложно → выходим из цикла
-    - from: body
-      to: cond                   # после тела возвращаемся к условию
-
-# --------------------------------
-# Цикл while+else (Python only)
-# --------------------------------
-while_else_structure:
-  applicable_languages: ["python"]
-  kind: compound.loop
-  ast_node: while_else_loop #TODO: такого цикла пока нет
-  metadata:
-    locale_trace_name: "loop"
-    locale_pronoun: "he"
-    keyword: while
-  effects:
-    - interruption_stop: break
-  actions:
-    - role: cond
-      kind: inline.condition.annotated
-      metadata:
-        locale_trace_name: "condition"
-        locale_pronoun: "it"
-    - role: body
-      kind: compound
-      effects:
-        - interruption_stop: continue
-    - role: else
-      kind: compound
-  transitions:
-    - from: BEGIN
-      to: cond
-    - from: cond
-      to: body
-      constraints:
-        condition_value: true      # если условие истинно → выполняем тело
-    - from: body
-      to: cond                   # после тела возвращаемся к условию
-    - from: cond
       to: else
+      to_when_absent: END
       constraints:
-        condition_value: false     # если ложно → выходим в else
+        condition_value: false       # если ложно → в else или выходим из цикла
+    - from: body
+      to: cond                   # после тела возвращаемся к условию
     - from: else
       to: END
 
@@ -315,6 +281,10 @@ for_each_structure:
         property: body
       effects:
         - interruption_stop: continue
+    - role: else                 # for-else (Python): выполняется при выходе по условию, не по break
+      kind: compound
+      identification:
+        property: elseBranch
   transitions:
     - from: BEGIN
       to: init
@@ -325,11 +295,14 @@ for_each_structure:
       constraints:
         condition_value: true
     - from: cond
-      to: END
+      to: else
+      to_when_absent: END
       constraints:
-        condition_value: false       # false → выход
+        condition_value: false       # false → в else или выход
     - from: body
       to: cond
+    - from: else
+      to: END
 
 # --------------------------------
 # Цикл for по диапазону (range_for_loop)
@@ -364,6 +337,10 @@ for_range_structure:
         property: body
       effects:
         - interruption_stop: continue
+    - role: else                 # for-else (Python): выполняется при выходе по условию, не по break
+      kind: compound
+      identification:
+        property: elseBranch
   transitions:
     - from: BEGIN
       to: init
@@ -374,11 +351,14 @@ for_range_structure:
       constraints:
         condition_value: true
     - from: cond
-      to: END
+      to: else
+      to_when_absent: END
       constraints:
-        condition_value: false       # false → выход
+        condition_value: false       # false → в else или выход
     - from: body
       to: cond
+    - from: else
+      to: END
 
 # --------------------------------
 # Блок операторов { ... }

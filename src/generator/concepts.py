@@ -397,7 +397,7 @@ def has_for_each_loop(ast: ASTNodeManager, trace: Sequence[TraceAct]) -> bool:
 
 
 def has_while_loop(ast: ASTNodeManager, trace: Sequence[TraceAct]) -> bool:
-    return has_node_types(ast, trace, "while_loop", "while_else_loop")
+    return has_node_types(ast, trace, "while_loop")
 
 
 def has_do_while_loop(ast: ASTNodeManager, trace: Sequence[TraceAct]) -> bool:

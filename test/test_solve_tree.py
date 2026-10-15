@@ -1061,6 +1061,92 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         "python_for_if_reentry.loqi",
         {(2, 2): [True, True]},
     ),
+    # --- else у циклов (Python) ---
+    # MT генерирует после цикла с else пустую строку, поэтому номер следующего оператора
+    # на единицу больше, чем в исходном фрагменте.
+    (
+        # Выход по условию: else выполняется один раз после всех итераций.
+        "python",
+        """
+        i = 0
+        while i < 2:
+            i = i + 1
+        else:
+            x = i
+        y = 1
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["body", "first"],
+            5: ["else", "first"],
+            7: ["next"],
+        },
+        [(1, 0), (2, 1), (3, 1), (2, 1), (3, 1), (2, 1), (5, 1), (7, 0)],
+        "python_while_else.loqi",
+    ),
+    (
+        "python",
+        """
+        for i in range(2):
+            total = total + i
+        else:
+            x = total
+        y = 1
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first"],
+            4: ["else", "first"],
+            6: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (4, 1), (6, 0)],
+        "python_for_range_else.loqi",
+    ),
+    (
+        # break в теле: выход из цикла минуя else.
+        "python",
+        """
+        for v in values:
+            if v:
+                break
+        else:
+            x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first", "first_cond"],
+            3: ["if_branch", "first"],
+            5: ["else", "first"],
+            7: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 2), (3, 1), (7, 0)],
+        "python_for_each_else_break.loqi",
+        {(2, 2): [True]},
+    ),
+    (
+        # break не выполнился: после последней проверки условия цикла - else.
+        "python",
+        """
+        for v in values:
+            if v:
+                break
+        else:
+            x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first", "first_cond"],
+            3: ["if_branch", "first"],
+            5: ["else", "first"],
+            7: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 2), (1, 1), (2, 2), (1, 1), (5, 1), (7, 0)],
+        "python_for_each_else_no_break.loqi",
+        {(2, 2): [False, False]},
+    ),
     # --- Рекурсия ---
     # Активации одной функции различаются кадрами вызова (TraceAct.inFrame), возврат
     # из вложенной активации продолжает внешнюю. Значения условий расходуются по всей

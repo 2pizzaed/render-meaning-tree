@@ -116,7 +116,7 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
             action = self._action(key)
             _trim_values(action, max(action.consumed_value_count(), 1))
 
-        for action in self._annotated_conditions():
+        for action in self._annotated_actions():
             assert action.annotation is not None
             used = action.consumed_value_count()
             if used < len(action.values):
@@ -157,7 +157,7 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
             values={
                 action_key(action): _values_of(action)
                 for action in registry.all_actions()
-                if action.is_condition
+                if action.is_condition or action.annotation is not None
             },
             steps=metrics.steps,
             student_step_indexes=self._student_step_indexes(),
@@ -203,19 +203,20 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         return f"findCorrect не построил трассу: {details}"
 
     def _exhausted_annotation(self) -> str | None:
-        """Размеченное условие, у которого кончилась цепочка.
+        """Размеченное действие, у которого кончилась цепочка.
 
         После сбоя registry остаётся в состоянии последней успешной итерации, а за
-        вызов условие тратит не больше одного значения. Значит, цепочка, кончившаяся
-        во время вызова, в этом состоянии уже израсходована целиком.
+        вызов рассуждателя действие тратит не больше одного значения. Значит, цепочка,
+        кончившаяся во время вызова, в этом состоянии уже израсходована целиком.
         """
-        for action in self._annotated_conditions():
+        for action in self._annotated_actions():
             assert action.annotation is not None
             used = action.consumed_value_count()
             if used >= len(action.values):
+                execution = "вычислении условия" if action.is_condition else "выполнении вызова"
                 return (
                     f"{_line_prefix(action.annotation.line)}цепочка "
-                    f"{action.annotation.marker} кончилась на {used + 1}-м вычислении условия"
+                    f"{action.annotation.marker} кончилась на {used + 1}-м {execution}"
                 )
         return None
 
@@ -238,12 +239,8 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
     def _opaque_steps(self) -> int:
         return sum(1 for trace_act in self.registry.trace_acts if trace_act.action.is_opaque)
 
-    def _annotated_conditions(self) -> list[Action]:
-        return [
-            action
-            for action in self.registry.all_actions()
-            if action.is_condition and action.annotation is not None
-        ]
+    def _annotated_actions(self) -> list[Action]:
+        return [action for action in self.registry.all_actions() if action.annotation is not None]
 
     def _action(self, key: ActionKey) -> Action:
         construct_ast_id, ast_id, role = key
@@ -272,7 +269,7 @@ def integral_complexity(
     return 1 / (1 + math.exp(-(score - 2) * 5))
 
 
-def _values_of(action: Action) -> tuple[bool, ...]:
+def _values_of(action: Action) -> tuple[bool | None, ...]:
     return tuple(value.bool_value for value in action.values)
 
 

@@ -113,6 +113,11 @@ class Action:
     def is_condition(self) -> bool:
         return "condition" in self.rule.kind_classes
 
+    @property
+    def is_annotatable(self) -> bool:
+        """Правило разрешает задать цепочку значений разметкой ``<! … >``."""
+        return "annotated" in self.rule.kind_classes
+
     def expands_to(self) -> Construct | None:
         return (
             self.owner.get_construct_for(self.ast_id)
@@ -199,9 +204,10 @@ class TraceState:
 
 @dataclass(frozen=True, slots=True)
 class ValueAnnotation:
-    """Цепочка значений условия, заданная вручную комментарием ``<! … >``."""
+    """Цепочка значений действия, заданная вручную комментарием ``<! … >``."""
 
-    values: tuple[bool, ...]
+    # У условия - True/False, у вызова - None (только подсказка для трассы).
+    values: tuple[bool | None, ...]
     # Подсказки значений по позициям; None - подсказка по умолчанию.
     hints: tuple[str | None, ...]
     # Каноническая запись маркера для сообщений.
@@ -218,7 +224,8 @@ class ValueAnnotation:
 
 @dataclass(slots=True)
 class SemanticValue:
-    bool_value: bool
+    # None - значение без логического смысла: графы его не учитывают (docs/domain.md)
+    bool_value: bool | None
     hint_override: str | None = None
     used: bool = False
     owner: Action | None = None
@@ -227,7 +234,9 @@ class SemanticValue:
 
     @property
     def hint(self) -> str:
-        return self.hint_override if self.hint_override is not None else str(self.bool_value)
+        if self.hint_override is not None:
+            return self.hint_override
+        return "" if self.bool_value is None else str(self.bool_value)
 
     @property
     def chain(self) -> list[SemanticValue]:

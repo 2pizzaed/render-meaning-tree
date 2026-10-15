@@ -127,8 +127,8 @@ class LearningProblem:
     registry: SituationRegistry
     # Код задачи без комментариев-маркеров <! … >.
     code: str
-    # Итоговые цепочки значений всех условий.
-    values: dict[ActionKey, tuple[bool, ...]]
+    # Итоговые цепочки значений всех условий и размеченных действий.
+    values: dict[ActionKey, tuple[bool | None, ...]]
     steps: int
     # Индексы актов трассы registry, которые студент отмечает сам.
     student_step_indexes: tuple[int, ...]

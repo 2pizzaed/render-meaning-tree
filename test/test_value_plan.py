@@ -28,7 +28,7 @@ def _patterns(plan: ValuePlan) -> list[list[tuple[bool, ...]]]:
     return [list(variant.patterns.values()) for variant in plan.variants]
 
 
-def _default_chains(registry: SituationRegistry) -> dict[tuple[int | None, str], tuple[bool, ...]]:
+def _default_chains(registry: SituationRegistry) -> dict[tuple[int | None, str], tuple[bool | None, ...]]:
     """Цепочки ситуации по умолчанию: (строка условия, роль) -> значения."""
     return {
         (registry.code.code_line_number_by_id(action.ast_id), action.rule.role): tuple(

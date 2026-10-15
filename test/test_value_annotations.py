@@ -142,6 +142,69 @@ def test_tuple_marker_sets_value_hints(code: str, language: str):
     ]
 
 
+def test_null_markers_bind_to_calls_on_their_line():
+    registry = code_snippet_to_registry(
+        textwrap.dedent(
+            """
+            def f(n):
+                if f(n - 1) > 0:  # <! (-, "f(1)") >
+                    return 1
+                if n > 0:  # <! (T, "n=2"), (F, "n=1") >
+                    return n
+                return 0
+            print(f(2))  # <! (-, "f(2)") >
+            """
+        )
+    )
+    code = registry.code
+
+    # Строки - в коде, перегенерированном MT.
+    annotated = {
+        (code.code_line_number_by_id(action.parent.ast_id), action.rule.role): [
+            (value.bool_value, value.hint) for value in action.values
+        ]
+        for action in registry.all_actions()
+        if action.annotation is not None
+    }
+
+    # На строке с условием-вызовом маркер с «-» размечает вызов, а не условие.
+    assert annotated == {
+        (2, "func"): [(None, "f(1)")],
+        (4, "first_cond"): [(True, "n=2"), (False, "n=1")],
+        (9, "func"): [(None, "f(2)")],
+    }
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        pytest.param(
+            'def f():\n    return 1\nx = f()  # <! (T, "a"), (-, "b") >\n',
+            r"<! \(T, \"a\"\), \(-, \"b\"\) > — нельзя смешивать T/F и -",
+            id="mixed",
+        ),
+        pytest.param(
+            'x = 1  # <! (-, "a") >\n',
+            r"— к комментарию не привязан вызов функции",
+            id="no-call",
+        ),
+        pytest.param(
+            'print(1)  # <! (-, "p") >\n',
+            r"— к комментарию не привязан вызов функции",
+            id="library-call",
+        ),
+        pytest.param(
+            'def f(x):\n    return x\ny = f(1) + f(2)  # <! (-, "a") >\n',
+            r"— на строке несколько вызовов функций",
+            id="ambiguous",
+        ),
+    ],
+)
+def test_null_marker_errors_stop_situation_generation(code: str, message: str):
+    with pytest.raises(ValueError, match=message):
+        code_snippet_to_registry(code)
+
+
 @pytest.mark.parametrize(
     ("code", "language", "message"),
     [

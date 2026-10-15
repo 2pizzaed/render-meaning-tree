@@ -22,6 +22,7 @@ from src.generator.utilities import (
     problem_statement_registry,
 )
 from src.generator.value_plan import ActionKey, action_key
+from src.model.situation import SemanticValue
 
 SCHEMA_PATH = (
     Path(__file__).resolve().parents[1]
@@ -115,11 +116,46 @@ def test_statement_registry_keeps_marker_hints_of_used_values():
     assert [value.hint for value in condition.values] == ["n=3", "n=2", "n=1"]
 
 
-def _condition_values(registry: SituationRegistry) -> dict[ActionKey, tuple[bool, ...]]:
+def test_annotated_calls_carry_null_values_into_trace_and_statement():
+    code = textwrap.dedent(
+        """
+        def fact(n):
+            if n <= 1:  # <! FFT >
+                return 1
+            return n * fact(n - 1)  # <! (-, "fact(2)"), (-, "fact(1)"), (-, "unused") >
+        fact(3)  # <! (-, "fact(3)") >
+        """
+    )
+    manager = prepare_code(code, "python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, config=FAST_CONFIG)
+    [problem] = pipeline.run().results()
+
+    # Акты вызовов идут в порядке входа и несут значения своих вызовов.
+    call_values = [
+        act.value
+        for act in problem.registry.trace_acts
+        if act.action.rule.role == "func" and isinstance(act.value, SemanticValue)
+    ]
+    assert [(value.bool_value, value.hint) for value in call_values] == [
+        (None, "fact(3)"),
+        (None, "fact(2)"),
+        (None, "fact(1)"),
+    ]
+
+    # Неизрасходованный хвост срезан, остальное переносится в условие задачи.
+    statement = problem_statement_registry(pipeline.registry, problem)
+    calls = [action for action in statement.all_actions() if action.rule.role == "func"]
+    assert sorted([value.hint for value in action.values] for action in calls) == [
+        ["fact(2)", "fact(1)"],
+        ["fact(3)"],
+    ]
+
+
+def _condition_values(registry: SituationRegistry) -> dict[ActionKey, tuple[bool | None, ...]]:
     return {
         action_key(action): tuple(value.bool_value for value in action.values)
         for action in registry.all_actions()
-        if action.is_condition
+        if action.is_condition or action.annotation is not None
     }
 
 

@@ -1,9 +1,11 @@
-"""Ручная разметка значений условий комментарием ``<! … >``.
+"""Ручная разметка значений комментарием ``<! … >``.
 
-Комментарий-маркер стоит в заголовке цикла или ветви и задаёт цепочку значений
-условия целиком (см. ``docs/ideas/value_annotations_idea.md``). Привязка идёт по
-дереву: от узла, к которому MT прикрепил комментарий, вверх до ближайшей конструкции
-с условием, не заходя в её тело.
+Маркер задаёт цепочку значений аннотируемого действия (``kind`` содержит
+``annotated``) целиком (см. ``docs/ideas/value_annotations_idea.md``). Маркер со
+значениями ``T``/``F`` стоит в заголовке цикла или ветви и размечает условие: привязка
+идёт по дереву от узла, к которому MT прикрепил комментарий, вверх до ближайшей
+конструкции с условием, не заходя в её тело. Маркер со значениями ``-`` размечает
+вызов функции на строке комментария внутри его владельца.
 """
 
 from __future__ import annotations
@@ -78,15 +80,26 @@ def bind_value_annotations(registry: SituationRegistry) -> None:
         if values is None:
             continue
 
-        action = _annotated_condition(registry, comment)
+        marker = content.strip()
+        is_null = [item.value is None for item in values]
+        if any(is_null) and not all(is_null):
+            raise ValueAnnotationError(f"{prefix}{marker} — нельзя смешивать T/F и - в одной разметке")
+        if all(is_null):
+            calls = _annotated_calls(registry, comment, line)
+            if len(calls) > 1:
+                raise ValueAnnotationError(
+                    f"{prefix}{marker} — на строке несколько вызовов функций, разметка неоднозначна"
+                )
+            action = calls[0] if calls else None
+            missing, duplicate = "не привязан вызов функции", "вызов уже размечен"
+        else:
+            action = _annotated_condition(registry, comment)
+            missing, duplicate = "не привязано условие", "условие уже размечено"
         if action is None:
-            raise ValueAnnotationError(
-                f"{prefix}{content.strip()} — к комментарию не привязано условие"
-            )
+            raise ValueAnnotationError(f"{prefix}{marker} — к комментарию {missing}")
         if action.annotation is not None:
             raise ValueAnnotationError(
-                f"{prefix}{content.strip()} — условие уже размечено на строке "
-                f"{action.annotation.line}"
+                f"{prefix}{marker} — {duplicate} на строке {action.annotation.line}"
             )
         action.annotation = ValueAnnotation(
             values=tuple(item.value for item in values),
@@ -111,7 +124,11 @@ def _annotated_condition(
         path_ids.add(current.id)
         construct = registry.get_construct_for(current.id)
         conditions = (
-            [action for action in construct.actions if action.is_condition]
+            [
+                action
+                for action in construct.actions
+                if action.is_condition and action.is_annotatable
+            ]
             if construct is not None
             else []
         )
@@ -128,3 +145,29 @@ def _annotated_condition(
             return None
         current = current.parent
     return None
+
+
+def _annotated_calls(
+    registry: SituationRegistry, comment: NodePathElement, line: int | None
+) -> list[Action]:
+    """Размечаемые вызовы под владельцем комментария, занимающие строку комментария.
+
+    Вызов - аннотируемое действие без логических значений (``func`` вызова). Оно
+    выполняется на месте своего конструкта, поэтому положение берётся по узлу конструкта.
+    """
+    if comment.field_name != "trailing_comments" or comment.parent is None or line is None:
+        return []
+    owner = comment.parent
+    code = registry.code
+    calls: list[Action] = []
+    for action in registry.all_actions():
+        if not action.is_annotatable or action.is_condition:
+            continue
+        call = code.ast.get_path(action.parent.ast_id)
+        lines = code.line_number_range(action.parent.ast_id)
+        if call is None or lines is None:
+            continue
+        under_owner = call.id == owner.id or call.has_parent(owner.id)
+        if under_owner and lines[0] <= line <= lines[1]:
+            calls.append(action)
+    return calls

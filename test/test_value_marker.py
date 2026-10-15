@@ -24,6 +24,7 @@ T, F = True, False
             (MarkerValue(T, "a, (b)"), MarkerValue(F, "x > 0")),
         ),
         ('<! (T, "") >', (MarkerValue(T, ""),)),
+        ('<! (-, "f(2)"),( - ,"") >', (MarkerValue(None, "f(2)"), MarkerValue(None, ""))),
         (r'<! (F, "say \"hi\"\\") >', (MarkerValue(F, 'say "hi"\\'),)),
     ],
 )
@@ -45,7 +46,9 @@ def test_parse_value_marker_ignores_ordinary_comments(content: str):
         ('<! (T, "a") (F, "b") >', "ожидалось «,», а не «\\(»"),
         ('<! (T, "a"), >', "ожидалось «\\(», а не конец разметки"),
         ('<! (T, "a" >', "ожидалось «,», а не конец разметки"),
-        ("<! (T) >", 'кортеж \\(T\\) не в форме \\(T\\|F, "подсказка"\\)'),
+        ("<! (T) >", 'кортеж \\(T\\) не в форме \\(T\\|F\\|-, "подсказка"\\)'),
+        ("<! T-F >", "ожидалось «\\(», а не «T»"),
+        ("<! (-) >", "не в форме"),
         ('<! ("a", T) >', "не в форме"),
         ('<! (T, "a", "b") >', "не в форме"),
         ('<! (T, "a"b") >', "непонятный фрагмент"),
@@ -60,7 +63,7 @@ def test_parse_value_marker_rejects_malformed(content: str, message: str):
 
 @pytest.mark.parametrize(
     "content",
-    ["<! TTF >", '<! (T, "f(1)"), (F, "say \\"hi\\"") >'],
+    ["<! TTF >", '<! (T, "f(1)"), (F, "say \\"hi\\"") >', '<! (-, "f(2)"), (-, "") >'],
 )
 def test_format_value_marker_round_trips(content: str):
     values = parse_value_marker(content)

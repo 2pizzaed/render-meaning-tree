@@ -106,9 +106,7 @@ def action_key(action: Action) -> ActionKey:
 
 
 def default_condition_values(action: Action) -> tuple[bool, ...]:
-    """Цепочка без рассуждателя: разметка, затем assumed_value, затем умолчания."""
-    if action.annotation is not None:
-        return action.annotation.values
+    """Цепочка неразмеченного действия без рассуждателя: assumed_value, затем умолчания."""
     if action.assumed_value is not None:
         return (action.assumed_value,)
     if not action.is_condition:

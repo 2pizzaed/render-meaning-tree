@@ -332,6 +332,25 @@ def f(n):
 print(f(2))
 """
 
+# Те же фрагменты с аннотациями вызовов: значения null не должны влиять на проверку.
+RECURSION_DEPTH2_ANNOTATED = """
+def f(n):
+    if n > 0:
+        f(n - 1)  # <! (-, "f(1)"), (-, "f(0)") >
+    print(n)
+
+f(2)  # <! (-, "f(2)") >
+"""
+
+RECURSION_RETURN_ANNOTATED = """
+def f(n):
+    if n > 0:
+        return f(n - 1)  # <! (-, "f(1)"), (-, "f(0)") >
+    return 0
+
+print(f(2))  # <! (-, "f(2)") >
+"""
+
 # Рекурсия: активации одной функции различаются кадрами вызова (TraceAct.inFrame).
 # Значения условий расходуются по всей трассе, поэтому патч задаёт их для всех активаций
 # подряд; при привязке значений к активации патчи, вероятно, придётся переписать.
@@ -1008,6 +1027,47 @@ CHECK_CASES: list[Any] = [
         id="recursion_return_statement_to_outer_activation",
         language="python",
         code=RECURSION_RETURN,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        expected_skills=("inner_construct_finished_before_next",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
+    ),
+    # --- Аннотации вызовов (значения null) ---
+    CheckCase(
+        id="annotated_recursion_second_call_entered",
+        language="python",
+        code=RECURSION_DEPTH2_ANNOTATED,
+        advance_to=(2, "first_cond"),
+        advance_occurrence=2,
+        action=(3, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="annotated_recursion_return_to_outer_activation",
+        language="python",
+        code=RECURSION_DEPTH2_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        expected_skills=("inner_construct_finished_before_next",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="annotated_recursion_outer_call_end_too_early",
+        language="python",
+        code=RECURSION_DEPTH2_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(7, "END", "func_call_structure"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="annotated_recursion_return_statement_to_outer_activation",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
         advance_to=(4, "next"),
         action=(3, "END", "func_call_structure"),
         expected_skills=("inner_construct_finished_before_next",),

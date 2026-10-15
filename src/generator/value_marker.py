@@ -1,10 +1,12 @@
-"""Синтаксис маркера значений условия ``<! … >``.
+"""Синтаксис маркера значений ``<! … >``.
 
 Содержимое маркера - одна из двух форм:
 
 - краткая ``TTF``: только значения;
 - список кортежей ``(T, "f(1)"), (F, "f(2)")``: значение и подсказка (hint) для
-  SemanticValue. Подсказка - строковый литерал в синтаксисе JSON.
+  SemanticValue. Подсказка - строковый литерал в синтаксисе JSON. Вместо ``T``/``F``
+  можно написать ``-``: значение без логического смысла (``null``), например
+  аннотация вызова ``(-, "f(2)")``.
 
 Пробелы вокруг скобок и запятых допускаются.
 """
@@ -21,8 +23,9 @@ from dataclasses import dataclass
 _MARKER_RE = re.compile(r"^\s*<!(?P<body>.*)>\s*$", re.DOTALL)
 _SHORT_FORM_RE = re.compile(r"\s*[TF]+\s*")
 _TOKEN_RE = re.compile(
-    r'\s*(?:(?P<punct>[(),])|(?P<flag>[TF])\b|(?P<string>"(?:[^"\\]|\\.)*"))'
+    r'\s*(?:(?P<punct>[(),])|(?P<flag>[TF]\b|-)|(?P<string>"(?:[^"\\]|\\.)*"))'
 )
+_FLAG_VALUES: dict[str, bool | None] = {"T": True, "F": False, "-": None}
 
 
 class ValueMarkerSyntaxError(ValueError):
@@ -31,7 +34,7 @@ class ValueMarkerSyntaxError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class MarkerValue:
-    value: bool
+    value: bool | None
     hint: str | None = None
 
 
@@ -71,7 +74,9 @@ def format_value_marker(values: Sequence[MarkerValue]) -> str:
     return f"<! {body} >"
 
 
-def _flag(value: bool) -> str:
+def _flag(value: bool | None) -> str:
+    if value is None:
+        return "-"
     return "T" if value else "F"
 
 
@@ -122,10 +127,10 @@ def _marker_value(args: list[_Token]) -> MarkerValue:
                 hint = json.loads(literal)
             except json.JSONDecodeError as error:
                 raise ValueMarkerSyntaxError(f"некорректная строка {literal}") from error
-            return MarkerValue(flag == "T", hint)
+            return MarkerValue(_FLAG_VALUES[flag], hint)
         case _:
             written = ", ".join(token.text for token in args)
-            raise ValueMarkerSyntaxError(f'кортеж ({written}) не в форме (T|F, "подсказка")')
+            raise ValueMarkerSyntaxError(f'кортеж ({written}) не в форме (T|F|-, "подсказка")')
 
 
 def _expect(tokens: list[_Token], index: int, text: str) -> int:

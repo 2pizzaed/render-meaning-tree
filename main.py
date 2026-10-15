@@ -74,7 +74,7 @@ def _describe(problem: LearningProblem) -> str:
     chains = ", ".join(
         f"{role}@{code.code_line_number_by_id(ast_id) if ast_id else '?'}="
         + "".join("T" if value else "F" for value in values)
-        for (ast_id, role), values in problem.values.items()
+        for (_, ast_id, role), values in problem.values.items()
     )
     score = f"{problem.score:.3f}" if problem.score is not None else "-"
     return (

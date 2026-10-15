@@ -144,7 +144,8 @@ class ASTEntity {
 ]
 
 class SemanticValue {
-    obj prop bool_value: bool;
+    // null - значение без логического смысла (например, аннотация вызова для трассы): в рассуждении не участвует
+    obj prop bool_value: OptionalBool ;
 	obj prop used: bool;
 
 	rel directlyBeforeOf(SemanticValue) : linear ;

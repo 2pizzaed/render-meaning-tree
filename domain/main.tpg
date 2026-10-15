@@ -25,6 +25,11 @@ lambda findUnusedValue(A: ConcreteAction) = findExtreme unused [
     A=>hasValue() and ($v=>afterOf(A->hasValue) or $v == A->hasValue) and not $v.used
 };
 
+// Значения действия — значения условия. Значения без bool_value только аннотируют акты трассы
+// (например, вызов factorial(5)) и в рассуждении не участвуют.
+lambda hasConditionValue(A: ConcreteAction) =
+    A=>hasValue() and A->hasValue.bool_value != OptionalBool:`null`;
+
 // Запасная цель перехода: первое присутствующее действие из цепочки запасных целей.
 // Если цепочки нет, используем основную цель.
 lambda toWhenAbsent(T: TransitionSpec, C: ConcreteConstruct) = if (T=>to_when_absent()) (findExtreme present [
@@ -236,7 +241,7 @@ lambda interruptionOk(t: TransitionSpec, S: TraceState) =
 // Ограничение перехода по значению условия выполнено.
 lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction) =
     not t=>hasConstraints() or
-    not fromA=>hasValue() or
+    not hasConditionValue(fromA) or
     findUnusedValue(fromA).bool_value == t->hasConstraints.condition_value;
 
 // Декомпозиция, п. 7; шаг 5.2.2.2: обе роли ведут сразу в завершение — это альтернативные ветви.
@@ -596,7 +601,7 @@ fragment autoPassedRefinement() {
                 $d=>beforeOf(ExitAct) and
                 $d->inFrame == ExitAct->inFrame and
                 $d->hasAction->belongsTo == ValueExited and
-                $d=>hasValue()
+                $d=>hasValue() and $d->hasValue.bool_value != OptionalBool:`null`
             } out true else {
                 conclude: error [ exception = true; exceptionName = "NoValueExitDecider"; ];
             };
@@ -628,7 +633,7 @@ fragment autoPassedRefinement() {
                 $d=>beforeOf(EnterAct) and
                 $d->inFrame == EnterAct->inFrame and
                 $d->hasAction->belongsTo == A->belongsTo and
-                $d=>hasValue()
+                $d=>hasValue() and $d->hasValue.bool_value != OptionalBool:`null`
             } out true else {
                 conclude: error [ exception = true; exceptionName = "NoValueEnterDecider"; ];
             };
@@ -758,7 +763,7 @@ fragment checkLevel(C: ConcreteConstruct) {
                 };
                 ask (Da=>afterOf(Dp)) out false else {
                     // Для ветвления с последовательными условиями объясняем пропуск ещё не проверенных условий.
-                    ask (C->derivedFrom.kind == "compound.alternative" and Dp=>hasValue()) out false else {
+                    ask (C->derivedFrom.kind == "compound.alternative" and hasConditionValue(Dp)) out false else {
                         conclude: error [
                             skill = "alternative_conditions_in_order" ;
                             RU.explanation = "В ${C}[case='п'] условия проверяются по порядку до первого истинного. Так как между ${Dp}[case='т'] и этим действием есть ещё не проверенные условия, ${A} сейчас не выполнится." ;
@@ -817,7 +822,7 @@ fragment checkLevel(C: ConcreteConstruct) {
                 )
             ) out true else {
                 // Между ролями есть ещё не выполненные однотипные действия.
-                ask (C->derivedFrom.kind == "compound.alternative" and Dp=>hasValue()) out false else {
+                ask (C->derivedFrom.kind == "compound.alternative" and hasConditionValue(Dp)) out false else {
                     conclude: error [
                         skill = "alternative_conditions_in_order" ;
                         RU.explanation = "В ${C}[case='п'] условия проверяются по порядку до первого истинного. Так как между ${Dp}[case='т'] и этим действием есть ещё не проверенные условия, ${A} сейчас не выполнится." ;
@@ -881,7 +886,7 @@ fragment checkLevel(C: ConcreteConstruct) {
             ask (S.interruption_mode != InterruptionType:none) out false else {
                 conclude: correct [ skill = "interruption_exits_constructs" ; ];
             };
-            ask (Dp=>hasValue() and forAny TransitionSpec t {
+            ask (hasConditionValue(Dp) and forAny TransitionSpec t {
                 transitionLeads($t, Dp, Da, C) and
                 interruptionOk($t, S) and
                 conditionOk($t, Dp) and
@@ -1020,10 +1025,10 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction) {
         };
     };
 
-    // Шаг 2б: действие не может повторяться — не осталось неиспользованных значений.
+    // Шаг 2б: условие не может вычисляться повторно — не осталось неиспользованных значений.
     ask (
         forAny TraceAct t {$t->hasAction == A} and
-        A=>hasValue() and not forAny SemanticValue v {
+        hasConditionValue(A) and not forAny SemanticValue v {
             ($v == A->hasValue or $v=>afterOf(A->hasValue)) and not $v.used
         }
     ) out false else {

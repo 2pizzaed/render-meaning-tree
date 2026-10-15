@@ -9,6 +9,7 @@ from src.model.rules import (
     TransitionDeclaration,
 )
 from src.model.situation import Action, Construct, SemanticValue, TraceAct, TraceState
+from src.serialization.adapters.rules import OPTIONAL_BOOL_VALUES
 from src.serialization.loqi import (
     LoqiAdapter,
     LoqiAdapterContext,
@@ -162,7 +163,12 @@ class SemanticValueAdapter:
 
         return LoqiObjectSpec(
             properties=(
-                ctx.property("bool_value", obj.bool_value),
+                ctx.property(
+                    "bool_value",
+                    obj.bool_value,
+                    enum_name="OptionalBool",
+                    value_map=OPTIONAL_BOOL_VALUES,
+                ),
                 ctx.property("used", obj.used),
             ),
             relationship_links=tuple(relationships),

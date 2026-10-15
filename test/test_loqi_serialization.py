@@ -593,7 +593,7 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "hasValue(semantic_value_action_11_body_0);" in rendered
     assert "hasValue(semantic_value_action_11_body_1);" not in rendered
     assert "obj semantic_value_action_11_body_0 : SemanticValue {" in rendered
-    assert "bool_value = true;" in rendered
+    assert "bool_value = OptionalBool:`true`;" in rendered
     assert 'hint = "True"' in rendered
     assert 'hint = "custom"' in rendered
     assert "directlyBeforeOf(semantic_value_action_11_body_1);" in rendered
@@ -788,7 +788,7 @@ def test_serialize_loqi_repeated_trace_act_uses_next_semantic_value() -> None:
     assert "obj act_demo_loop_cond_1_ast21 : TraceAct {" in rendered
     assert "hasValue(semantic_value_action_21_cond_1);" in rendered
     assert "used = true;" in rendered
-    assert "bool_value = false;" in rendered
+    assert "bool_value = OptionalBool:`false`;" in rendered
 
 
 def test_action_consumed_value_count_counts_acts_and_explicit_values() -> None:

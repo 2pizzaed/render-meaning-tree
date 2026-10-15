@@ -306,6 +306,11 @@ class ASTNodeManager:
         else:
             return node.parent.get(self) if node.parent else None
 
+    def parent_type_of(self, ast_id: int) -> str | None:
+        parent = self.get_parent_of(ast_id)
+        node_type = parent.get("type") if parent is not None else None
+        return node_type if isinstance(node_type, str) else None
+
     @classmethod
     def get_node_type_parents(cls, node_type: str) -> list[str] | None:
         cls._init_hierarchy()

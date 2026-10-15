@@ -171,6 +171,9 @@
           "$ref": "#/$defs/astNodeAtomicCallsProgramProcedure"
         },
         {
+          "$ref": "#/$defs/astNodeAtomicParentType"
+        },
+        {
           "$ref": "#/$defs/astNodeAnd"
         },
         {
@@ -269,6 +272,31 @@
       "required": [
         "type",
         "calls_program_procedure"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicParentType": {
+      "type": "object",
+      "description": "Тип родительского узла AST (строка или список точных типов): так тело ветки case отличается от других блоков.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "parent_type": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/stringList"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "parent_type"
       ],
       "additionalProperties": false
     },

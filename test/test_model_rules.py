@@ -742,3 +742,67 @@ def test_construct_declarations_reject_duplicate_shorthand_and_single_query_pred
         assert "Duplicate ast_node predicate" in str(error)
     else:
         raise AssertionError("Duplicate ast_node predicate should fail")
+
+
+def test_construct_declarations_allow_same_ast_node_for_disjoint_languages():
+    data = {
+        "switch_structure": {
+            "kind": "compound",
+            "ast_node": "switch_statement",
+            "applicable_languages": ["java", "c++"],
+        },
+        "match_structure": {
+            "kind": "compound",
+            "ast_node": "switch_statement",
+            "applicable_languages": ["python"],
+        },
+    }
+
+    names = [declaration.name for declaration in load_construct_declarations_from_dict(data)]
+
+    assert names == ["switch_structure", "match_structure"]
+
+
+@pytest.mark.parametrize("second_languages", [["c++", "python"], []])
+def test_construct_declarations_reject_same_ast_node_for_overlapping_languages(
+    second_languages: list[str],
+):
+    data = {
+        "first": {
+            "kind": "compound",
+            "ast_node": "switch_statement",
+            "applicable_languages": ["java", "c++"],
+        },
+        "second": {
+            "kind": "compound",
+            "ast_node": "switch_statement",
+            "applicable_languages": second_languages,
+        },
+    }
+
+    with pytest.raises(ValueError, match="Duplicate ast_node predicate"):
+        load_construct_declarations_from_dict(data)
+
+
+def test_construct_declaration_ast_node_query_supports_parent_type():
+    construct = ConstructDeclaration(
+        name="case_body_structure",
+        kind="compound.sequence.case",
+        ast_node={
+            "query": [
+                {
+                    "type": "compound_statement",
+                    "parent_type": ["fallthrough_case_block", "default_case_block"],
+                }
+            ]
+        },
+    )
+    parent_types = {1: "fallthrough_case_block", 2: "function_definition"}
+    node: Node = {"type": "compound_statement", "id": 1}
+
+    assert construct.matches_ast_node(node, parent_type_lookup=parent_types.get)
+    assert not construct.matches_ast_node(
+        {"type": "compound_statement", "id": 2}, parent_type_lookup=parent_types.get
+    )
+    # Без сведений о родителе проверка не выполняется.
+    assert not construct.matches_ast_node(node)

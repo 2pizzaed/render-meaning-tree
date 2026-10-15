@@ -1082,3 +1082,70 @@ def test_single_situation_stops_at_default_values_without_branches():
     [condition] = [action for action in pipeline.registry.all_actions() if action.is_condition]
     assert [value.bool_value for value in condition.values] == [True, True, False]
     assert condition in condition.chain
+
+
+def _switch_shape(registry) -> list[tuple[str, str, str | None]]:
+    """(правило конструкта, роль, правило раскрываемого конструкта) действий switch и тел веток."""
+    return [
+        (
+            action.parent.rule.name,
+            action.rule.role,
+            target.rule.name if (target := action.expands_to()) is not None else None,
+        )
+        for construct in registry.constructs.values()
+        if construct.rule.name.endswith(("switch_structure", "match_structure", "body_structure"))
+        for action in construct.actions
+        if action.rule.role not in {"BEGIN", "END", "first", "next"}
+    ]
+
+
+def test_domain_pipeline_builds_switch_branches_by_case_kind():
+    registry = code_snippet_to_registry(
+        textwrap.dedent(
+            """
+            switch (x) {
+                case 1:
+                    a = 1;
+                case 2:
+                    a = 2;
+                    break;
+                default:
+                    a = 3;
+            }
+            """
+        ),
+        language="c++",
+    )
+
+    assert _switch_shape(registry) == [
+        ("switch_structure", "subject", None),
+        ("switch_structure", "first_case", None),
+        ("switch_structure", "case_branch", "case_body_structure"),
+        ("switch_structure", "next_case", None),
+        ("switch_structure", "case_branch", "case_break_body_structure"),
+        ("switch_structure", "default_branch", "case_body_structure"),
+        # Неявный break на узле тела ветки не раскрывает собственный конструкт.
+        ("case_break_body_structure", "case_exit", None),
+    ]
+
+
+def test_domain_pipeline_builds_python_match_without_implicit_break():
+    registry = code_snippet_to_registry(
+        textwrap.dedent(
+            """
+            match x:
+                case 1:
+                    a = 1
+                case _:
+                    a = 2
+            """
+        ),
+        language="python",
+    )
+
+    assert _switch_shape(registry) == [
+        ("match_structure", "subject", None),
+        ("match_structure", "first_case", None),
+        ("match_structure", "case_branch", "match_case_body_structure"),
+        ("match_structure", "default_branch", "case_body_structure"),
+    ]

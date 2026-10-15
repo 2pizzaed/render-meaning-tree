@@ -192,6 +192,7 @@ class NamingContext:
             type_matcher=lambda query, node_type: isinstance(node_id := query.get("id"), int)
             and code.ast.instanceof(node_id, node_type),
             call_matcher=lambda call_id: code.program_procedure_definition(call_id) is not None,
+            parent_type_lookup=code.ast.parent_type_of,
         )
         return rule if rule is not None and rule.is_atomic_inline else None
 

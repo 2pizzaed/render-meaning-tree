@@ -74,7 +74,8 @@ class CheckCase:
         действие (``advance_occurrence`` — какая по счёту остановка на нём).
     ``expected_skills`` — допустимые skill вердикта (хотя бы один обязан
     встретиться в трассе проверки); для корректного ответа — засчитанное
-    умение и ``expected_correct=True``.
+    умение и ``expected_correct=True``. ``unexpected_skills`` — skill, которых
+    в трассе проверки быть не должно (ошибочное объяснение рядом с верным).
 
     ``expected_action_appended`` отключается для успешных терминальных
     вердиктов, которые не фиксируют выбранное действие в уже завершённой трассе.
@@ -89,6 +90,7 @@ class CheckCase:
     code: str
     action: ActionSpec
     expected_skills: tuple[str, ...]
+    unexpected_skills: tuple[str, ...] = ()
     expected_correct: bool = False
     expected_action_appended: bool = True
     action_occurrence: int = 0
@@ -324,6 +326,52 @@ if (a > 0) {
     a = 3;
 }
 int b = a;
+"""
+
+# case 2 проваливается в case 3; у case 1 и case 3 завершающий break (MT убирает его
+# из AST, выход задаёт неявный break - case_exit).
+CPP_SWITCH = """
+int x = 2;
+switch (x) {
+    case 1:
+        x = 10;
+        break;
+    case 2:
+        x = 20;
+    case 3:
+        x = 30;
+        break;
+    default:
+        x = 40;
+}
+int y = x;
+"""
+
+# Последняя ветка case без break проваливается в default.
+CPP_SWITCH_FALL_INTO_DEFAULT = """
+int x = 3;
+switch (x) {
+    case 1:
+        x = 10;
+        break;
+    case 3:
+        x = 30;
+    default:
+        x = 40;
+}
+int y = x;
+"""
+
+# break внутри match относится к циклу.
+PYTHON_MATCH_BREAK = """
+for i in range(2):
+    match i:
+        case 0:
+            x = 1
+            break
+        case _:
+            x = 2
+y = 3
 """
 
 RECURSION_DEPTH2 = """
@@ -888,6 +936,135 @@ CHECK_CASES: list[Any] = [
         expected_skills=("construct_entered_before_inner", "containing_action_before_inner"),
         value_patches=((2, "first_cond", [True]),),
     ),
+    # --- switch: fallthrough и break (в т.ч. неявный, после basic-ветки) ---
+    CheckCase(
+        # Ветка case 2 без break проваливается в case 3, не проверяя его значение.
+        id="switch_fallthrough_correct",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(8, "first"),
+        action=(10, "first"),
+        expected_skills=("actions_in_order",),
+        expected_correct=True,
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # После case 3 - неявный break: выход из switch к следующему оператору.
+        id="switch_exit_after_break_correct",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(10, "first"),
+        action=(16, "next"),
+        expected_skills=("actions_in_order",),
+        expected_correct=True,
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # Ветка case 1 заканчивается break: тело case 2 уже не выполняется.
+        id="switch_no_fallthrough_after_break",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(5, "first"),
+        action=(8, "first"),
+        expected_skills=("interruption_exits_constructs",),
+        value_patches=((4, "first_case", [True]),),
+    ),
+    CheckCase(
+        # Ветка case 2 без break: выход из switch мимо case 3 - ошибка.
+        id="switch_fallthrough_skipped",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(8, "first"),
+        action=(16, "next"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # Fallthrough из последней ветки case в default: переход case_branch -> default_branch
+        # задан только запасной целью (to_when_absent), а ветки case в конструкте есть.
+        id="switch_fallthrough_into_default_correct",
+        language="c++",
+        code=CPP_SWITCH_FALL_INTO_DEFAULT,
+        advance_to=(8, "first"),
+        action=(10, "first"),
+        expected_skills=("actions_in_order",),
+        expected_correct=True,
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # Ветка case 3 открыта, но не выполнена: в default переходить рано, хотя после
+        # case 3 выполнение туда провалится. Ошибка не должна утверждать, что выполняется
+        # только одна из веток: default - запасная цель перехода case_branch -> case_branch.
+        id="switch_fallthrough_into_default_body_skipped",
+        language="c++",
+        code=CPP_SWITCH_FALL_INTO_DEFAULT,
+        advance_to=(7, "next_case"),
+        action=(10, "first"),
+        expected_skills=("inner_construct_finished_before_next",),
+        unexpected_skills=("alternative_single_branch",),
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # Ни одно значение не совпало: default тоже достигается запасной целью
+        # перехода next_case -> next_case.
+        id="switch_default_after_false_cases_correct",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(9, "next_case"),
+        action=(13, "first"),
+        expected_skills=("condition_value_selects_next",),
+        expected_correct=True,
+        value_patches=(
+            (4, "first_case", [False]),
+            (7, "next_case", [False]),
+            (9, "next_case", [False]),
+        ),
+    ),
+    CheckCase(
+        # Значение case 2 совпало, а студент переходит в default.
+        id="switch_default_after_true_case",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(7, "next_case"),
+        action=(13, "first"),
+        # Совпавшую ветку предпрогонка уже открыла (её BEGIN прозрачен), как у
+        # if_branch_reselected_after_auto_entry: ошибка - ветка не завершена.
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # Ветка case 2 открыта, но её тело не выполнено: в case 3 переходить рано,
+        # хотя после case 2 выполнение туда провалится.
+        id="switch_fallthrough_body_skipped",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(7, "next_case"),
+        action=(10, "first"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((4, "first_case", [False]), (7, "next_case", [True])),
+    ),
+    CheckCase(
+        # Значения case сравниваются по порядку: после ложного case 1 нельзя
+        # перейти сразу к case 3.
+        id="switch_case_values_in_order",
+        language="c++",
+        code=CPP_SWITCH,
+        advance_to=(4, "first_case"),
+        action=(9, "next_case"),
+        expected_skills=("alternative_conditions_in_order",),
+        value_patches=((4, "first_case", [False]),),
+    ),
+    CheckCase(
+        # break в ветке match выходит из цикла: следующий шаг - оператор после цикла.
+        id="python_match_break_exits_loop",
+        language="python",
+        code=PYTHON_MATCH_BREAK,
+        advance_to=(4, "next"),
+        action=(7, "next"),
+        expected_skills=("interruption_exits_constructs", "actions_in_order"),
+        expected_correct=True,
+        value_patches=((1, "cond", [True, True, False]), (2, "first_case", [True])),
+    ),
     # --- Порядок и агрегация критериев: первопричина вместо побочного диагноза ---
     CheckCase(
         # Условие цикла внутри уже завершённой функции: значения израсходованы,
@@ -1135,6 +1312,9 @@ def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
 
     assert set(case.expected_skills) & set(skills), (
         f"expected one of {case.expected_skills}, got {skills}\n{_trace_tail(result)}"
+    )
+    assert not set(case.unexpected_skills) & set(skills), (
+        f"unexpected skills {case.unexpected_skills} in {skills}\n{_trace_tail(result)}"
     )
 
     if case.expected_correct:

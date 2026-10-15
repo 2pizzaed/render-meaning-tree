@@ -119,11 +119,12 @@ class Action:
         return "annotated" in self.rule.kind_classes
 
     def expands_to(self) -> Construct | None:
-        return (
-            self.owner.get_construct_for(self.ast_id)
-            if self.ast_id is not None
-            else None
-        )
+        if self.ast_id is None:
+            return None
+        construct = self.owner.get_construct_for(self.ast_id)
+        # Узел действия может совпадать с узлом его конструкта (BEGIN/END, case_exit):
+        # такое действие ничего не раскрывает, как и в TPG.
+        return construct if construct is not self.parent else None
 
 
 @dataclass(slots=True)

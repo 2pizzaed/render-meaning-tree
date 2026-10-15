@@ -356,3 +356,39 @@ def test_variant_chains_repeat_point_patterns_by_entries():
         loop.conditions[0]: (True, True, False),
         branch.conditions[0]: (False, False),
     }
+
+
+def test_switch_fallthrough_reaches_next_branches_until_break():
+    registry = _registry(
+        """
+        switch (x) {
+            case 1:
+                a = 1;
+            case 2:
+                if (y > 0) {
+                    a = 2;
+                }
+                break;
+            case 3:
+                if (z > 0) {
+                    a = 3;
+                }
+            default:
+                if (w > 0) {
+                    a = 4;
+                }
+        }
+        """,
+        language="c++",
+    )
+
+    plan = _plan(registry)
+
+    # case 1 проваливается в case 2, case 3 - в default; break после case 2 останавливает.
+    assert [variant.description for variant in plan.variants] == [
+        "switch@1=case1, if@6=if",
+        "switch@1=case2, if@6=else",
+        "switch@1=case3, if@12=if, if@17=if",
+        "switch@1=default, if@17=else",
+        "switch@1=case3, if@12=else, if@17=if",
+    ]

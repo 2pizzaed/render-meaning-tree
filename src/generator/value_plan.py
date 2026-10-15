@@ -20,6 +20,7 @@ from src.generator.helpers.call_graph import CallSite, call_graph, recursive_fun
 from src.generator.helpers.trace_features import is_function_construct
 from src.generator.registry import SituationRegistry
 from src.model.situation import Action, Construct
+from src.types import Node
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,8 @@ class ChoicePoint:
     conditions: tuple[ActionKey, ...]
     domain: tuple[int, ...]
     label: str
+    # Имена исходов ветвления по номеру исхода; у цикла пусто.
+    branch_names: tuple[str, ...] = ()
 
     @property
     def is_fixed(self) -> bool:
@@ -78,9 +81,7 @@ class ChoicePoint:
     def describe(self, outcome: int) -> str:
         if self.kind != "branch":
             return f"{self.label}={outcome}"
-        if outcome == len(self.conditions):
-            return f"{self.label}=else"
-        return f"{self.label}={'if' if outcome == 0 else f'elif{outcome}'}"
+        return f"{self.label}={self.branch_names[outcome]}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,16 +190,26 @@ def choice_points(
         label = f"{node_type.removesuffix('_loop').removesuffix('_statement')}@{place}"
         keys = tuple(action_key(action) for action in conditions)
         kind: PointKind
+        branch_names: tuple[str, ...] = ()
         if not is_loop(construct):
             kind = "branch"
             domain = _branch_domain(conditions)
+            branch_names = _branch_names(node_type, len(conditions))
         else:
             kind = "do_while" if node_type == "do_while_loop" else "loop"
             domain = _loop_domain(construct, kind, max_loop_iterations)
         token_range = code.token_index_range(construct.ast_id)
         order = token_range[0] if token_range is not None else construct.ast_id
-        points.append((order, ChoicePoint(construct.ast_id, kind, keys, domain, label)))
+        points.append(
+            (order, ChoicePoint(construct.ast_id, kind, keys, domain, label, branch_names))
+        )
     return [point for _, point in sorted(points, key=lambda item: item[0])]
+
+
+def _branch_names(node_type: str, conditions: int) -> tuple[str, ...]:
+    if node_type == "switch_statement":
+        return (*(f"case{index + 1}" for index in range(conditions)), "default")
+    return ("if", *(f"elif{index}" for index in range(1, conditions)), "else")
 
 
 def _loop_domain(
@@ -317,7 +328,7 @@ class _ExecutionAnalysis:
         if point.kind != "branch":
             in_body = any(field == "body" for field, _ in steps)
             return frozenset(outcome for outcome in domain if outcome >= 1) if in_body else None
-        allowed = _branch_outcomes(point, steps)
+        allowed = _branch_outcomes(point, parent.ast_node, steps)
         return None if allowed is None else domain & allowed
 
     def entry_counts(self, outcomes: dict[int, int]) -> dict[int, int | None]:
@@ -362,7 +373,9 @@ class _ExecutionAnalysis:
         index = self.point_index.get(parent.ast_id)
         if index is None:
             return _entries_below_unplanned(parent, parent_entries, steps)
-        return parent_entries * _entries_per_point_entry(self.points[index], outcomes[index], steps)
+        return parent_entries * _entries_per_point_entry(
+            self.points[index], parent.ast_node, outcomes[index], steps
+        )
 
     def _path_below(self, parent: Construct, child: Construct) -> AstSteps:
         """Поля AST от узла parent вниз до узла child."""
@@ -374,10 +387,14 @@ class _ExecutionAnalysis:
         return list(reversed(steps))
 
 
-def _branch_outcomes(point: ChoicePoint, steps: AstSteps) -> frozenset[int] | None:
+def _branch_outcomes(
+    point: ChoicePoint, node: Node, steps: AstSteps
+) -> frozenset[int] | None:
     """Исходы ветвления, при которых выполняется потомок по пути steps; None - при любых."""
     if not steps:
         return None
+    if node.get("type") == "switch_statement":
+        return _switch_outcomes(point, node, steps)
     field, branch = steps[0]
     if field == "elseBranch":
         return frozenset({len(point.conditions)})
@@ -389,10 +406,44 @@ def _branch_outcomes(point: ChoicePoint, steps: AstSteps) -> frozenset[int] | No
     return frozenset({branch})
 
 
-def _entries_per_point_entry(point: ChoicePoint, outcome: int, steps: AstSteps) -> int:
+def _switch_outcomes(
+    point: ChoicePoint, node: Node, steps: AstSteps
+) -> frozenset[int] | None:
+    """Исходы switch: j - первая совпавшая ветка case, m - ни одна (default).
+
+    Ветка fallthrough проваливается в следующую, поэтому её тело выполняется и при
+    исходах предыдущих веток вплоть до ближайшей ветки с break. Явный break в теле
+    не учитывается: анализ допускает лишние исходы, но не теряет нужные.
+    """
+    count = len(point.conditions)
+    field, branch = steps[0]
+    if field == "default":
+        return frozenset(start for start in range(count + 1) if _falls_through(node, start, count))
+    if field != "cases" or not isinstance(branch, int):
+        return None
+    if len(steps) > 1 and steps[1][0] == "match_value":
+        # Значение ветки k сравнивается, когда все предыдущие не совпали.
+        return frozenset(range(branch, count + 1))
+    return frozenset(start for start in range(branch + 1) if _falls_through(node, start, branch))
+
+
+def _falls_through(node: Node, start: int, stop: int) -> bool:
+    """Выполнение с ветки start доходит до ветки stop (stop == число веток - до default)."""
+    cases = node.get("cases")
+    if not isinstance(cases, list) or start > stop:
+        return False
+    return all(
+        isinstance(case, dict) and case.get("type") == "fallthrough_case_block"
+        for case in cases[start:stop]
+    )
+
+
+def _entries_per_point_entry(
+    point: ChoicePoint, node: Node, outcome: int, steps: AstSteps
+) -> int:
     """Сколько раз за один заход в точку с исходом outcome выполняется её потомок."""
     if point.kind == "branch":
-        allowed = _branch_outcomes(point, steps)
+        allowed = _branch_outcomes(point, node, steps)
         return int(allowed is None or outcome in allowed)
     # Исход цикла - число выполнений тела, в том числе у do-while.
     field = steps[0][0] if steps else None

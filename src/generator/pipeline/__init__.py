@@ -157,11 +157,14 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             self.registry.rules,
             type_matcher=self._matches_ast_node_type,
             call_matcher=self._calls_program_procedure,
+            parent_type_lookup=self.code.ast.parent_type_of,
         )
         if not construct_decl:
-            if node_type != "condition_branch" and self.code.ast.instanceof(
-                ast_id, "statement"
-            ):
+            # Ветви if и switch - части своего ветвления, а не самостоятельные операторы.
+            is_branch = node_type == "condition_branch" or self.code.ast.instanceof(
+                ast_id, "case_block"
+            )
+            if not is_branch and self.code.ast.instanceof(ast_id, "statement"):
                 warnings.warn(
                     f"No construct declaration found for AST node type {node_type!r} (id: {ast_id})",
                     stacklevel=2,
@@ -258,6 +261,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             self.registry.rules,
             type_matcher=self._matches_ast_node_type,
             call_matcher=self._calls_program_procedure,
+            parent_type_lookup=self.code.ast.parent_type_of,
         )
         if inline_rule is None:
             return None
@@ -423,11 +427,12 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             self.registry.rules,
             type_matcher=self._matches_ast_node_type,
             call_matcher=self._calls_program_procedure,
+            parent_type_lookup=self.code.ast.parent_type_of,
         )
         if matched_rule is None or "noop" not in matched_rule.kind_classes:
             return False
         if "procedure" in matched_rule.kind_classes:
-            return bool({"program", "block"} & construct.rule.kind_classes)
+            return "sequence" in construct.rule.kind_classes
         return True
 
     def _promote_procedural_entry_body_to_root(self) -> None:

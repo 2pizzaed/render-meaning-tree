@@ -1283,6 +1283,153 @@ SEQUENCE_CASES: list[tuple[object, ...]] = [
         "python_recursion_mutual.loqi",
         {(6, 2): [True, False]},
     ),
+    # --- switch: MT убирает завершающий break, выход задаёт тип ветки ---
+    (
+        # case 2 проваливается в case 3, после case 3 - неявный break.
+        "c++",
+        """
+        int x = 2;
+        switch (x) {
+            case 1:
+                x = 10;
+                break;
+            case 2:
+                x = 20;
+            case 3:
+                x = 30;
+                break;
+            default:
+                x = 40;
+        }
+        int y = x;
+        """,
+        {
+            1: ["first"],
+            2: ["next"],
+            4: ["first_case"],
+            5: ["first"],
+            7: ["next_case"],
+            8: ["first"],
+            9: ["next_case"],
+            10: ["first"],
+            13: ["first"],
+            16: ["next"],
+        },
+        [(1, 0), (4, 0), (7, 0), (8, 0), (10, 0), (16, 0)],
+        "cpp_switch_fallthrough_break.loqi",
+        {(4, 0): [False], (7, 0): [True]},
+    ),
+    (
+        # Ни одно значение не совпало: default через to_when_absent последнего case.
+        "c++",
+        """
+        int x = 2;
+        switch (x) {
+            case 1:
+                x = 10;
+                break;
+            case 2:
+                x = 20;
+            case 3:
+                x = 30;
+                break;
+            default:
+                x = 40;
+        }
+        int y = x;
+        """,
+        None,
+        [(1, 0), (4, 0), (7, 0), (9, 0), (13, 0), (16, 0)],
+        "cpp_switch_no_match_default.loqi",
+        {(4, 0): [False], (7, 0): [False], (9, 0): [False]},
+    ),
+    (
+        # Последняя ветка case без break проваливается в default.
+        "c++",
+        """
+        int x = 3;
+        switch (x) {
+            case 1:
+                x = 10;
+                break;
+            case 3:
+                x = 30;
+            default:
+                x = 40;
+        }
+        int y = x;
+        """,
+        None,
+        [(1, 0), (4, 0), (7, 0), (8, 0), (10, 0), (13, 0)],
+        "cpp_switch_fallthrough_into_default.loqi",
+        {(4, 0): [False], (7, 0): [True]},
+    ),
+    (
+        # switch в цикле: break из if снимается на switch, continue проходит switch
+        # и останавливается на цикле (y = 2 пропускается).
+        "c++",
+        """
+        for (int i = 0; i < 2; i++) {
+            switch (i) {
+                case 0:
+                    if (i > 5) {
+                        break;
+                    }
+                    x = 1;
+                case 1:
+                    continue;
+                default:
+                    x = 3;
+            }
+            y = 2;
+        }
+        """,
+        None,
+        [
+            (1, 1),
+            (1, 2),
+            (2, 0),
+            (5, 0),
+            (6, 1),
+            (10, 0),
+            (12, 0),
+            (1, 2),
+            (2, 0),
+            (5, 0),
+            (6, 1),
+            (7, 0),
+            (8, 0),
+            (17, 0),
+            (2, 1),
+            (1, 2),
+        ],
+        "cpp_switch_in_loop_break_continue.loqi",
+        {(1, 2): [True, True, False], (5, 0): [True, True], (6, 1): [False, True]},
+    ),
+    (
+        # break в ветке match относится к циклу: вторая итерация не выполняется.
+        "python",
+        """
+        for i in range(2):
+            match i:
+                case 0:
+                    x = 1
+                    break
+                case _:
+                    x = 2
+        y = 3
+        """,
+        {
+            2: ["body", "first", "first_case"],
+            3: ["case_branch", "first"],
+            4: ["next"],
+            6: ["default_branch", "first"],
+            7: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 2), (3, 1), (4, 0), (7, 0)],
+        "python_match_break_exits_loop.loqi",
+        {(1, 1): [True, True, False], (2, 2): [True]},
+    ),
 ]
 
 

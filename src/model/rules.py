@@ -13,6 +13,7 @@ from src.json_search import JSONPath, get_node_by_path
 from src.model.ast_node_query import (
     AstNodeQuery,
     AstNodeQuerySource,
+    ParentTypeLookup,
     ProgramCallMatcher,
 )
 from src.types import JSON, NodeQueryFormat
@@ -336,9 +337,13 @@ class ConstructDeclaration(SharedDeclaration):
         node: NodeQueryFormat,
         type_matcher: AstNodeTypeMatcher | None = None,
         call_matcher: ProgramCallMatcher | None = None,
+        parent_type_lookup: ParentTypeLookup | None = None,
     ) -> bool:
         return self.ast_node_query.matches(
-            node, type_matcher=type_matcher, call_matcher=call_matcher
+            node,
+            type_matcher=type_matcher,
+            call_matcher=call_matcher,
+            parent_type_lookup=parent_type_lookup,
         )
 
     @property
@@ -448,6 +453,7 @@ def locate_construct_declaration_by_ast_node(
     safe_mode: bool = True,
     type_matcher: AstNodeTypeMatcher | None = None,
     call_matcher: ProgramCallMatcher | None = None,
+    parent_type_lookup: ParentTypeLookup | None = None,
 ) -> ConstructDeclaration | None:
     node: NodeQueryFormat = (
         {"type": ast_data} if isinstance(ast_data, str) else ast_data
@@ -455,7 +461,10 @@ def locate_construct_declaration_by_ast_node(
     matches: list[ConstructDeclaration] = []
     for declaration in declarations:
         if declaration.matches_ast_node(
-            node, type_matcher=type_matcher, call_matcher=call_matcher
+            node,
+            type_matcher=type_matcher,
+            call_matcher=call_matcher,
+            parent_type_lookup=parent_type_lookup,
         ):
             matches.append(declaration)
         if matches and not safe_mode:
@@ -609,15 +618,23 @@ def _merge_effects(
 
 
 def _ensure_unique_ast_node_queries(declarations: list[ConstructDeclaration]) -> None:
-    seen: dict[tuple[Any, ...], str] = {}
+    # Одинаковый предикат допустим у вариаций для непересекающихся языков:
+    # до сопоставления узлов остаются только правила языка кода.
+    seen: dict[tuple[Any, ...], list[ConstructDeclaration]] = {}
     for declaration in declarations:
         for key in declaration.ast_node_query.duplicate_keys():
-            previous = seen.get(key)
-            if previous is not None:
-                raise ValueError(
-                    f"Duplicate ast_node predicate {key!r} in constructs {previous!r} and {declaration.name!r}"
-                )
-            seen[key] = declaration.name
+            for previous in seen.get(key, []):
+                if _languages_overlap(previous, declaration):
+                    raise ValueError(
+                        f"Duplicate ast_node predicate {key!r} in constructs {previous.name!r} and {declaration.name!r}"
+                    )
+            seen.setdefault(key, []).append(declaration)
+
+
+def _languages_overlap(first: ConstructDeclaration, second: ConstructDeclaration) -> bool:
+    if not first.applicable_languages or not second.applicable_languages:
+        return True
+    return bool(set(first.applicable_languages) & set(second.applicable_languages))
 
 
 def _resolve_property_path_identification(

@@ -14,11 +14,14 @@ The `ast_node` field in `constructs.yml` supports two compatible forms:
    - An atomic item must contain `type`, where the value is either one type string
      or a non-empty list of type strings.
    - An atomic item may contain zero or one check operator. Supported checks are:
-     `exists`, `equals`, `length`, `contains`, `contains_any`, and
-     `calls_program_procedure`. The last one takes a path to a call node and asks
-     the caller-provided `call_matcher` whether it calls a procedure with a body
-     declared in the program (for now, functions only) (`CodeManager.program_procedure_definition`); without
-     a matcher it never matches.
+     `exists`, `equals`, `length`, `contains`, `contains_any`,
+     `calls_program_procedure`, and `parent_type`. `calls_program_procedure` takes
+     a path to a call node and asks the caller-provided `call_matcher` whether it
+     calls a procedure with a body declared in the program (for now, functions only)
+     (`CodeManager.program_procedure_definition`). `parent_type` takes one type or
+     a list of exact types of the parent AST node and asks the caller-provided
+     `parent_type_lookup` for it: so the body of a `case` branch is told apart from
+     other blocks. Without the callback either check never matches.
    - Logical items are `{"and": [...]}`, `{"or": [...]}`, and `{"not": item}`.
      `and` and `or` contain non-empty lists, while `not` contains exactly one item.
 
@@ -57,9 +60,19 @@ type AstNodeQuerySource = str | list[str] | dict[str, Any] | AstNodeQuery
 type AstNodeTypeMatcher = Callable[[NodeQueryFormat, str], bool]
 # AST id узла вызова -> вызывается ли процедура с телом из кода программы.
 type ProgramCallMatcher = Callable[[int], bool]
+# AST id узла -> тип родительского узла AST (None - корень или узел не найден).
+type ParentTypeLookup = Callable[[int], str | None]
 
 _CHECK_OPERATORS = frozenset(
-    {"exists", "equals", "length", "contains", "contains_any", "calls_program_procedure"}
+    {
+        "exists",
+        "equals",
+        "length",
+        "contains",
+        "contains_any",
+        "calls_program_procedure",
+        "parent_type",
+    }
 )
 _LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
 _CONTAINS_ANY_LOGICAL_OPERATORS = frozenset({"and", "or", "not"})
@@ -117,9 +130,13 @@ class AstNodeQuery:
         node: NodeQueryFormat,
         type_matcher: AstNodeTypeMatcher | None = None,
         call_matcher: ProgramCallMatcher | None = None,
+        parent_type_lookup: ParentTypeLookup | None = None,
     ) -> bool:
         return self.expression.matches(
-            node, type_matcher=type_matcher, call_matcher=call_matcher
+            node,
+            type_matcher=type_matcher,
+            call_matcher=call_matcher,
+            parent_type_lookup=parent_type_lookup,
         )
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
@@ -208,6 +225,7 @@ class AstNodeExpression:
         *,
         type_matcher: AstNodeTypeMatcher | None = None,
         call_matcher: ProgramCallMatcher | None = None,
+        parent_type_lookup: ParentTypeLookup | None = None,
     ) -> bool:
         if self.kind == "atom":
             if self.type_predicate is None:
@@ -215,22 +233,23 @@ class AstNodeExpression:
             if not self.type_predicate.matches(node, type_matcher=type_matcher):
                 return False
             return self.condition is None or self.condition.matches(
-                node, call_matcher=call_matcher
+                node, call_matcher=call_matcher, parent_type_lookup=parent_type_lookup
             )
+
+        def child_matches(child: AstNodeExpression) -> bool:
+            return child.matches(
+                node,
+                type_matcher=type_matcher,
+                call_matcher=call_matcher,
+                parent_type_lookup=parent_type_lookup,
+            )
+
         if self.kind == "and":
-            return all(
-                child.matches(node, type_matcher=type_matcher, call_matcher=call_matcher)
-                for child in self.children
-            )
+            return all(child_matches(child) for child in self.children)
         if self.kind == "or":
-            return any(
-                child.matches(node, type_matcher=type_matcher, call_matcher=call_matcher)
-                for child in self.children
-            )
+            return any(child_matches(child) for child in self.children)
         if self.kind == "not":
-            return not self.children[0].matches(
-                node, type_matcher=type_matcher, call_matcher=call_matcher
-            )
+            return not child_matches(self.children[0])
         raise ValueError(f"Unsupported ast_node expression kind {self.kind!r}")
 
     def duplicate_keys(self) -> tuple[tuple[Any, ...], ...]:
@@ -440,6 +459,8 @@ class AstNodeCondition:
     min: int | None = None
     max: int | None = None
     contains_any: ContainsAnyExpression | None = None
+    # parent_type: допустимые типы родительского узла
+    types: tuple[str, ...] = ()
 
     @classmethod
     def from_raw(cls, kind: str, payload: Any) -> AstNodeCondition:
@@ -488,11 +509,28 @@ class AstNodeCondition:
                 kind="calls_program_procedure",
                 path=_parse_path_value(payload, operation="calls_program_procedure"),
             )
+        if kind == "parent_type":
+            return cls(
+                kind="parent_type",
+                path="",
+                types=_parse_type_list(payload, "ast_node query parent_type"),
+            )
         raise ValueError(f"Unsupported ast_node query condition {kind!r}")
 
     def matches(
-        self, node: NodeQueryFormat, *, call_matcher: ProgramCallMatcher | None = None
+        self,
+        node: NodeQueryFormat,
+        *,
+        call_matcher: ProgramCallMatcher | None = None,
+        parent_type_lookup: ParentTypeLookup | None = None,
     ) -> bool:
+        if self.kind == "parent_type":
+            node_id = node.get("id")
+            return (
+                parent_type_lookup is not None
+                and isinstance(node_id, int)
+                and parent_type_lookup(node_id) in self.types
+            )
         if self.kind == "contains_any":
             if self.contains_any is None:
                 raise ValueError("ast_node contains_any condition has no expression")
@@ -523,6 +561,7 @@ class AstNodeCondition:
             self.min,
             self.max,
             self.contains_any.key_data() if self.contains_any is not None else None,
+            self.types,
         )
 
     def specificity(self) -> int:

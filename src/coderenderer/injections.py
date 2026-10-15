@@ -124,9 +124,13 @@ class ControlFlowButtons(InjectionPool):
     def is_condition(cursor: TokenCursor):
         node = stream_require(cursor.ast_node(0))
         token = cursor[0]
+        # match_value - значение ветки case: условие «выражение switch равно значению»
         target = node.find_first(
-            lambda p : p.field_name == "condition" and \
-            (not p.parent or not p.parent.instanceof("for_loop"))
+            lambda p : (
+                p.field_name == "match_value" or
+                p.field_name == "condition" and
+                (not p.parent or not p.parent.instanceof("for_loop"))
+            )
         )
 
         return (

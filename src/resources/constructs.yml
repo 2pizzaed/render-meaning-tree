@@ -100,6 +100,256 @@ if_structure:
       to: END   # если ветка отсутствует, сразу окончание
 
 # --------------------------------
+# Множественное ветвление switch (Java, C++)
+# --------------------------------
+# MT убирает завершающий break ветки и задаёт выход типом ветки: basic_case_block
+# заканчивает switch (неявный break, см. case_break_body_structure), fallthrough_case_block
+# проваливается в тело следующей ветки. Явный break в теле снимается на switch.
+switch_structure:
+  kind: compound.alternative
+  ast_node: switch_statement
+  applicable_languages: [java, c++]
+  metadata:
+    locale_trace_name: "multiple_alternative"
+    locale_pronoun: "it"
+    keyword: switch
+  actions:
+    - role: subject              # выражение switch: шаг студента - сравнения с case
+      kind: inline
+      opaque: false
+      identification:
+        property: expression
+    - role: first_case
+      kind: inline.condition.annotated
+      identification:
+        property_path: 'cases / [0] / match_value'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: next_case
+      kind: inline.condition.annotated
+      identification:
+        origin: previous
+        property_path: '^ / [next] / match_value'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: case_branch
+      kind: compound
+      identification:
+        origin: previous
+        # тело ветки своего условия; от предыдущей ветки (fallthrough) путь ведёт в неё же,
+        # и генератор её пропускает: следующую ветку выбирает рассуждатель - ближайшую по цепочке
+        property_path: '^ / body'
+      generalization: branch
+    - role: default_branch       # MT всегда ставит default последней веткой
+      kind: compound
+      identification:
+        property_path: 'default / body'
+      generalization: branch
+  transitions:
+    - from: BEGIN
+      to: subject
+    - from: subject
+      to: first_case
+      to_when_absent: ['default_branch', 'END']
+    - from: case
+      to: case_branch
+      constraints:
+        condition_value: true
+    - from: case
+      to: next_case
+      to_when_absent: ['default_branch', 'END']
+      constraints:
+        condition_value: false
+    - from: case_branch
+      to: case_branch            # fallthrough в следующую ветку
+      to_when_absent: ['default_branch', 'END']
+    - from: branch
+      to: END                    # выход по break (явному или неявному в конце basic-ветки)
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: default_branch
+      to: END
+
+# --------------------------------
+# Сопоставление match (Python)
+# --------------------------------
+# Ветки не проваливаются, а break в теле ветки относится к охватывающему циклу:
+# перехода для break нет, и выход из match по нему вынужденный.
+match_structure:
+  kind: compound.alternative
+  ast_node: switch_statement
+  applicable_languages: [python]
+  metadata:
+    locale_trace_name: "multiple_alternative"
+    locale_pronoun: "it"
+    keyword: match
+  actions:
+    - role: subject
+      kind: inline
+      opaque: false
+      identification:
+        property: expression
+    - role: first_case
+      kind: inline.condition.annotated
+      identification:
+        property_path: 'cases / [0] / match_value'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: next_case
+      kind: inline.condition.annotated
+      identification:
+        origin: previous
+        property_path: '^ / [next] / match_value'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: case_branch
+      kind: compound
+      identification:
+        origin: previous
+        property_path: '^ / body'
+      generalization: branch
+    - role: default_branch
+      kind: compound
+      identification:
+        property_path: 'default / body'
+      generalization: branch
+  transitions:
+    - from: BEGIN
+      to: subject
+    - from: subject
+      to: first_case
+      to_when_absent: ['default_branch', 'END']
+    - from: case
+      to: case_branch
+      constraints:
+        condition_value: true
+    - from: case
+      to: next_case
+      to_when_absent: ['default_branch', 'END']
+      constraints:
+        condition_value: false
+    - from: branch
+      to: END
+
+# --------------------------------
+# Тело ветки switch/match
+# --------------------------------
+# Последовательность операторов, но не block: у тела ветки нет фигурных скобок,
+# поэтому BEGIN/END прозрачны во всех языках.
+case_body_structure:
+  kind: compound.sequence.case
+  ast_node:
+    query:
+      - type: compound_statement
+        parent_type: [fallthrough_case_block, default_case_block]
+  metadata:
+    locale_trace_name: "case_branch"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+  transitions:
+    - from: BEGIN
+      to: first
+      to_when_absent: END        # пустая ветка: case 1: case 2: ...
+    - from: item
+      to: next
+      to_when_absent: END
+
+# Ветка с завершающим break (Java, C++): MT убрал break из тела, его заменяет
+# прозрачное действие case_exit на узле тела ветки
+case_break_body_structure:
+  kind: compound.sequence.case
+  ast_node:
+    query:
+      - type: compound_statement
+        parent_type: basic_case_block
+  applicable_languages: [java, c++]
+  metadata:
+    locale_trace_name: "case_branch"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+    - role: case_exit            # неявный break: выход из switch после ветки
+      kind: inline
+      opaque: false
+      identification: {}         # сам узел тела ветки
+      metadata:
+        locale_trace_name: "case_exit"
+        locale_pronoun: "it"
+      effects:
+        - interruption_start: break
+  transitions:
+    - from: BEGIN
+      to: first
+      to_when_absent: case_exit
+    - from: item
+      to: next
+      to_when_absent: case_exit
+    - from: case_exit
+      to: END
+
+# Ветка match (Python): после тела выход из match задаёт match_structure
+match_case_body_structure:
+  kind: compound.sequence.case
+  ast_node:
+    query:
+      - type: compound_statement
+        parent_type: basic_case_block
+  applicable_languages: [python]
+  metadata:
+    locale_trace_name: "case_branch"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+  transitions:
+    - from: BEGIN
+      to: first
+      to_when_absent: END
+    - from: item
+      to: next
+      to_when_absent: END
+
+# --------------------------------
 # Цикл while
 # --------------------------------
 while_structure:

@@ -105,6 +105,7 @@ if_structure:
 # MT убирает завершающий break ветки и задаёт выход типом ветки: basic_case_block
 # заканчивает switch (неявный break, см. case_break_body_structure), fallthrough_case_block
 # проваливается в тело следующей ветки. Явный break в теле снимается на switch.
+# Условие привязано к case_block: одна проверка на match_value или всю группу match_values.
 switch_structure:
   kind: compound.alternative
   ast_node: switch_statement
@@ -122,7 +123,7 @@ switch_structure:
     - role: first_case
       kind: inline.condition.annotated
       identification:
-        property_path: 'cases / [0] / match_value'
+        property_path: 'cases / [0]'
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -131,7 +132,7 @@ switch_structure:
       kind: inline.condition.annotated
       identification:
         origin: previous
-        property_path: '^ / [next] / match_value'
+        property_path: '[next]'
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -140,11 +141,10 @@ switch_structure:
       kind: compound
       identification:
         origin: previous
-        # тело ветки своего условия; от предыдущей ветки (fallthrough) путь ведёт в неё же,
-        # и генератор её пропускает: следующую ветку выбирает рассуждатель - ближайшую по цепочке
-        property_path: '^ / body'
+        # Тело своего условия; при fallthrough следующую ветку выбирает рассуждатель по цепочке.
+        property_path: 'body'
       generalization: branch
-    - role: default_branch       # MT всегда ставит default последней веткой
+    - role: default_branch       # MT хранит default отдельно; исходная позиция не сохраняется
       kind: compound
       identification:
         property_path: 'default / body'
@@ -181,6 +181,7 @@ switch_structure:
 # --------------------------------
 # Ветки не проваливаются, а break в теле ветки относится к охватывающему циклу:
 # перехода для break нет, и выход из match по нему вынужденный.
+# Как и у switch, вся группа значений case получает одно условие на case_block.
 match_structure:
   kind: compound.alternative
   ast_node: switch_statement
@@ -198,7 +199,7 @@ match_structure:
     - role: first_case
       kind: inline.condition.annotated
       identification:
-        property_path: 'cases / [0] / match_value'
+        property_path: 'cases / [0]'
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -207,7 +208,7 @@ match_structure:
       kind: inline.condition.annotated
       identification:
         origin: previous
-        property_path: '^ / [next] / match_value'
+        property_path: '[next]'
       metadata:
         locale_trace_name: "condition"
         locale_pronoun: "it"
@@ -216,7 +217,7 @@ match_structure:
       kind: compound
       identification:
         origin: previous
-        property_path: '^ / body'
+        property_path: 'body'
       generalization: branch
     - role: default_branch
       kind: compound

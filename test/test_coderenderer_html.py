@@ -8,6 +8,7 @@ from src.coderenderer.html import (
     prepare_html_context,
     should_add_space,
 )
+from src.generator.utilities import code_snippet_to_registry
 
 
 def make_token(index: int, value: str) -> Token:
@@ -77,3 +78,58 @@ def test_call_buttons_only_for_program_procedures_and_bound_to_call() -> None:
     # Библиотечный метод - обычный оператор; у оператора-вызова функции кнопки play нет.
     assert "d.add(1)" in played
     assert not {"g(1)", "g(2)"} & played
+
+
+@pytest.mark.parametrize(
+    ("language", "code"),
+    [
+        (
+            "java",
+            (
+                "switch (x) {\n"
+                "case 1, 2: // <! F >\n    a = 1; break;\n"
+                "case 3: // <! F >\n    a = 2; break;\n"
+                "case 4, 5: // <! T >\n    a = 3; break;\n"
+                "default: a = 4;\n}"
+            ),
+        ),
+        (
+            "python",
+            (
+                "match x:\n"
+                "    case 1 | 2: # <! F >\n        a = 1\n"
+                "    case 3: # <! F >\n        a = 2\n"
+                "    case 4 | 5: # <! T >\n        a = 3\n"
+                "    case _: a = 4\n"
+            ),
+        ),
+    ],
+    ids=["java", "python"],
+)
+def test_case_groups_have_one_annotated_condition_and_button_per_branch(
+    language: str, code: str
+) -> None:
+    registry = code_snippet_to_registry(code, language=language)
+    conditions = [action for action in registry.all_actions() if action.is_condition]
+    cases = registry.code.ast.find_paths_by_type("basic_case_block")
+    assert len(cases) == len(conditions) == 3
+    assert [action.ast_id for action in conditions] == [case.id for case in cases]
+    assert [action.rule.role for action in conditions] == ["first_case", "next_case", "next_case"]
+    assert [
+        action.annotation.marker if action.annotation else None for action in conditions
+    ] == ["<! F >", "<! F >", "<! T >"]
+
+    context = prepare_html_context(registry.code)
+    questions = [
+        button for button in extract_buttons_from_context(context)
+        if button["type"] == "question"
+    ]
+    assert [button["node_id"] for button in questions] == [action.ast_id for action in conditions]
+    # Кнопка стоит в заголовке после последнего значения и разделителя, а не после тела.
+    for button, last_value in zip(questions, ("2", "3", "5"), strict=True):
+        before_button = context["lines"][button["line_index"]][:button["column_index"]]
+        values = [
+            entity.value for entity in before_button
+            if isinstance(entity, Token) and entity.value.strip() not in {"", ":"}
+        ]
+        assert values[-1] == last_value

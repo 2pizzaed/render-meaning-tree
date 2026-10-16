@@ -121,27 +121,35 @@ class ControlFlowButtons(InjectionPool):
         )
 
     @observable_token()
-    def is_condition(cursor: TokenCursor):
+    def is_condition(cursor: TokenCursor) -> bool | None:
         node = stream_require(cursor.ast_node(0))
         token = cursor[0]
-        # match_value - значение ветки case: условие «выражение switch равно значению»
         target = node.find_first(
-            lambda p : (
-                p.field_name == "match_value" or
-                p.field_name == "condition" and
-                (not p.parent or not p.parent.instanceof("for_loop"))
+            lambda p: (
+                p.field_name in {"match_value", "match_values"}
+                or (
+                    p.field_name == "condition"
+                    and (not p.parent or not p.parent.instanceof("for_loop"))
+                )
             )
         )
+        if target is None or not isinstance(token, Token):
+            return None
 
+        context = target
+        if target.field_name in {"match_value", "match_values"}:
+            # Одна кнопка после последнего значения; действие относится ко всему case.
+            context = target.parent
+            if context is None:
+                return None
+            if target.field_name == "match_values":
+                case = context.get(cursor.manager.ast)
+                values = case.get("match_values") if case is not None else None
+                if not isinstance(values, list) or target.container_field_id != len(values) - 1:
+                    return None
         return (
-            target and
-            cursor.manager.is_last_node_token(
-                token,
-                target,  # type: ignore
-            )
-            and cursor.provide_context(target)
-            if isinstance(token, Token)
-            else None
+            cursor.manager.is_last_node_token(token, target)
+            and cursor.provide_context(context) is not None
         )
 
     @observable_token(before=[is_language_not_in(["python"])])

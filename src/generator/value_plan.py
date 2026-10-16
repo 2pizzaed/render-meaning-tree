@@ -421,7 +421,7 @@ def _switch_outcomes(
         return frozenset(start for start in range(count + 1) if _falls_through(node, start, count))
     if field != "cases" or not isinstance(branch, int):
         return None
-    if len(steps) > 1 and steps[1][0] == "match_value":
+    if len(steps) > 1 and steps[1][0] in {"match_value", "match_values"}:
         # Значение ветки k сравнивается, когда все предыдущие не совпали.
         return frozenset(range(branch, count + 1))
     return frozenset(start for start in range(branch + 1) if _falls_through(node, start, branch))

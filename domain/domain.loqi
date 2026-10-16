@@ -1,6 +1,6 @@
 enum InterruptionType {
 	break [
-		RU.localizedName = "прерывание цикла" ;
+		RU.localizedName = "выход по break" ;
 		EN.localizedName = "break" ;
 	],
 	continue [

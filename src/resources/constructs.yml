@@ -776,7 +776,7 @@ break_action:
   kind: inline
   metadata:
     locale_trace_name: 'break'
-    locale_pronoun: 'she'
+    locale_pronoun: 'he'
   ast_node: break_statement
   effects:
     - interruption_start: break

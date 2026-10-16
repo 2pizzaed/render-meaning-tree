@@ -243,8 +243,9 @@ def test_atomic_inline_action_uses_inline_rule_metadata(
 ) -> None:
     metadata = _object_metadata(trace_loqi, "block_structure_action_first_ast46")
 
-    assert metadata["EN.localizedName"] == f"loop break on line {lines['break']}"
-    assert metadata["pronoun"] == "she"
+    assert metadata["EN.localizedName"] == f"break statement on line {lines['break']}"
+    assert metadata["RU.localizedName"] == f"оператор <code>break</code> на строке {lines['break']}"
+    assert metadata["pronoun"] == "he"
 
 
 def test_action_without_rule_metadata_gets_default_statement_name(trace_loqi: str) -> None:

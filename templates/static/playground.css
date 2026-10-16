@@ -359,7 +359,8 @@ button.submit-btn:hover {
 }
 
 .trace-action-button,
-.trace-icon-button {
+.trace-icon-button,
+.trace-language-select {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -371,6 +372,11 @@ button.submit-btn:hover {
     cursor: pointer;
     font: inherit;
     font-size: 12px;
+}
+
+.trace-language-select {
+    width: 56px;
+    padding: 0 4px;
 }
 
 .trace-action-button {
@@ -482,6 +488,15 @@ button.submit-btn:hover {
 
 .reason-alert .reason-line {
     margin-top: 4px;
+}
+
+.reason-alert code,
+.reason-alert kbd,
+.reason-alert samp {
+    font-family: "Consolas", monospace;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 3px;
+    padding: 1px 3px;
 }
 
 .reason-expl {

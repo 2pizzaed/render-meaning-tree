@@ -11,6 +11,26 @@ var loqiViewerText = null;
 var loqiViewerSource = "";
 var loqiMatches = [];
 var loqiMatchIndex = -1;
+const EXPLANATION_LANGUAGE_STORAGE_KEY = "playground.trace.explanationLanguage";
+var lastReasoningPayload = null;
+
+function initializeExplanationLanguage() {
+    const select = document.getElementById("explanation-language");
+    if (!select) return;
+    restoreSelectValue(select, EXPLANATION_LANGUAGE_STORAGE_KEY);
+    select.addEventListener("change", () => {
+        storeValue(EXPLANATION_LANGUAGE_STORAGE_KEY, select.value);
+        if (lastReasoningPayload) renderReasoningResult(lastReasoningPayload);
+    });
+}
+
+function renderExplanationText(text) {
+    // Escape first; restore only attribute-free formatting tags.
+    return escapeHtml(text).replace(
+        /&lt;(\/?)(code|strong|b|em|i|u|s|kbd|samp|var|sub|sup|small|mark|br)\s*\/?&gt;/gi,
+        (_, closing, tag) => `<${closing}${tag.toLowerCase()}>`,
+    );
+}
 
 function buildTraceActionIdsByName() {
     const scriptTag = document.getElementById("answer_objects");
@@ -105,13 +125,13 @@ function renderExplanationNodes(nodes) {
         }
         if (node.kind === "more") {
             if (!node.text) return "";
-            return `<li class="reason-expl-more${mutedClass}">${escapeHtml(node.text)}</li>`;
+            return `<li class="reason-expl-more${mutedClass}">${renderExplanationText(node.text)}</li>`;
         }
         if (!node.text) return "";
         const skill = node.skill
             ? `<span class="reason-expl-skill">${escapeHtml(node.skill)}</span>`
             : "";
-        return `<li class="reason-expl-leaf${mutedClass}">${escapeHtml(node.text)}${skill}</li>`;
+        return `<li class="reason-expl-leaf${mutedClass}"><span>${renderExplanationText(node.text)}</span>${skill}</li>`;
     }).filter(Boolean);
     if (items.length === 0) return "";
     return `<ul class="reason-expl">${items.join("")}</ul>`;
@@ -398,6 +418,7 @@ function appendHiddenInput(form, name, value) {
 }
 
 function renderReasoningResult(payload) {
+    lastReasoningPayload = payload;
     const statusBox = document.getElementById("reason-status");
     const variablesBox = document.getElementById("reason-variables");
     if (!statusBox || !variablesBox) return;
@@ -439,10 +460,12 @@ function renderReasoningResult(payload) {
     if (skillText) {
         badgeParts.push(`<span class="reason-badge"><strong>skill</strong> ${escapeHtml(skillText)}</span>`);
     }
-    const explanationHtml = reasoning.explanationView
-        ? renderExplanationNodes(reasoning.explanationView.children || [])
-        : (reasoning.explanations || [])
-            .map((text) => `<div class="reason-line">Explanation: ${escapeHtml(text)}</div>`)
+    const explanationLanguage = document.getElementById("explanation-language")?.value || "EN";
+    const explanation = reasoning.localizedExplanations?.[explanationLanguage] || reasoning;
+    const explanationHtml = explanation.explanationView
+        ? renderExplanationNodes(explanation.explanationView.children || [])
+        : (explanation.explanations || [])
+            .map((text) => `<div class="reason-line">${explanationLanguage === "RU" ? "Объяснение" : "Explanation"}: ${renderExplanationText(text)}</div>`)
             .join("");
     statusBox.innerHTML = [
         '<div class="reason-alert-header">',
@@ -762,4 +785,5 @@ function initializeLoqiModal() {
 
 initializeLoqiModal();
 initializeProblemLoqi();
+initializeExplanationLanguage();
 updateTraceView();

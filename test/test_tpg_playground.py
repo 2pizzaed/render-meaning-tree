@@ -5,6 +5,8 @@ import textwrap
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.generator.compprehension_serializer import QuestionTemplateError
@@ -13,12 +15,64 @@ from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
 from src.generator.value_plan import action_key
 from src.model.situation import Action
+from src.tpg_domain import ReasoningResult, TreeNode, TreeNodeMetadataEntry
 from test.playground import app as playground_app
 from test.playground.app import (
     PlaygroundSituation,
     build_answer_objects,
     load_situation,
+    serialize_reasoning_result,
 )
+
+
+@pytest.mark.parametrize("with_trace", [False, True])
+def test_reasoning_explanations_include_both_languages(with_trace: bool) -> None:
+    metadata = [
+        {"name": "explanation", "locCode": "RU", "value": "Выполните <code>while</code>."},
+        {"name": "explanation", "locCode": "EN", "value": "Execute <code>while</code>."},
+    ]
+    result = ReasoningResult(
+        result=False,
+        final_node=TreeNode(
+            "BranchResultNode",
+            metadata=[
+                TreeNodeMetadataEntry(entry["name"], entry["locCode"], entry["value"])
+                for entry in metadata
+            ],
+        ),
+        trace={
+            "branchResult": "ERROR",
+            "elements": [{
+                "nodeType": "BranchResultNode",
+                "nodeResult": "ERROR",
+                "metadata": metadata,
+            }],
+        } if with_trace else None,
+    )
+
+    serialized = serialize_reasoning_result(result)
+    localized = serialized["localizedExplanations"]
+    assert isinstance(localized, dict)
+    for language, expected in (("RU", "Выполните"), ("EN", "Execute")):
+        assert localized[language]["explanations"] == [f"{expected} <code>while</code>."]
+        view = localized[language]["explanationView"]
+        if with_trace:
+            assert view["children"][0]["text"] == f"{expected} <code>while</code>."
+        else:
+            assert view is None
+    assert serialized["explanations"] == localized["EN"]["explanations"]
+
+
+def test_reasoning_explanations_fall_back_when_translation_is_missing() -> None:
+    result = ReasoningResult(
+        result=True,
+        final_node=TreeNode("BranchResultNode", metadata=[
+            TreeNodeMetadataEntry("explanation", "EN", "Execute the next action."),
+        ]),
+    )
+    localized = serialize_reasoning_result(result)["localizedExplanations"]
+    assert isinstance(localized, dict)
+    assert localized["RU"]["explanations"] == ["Execute the next action."]
 
 
 def test_playground_serves_template_static_assets() -> None:

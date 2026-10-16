@@ -10,6 +10,11 @@
         </div>
         <div class="trace-clipboard-actions">
             {% if not static_used %}
+            <select id="explanation-language" class="trace-language-select"
+                    title="Explanation language" aria-label="Explanation language">
+                <option value="RU">RU</option>
+                <option value="EN" selected>EN</option>
+            </select>
             <button type="button" id="loqi-button" class="trace-icon-button" onclick="openLoqiModal()" disabled
                     title="Show LOQI from the last reasoner run" aria-label="Show LOQI from the last reasoner run">
                 <i class="ri-file-code-line" aria-hidden="true"></i>

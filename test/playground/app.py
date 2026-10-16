@@ -30,6 +30,7 @@ from src.helpers.tpg import (
     find_graph_next_correct_action,
 )
 from src.helpers.tpg.explanations import (
+    DEFAULT_MORE_LABEL,
     ExplanationType,
     collect_explanations_from_trace,
     collect_unique_skills,
@@ -547,16 +548,37 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
     if trace is not None:
         explanation_tree = collect_explanations_from_trace(explanation_type, trace)
         properties = _explanation_properties(result)
-        explanations = flatten_explanation_texts(
-            explanation_tree, variables=result.variable_objects, properties=properties
-        )
-        explanation_view_dict = explanation_view(
-            explanation_tree, variables=result.variable_objects, properties=properties
-        )
+        localized_explanations = {
+            loc_code: {
+                "explanations": flatten_explanation_texts(
+                    explanation_tree,
+                    loc_code=loc_code,
+                    more_label=more_label,
+                    variables=result.variable_objects,
+                    properties=properties,
+                ),
+                "explanationView": explanation_view(
+                    explanation_tree,
+                    loc_code=loc_code,
+                    more_label=more_label,
+                    variables=result.variable_objects,
+                    properties=properties,
+                ),
+            }
+            for loc_code, more_label in (
+                ("RU", "И ещё {count} подобных объяснений..."),
+                ("EN", DEFAULT_MORE_LABEL),
+            )
+        }
         skills = collect_unique_skills(trace)
     else:
-        explanations = _metadata_values(final_node, "explanation")
-        explanation_view_dict = None
+        localized_explanations = {
+            loc_code: {
+                "explanations": _metadata_values(final_node, "explanation", loc_code),
+                "explanationView": None,
+            }
+            for loc_code in ("RU", "EN")
+        }
         skills = _metadata_values(final_node, "skill")
 
     return {
@@ -565,8 +587,8 @@ def serialize_reasoning_result(result: ReasoningResult) -> dict[str, object]:
         "hasException": has_exception,
         "exceptionNames": exception_names,
         "finalNode": _serialize_tree_node(final_node),
-        "explanations": explanations,
-        "explanationView": explanation_view_dict,
+        **localized_explanations["EN"],
+        "localizedExplanations": localized_explanations,
         "skills": skills,
         "variables": result.variables,
     }
@@ -605,16 +627,21 @@ def _serialize_tree_node_metadata_entry(entry) -> dict[str, object]:
     }
 
 
-def _metadata_values(node: TreeNode | None, name: str) -> list[str]:
+def _metadata_values(node: TreeNode | None, name: str, loc_code: str = "EN") -> list[str]:
     if node is None:
         return []
     grouped: dict[str | None, list[str]] = {}
     for entry in node.metadata:
         if entry.name == name and entry.value is not None:
             grouped.setdefault(entry.loc_code, []).append(str(entry.value))
-    return grouped.get("EN") or grouped.get("en") or grouped.get(None) or [
-        value for values in grouped.values() for value in values
-    ]
+    return (
+        grouped.get(loc_code)
+        or grouped.get(loc_code.lower())
+        or grouped.get(None)
+        or grouped.get("EN")
+        or grouped.get("en")
+        or [value for values in grouped.values() for value in values]
+    )
 
 
 def _first_metadata_value(node: TreeNode | None, name: str) -> str | None:

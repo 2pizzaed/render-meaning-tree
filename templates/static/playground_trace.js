@@ -1,4 +1,5 @@
 var traceData = [];
+var traceHints = [];
 var draggedTraceIndex = null;
 // Индекс шага, который Reason признал ошибочным: следующее действие заменит его.
 var pendingErrorStepIndex = null;
@@ -94,6 +95,7 @@ function appendTraceAction(actionName) {
         // Непроверенные шаги после ошибочного тоже отбрасываются.
         traceData.splice(pendingErrorStepIndex);
     }
+    traceHints = traceHints.slice(0, traceData.length);
     traceData.push(actionName);
     setPendingErrorStep(null);
     updateTraceView();
@@ -176,8 +178,18 @@ function createTraceItem(traceAction, index) {
 
     const label = document.createElement("span");
     label.className = "trace-label";
-    label.textContent = traceAction;
     label.title = traceAction;
+    const actionName = document.createElement("span");
+    actionName.className = "trace-action-name";
+    actionName.textContent = traceAction;
+    label.appendChild(actionName);
+    if (typeof traceHints[index] === "string" && traceHints[index]) {
+        const hint = document.createElement("span");
+        hint.className = "trace-value-hint";
+        hint.textContent = traceHints[index];
+        hint.title = traceHints[index];
+        label.appendChild(hint);
+    }
 
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
@@ -221,6 +233,7 @@ function createTraceItem(traceAction, index) {
 
 function clearTrace() {
     traceData = [];
+    traceHints = [];
     setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
@@ -228,6 +241,7 @@ function clearTrace() {
 
 function removeTraceItem(index) {
     traceData.splice(index, 1);
+    traceHints = traceHints.slice(0, index);
     setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
@@ -263,6 +277,7 @@ function handleTraceDrop(event) {
 
     const [movedAction] = traceData.splice(draggedTraceIndex, 1);
     traceData.splice(targetIndex, 0, movedAction);
+    traceHints = traceHints.slice(0, Math.min(draggedTraceIndex, targetIndex));
     setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
@@ -299,6 +314,7 @@ async function pasteTraceJson() {
     }
 
     traceData = parsedTrace;
+    traceHints = [];
     setPendingErrorStep(null);
     updateTraceView();
     renderReasoningResult(null);
@@ -317,6 +333,7 @@ async function reasonTrace() {
 
     button.disabled = true;
     button.textContent = "Reasoning...";
+    const requestedTrace = traceData.slice();
     try {
         const response = await fetch("/reason-trace", {
             method: "POST",
@@ -326,11 +343,13 @@ async function reasonTrace() {
                 language: document.querySelector('select[name="language"]')?.value || "java",
                 target_language: document.querySelector('select[name="target_language"]')?.value || "",
                 seed: document.querySelector('input[name="seed"]')?.value || "",
-                trace: traceData,
+                trace: requestedTrace,
             }),
         });
         const payload = await response.json();
+        if (JSON.stringify(traceData) !== JSON.stringify(requestedTrace)) return;
         rememberReasonerLoqi(payload, "Reason");
+        traceHints = payload.traceHints || [];
         setPendingErrorStep(payload.ok ? payload.failedStepIndex : null);
         updateTraceView();
         renderReasoningResult(payload);
@@ -348,6 +367,7 @@ async function requestHint() {
 
     button.disabled = true;
     button.textContent = "Hinting...";
+    const requestedTrace = traceData.slice();
     try {
         const response = await fetch("/hint-trace", {
             method: "POST",
@@ -361,16 +381,23 @@ async function requestHint() {
             }),
         });
         const payload = await response.json();
+        if (JSON.stringify(traceData) !== JSON.stringify(requestedTrace)) return;
         rememberReasonerLoqi(payload, "Hint");
         if (!payload.ok) {
+            traceHints = payload.traceHints || [];
+            updateTraceView();
             renderReasoningResult(payload);
             return;
         }
         if (payload.finished) {
+            traceHints = payload.traceHints || [];
+            updateTraceView();
             renderHintResult("correct", "Program is fully traced: no next action, trace unchanged.");
             return;
         }
         appendTraceAction(payload.action);
+        traceHints = payload.traceHints || [];
+        updateTraceView();
         renderHintResult("unknown", `Hint: added ${payload.action}`);
     } catch (error) {
         renderReasoningResult({ok: false, error: String(error)});

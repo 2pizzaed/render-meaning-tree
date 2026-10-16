@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import textwrap
+from collections.abc import Sequence
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -11,18 +13,114 @@ from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.generator.compprehension_serializer import QuestionTemplateError
 from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
 from src.generator.value_plan import action_key
-from src.model.situation import Action
+from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult, TreeNode, TreeNodeMetadataEntry
+from test.helpers.trace import TraceBuilder, ast_node
 from test.playground import app as playground_app
 from test.playground.app import (
     PlaygroundSituation,
     build_answer_objects,
+    build_trace_hints,
     load_situation,
     serialize_reasoning_result,
 )
+
+
+def test_trace_hints_follow_actual_values_for_repeated_actions() -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[
+        ast_node(2, "condition"), ast_node(3, "assignment_expression"),
+        ast_node(4, "function_call"), ast_node(5, "assignment_expression"),
+    ]))
+    program = builder.construct(1, name="global_statements_structure")
+    condition = builder.action(2, program, role="condition")
+    statement = builder.action(3, program, role="statement")
+    call = builder.action(4, program, role="call")
+    unexecuted = builder.action(5, program, role="unexecuted")
+    condition.values = [SemanticValue(True), SemanticValue(False)]
+    call.values = [SemanticValue(None, hint_override="result <x>"), SemanticValue(None)]
+    builder.act(program.begin_action())
+    trace_start = len(builder.trace)
+    # The explicit value links, rather than occurrence counts, determine the hint.
+    builder.act(condition, value=condition.values[1])
+    builder.act(program.begin_action())
+    builder.act(statement)
+    builder.act(condition, value=condition.values[0])
+    builder.act(call, value=call.values[0])
+    builder.act(call, value=call.values[1])
+
+    assert build_trace_hints(
+        builder.registry, [condition, statement, condition, call, call, unexecuted], trace_start,
+    ) == ["False", None, "True", "result <x>", None]
+
+
+def test_reason_trace_hints_stop_before_incorrect_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[ast_node(2, "condition")]))
+    program = builder.construct(1, name="global_statements_structure")
+    condition = builder.action(2, program, role="condition")
+    condition.values = [SemanticValue(True), SemanticValue(False)]
+    builder.act(program.begin_action())
+    serializer, _ = registry_to_loqi(builder.registry)
+    name = serializer.object_name(condition)
+    assert name is not None
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[Action], **kwargs: object,
+    ) -> SimpleNamespace:
+        action = selected_trace[0]
+        # Even if a failed step has partially added an act, its hint must stay hidden.
+        for value in action.values:
+            registry.add(TraceAct(action, None, registry, value))
+        return SimpleNamespace(
+            step_index=1, result=ReasoningResult(False), loqi_text="",
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    response = playground_app.app.test_client().post(
+        "/reason-trace", json={"code": "", "trace": [name, name, name]},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["traceHints"] == ["True"]
+    assert payload["failedStepIndex"] == 1
+
+
+def test_hint_trace_returns_hints_for_prefix_and_added_action(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[ast_node(2, "condition")]))
+    program = builder.construct(1, name="global_statements_structure")
+    condition = builder.action(2, program, role="condition")
+    condition.values = [SemanticValue(True), SemanticValue(False, hint_override="stop")]
+    builder.act(program.begin_action())
+    serializer, _ = registry_to_loqi(builder.registry)
+    name = serializer.object_name(condition)
+    assert name is not None
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[Action], **kwargs: object,
+    ) -> SimpleNamespace:
+        action = selected_trace[0]
+        registry.add(TraceAct(action, None, registry, action.values[0]))
+        return SimpleNamespace(result=ReasoningResult(True))
+
+    def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
+        action = registry.trace_acts[-1].action
+        registry.add(TraceAct(action, None, registry, action.values[1]))
+        return SimpleNamespace(
+            action=action, finished=False, output=SimpleNamespace(loqi_text=""),
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", hint)
+    response = playground_app.app.test_client().post(
+        "/hint-trace", json={"code": "", "trace": [name]},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["traceHints"] == ["True", "stop"]
 
 
 @pytest.mark.parametrize("with_trace", [False, True])

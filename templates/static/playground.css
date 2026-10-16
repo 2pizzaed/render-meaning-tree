@@ -640,6 +640,9 @@ button.submit-btn:hover {
 }
 
 .trace-label {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -647,6 +650,23 @@ button.submit-btn:hover {
     font-family: "Consolas", monospace;
     font-size: 12px;
     color: #1f2937;
+}
+
+.trace-action-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.trace-value-hint {
+    flex: 0 1 auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #eef2f7;
+    color: #475569;
 }
 
 .trace-delete-button {

@@ -1,5 +1,6 @@
 import argparse
 import traceback
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from io import BytesIO
@@ -38,6 +39,8 @@ from src.helpers.tpg.explanations import (
     flatten_explanation_texts,
 )
 from src.helpers.tpg.loqi_values import LoqiPropertyResolver
+from src.model.situation import Action
+from src.serialization.loqi import LoqiRenderIndex
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
@@ -296,6 +299,7 @@ def reason_trace():
         ).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_actions = resolve_actions_from_trace(serializer, selected_trace)
+        trace_start = len(registry.trace_acts)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
         reasoning = check_graph_stepwise_reasoning(
             reasoning_tmp,
@@ -316,6 +320,10 @@ def reason_trace():
         ), 500
 
     serialized = serialize_reasoning_result(reasoning.result)
+    confirmed_count = (
+        len(selected_actions) if serialized["status"] == "correct" and not serialized["hasException"]
+        else reasoning.step_index or 0
+    )
     return jsonify(
         {
             "ok": True,
@@ -325,6 +333,7 @@ def reason_trace():
                 reasoning.step_index if serialized["status"] != "correct" else None
             ),
             "reasoning": serialized,
+            "traceHints": build_trace_hints(registry, selected_actions[:confirmed_count], trace_start),
             "loqi": reasoning.loqi_text,
         }
     )
@@ -349,6 +358,7 @@ def hint_trace():
         ).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_actions = resolve_actions_from_trace(serializer, selected_trace)
+        trace_start = len(registry.trace_acts)
         hint_tmp = _playground_temp_dir("playground-hint-")
         if selected_actions:
             # Восстанавливаем трассу (с прозрачными актами) пошаговой проверкой.
@@ -370,6 +380,9 @@ def hint_trace():
                         "ok": False,
                         "error": f"Trace is incorrect at step {step}; fix it before requesting a hint.",
                         "loqi": checked.loqi_text,
+                        "traceHints": build_trace_hints(
+                            registry, selected_actions[:checked.step_index or 0], trace_start,
+                        ),
                     }
                 ), 409
         hint = find_graph_next_correct_action(
@@ -396,6 +409,11 @@ def hint_trace():
             "trace": selected_trace,
             "finished": hint.finished,
             "action": action_name,
+            "traceHints": build_trace_hints(
+                registry,
+                [*selected_actions, hint.action] if hint.action is not None else selected_actions,
+                trace_start,
+            ),
             "loqi": hint.output.loqi_text,
         }
     )
@@ -508,6 +526,28 @@ def build_answer_objects(
         for button in extract_buttons_from_context(context)
         if button.get("action_id") is not None
     }
+
+
+def build_trace_hints(
+    registry: SituationRegistry, selected_actions: Sequence[Action], trace_start: int,
+) -> list[str | None]:
+    """Hints of confirmed steps, using each TraceAct's hasValue in the LOQI representation."""
+    if not selected_actions:
+        return []
+    serializer, _ = registry_to_loqi(registry)
+    loqi = LoqiRenderIndex(serializer.render_result())
+    acts = iter(registry.trace_acts[trace_start:])
+    hints: list[str | None] = []
+    for action in selected_actions:
+        act = next((act for act in acts if act.action is action), None)
+        if act is None:
+            break
+        name = serializer.object_name(act)
+        obj = loqi.object(name) if name is not None else None
+        value = loqi.target(obj, "hasValue") if obj is not None else None
+        hint = loqi.metadata_value(value, "hint") if value is not None else None
+        hints.append(hint if isinstance(hint, str) and hint else None)
+    return hints
 
 
 def _explanation_properties(result: ReasoningResult) -> LoqiPropertyResolver | None:

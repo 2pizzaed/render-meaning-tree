@@ -8,9 +8,19 @@ from typing import TextIO
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.helpers.tpg.trace import restore_trace_from_loqi
-from src.model.situation import Action, TraceAct, TraceState
+from src.model.situation import Action, SemanticValue, TraceAct, TraceState
 from src.serialization.loqi import LoqiSerializer
 from src.tpg_domain import ReasoningCallError, ReasoningResult, solve_reasoning
+
+
+@dataclass(frozen=True, slots=True)
+class TraceStep:
+    """Шаг студента для main.tpg: действие ``A`` и выбранное вместе с ним значение ``V``."""
+
+    action: Action
+    # Вызов, из которого студент возвращается (пункт dropdown step-out). Без выбора
+    # граф берёт NoValue.
+    value: SemanticValue | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +42,8 @@ class NextCorrectActionOutput:
     # Последнее непрозрачное действие, добавленное findCorrect; None, если программа вычислена.
     action: Action | None
     finished: bool
+    # Значение акта этого действия, если оно есть.
+    value: SemanticValue | None = None
 
 
 def solve_pipeline_reasoning(
@@ -151,7 +163,7 @@ def solve_graph_full_reasoning(
 def check_graph_stepwise_reasoning(
     directory: Path,
     registry: SituationRegistry,
-    selected_trace: Sequence[Action],
+    selected_trace: Sequence[TraceStep],
     *,
     model_dir: str | Path,
     filename: str = "generated-domain.loqi",
@@ -168,9 +180,13 @@ def check_graph_stepwise_reasoning(
         raise ValueError("selected_trace must not be empty")
 
     last_output: PipelineReasoningOutput | None = None
-    for index, action in enumerate(selected_trace):
+    for index, step in enumerate(selected_trace):
         _ensure_trace_tail_as_p(registry)
-        registry.variables["A"] = action
+        registry.variables["A"] = step.action
+        if step.value is not None:
+            registry.variables["V"] = step.value
+        else:
+            registry.variables.pop("V", None)
         last_output = _solve_pipeline_reasoning_once(
             directory,
             registry,
@@ -220,6 +236,7 @@ def find_graph_next_correct_action(
     """
     _ensure_trace_tail_as_p(registry)
     registry.variables.pop("A", None)
+    registry.variables.pop("V", None)
     previous_trace_length = len(registry.trace_acts)
 
     output = _solve_pipeline_reasoning_once(
@@ -248,7 +265,9 @@ def find_graph_next_correct_action(
         if trace_act.action.is_opaque
     ]
     if opaque_acts:
-        return NextCorrectActionOutput(output=output, action=opaque_acts[-1].action, finished=False)
+        act = opaque_acts[-1]
+        value = act.value if isinstance(act.value, SemanticValue) else None
+        return NextCorrectActionOutput(output=output, action=act.action, finished=False, value=value)
 
     tail = output.trace_acts[-1] if output.trace_acts else None
     if tail is not None and _is_root_end_action(registry, tail.action):

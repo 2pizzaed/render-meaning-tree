@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.generator.registry import SituationRegistry
+from src.helpers.tpg.reasoning import TraceStep
 from src.model.rules import TransitionDeclaration
-from src.model.situation import Action, TraceAct
+from src.model.situation import Action, SemanticValue, TraceAct
 from src.serialization.loqi import LoqiSerializer
 
 
@@ -133,20 +134,30 @@ def add_trace_act_for_action(
     return trace_act
 
 
-def resolve_actions_from_trace(
+def resolve_trace_steps(
     serializer: LoqiSerializer,
     selected_trace: list[str],
-) -> list[Action]:
-    """Разрешить последовательность имён actions из loqi-трассы в объекты Action."""
-    resolved_actions: list[Action] = []
-    for action_name in selected_trace:
+) -> list[TraceStep]:
+    """Разрешить шаги loqi-трассы в объекты ситуации.
+
+    Шаг - ``domainInfo`` ответа: имя действия или, у пункта dropdown вызова,
+    ``<имя действия>,<имя SemanticValue>``.
+    """
+    steps: list[TraceStep] = []
+    for step in selected_trace:
+        action_name, _, value_name = step.partition(",")
         action = serializer.object_by_name(action_name)
         if not isinstance(action, Action):
             raise LookupError(
                 f"Expected Action for {action_name!r}, found {type(action).__name__}"
             )
-        resolved_actions.append(action)
-    return resolved_actions
+        value = serializer.object_by_name(value_name) if value_name else None
+        if value_name and not isinstance(value, SemanticValue):
+            raise LookupError(
+                f"Expected SemanticValue for {value_name!r}, found {type(value).__name__}"
+            )
+        steps.append(TraceStep(action, value))
+    return steps
 
 
 def _resolve_transition(

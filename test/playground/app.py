@@ -17,8 +17,12 @@ from src.generator.compprehension_serializer import (
     QuestionTemplateError,
     problem_to_question_template,
 )
-from src.generator.helpers.actions import resolve_actions_from_trace
-from src.generator.helpers.call_values import call_value_menus
+from src.generator.helpers.actions import resolve_trace_steps
+from src.generator.helpers.call_values import (
+    call_value_domain_info,
+    call_value_menus,
+    is_annotated_call_end,
+)
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.problems import LearningProblem
@@ -28,6 +32,7 @@ from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry, problem_statement_registry
 from src.helpers.files import make_project_temp_dir
 from src.helpers.tpg import (
+    NextCorrectActionOutput,
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,
 )
@@ -41,7 +46,7 @@ from src.helpers.tpg.explanations import (
 )
 from src.helpers.tpg.loqi_values import LoqiPropertyResolver
 from src.model.situation import Action
-from src.serialization.loqi import LoqiRenderIndex
+from src.serialization.loqi import LoqiRenderIndex, LoqiSerializer
 from src.tpg_domain import ReasoningResult, TreeNode
 from src.types import SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
@@ -299,13 +304,14 @@ def reason_trace():
             code, language, target_language, read_seed(payload.get("seed"))
         ).registry.clone()
         serializer, _ = registry_to_loqi(registry)
-        selected_actions = resolve_actions_from_trace(serializer, selected_trace)
+        selected_steps = resolve_trace_steps(serializer, selected_trace)
+        selected_actions = [step.action for step in selected_steps]
         trace_start = len(registry.trace_acts)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
         reasoning = check_graph_stepwise_reasoning(
             reasoning_tmp,
             registry,
-            selected_actions,
+            selected_steps,
             model_dir=PLAYGROUND_REASON_MODEL_DIR,
             filename="playground-trace.loqi",
             tree=PLAYGROUND_REASON_TREE,
@@ -358,15 +364,16 @@ def hint_trace():
             code, language, target_language, read_seed(payload.get("seed"))
         ).registry.clone()
         serializer, _ = registry_to_loqi(registry)
-        selected_actions = resolve_actions_from_trace(serializer, selected_trace)
+        selected_steps = resolve_trace_steps(serializer, selected_trace)
+        selected_actions = [step.action for step in selected_steps]
         trace_start = len(registry.trace_acts)
         hint_tmp = _playground_temp_dir("playground-hint-")
-        if selected_actions:
+        if selected_steps:
             # Восстанавливаем трассу (с прозрачными актами) пошаговой проверкой.
             checked = check_graph_stepwise_reasoning(
                 hint_tmp,
                 registry,
-                selected_actions,
+                selected_steps,
                 model_dir=PLAYGROUND_REASON_MODEL_DIR,
                 filename="playground-hint-check.loqi",
                 tree=PLAYGROUND_REASON_TREE,
@@ -395,9 +402,7 @@ def hint_trace():
             debug_enabled=True,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
         )
-        action_name = serializer.object_name(hint.action) if hint.action is not None else None
-        if hint.action is not None and action_name is None:
-            raise LookupError("findCorrect returned an action without a LOQI name")
+        action_name = hint_step_name(serializer, hint)
     except Exception as e:
         traceback.print_exc()
         return jsonify(
@@ -538,6 +543,21 @@ def build_answer_objects(
     for options in menus.values():
         answers.update({str(option.answer_id): option.domain_info for option in options})
     return answers
+
+
+def hint_step_name(serializer: LoqiSerializer, hint: NextCorrectActionOutput) -> str | None:
+    """Шаг трассы подсказки: у END размеченного вызова - вместе с правильным значением,
+    как у пункта dropdown."""
+    if hint.action is None:
+        return None
+    if hint.value is not None and is_annotated_call_end(hint.action):
+        step = call_value_domain_info(serializer, hint.action, hint.value)
+        if step is not None:
+            return step
+    action_name = serializer.object_name(hint.action)
+    if action_name is None:
+        raise LookupError("findCorrect returned an action without a LOQI name")
+    return action_name
 
 
 def build_trace_hints(

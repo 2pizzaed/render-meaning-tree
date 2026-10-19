@@ -17,6 +17,7 @@ from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
 from src.generator.value_plan import action_key
+from src.helpers.tpg import TraceStep
 from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult, TreeNode, TreeNodeMetadataEntry
 from test.helpers.trace import TraceBuilder, ast_node
@@ -69,9 +70,9 @@ def test_reason_trace_hints_stop_before_incorrect_step(monkeypatch: pytest.Monke
     monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
 
     def check(
-        directory: Path, registry: SituationRegistry, selected_trace: Sequence[Action], **kwargs: object,
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
     ) -> SimpleNamespace:
-        action = selected_trace[0]
+        action = selected_trace[0].action
         # Even if a failed step has partially added an act, its hint must stay hidden.
         for value in action.values:
             registry.add(TraceAct(action, None, registry, value))
@@ -101,9 +102,9 @@ def test_hint_trace_returns_hints_for_prefix_and_added_action(monkeypatch: pytes
     monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
 
     def check(
-        directory: Path, registry: SituationRegistry, selected_trace: Sequence[Action], **kwargs: object,
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
     ) -> SimpleNamespace:
-        action = selected_trace[0]
+        action = selected_trace[0].action
         registry.add(TraceAct(action, None, registry, action.values[0]))
         return SimpleNamespace(result=ReasoningResult(True))
 
@@ -111,7 +112,7 @@ def test_hint_trace_returns_hints_for_prefix_and_added_action(monkeypatch: pytes
         action = registry.trace_acts[-1].action
         registry.add(TraceAct(action, None, registry, action.values[1]))
         return SimpleNamespace(
-            action=action, finished=False, output=SimpleNamespace(loqi_text=""),
+            action=action, finished=False, value=None, output=SimpleNamespace(loqi_text=""),
         )
 
     monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
@@ -121,6 +122,49 @@ def test_hint_trace_returns_hints_for_prefix_and_added_action(monkeypatch: pytes
     )
     assert response.status_code == 200
     assert response.get_json()["traceHints"] == ["True", "stop"]
+
+
+def test_call_value_steps_reach_check_and_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = code_manager_to_registry(
+        prepare_code('def f(n):\n    return n\nf(1)  # <! (-, "f(1)") >\n', "python")
+    )
+    [end] = [
+        action
+        for action in registry.all_actions()
+        if action.annotation is not None and action.rule.role == "END"
+    ]
+    # Подсказку END в задаче ставит трасса findCorrect.
+    end.values[0].hint_override = "f(1)"
+    serializer, _ = registry_to_loqi(registry)
+    end_name = serializer.object_name(end)
+    value_name = serializer.object_name(end.values[0])
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(registry))
+    checked: list[TraceStep] = []
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> SimpleNamespace:
+        checked.extend(selected_trace)
+        return SimpleNamespace(result=ReasoningResult(True))
+
+    def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
+        action = checked[-1].action
+        return SimpleNamespace(
+            action=action, finished=False, value=action.values[0], output=SimpleNamespace(loqi_text=""),
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", hint)
+    response = playground_app.app.test_client().post(
+        "/hint-trace", json={"code": "", "trace": [end_name, f"{end_name},{value_name}"]},
+    )
+
+    assert response.status_code == 200
+    # Шаг пункта dropdown передаёт и действие, и значение; обычный шаг - только действие.
+    assert [step.value is not None for step in checked] == [False, True]
+    assert checked[1].value is checked[1].action.values[0]
+    # Подсказка для END размеченного вызова - шаг с правильным значением.
+    assert response.get_json()["action"] == f"{end_name},{value_name}"
 
 
 @pytest.mark.parametrize("with_trace", [False, True])
@@ -259,7 +303,7 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
         captured["selected_trace"] = list(selected_trace)
         serializer, _ = registry_to_loqi(registry)
         captured["selected_trace_names"] = [
-            serializer.object_name(action) for action in selected_trace
+            serializer.object_name(step.action) for step in selected_trace
         ]
         captured["kwargs"] = kwargs
         return SimpleNamespace(
@@ -333,7 +377,9 @@ def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     assert payload["reasoning"]["explanations"] == [
         "Condition matched the selected branch."
     ]
-    assert all(isinstance(action, Action) for action in captured["selected_trace"])
+    assert all(
+        isinstance(step.action, Action) and step.value is None for step in captured["selected_trace"]
+    )
     assert captured["selected_trace_names"] == trace
 
 
@@ -366,6 +412,7 @@ def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
         return SimpleNamespace(
             action=action,
             finished=finished,
+            value=None,
             output=SimpleNamespace(loqi_text="obj hint_input : ActionSpec {}"),
         )
 

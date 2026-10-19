@@ -321,4 +321,16 @@ class TraceConfigSpec {
 
 obj TraceConfig : TraceConfigSpec {
 	stop_on_opaque = true ;
-}
+} [
+	RU.localizedName = "глобальная конфигурация трассировки" ;
+	EN.localizedName = "global trace configuration" ;
+] 
+
+obj NoValue : SemanticValue {
+	bool_value = OptionalBool:`null`;
+	used = false; // не должен меняться и учитываться для этого объекта
+} [
+	RU.localizedName = "без значения";
+	EN.localizedName = "no value";
+	hint = "";
+]

@@ -122,7 +122,12 @@
         <div class="code-line">
             {% for entity in line %}
                 {% if entity.__class__.__name__ == 'Button' %}
+                    {% set call_values = (call_value_menus|default({})).get(entity.attrs.get('action-id')) %}
                     <button class="injected-button {{ entity.style }} {{ entity.type }} {{ entity.css_classes|join(' ') }}"
+                            {# Клик кнопки с dropdown обрабатывает скрипт фрагмента #}
+                            {% if call_values %}
+                            data-comp-ph-custom-click
+                            {% endif %}
                             {% if entity.tooltip %}
                             title="{{ entity.tooltip }}"
                             {% elif not static_used and entity.attrs.get('node-id') is not none %}
@@ -148,6 +153,16 @@
                             <i class="ri-question-fill" style="color: {{ entity.color or "#024936" }};"></i>
                         {% endif %}
                     </button>
+                    {% if call_values %}
+                    {# Пункты - отдельные ответы; не внутри кнопки: CompPrehension восстанавливает её innerHTML #}
+                    <div class="call-value-menu" popover>
+                        {% for option in call_values %}
+                        <button type="button" id="answer_{{ option.answer_id }}"
+                                data-action="{{ option.begin_name }}"
+                                data-hint="{{ option.hint }}">{{ option.hint }}</button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
 
                 {% elif entity.__class__.__name__ == 'Token' %}
                     <span class="token {{ entity.repr_type }} {{ entity.css_classes|join(' ') }}"
@@ -168,5 +183,71 @@
         </div>
         {% endfor %}
     </div>
+    {% if call_value_menus %}
+    <style>
+        .call-value-menu {
+            inset: auto;
+            margin: 0;
+            padding: 2px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            font: 13px 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        .call-value-menu button {
+            display: block;
+            width: 100%;
+            padding: 2px 10px;
+            border: none;
+            background: none;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .call-value-menu button:hover:enabled {
+            background: #eef2f7;
+        }
+
+        .call-value-menu button:disabled {
+            color: #aaa;
+            cursor: default;
+        }
+    </style>
+    <script>
+        (() => {
+            // Dropdown значений вызова (docs/ideas/function_return_dropdown.md). Пункт
+            // доступен, если его подсказка есть у актов трассы BEGIN его места вызова.
+            // Без доступных пунктов кнопка отправляет свой ответ: завершение вызова без значения.
+            const script = document.currentScript;
+            const traceRoot = script.closest(".comp-ph-question") ?? document;
+            for (const menu of script.parentElement.querySelectorAll(".call-value-menu")) {
+                const button = menu.previousElementSibling;
+                button.addEventListener("click", () => {
+                    let available = false;
+                    for (const option of menu.children) {
+                        const selector = `.trace-act[data-action="${option.dataset.action}"] .value-hint`;
+                        const hints = Array.from(traceRoot.querySelectorAll(selector), (hint) => hint.textContent);
+                        option.disabled = !hints.includes(option.dataset.hint);
+                        available ||= !option.disabled;
+                    }
+                    if (!available) {
+                        button.dispatchEvent(new CustomEvent("compph:on-answer-evaluated", { bubbles: true }));
+                        return;
+                    }
+                    const rect = button.getBoundingClientRect();
+                    menu.style.left = `${rect.left}px`;
+                    menu.style.top = `${rect.bottom}px`;
+                    menu.showPopover();
+                });
+                // Ответ пункта отправляет хост, dropdown только закрывается.
+                menu.addEventListener("click", (event) => {
+                    if (event.target.closest("button:enabled")) menu.hidePopover();
+                });
+            }
+        })();
+    </script>
+    {% endif %}
 </div>
 <!-- END OF CODE COMPONENT -->

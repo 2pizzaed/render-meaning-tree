@@ -9,12 +9,14 @@ from typing import Any
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString
 
-from src.ast_managers import CodeManager
 from src.coderenderer.html import (
     extract_buttons_from_context,
     prepare_html_context,
     render_static_html,
 )
+from src.generator.helpers.call_values import CallValueOption, call_value_menus
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates"
 
@@ -25,16 +27,23 @@ class QuestionHtml:
     text: str
     # Кнопки фрагмента в формате extract_buttons_from_context.
     buttons: list[dict[str, Any]]
+    # Пункты dropdown значений вызова по номеру ответа кнопки step-out.
+    call_value_menus: dict[int, tuple[CallValueOption, ...]]
 
 
-def render_question_html(code: CodeManager) -> QuestionHtml:
-    """HTML кода задачи; у всех задач фрагмента он одинаковый."""
-    context = prepare_html_context(code)
+def render_question_html(statement: SituationRegistry) -> QuestionHtml:
+    """HTML кода задачи по ситуации условия: пункты dropdown зависят от её значений."""
+    context = prepare_html_context(statement.code)
+    buttons = extract_buttons_from_context(context)
+    serializer, _ = registry_to_loqi(statement)
+    menus = call_value_menus(statement, buttons, serializer)
+    context["call_value_menus"] = menus
     return QuestionHtml(
         text=_minify_question_html(
             render_static_html(context, templates_dir=str(TEMPLATES_DIR), snippet_only=True)
         ),
-        buttons=extract_buttons_from_context(context),
+        buttons=buttons,
+        call_value_menus=menus,
     )
 
 

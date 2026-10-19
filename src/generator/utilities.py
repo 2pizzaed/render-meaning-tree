@@ -150,14 +150,15 @@ def problems_to_question_templates(
     if not problems:
         return []
 
-    html = render_question_html(pipeline.code)
     created_at = datetime.now(UTC)
     templates: list[dict[str, Any]] = []
     for problem in problems:
         statement = problem_statement_registry(pipeline.registry, problem)
         try:
             templates.append(
-                problem_to_question_template(problem, statement, html, created_at=created_at)
+                problem_to_question_template(
+                    problem, statement, render_question_html(statement), created_at=created_at
+                )
             )
         except QuestionTemplateError as error:
             logger.warning(

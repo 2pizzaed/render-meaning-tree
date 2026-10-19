@@ -14,6 +14,7 @@ from src.generator.question_html import (
     _minify_question_html,
     render_question_html,
 )
+from src.generator.utilities import code_manager_to_registry
 
 
 def test_minification_preserves_token_whitespace_and_escaped_code() -> None:
@@ -54,7 +55,7 @@ def test_question_html_is_compact_and_keeps_tokens_and_answer_buttons() -> None:
     context = prepare_html_context(manager)
     raw = render_static_html(context, templates_dir=str(TEMPLATES_DIR), snippet_only=True)
 
-    result = render_question_html(manager)
+    result = render_question_html(code_manager_to_registry(manager))
     original = BeautifulSoup(raw, "html.parser", preserve_whitespace_tags={"span"})
     compact = BeautifulSoup(result.text, "html.parser", preserve_whitespace_tags={"span"})
 

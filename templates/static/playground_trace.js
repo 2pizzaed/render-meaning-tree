@@ -172,7 +172,8 @@ function createTraceItem(traceAction, index) {
     item.draggable = true;
     item.dataset.index = String(index);
     // По data-action и .value-hint фрагмент кода находит значения актов трассы.
-    item.dataset.action = traceAction;
+    // Шаг пункта dropdown - «<действие>,<значение>», в data-action только действие.
+    item.dataset.action = traceAction.split(",")[0];
 
     const handle = document.createElement("span");
     handle.className = "trace-drag-handle";

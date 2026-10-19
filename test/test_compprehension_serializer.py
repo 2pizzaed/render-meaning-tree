@@ -5,17 +5,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from bs4 import BeautifulSoup
 from jsonschema import Draft202012Validator
 
 from src.ast_managers import prepare_code
 from src.generator.compprehension_serializer import (
     DOMAIN_SHORTNAME,
     QUESTION_VERSION,
+    problem_to_question_template,
     question_name,
 )
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.pipeline.classification import integral_complexity
 from src.generator.problems import LearningProblem, ProblemGenerationConfig
+from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.utilities import (
     code_snippet_to_question_templates,
@@ -143,6 +146,54 @@ def test_annotated_calls_carry_null_values_into_trace_and_statement():
         "BEGIN": [["fact(2)", "fact(1)"], ["fact(3)"]],
         "END": [["fact(1)", "fact(2)"], ["fact(3)"]],
     }
+
+
+def test_step_out_of_annotated_call_offers_every_call_of_function():
+    code = textwrap.dedent(
+        """
+        def fact(n):
+            if n <= 1:  # <! FFT >
+                return 1
+            return n * fact(n - 1)  # <! (-, "fact(2)"), (-, "fact(1)") >
+        fact(3)  # <! (-, "fact(3)") >
+        """
+    )
+    manager = prepare_code(code, "python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, config=FAST_CONFIG)
+    [problem] = pipeline.run().results()
+    statement = problem_statement_registry(pipeline.registry, problem)
+
+    html = render_question_html(statement)
+    template = problem_to_question_template(problem, statement, html)
+
+    # Кнопка step-out каждого места вызова предлагает все вызовы функции.
+    menus = html.call_value_menus
+    assert len(menus) == 2
+    for options in menus.values():
+        assert sorted(option.hint for option in options) == ["fact(1)", "fact(2)", "fact(3)"]
+
+    # Пункт - отдельный ответ: END кнопки и значение, номер - после номеров кнопок.
+    answers = {
+        answer["answerId"]: answer
+        for answer in template["commonQuestion"]["questionData"]["answerObjects"]
+    }
+    button_ids = {int(button["action_id"]) for button in html.buttons}
+    option_ids = {option.answer_id for options in menus.values() for option in options}
+    assert min(option_ids) > max(button_ids)
+    for button_id, options in menus.items():
+        end_name = answers[button_id]["domainInfo"]
+        for option in options:
+            assert answers[option.answer_id]["domainInfo"] == option.domain_info
+            assert option.domain_info.startswith(f"{end_name},semantic_value_")
+            assert answers[option.answer_id]["hyperText"] == option.hint
+
+    soup = BeautifulSoup(html.text, "html.parser")
+    custom_buttons = soup.select("[data-comp-ph-custom-click]")
+    assert {int(str(tag["id"]).removeprefix("answer_")) for tag in custom_buttons} == set(menus)
+    assert {str(tag["id"]) for tag in soup.select(".call-value-menu > button")} == {
+        f"answer_{answer_id}" for answer_id in option_ids
+    }
+    assert soup.select_one("script") is not None
 
 
 def test_call_end_hints_follow_exit_order_of_sequential_calls():

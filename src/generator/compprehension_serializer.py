@@ -139,7 +139,8 @@ def _answer_objects(
     serializer: LoqiSerializer,
     html: QuestionHtml,
 ) -> list[dict[str, Any]]:
-    """Ответы - кнопки HTML; domainInfo - LOQI-имя действия ситуации.
+    """Ответы - кнопки HTML и пункты dropdown значений вызова; domainInfo - LOQI-имя
+    действия ситуации, у пункта - ещё и имя значения через запятую.
 
     Кнопку без действия или с неоднозначным действием пропускаем с предупреждением,
     но у каждого шага студента в корректной трассе (``student_step_indexes``) ответ
@@ -168,6 +169,18 @@ def _answer_objects(
                 "isRightCol": False,
             }
         )
+    # Пункты dropdown значений вызова; кнопка step-out остаётся ответом без значения.
+    answers.extend(
+        {
+            "answerId": option.answer_id,
+            "hyperText": option.hint,
+            "domainInfo": option.domain_info,
+            "concept": "action",
+            "isRightCol": False,
+        }
+        for options in html.call_value_menus.values()
+        for option in options
+    )
 
     # Трасса задачи - в registry ветки, а имена объектов детерминированы структурой
     # ситуации, поэтому её serializer называет действия так же, как serializer условия.

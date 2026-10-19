@@ -18,6 +18,7 @@ from src.generator.compprehension_serializer import (
     problem_to_question_template,
 )
 from src.generator.helpers.actions import resolve_actions_from_trace
+from src.generator.helpers.call_values import call_value_menus
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.problems import LearningProblem
@@ -440,7 +441,7 @@ def export_question():
         problem = situation.problems[index]
         statement = problem_statement_registry(situation.base_registry, problem)
         question = problem_to_question_template(
-            problem, statement, render_question_html(statement.code)
+            problem, statement, render_question_html(statement)
         )
     except QuestionTemplateError as e:
         app.logger.warning("Question #%d for seed %s skipped: %s", index, payload.get("seed"), e)
@@ -513,19 +514,30 @@ def build_answer_objects(
     *,
     enable_trace: bool,
 ) -> dict[str, object] | None:
-    """Temporary hook for answer-trace payload generation."""
+    """Temporary hook for answer-trace payload generation.
+
+    Также записывает в ``context["call_value_menus"]`` пункты dropdown значений вызова:
+    у них свои номера ответов.
+    """
     if not enable_trace:
         return None
     serializer, _ = registry_to_loqi(registry)
-    return {
+    buttons = extract_buttons_from_context(context)
+    answers: dict[str, object] = {
         str(button["action_id"]): resolve_button_action_name(
             registry,
             button,
             serializer=serializer,
         )
-        for button in extract_buttons_from_context(context)
+        for button in buttons
         if button.get("action_id") is not None
     }
+    # Пункты dropdown значений вызова: шаблон кода выводит их у кнопок step-out.
+    menus = call_value_menus(registry, buttons, serializer)
+    context["call_value_menus"] = menus
+    for options in menus.values():
+        answers.update({str(option.answer_id): option.domain_info for option in options})
+    return answers
 
 
 def build_trace_hints(

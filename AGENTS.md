@@ -25,6 +25,7 @@ Use `uv` for project commands.
 - `uv run render-construct-automaton` - render a construct transition automaton from construct rules for debugging rule flow.
 - `uv run generate-problems` (same as `uv run main.py`) - generate learning problems for a code snippet and print the selected ones; `--output DIR` saves them as CompPrehension question JSON files.
 - `uv run playground` - start the Flask playground (`test/playground/app.py`).
+- `uv run annotate-trace` - run a Python snippet and print it with `<! … >` value markers built from its real execution trace (`test/tools/annotate_trace.py`).
 - `uv run tree-loqi-to-xml` - convert a TPG/LOQI tree file to XML for syntax/build diagnostics.
 
 Run only the checks that are required by the task and the risk of the change. For small, local edits, prefer the narrowest relevant test, script, or validator instead of the full suite. If a change is broad, touches shared behavior, or affects core generation/reasoning paths, run the relevant test file; for large or cross-cutting changes, run `uv run pytest`.

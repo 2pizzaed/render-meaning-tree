@@ -51,8 +51,9 @@ function buildTraceActionIdsByName() {
 
 function findCodeButtonsForTraceAction(actionName) {
     const actionIds = traceActionIdsByName.get(actionName) || [];
-    return Array.from(document.querySelectorAll(".injected-button[data-action-id]"))
-        .filter((button) => actionIds.includes(button.getAttribute("data-action-id")));
+    const elementIds = actionIds.map((actionId) => `answer_${actionId}`);
+    return Array.from(document.querySelectorAll(".injected-button[id^='answer_']"))
+        .filter((button) => elementIds.includes(button.id));
 }
 
 function applyTraceHighlight() {

@@ -544,8 +544,32 @@ async function exportQuestions(mode) {
 document.getElementById("export-question-count")?.addEventListener("input", () => updateExportQuestionButtons());
 updateExportQuestionButtons();
 
-function handleButtonClick(btn) {
-    const actionId = btn.getAttribute("data-action-id");
+// Контракт выбора ответа общий с CompPrehension (docs/ideas/function_return_dropdown.md):
+// выбор - событие ANSWER_EVENT на элементе ответа, клик по умолчанию отправляет его,
+// а клик элемента с data-comp-ph-custom-click обрабатывает код фрагмента.
+const ANSWER_EVENT = "compph:on-answer-evaluated";
+const ANSWER_ID_PATTERN = /^answer_(\d+)$/;
+
+function answerElementOf(target) {
+    for (let element = target; element instanceof Element; element = element.parentElement) {
+        if (ANSWER_ID_PATTERN.test(element.id)) return element;
+    }
+    return null;
+}
+
+document.addEventListener("click", (event) => {
+    const answer = answerElementOf(event.target);
+    if (!answer || answer.disabled || answer.hasAttribute("data-comp-ph-custom-click")) return;
+    answer.dispatchEvent(new CustomEvent(ANSWER_EVENT, { bubbles: true }));
+});
+
+document.addEventListener(ANSWER_EVENT, (event) => {
+    const answer = answerElementOf(event.target);
+    if (answer) handleAnswer(answer);
+});
+
+function handleAnswer(btn) {
+    const actionId = btn.id.match(ANSWER_ID_PATTERN)[1];
     const astId = btn.getAttribute("data-node-id");
     const astNodeType = btn.getAttribute("data-node-type");
     const scriptTag = document.getElementById("answer_objects");

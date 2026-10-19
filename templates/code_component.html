@@ -129,10 +129,13 @@
                             title="Node #{{ entity.attrs['node-id'] }} ({{ entity.attrs.get('node-type') }}), action #{{ entity.attrs.get('action-id') }}"
                             {% endif %}
                             style="{{ entity.css_style }}"
-                            {% for k, v in entity.attrs.items() %}
+                            {# Номер ответа - в id, как его ищет CompPrehension #}
+                            {% if entity.attrs.get('action-id') is not none %}
+                            id="answer_{{ entity.attrs['action-id'] }}"
+                            {% endif %}
+                            {% for k, v in entity.attrs.items() if k != 'action-id' %}
                                 data-{{ k }}="{{ v }}"
-                            {% endfor %}
-                            onclick="handleButtonClick(this)">
+                            {% endfor %}>
                         {% if entity.type == 'play' %}
                             <i class="ri-play-fill" style="color: {{ entity.color or "#0A1048" }};"></i>
                         {% elif entity.type == 'stop' %}

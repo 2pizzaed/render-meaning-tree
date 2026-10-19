@@ -24,8 +24,8 @@ def test_minification_preserves_token_whitespace_and_escaped_code() -> None:
     <span class="token whitespace"> \t </span>
     <span class="token string">"a  b &amp; &lt;!-- code --&gt;"</span>
     <span class="token string">first\n  second</span>
-    <button data-action-id="42"
-            title="a &quot;quote&quot; &amp; b" onclick="handleButtonClick(this)">
+    <button id="answer_42"
+            title="a &quot;quote&quot; &amp; b" data-node-id="7">
         <i class="ri-play-fill"></i>
     </button>
 </div>
@@ -43,8 +43,8 @@ def test_minification_preserves_token_whitespace_and_escaped_code() -> None:
     button = parsed.select_one("button")
     assert button is not None
     assert button["title"] == 'a "quote" & b'
-    assert button["data-action-id"] == "42"
-    assert button["onclick"] == "handleButtonClick(this)"
+    assert button["id"] == "answer_42"
+    assert button["data-node-id"] == "7"
     assert len(compact) < len(html)
 
 
@@ -67,6 +67,11 @@ def test_question_html_is_compact_and_keeps_tokens_and_answer_buttons() -> None:
             tag.attrs for tag in original.select(selector)
         ]
     assert result.buttons == extract_buttons_from_context(context)
+    # Ответы CompPrehension ищет по id='answer_N', N - answerId кнопки.
+    assert [tag["id"] for tag in compact.select(".injected-button")] == [
+        f"answer_{button['action_id']}" for button in result.buttons
+    ]
+    assert not compact.select("[onclick], [data-action-id]")
     assert "<!--" not in result.text
     assert "\n" not in result.text
     assert "source comment" in result.text

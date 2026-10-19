@@ -99,9 +99,17 @@ def problem_statement_registry(
         values = problem.values.get(action_key(action))
         if values is None:
             continue
-        # Цепочка разметки в задаче - префикс разметки (хвост срезан), подсказки берутся из неё.
+        # Цепочка разметки в задаче - префикс разметки (хвост срезан). Подсказки берутся
+        # из ветки задачи: у END вызова их расставила трасса (bind_call_end_hints).
         if action.annotation is not None:
-            action.values = action.annotation.semantic_values(len(values))
+            construct_ast_id, ast_id, role = action_key(action)
+            source = problem.registry.require_action(
+                ast_id=ast_id, role=role, construct_ast_id=construct_ast_id
+            )
+            action.values = [
+                SemanticValue(value.bool_value, hint_override=value.hint_override)
+                for value in source.values
+            ]
         else:
             action.values = [SemanticValue(value) for value in values]
         action.bind_values()

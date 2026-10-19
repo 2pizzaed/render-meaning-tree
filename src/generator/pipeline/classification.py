@@ -26,7 +26,7 @@ from src.generator.problems import (
 )
 from src.generator.registry import SituationRegistry
 from src.generator.skills import collect_skills
-from src.generator.value_annotations import strip_value_markers
+from src.generator.value_annotations import bind_call_end_hints, strip_value_markers
 from src.generator.value_plan import ActionKey, ValueVariant, action_key
 from src.helpers.tpg.reasoning import solve_graph_full_reasoning
 from src.model.situation import Action, SemanticValue
@@ -41,7 +41,13 @@ class TraceTooLong(Exception):
 
 
 class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
-    stages = ("assign_values", "solve_correct_trace", "trim_values", "classify")
+    stages = (
+        "assign_values",
+        "solve_correct_trace",
+        "bind_call_end_hints",
+        "trim_values",
+        "classify",
+    )
 
     @property
     def config(self) -> ProblemGenerationConfig:
@@ -106,6 +112,9 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
             if not keep_directory:
                 shutil.rmtree(directory, ignore_errors=True)
 
+    def bind_call_end_hints(self) -> None:
+        bind_call_end_hints(self.registry)
+
     def trim_values(self) -> None:
         """Срезать неизрасходованные хвосты цепочек.
 
@@ -116,18 +125,23 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
             action = self._action(key)
             _trim_values(action, max(action.consumed_value_count(), 1))
 
+        # BEGIN и END вызова размечены одним маркером: предупреждение одно на маркер.
+        warned: set[tuple[int | None, str]] = set()
         for action in self._annotated_actions():
-            assert action.annotation is not None
+            annotation = action.annotation
+            assert annotation is not None
             used = action.consumed_value_count()
             if used < len(action.values):
-                logger.warning(
-                    "%s: %sиспользовано %d из %d значений %s",
-                    self.describe(),
-                    _line_prefix(action.annotation.line),
-                    used,
-                    len(action.values),
-                    action.annotation.marker,
-                )
+                if (annotation.line, annotation.marker) not in warned:
+                    warned.add((annotation.line, annotation.marker))
+                    logger.warning(
+                        "%s: %sиспользовано %d из %d значений %s",
+                        self.describe(),
+                        _line_prefix(annotation.line),
+                        used,
+                        len(action.values),
+                        annotation.marker,
+                    )
                 _trim_values(action, max(used, 1))
 
     def classify(self) -> None:

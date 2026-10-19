@@ -130,25 +130,61 @@ def test_annotated_calls_carry_null_values_into_trace_and_statement():
     pipeline = LearningProblemGeneratorPipeline.from_code(manager, config=FAST_CONFIG)
     [problem] = pipeline.run().results()
 
-    # Акты вызовов идут в порядке входа и несут значения своих вызовов.
-    call_values = [
-        act.value
-        for act in problem.registry.trace_acts
-        if act.action.rule.role == "func" and isinstance(act.value, SemanticValue)
-    ]
-    assert [(value.bool_value, value.hint) for value in call_values] == [
-        (None, "fact(3)"),
-        (None, "fact(2)"),
-        (None, "fact(1)"),
-    ]
+    # BEGIN-акты вызовов идут в порядке входа, END-акты - в порядке выхода, и каждый
+    # несёт значение своего вызова.
+    assert _call_act_hints(problem.registry) == {
+        "BEGIN": ["fact(3)", "fact(2)", "fact(1)"],
+        "END": ["fact(1)", "fact(2)", "fact(3)"],
+    }
 
     # Неизрасходованный хвост срезан, остальное переносится в условие задачи.
     statement = problem_statement_registry(pipeline.registry, problem)
-    calls = [action for action in statement.all_actions() if action.rule.role == "func"]
-    assert sorted([value.hint for value in action.values] for action in calls) == [
-        ["fact(2)", "fact(1)"],
-        ["fact(3)"],
-    ]
+    assert _call_chain_hints(statement) == {
+        "BEGIN": [["fact(2)", "fact(1)"], ["fact(3)"]],
+        "END": [["fact(1)", "fact(2)"], ["fact(3)"]],
+    }
+
+
+def test_call_end_hints_follow_exit_order_of_sequential_calls():
+    code = textwrap.dedent(
+        """
+        def f(x):
+            return x
+        for i in range(2):  # <! TTF >
+            f(i)  # <! (-, "f(0)"), (-, "f(1)") >
+        """
+    )
+    manager = prepare_code(code, "python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, config=FAST_CONFIG)
+    [problem] = pipeline.run().results()
+
+    # Невложенные вызовы завершаются в порядке входа.
+    assert _call_act_hints(problem.registry) == {
+        "BEGIN": ["f(0)", "f(1)"],
+        "END": ["f(0)", "f(1)"],
+    }
+    statement = problem_statement_registry(pipeline.registry, problem)
+    assert _call_chain_hints(statement) == {"BEGIN": [["f(0)", "f(1)"]], "END": [["f(0)", "f(1)"]]}
+
+
+def _call_act_hints(registry: SituationRegistry) -> dict[str, list[str]]:
+    """Подсказки значений BEGIN- и END-актов размеченных вызовов в порядке трассы."""
+    hints: dict[str, list[str]] = {"BEGIN": [], "END": []}
+    for act in registry.trace_acts:
+        action = act.action
+        if action.annotation is not None and not action.is_condition:
+            assert isinstance(act.value, SemanticValue) and act.value.bool_value is None
+            hints[action.rule.role].append(act.value.hint)
+    return hints
+
+
+def _call_chain_hints(registry: SituationRegistry) -> dict[str, list[list[str]]]:
+    """Подсказки цепочек BEGIN и END размеченных вызовов, по убыванию длины цепочки."""
+    chains: dict[str, list[list[str]]] = {"BEGIN": [], "END": []}
+    for action in registry.all_actions():
+        if action.annotation is not None and not action.is_condition:
+            chains[action.rule.role].append([value.hint for value in action.values])
+    return {role: sorted(hints, key=len, reverse=True) for role, hints in chains.items()}
 
 
 def _condition_values(registry: SituationRegistry) -> dict[ActionKey, tuple[bool | None, ...]]:

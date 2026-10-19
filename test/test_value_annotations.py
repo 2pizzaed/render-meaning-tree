@@ -167,11 +167,14 @@ def test_null_markers_bind_to_calls_on_their_line():
         if action.annotation is not None
     }
 
-    # На строке с условием-вызовом маркер с «-» размечает вызов, а не условие.
+    # На строке с условием-вызовом маркер с «-» размечает вызов, а не условие. Подсказки
+    # END расставляет трасса, до неё у END только значения.
     assert annotated == {
-        (2, "func"): [(None, "f(1)")],
+        (2, "BEGIN"): [(None, "f(1)")],
+        (2, "END"): [(None, "")],
         (4, "first_cond"): [(True, "n=2"), (False, "n=1")],
-        (9, "func"): [(None, "f(2)")],
+        (9, "BEGIN"): [(None, "f(2)")],
+        (9, "END"): [(None, "")],
     }
 
 
@@ -180,13 +183,13 @@ def test_markers_bind_in_code_with_crlf_line_endings():
 
     registry = code_snippet_to_registry(code)
 
-    hints = sorted(
+    begin_hints = sorted(
         value.hint
         for action in registry.all_actions()
-        if action.annotation is not None
+        if action.annotation is not None and action.rule.role == "BEGIN"
         for value in action.values
     )
-    assert hints == ["f(1)", "f(2)"]
+    assert begin_hints == ["f(1)", "f(2)"]
 
 
 @pytest.mark.parametrize(

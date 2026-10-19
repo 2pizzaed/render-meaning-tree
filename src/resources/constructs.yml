@@ -698,21 +698,22 @@ func_call_structure:
     locale_pronoun: "he"
     identifier: true
   actions:
+    # BEGIN и END размечаются <! (-, "…") >: значения - подсказки вызовов в трассе
     - role: BEGIN
-      kind: auto
+      kind: auto.annotated
       opaque: true
     - role: name
       kind: identifier
       identification:
         property_path: 'function / name'
     - role: func
-      kind: procedure.annotated
+      kind: procedure
       # identification: func def lookup (see Python code)
       effects:
         - interruption_stop: return
     - role: END
       opaque: true
-      kind: END
+      kind: END.annotated
       effects:
         - interruption_stop: return
   transitions:

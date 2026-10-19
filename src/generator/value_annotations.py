@@ -5,12 +5,14 @@
 значениями ``T``/``F`` стоит в заголовке цикла или ветви и размечает условие: привязка
 идёт по дереву от узла, к которому MT прикрепил комментарий, вверх до ближайшей
 конструкции с условием, не заходя в её тело. Маркер со значениями ``-`` размечает
-вызов функции на строке комментария внутри его владельца.
+BEGIN и END вызова функции на строке комментария внутри его владельца.
 """
 
 from __future__ import annotations
 
 import re
+from collections import defaultdict
+from dataclasses import replace
 
 from src.ast_managers import CodeManager, NodePathElement
 from src.coderenderer.entities import RendererEntity, Token
@@ -21,7 +23,13 @@ from src.generator.value_marker import (
     is_value_marker,
     parse_value_marker,
 )
-from src.model.situation import Action, ValueAnnotation
+from src.model.situation import (
+    Action,
+    Construct,
+    SemanticValue,
+    TraceAct,
+    ValueAnnotation,
+)
 
 # Префикс однострочного комментария в тексте токена.
 _COMMENT_PREFIX_RE = re.compile(r"^\s*(?:#|//)")
@@ -84,29 +92,69 @@ def bind_value_annotations(registry: SituationRegistry) -> None:
         is_null = [item.value is None for item in values]
         if any(is_null) and not all(is_null):
             raise ValueAnnotationError(f"{prefix}{marker} — нельзя смешивать T/F и - в одной разметке")
+        annotation = ValueAnnotation(
+            values=tuple(item.value for item in values),
+            hints=tuple(item.hint for item in values),
+            marker=format_value_marker(values),
+            line=line,
+        )
         if all(is_null):
             calls = _annotated_calls(registry, comment, line)
             if len(calls) > 1:
                 raise ValueAnnotationError(
                     f"{prefix}{marker} — на строке несколько вызовов функций, разметка неоднозначна"
                 )
-            action = calls[0] if calls else None
+            targets = _call_annotations(calls[0], annotation) if calls else []
             missing, duplicate = "не привязан вызов функции", "вызов уже размечен"
         else:
-            action = _annotated_condition(registry, comment)
+            condition = _annotated_condition(registry, comment)
+            targets = [(condition, annotation)] if condition is not None else []
             missing, duplicate = "не привязано условие", "условие уже размечено"
-        if action is None:
+        if not targets:
             raise ValueAnnotationError(f"{prefix}{marker} — к комментарию {missing}")
-        if action.annotation is not None:
-            raise ValueAnnotationError(
-                f"{prefix}{marker} — {duplicate} на строке {action.annotation.line}"
-            )
-        action.annotation = ValueAnnotation(
-            values=tuple(item.value for item in values),
-            hints=tuple(item.hint for item in values),
-            marker=format_value_marker(values),
-            line=line,
-        )
+        for action, action_annotation in targets:
+            if action.annotation is not None:
+                raise ValueAnnotationError(
+                    f"{prefix}{marker} — {duplicate} на строке {action.annotation.line}"
+                )
+            action.annotation = action_annotation
+
+
+def bind_call_end_hints(registry: SituationRegistry) -> None:
+    """Подсказки значений END размеченных вызовов по трассе.
+
+    BEGIN расходует цепочку в порядке входа в вызовы, END - в порядке выхода, поэтому
+    подсказки END известны только по трассе: BEGIN- и END-акты одного вызова
+    сопоставляются как скобки, и END-акт получает подсказку своего BEGIN.
+    """
+    open_begins: defaultdict[int, list[TraceAct]] = defaultdict(list)
+    for act in registry.trace_acts:
+        action = act.action
+        if action.annotation is None or action.is_condition:
+            continue
+        opened = open_begins[action.parent.ast_id]
+        if action.rule.role == "BEGIN":
+            opened.append(act)
+        elif action.rule.role == "END" and opened:
+            begin = opened.pop()
+            if isinstance(act.value, SemanticValue) and isinstance(begin.value, SemanticValue):
+                act.value.hint_override = begin.value.hint_override
+
+
+def _call_annotations(
+    call: Construct, annotation: ValueAnnotation
+) -> list[tuple[Action, ValueAnnotation]]:
+    """Разметка BEGIN и END вызова.
+
+    У END цепочка той же длины, но без подсказок: их по трассе расставляет
+    ``bind_call_end_hints``. Значения ``null`` на переходы не влияют.
+    """
+    end_annotation = replace(annotation, hints=(None,) * len(annotation.hints))
+    return [
+        (action, end_annotation if action.rule.role == "END" else annotation)
+        for action in call.actions
+        if action.is_annotatable
+    ]
 
 
 def _annotated_condition(
@@ -149,17 +197,18 @@ def _annotated_condition(
 
 def _annotated_calls(
     registry: SituationRegistry, comment: NodePathElement, line: int | None
-) -> list[Action]:
+) -> list[Construct]:
     """Размечаемые вызовы под владельцем комментария, занимающие строку комментария.
 
-    Вызов - аннотируемое действие без логических значений (``func`` вызова). Оно
-    выполняется на месте своего конструкта, поэтому положение берётся по узлу конструкта.
+    Вызов - конструкт, у которого аннотируемые действия не условия (BEGIN и END
+    вызова функции).
     """
     if comment.field_name != "trailing_comments" or comment.parent is None or line is None:
         return []
     owner = comment.parent
     code = registry.code
-    calls: list[Action] = []
+    # По узлу конструкта: BEGIN и END одного вызова дают одного кандидата.
+    calls: dict[int, Construct] = {}
     for action in registry.all_actions():
         if not action.is_annotatable or action.is_condition:
             continue
@@ -169,5 +218,5 @@ def _annotated_calls(
             continue
         under_owner = call.id == owner.id or call.has_parent(owner.id)
         if under_owner and lines[0] <= line <= lines[1]:
-            calls.append(action)
-    return calls
+            calls[action.parent.ast_id] = action.parent
+    return list(calls.values())

@@ -852,7 +852,7 @@
             <mxGeometry height="210" width="400" x="1060" y="4140" as="geometry" />
           </mxCell>
         </object>
-        <object label="&lt;b&gt;Сначала нужно выйти из текущей конструкции&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;interruption_exits_constructs&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="interruption_exits_constructs" tpgRuExplanation="Во время ${S.interruption_mode}[case='т'] выполняется выход из охватывающих ${Interrupter}[case='в'] алгоритмических структур без выполнения действий, поэтому ${A} сейчас не выполнится." tpgEnExplanation="During a ${S.interruption_mode}, execution leaves the constructs enclosing the ${Interrupter} without executing actions, so the ${A} is not executed now." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_intr">
+        <object label="&lt;b&gt;Сначала нужно выйти из текущей конструкции&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7F7F7F&quot; style=&quot;font-size:16px&quot;&gt;interruption_exits_constructs&lt;/font&gt;" tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="interruption_exits_constructs" tpgRuExplanation="После ${Interrupter}[case='р'] оставшиеся действия в покидаемых конструкциях пропускаются, поэтому ${A} сейчас не выполняется." tpgEnExplanation="After the ${Interrupter}, the remaining actions in the constructs being exited are skipped, so the ${A} is not executed now." tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_intr">
           <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
             <mxGeometry height="120" width="280" x="1880" y="4185" as="geometry" />
           </mxCell>

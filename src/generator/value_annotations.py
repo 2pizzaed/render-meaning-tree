@@ -1,11 +1,13 @@
 """Ручная разметка значений комментарием ``<! … >``.
 
-Маркер задаёт цепочку значений аннотируемого действия (``kind`` содержит
-``annotated``) целиком (см. ``docs/ideas/value_annotations_idea.md``). Маркер со
-значениями ``T``/``F`` стоит в заголовке цикла или ветви и размечает условие: привязка
-идёт по дереву от узла, к которому MT прикрепил комментарий, вверх до ближайшей
-конструкции с условием, не заходя в её тело. Маркер со значениями ``-`` размечает
-BEGIN и END вызова функции на строке комментария внутри его владельца.
+Метка маркера задаёт цепочку значений аннотируемого действия (``kind`` содержит
+``annotated``) целиком (см. ``docs/ideas/value_annotations_idea.md``); в одном
+комментарии меток может быть несколько. Метка со значениями ``T``/``F`` стоит в
+заголовке цикла или ветви и размечает условие: привязка идёт по дереву от узла, к
+которому MT прикрепил комментарий, вверх до ближайшей конструкции с условием, не заходя
+в её тело. Метка со значениями ``-`` размечает BEGIN и END вызова функции на строке
+комментария внутри его владельца; если таких вызовов несколько, вызов выбирает цель
+``имя`` или ``имя#k``.
 """
 
 from __future__ import annotations
@@ -18,10 +20,12 @@ from src.ast_managers import CodeManager, NodePathElement
 from src.coderenderer.entities import RendererEntity, Token
 from src.generator.registry import SituationRegistry
 from src.generator.value_marker import (
+    CallTarget,
+    Marker,
     ValueMarkerSyntaxError,
     format_value_marker,
     is_value_marker,
-    parse_value_marker,
+    parse_value_markers,
 )
 from src.model.situation import (
     Action,
@@ -72,7 +76,7 @@ def strip_value_markers(code: CodeManager) -> str:
 
 
 def bind_value_annotations(registry: SituationRegistry) -> None:
-    """Записать ``Action.annotation`` по всем маркерам кода."""
+    """Записать ``Action.annotation`` по всем меткам маркеров кода."""
     code = registry.code
     for comment in code.ast.find_paths_by_type("comment"):
         node = code.ast.get(comment.id)
@@ -80,44 +84,53 @@ def bind_value_annotations(registry: SituationRegistry) -> None:
         line = code.code_line_number_by_id(comment.id)
         prefix = f"строка {line}: " if line is not None else ""
         try:
-            values = parse_value_marker(content)
+            markers = parse_value_markers(content)
         except ValueMarkerSyntaxError as error:
             raise ValueAnnotationError(
                 f"{prefix}некорректная разметка {content.strip()}: {error}"
             ) from error
-        if values is None:
-            continue
+        for marker in markers or ():
+            _bind_marker(registry, comment, line, marker)
 
-        marker = content.strip()
-        is_null = [item.value is None for item in values]
-        if any(is_null) and not all(is_null):
-            raise ValueAnnotationError(f"{prefix}{marker} — нельзя смешивать T/F и - в одной разметке")
-        annotation = ValueAnnotation(
-            values=tuple(item.value for item in values),
-            hints=tuple(item.hint for item in values),
-            marker=format_value_marker(values),
-            line=line,
-        )
-        if all(is_null):
-            calls = _annotated_calls(registry, comment, line)
-            if len(calls) > 1:
-                raise ValueAnnotationError(
-                    f"{prefix}{marker} — на строке несколько вызовов функций, разметка неоднозначна"
-                )
-            targets = _call_annotations(calls[0], annotation) if calls else []
-            missing, duplicate = "не привязан вызов функции", "вызов уже размечен"
-        else:
-            condition = _annotated_condition(registry, comment)
-            targets = [(condition, annotation)] if condition is not None else []
-            missing, duplicate = "не привязано условие", "условие уже размечено"
-        if not targets:
-            raise ValueAnnotationError(f"{prefix}{marker} — к комментарию {missing}")
-        for action, action_annotation in targets:
-            if action.annotation is not None:
-                raise ValueAnnotationError(
-                    f"{prefix}{marker} — {duplicate} на строке {action.annotation.line}"
-                )
-            action.annotation = action_annotation
+
+def _bind_marker(
+    registry: SituationRegistry, comment: NodePathElement, line: int | None, marker: Marker
+) -> None:
+    text = format_value_marker(marker)
+    where = f"строка {line}: {text}" if line is not None else text
+    is_null = [item.value is None for item in marker.values]
+    if any(is_null) and not all(is_null):
+        raise ValueAnnotationError(f"{where} — нельзя смешивать T/F и - в одной разметке")
+    annotation = ValueAnnotation(
+        values=tuple(item.value for item in marker.values),
+        hints=tuple(item.hint for item in marker.values),
+        marker=text,
+        line=line,
+    )
+    if all(is_null):
+        call = _annotated_call(registry, comment, line, marker.target, where)
+        targets = _call_annotations(call, annotation) if call is not None else []
+        missing = "не привязан вызов функции"
+        if marker.target is not None:
+            missing += f" {marker.target.name}"
+        duplicate = "вызов уже размечен"
+    else:
+        if marker.target is not None:
+            raise ValueAnnotationError(
+                f"{where} — цель задаётся только у разметки вызова (значения -), "
+                "условие на строке одно"
+            )
+        condition = _annotated_condition(registry, comment)
+        targets = [(condition, annotation)] if condition is not None else []
+        missing, duplicate = "не привязано условие", "условие уже размечено"
+    if not targets:
+        raise ValueAnnotationError(f"{where} — к комментарию {missing}")
+    for action, action_annotation in targets:
+        if action.annotation is not None:
+            raise ValueAnnotationError(
+                f"{where} — {duplicate} на строке {action.annotation.line}"
+            )
+        action.annotation = action_annotation
 
 
 def bind_call_end_hints(registry: SituationRegistry) -> None:
@@ -195,13 +208,64 @@ def _annotated_condition(
     return None
 
 
+def _annotated_call(
+    registry: SituationRegistry,
+    comment: NodePathElement,
+    line: int | None,
+    target: CallTarget | None,
+    where: str,
+) -> Construct | None:
+    """Вызов, который размечает метка; цель обязательна, только если без неё вызовов несколько."""
+    calls = _annotated_calls(registry, comment, line)
+    names = [_call_name(registry.code, call) for call in calls]
+    if target is not None:
+        calls = [call for call, name in zip(calls, names) if name == target.name]
+        if target.index is not None:
+            if target.index > len(calls):
+                raise ValueAnnotationError(
+                    f"{where} — на строке вызовов {target.name}: {len(calls)}, "
+                    f"{target.index}-го нет"
+                )
+            return calls[target.index - 1]
+        if len(calls) > 1:
+            numbered = ", ".join(f"{target.name}#{k}" for k in range(1, len(calls) + 1))
+            raise ValueAnnotationError(
+                f"{where} — на строке несколько вызовов {target.name}, укажите номер: {numbered}"
+            )
+    elif len(calls) > 1:
+        raise ValueAnnotationError(
+            f"{where} — на строке несколько вызовов функций, разметка неоднозначна: "
+            f"укажите цель ({', '.join(_targets(names))})"
+        )
+    return calls[0] if calls else None
+
+
+def _targets(names: list[str | None]) -> list[str]:
+    """Цели вызовов строки: имя, а у повторяющихся имён - ещё и номер по тексту."""
+    seen: defaultdict[str | None, int] = defaultdict(int)
+    targets: list[str] = []
+    for name in names:
+        seen[name] += 1
+        label = name or "?"
+        targets.append(f"{label}#{seen[name]}" if names.count(name) > 1 else label)
+    return targets
+
+
+def _call_name(code: CodeManager, call: Construct) -> str | None:
+    """Имя вызываемой функции или метода: по нему метка выбирает вызов."""
+    node = code.get_node_by_id(call.ast_id) or {}
+    callee = node.get("method_name") if node.get("type") == "method_call" else node.get("function")
+    name = callee.get("name") if isinstance(callee, dict) else None
+    return name if isinstance(name, str) else None
+
+
 def _annotated_calls(
     registry: SituationRegistry, comment: NodePathElement, line: int | None
 ) -> list[Construct]:
     """Размечаемые вызовы под владельцем комментария, занимающие строку комментария.
 
     Вызов - конструкт, у которого аннотируемые действия не условия (BEGIN и END
-    вызова функции).
+    вызова функции). Вызовы идут в порядке текста: по нему считаются номера целей.
     """
     if comment.field_name != "trailing_comments" or comment.parent is None or line is None:
         return []
@@ -219,4 +283,9 @@ def _annotated_calls(
         under_owner = call.id == owner.id or call.has_parent(owner.id)
         if under_owner and lines[0] <= line <= lines[1]:
             calls[action.parent.ast_id] = action.parent
-    return list(calls.values())
+
+    def text_position(call: Construct) -> int:
+        tokens = code.token_index_range(call.ast_id)
+        return tokens[0] if tokens is not None else code.token_count
+
+    return sorted(calls.values(), key=text_position)

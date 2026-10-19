@@ -178,6 +178,45 @@ def test_null_markers_bind_to_calls_on_their_line():
     }
 
 
+def test_several_markers_bind_condition_and_calls_selected_by_target():
+    registry = code_snippet_to_registry(
+        textwrap.dedent(
+            """
+            def fib(n):
+                if n < 2:  # <! TT >
+                    return n
+                return fib(n - 1) + fib(n - 2)  # <! fib#2: (-, "fib(0)") > <! fib#1: (-, "fib(1)") >
+            def g(x):
+                return x
+            if g(fib(2)) > 0:  # <! T > <! fib: (-, "fib(2)") > <! g: (-, "g(1)") >
+                pass
+            """
+        )
+    )
+    code = registry.code
+
+    def text_position(action) -> int:
+        tokens = code.token_index_range(action.parent.ast_id)
+        assert tokens is not None
+        return tokens[0]
+
+    # BEGIN размеченных вызовов каждой строки - в порядке текста.
+    begins: dict[int | None, list[str | None]] = {}
+    conditions: dict[int | None, str] = {}
+    for action in sorted(registry.all_actions(), key=text_position):
+        if action.annotation is None:
+            continue
+        line = code.code_line_number_by_id(action.parent.ast_id)
+        if action.is_condition:
+            conditions[line] = action.annotation.marker
+        elif action.rule.role == "BEGIN":
+            begins.setdefault(line, []).extend(value.hint for value in action.values)
+
+    # Строки - в коде, перегенерированном MT.
+    assert conditions == {2: "<! TT >", 11: "<! T >"}
+    assert begins == {4: ["fib(1)", "fib(0)"], 11: ["g(1)", "fib(2)"]}
+
+
 def test_markers_bind_in_code_with_crlf_line_endings():
     code = 'def f(n):\r\n    return n\r\nf(1)  # <! (-, "f(1)") >\r\nf(2)  # <! (-, "f(2)") >\r\n'
 
@@ -212,8 +251,39 @@ def test_markers_bind_in_code_with_crlf_line_endings():
         ),
         pytest.param(
             'def f(x):\n    return x\ny = f(1) + f(2)  # <! (-, "a") >\n',
-            r"— на строке несколько вызовов функций",
+            r"— на строке несколько вызовов функций, разметка неоднозначна: "
+            r"укажите цель \(f#1, f#2\)",
             id="ambiguous",
+        ),
+        pytest.param(
+            'def f(x):\n    return x\ny = f(1) + f(2)  # <! f: (-, "a") >\n',
+            r"<! f: \(-, \"a\"\) > — на строке несколько вызовов f, укажите номер: f#1, f#2",
+            id="ambiguous-name",
+        ),
+        pytest.param(
+            'def f(x):\n    return x\ny = f(1) + f(2)  # <! f#3: (-, "a") >\n',
+            r"— на строке вызовов f: 2, 3-го нет",
+            id="missing-index",
+        ),
+        pytest.param(
+            'def f(x):\n    return x\ny = f(1)  # <! g: (-, "a") >\n',
+            r"— к комментарию не привязан вызов функции g",
+            id="unknown-name",
+        ),
+        pytest.param(
+            'def f(x):\n    return x\nwhile f(0):  # <! f: F >\n    pass\n',
+            r"<! f: F > — цель задаётся только у разметки вызова",
+            id="condition-target",
+        ),
+        pytest.param(
+            'def f(x):\n    return x\ny = f(1) + f(2)  # <! f#1: (-, "a") > <! f#1: (-, "b") >\n',
+            r"<! f#1: \(-, \"b\"\) > — вызов уже размечен",
+            id="duplicate-call",
+        ),
+        pytest.param(
+            "x = 1\nwhile x:  # <! TF > <! F >\n    x = 0\n",
+            r"<! F > — условие уже размечено",
+            id="duplicate-condition",
         ),
     ],
 )

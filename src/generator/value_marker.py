@@ -1,6 +1,9 @@
 """Синтаксис маркера значений ``<! … >``.
 
-Содержимое маркера - одна из двух форм:
+Комментарий-маркер - одна или несколько меток ``<! … >`` подряд: в Python на строке
+только один комментарий, а размечать на строке может понадобиться условие и вызовы.
+Содержимое метки - необязательная цель ``имя:`` или ``имя#k:`` (k-й по тексту вызов
+функции ``имя`` на строке) и значения в одной из двух форм:
 
 - краткая ``TTF``: только значения;
 - список кортежей ``(T, "f(1)"), (F, "f(2)")``: значение и подсказка (hint) для
@@ -8,19 +11,20 @@
   можно написать ``-``: значение без логического смысла (``null``), например
   аннотация вызова ``(-, "f(2)")``.
 
-Пробелы вокруг скобок и запятых допускаются.
+Пробелы вокруг скобок, запятых, двоеточия и меток допускаются.
 """
 
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 # Комментарий, похожий на маркер; содержимое проверяется отдельно, чтобы опечатка
 # в маркере давала ошибку, а не превращала его в обычный комментарий.
-_MARKER_RE = re.compile(r"^\s*<!(?P<body>.*)>\s*$", re.DOTALL)
+_MARKER_RE = re.compile(r"^\s*<!.*>\s*$", re.DOTALL)
+_STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
+_TARGET_RE = re.compile(r"\s*(?P<name>[A-Za-z_]\w*)\s*(?:#\s*(?P<index>\d+)\s*)?:")
 _SHORT_FORM_RE = re.compile(r"\s*[TF]+\s*")
 _TOKEN_RE = re.compile(
     r'\s*(?:(?P<punct>[(),])|(?P<flag>[TF]\b|-)|(?P<string>"(?:[^"\\]|\\.)*"))'
@@ -39,6 +43,22 @@ class MarkerValue:
 
 
 @dataclass(frozen=True, slots=True)
+class CallTarget:
+    """Вызов функции ``name`` на строке; ``index`` - номер среди них по тексту, с 1."""
+
+    name: str
+    index: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Marker:
+    """Одна метка ``<! … >`` комментария-маркера."""
+
+    values: tuple[MarkerValue, ...]
+    target: CallTarget | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class _Token:
     kind: str
     text: str
@@ -48,33 +68,70 @@ def is_value_marker(content: str) -> bool:
     return _MARKER_RE.match(content) is not None
 
 
-def parse_value_marker(content: str) -> tuple[MarkerValue, ...] | None:
-    """Значения маркера; ``None``, если комментарий не маркер.
+def parse_value_markers(content: str) -> tuple[Marker, ...] | None:
+    """Метки комментария; ``None``, если комментарий не маркер.
 
     Некорректное содержимое маркера - ``ValueMarkerSyntaxError``.
     """
-    marker = _MARKER_RE.match(content)
-    if marker is None:
+    if not is_value_marker(content):
         return None
-    body = marker.group("body")
-    if _SHORT_FORM_RE.fullmatch(body):
-        return tuple(MarkerValue(char == "T") for char in body.strip())
-    return _parse_tuples(_tokenize(body))
+    return tuple(_parse_marker(body) for body in _split_markers(content))
 
 
-def format_value_marker(values: Sequence[MarkerValue]) -> str:
-    """Каноническая запись маркера для сообщений."""
+def format_value_marker(marker: Marker) -> str:
+    """Каноническая запись метки для сообщений."""
+    values = marker.values
     if all(item.hint is None for item in values):
-        body = "".join(_flag(item.value) for item in values)
+        body = "".join(format_flag(item.value) for item in values)
     else:
         body = ", ".join(
-            f"({_flag(item.value)}, {json.dumps(item.hint, ensure_ascii=False)})"
+            f"({format_flag(item.value)}, {json.dumps(item.hint, ensure_ascii=False)})"
             for item in values
         )
+    target = marker.target
+    if target is not None:
+        index = f"#{target.index}" if target.index is not None else ""
+        body = f"{target.name}{index}: {body}"
     return f"<! {body} >"
 
 
-def _flag(value: bool | None) -> str:
+def _split_markers(content: str) -> list[str]:
+    """Содержимое меток ``<! … >``; ``>`` внутри строки-подсказки метку не закрывает.
+
+    Маркер кончается на ``>`` вне строки, поэтому закрывающая ``>`` у метки есть всегда.
+    """
+    bodies: list[str] = []
+    position = 0
+    while content[position:].strip():
+        start = len(content) - len(content[position:].lstrip())
+        if not content.startswith("<!", start):
+            raise ValueMarkerSyntaxError(
+                f"между метками непонятный фрагмент «{content[start:].strip()}»"
+            )
+        position = start + 2
+        while position < len(content) and content[position] != ">":
+            string = _STRING_RE.match(content, position) if content[position] == '"' else None
+            position = string.end() if string is not None else position + 1
+        bodies.append(content[start + 2 : position])
+        position += 1
+    return bodies
+
+
+def _parse_marker(body: str) -> Marker:
+    target = None
+    if match := _TARGET_RE.match(body):
+        index = match.group("index")
+        if index is not None and int(index) == 0:
+            raise ValueMarkerSyntaxError("вызовы на строке нумеруются с 1")
+        target = CallTarget(match.group("name"), int(index) if index is not None else None)
+        body = body[match.end() :]
+    if _SHORT_FORM_RE.fullmatch(body):
+        return Marker(tuple(MarkerValue(char == "T") for char in body.strip()), target)
+    return Marker(_parse_tuples(_tokenize(body)), target)
+
+
+def format_flag(value: bool | None) -> str:
+    """Значение в записи маркера: ``T``, ``F`` или ``-`` для ``null``."""
     if value is None:
         return "-"
     return "T" if value else "F"

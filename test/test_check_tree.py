@@ -83,6 +83,11 @@ class CheckCase:
     ``action_occurrence`` / ``advance_action_occurrence`` — индекс кандидата,
     когда на строке несколько действий с одинаковой ролью и конструктом
     (например, две ``func`` разных вызовов одной функции).
+
+    ``value`` — значение ``V``, выбранное вместе с ``A`` (пункт dropdown step-out):
+    действие и индекс значения в его цепочке. Без него граф берёт ``NoValue``.
+    ``expected_explanation`` — часть RU-объяснения conclude-узла, на котором
+    остановилась проверка (различает ветки с одним skill).
     """
 
     id: str
@@ -98,6 +103,8 @@ class CheckCase:
     advance_occurrence: int = 1
     advance_action_occurrence: int = 0
     value_patches: tuple[ValuePatch, ...] = field(default_factory=tuple)
+    value: tuple[ActionSpec, int] | None = None
+    expected_explanation: str = ""
 
 
 # -- Программы-фикстуры --------------------------------------------------------
@@ -1274,6 +1281,43 @@ CHECK_CASES: list[Any] = [
         expected_correct=True,
         value_patches=RECURSION_VALUES,
     ),
+    CheckCase(
+        # Выход из вызова вместе с выбранным значением текущей активации f(0).
+        id="call_return_value_current_activation",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        value=((3, "END", "func_call_structure"), 0),
+        expected_skills=("inner_construct_finished_before_next",),
+        unexpected_skills=("call_return_matches_activation",),
+        expected_correct=True,
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        # Выбран внешний вызов f(2): он ждёт вложенные вызовы.
+        id="call_return_value_outer_activation",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        value=((7, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="ещё не может завершиться",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        # Второй выход из того же места вызова (f(1)) с значением уже завершённого f(0).
+        id="call_return_value_finished_activation",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(3, "first"),
+        action=(3, "END", "func_call_structure"),
+        value=((3, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="уже завершился",
+        value_patches=RECURSION_VALUES,
+    ),
 ]
 
 
@@ -1301,6 +1345,9 @@ def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
     action = _spec_action(registry, case.action, occurrence=case.action_occurrence)
     before_signature = _trace_signature(registry)
     registry.variables["A"] = action
+    if case.value is not None:
+        value_spec, value_index = case.value
+        registry.variables["V"] = _spec_action(registry, value_spec).values[value_index]
 
     result = _run_check(tmp_path, registry)
 
@@ -1316,6 +1363,16 @@ def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
     assert not set(case.unexpected_skills) & set(skills), (
         f"unexpected skills {case.unexpected_skills} in {skills}\n{_trace_tail(result)}"
     )
+
+    if case.expected_explanation:
+        explanations = [
+            str(entry.value)
+            for entry in (result.final_node.metadata if result.final_node else [])
+            if entry.name == "explanation" and entry.loc_code == "RU"
+        ]
+        assert any(case.expected_explanation in text for text in explanations), (
+            f"expected explanation with {case.expected_explanation!r}, got {explanations}"
+        )
 
     if case.expected_correct:
         assert result.result is True, (

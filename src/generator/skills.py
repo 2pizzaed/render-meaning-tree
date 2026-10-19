@@ -15,7 +15,7 @@ from src.generator.helpers.trace_features import (
 )
 from src.helpers.bitflags import bit
 from src.model.rules import EffectDeclaration, InterruptionType
-from src.model.situation import TraceAct
+from src.model.situation import SemanticValue, TraceAct
 
 # Идентификаторы skill из domain/main.tpg в порядке первого появления.
 # Skill — умение студента: правильный исход проверки засчитывает его, ошибочный — нарушает.
@@ -34,6 +34,7 @@ SKILLS: dict[str, int] = {
     "everything_evaluated": bit(10),
     "function_body_runs_on_call": bit(11),
     "function_not_resumed_after_exit": bit(12),
+    "call_return_matches_activation": bit(13),
 }
 
 # Умения, которые может нарушить ошибочный ответ (skill у conclude: error).
@@ -50,6 +51,7 @@ ERRORNEOUS_SKILLS: set[str] = {
     "no_early_exit_without_interruption",
     "function_body_runs_on_call",
     "function_not_resumed_after_exit",
+    "call_return_matches_activation",
 }
 
 
@@ -99,7 +101,7 @@ def _action_mode(
 def has_interruption_exits_constructs(
     ast: ASTNodeManager, trace: Sequence[TraceAct]
 ) -> bool:
-    """An active interruption caused a construct exit (main.tpg, steps 3.2/6)."""
+    """An active interruption caused a construct exit (main.tpg, steps 3.2/7)."""
     return any(
         mode != InterruptionType.NONE
         and act.action.rule.role == "END"
@@ -308,6 +310,20 @@ def has_function_not_resumed_after_exit(
     )
 
 
+def has_call_return_matches_activation(
+    ast: ASTNodeManager, trace: Sequence[TraceAct]
+) -> bool:
+    """A call exit names its activation: END of an annotated call carries a hint (step 6)."""
+    return any(
+        act.action.rule.role == "END"
+        and act.action.annotation is not None
+        and isinstance(act.value, SemanticValue)
+        and bool(act.value.hint)
+        and ast.exists(act.action.parent.ast_id)
+        for act in trace
+    )
+
+
 def is_everything_evaluated(ast: ASTNodeManager, trace: Sequence[TraceAct]) -> bool:
     """Program-completion marker (step 2a), deliberately excluded from skills."""
     return bool(trace) and (
@@ -330,6 +346,7 @@ SKILL_PREDICATES: dict[str, TracePredicate] = {
     "no_early_exit_without_interruption": has_no_early_exit_without_interruption,
     "function_body_runs_on_call": has_function_body_runs_on_call,
     "function_not_resumed_after_exit": has_function_not_resumed_after_exit,
+    "call_return_matches_activation": has_call_return_matches_activation,
 }
 
 

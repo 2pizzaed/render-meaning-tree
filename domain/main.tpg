@@ -382,7 +382,7 @@ lambda entersSiblingBranch(t: TraceAct, A: ConcreteAction) =
 //  Фрагменты.
 // ---------------------------------------------------------------------------
 
-// Шаг 6: засчитать действие — добавить его в трассу, использовать значение и применить эффекты.
+// Шаг 7: засчитать действие — добавить его в трассу, использовать значение и применить эффекты.
 // Прозрачный вход раскрываемой после действия конструкции добавляем вместе с ним.
 fragment commitCorrectAction() {
     // Засчитываем умения, применённые при выборе действия, в том числе
@@ -1103,7 +1103,32 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction, V: SemanticVal
             `fragment`:checkLevel(C);
         };
         correct -> {
-            // Шаг 6: все уровни пройдены — засчитать выбранное действие.
+            // Шаг 6: значение, выбранное вместе с действием (вызов, из которого возвращается
+            // студент), должно быть значением текущего выполнения A. Без выбора V = NoValue.
+            ask (
+                V != obj:NoValue and A=>hasValue() and V != findUnusedValue(A)
+            ) out false else {
+                // Объяснение — почему выбранный вызов не подходит, без подсказки верного.
+                // Значения END расходуются в порядке выхода: used — вызов уже завершился,
+                // иначе он ещё ждёт вызовы, начатые внутри него.
+                ask (V.used) {
+                    true -> {
+                        conclude: error [
+                            skill = "call_return_matches_activation" ;
+                            RU.explanation = "Вызов ${V} уже завершился, вернуться из него ещё раз нельзя." ;
+                            EN.explanation = "The call ${V} has already finished, so it cannot be returned from again." ;
+                        ];
+                    }
+                    false -> {
+                        conclude: error [
+                            skill = "call_return_matches_activation" ;
+                            RU.explanation = "Вызов ${V} ещё не может завершиться: сначала завершаются вызовы, начатые внутри него." ;
+                            EN.explanation = "The call ${V} cannot finish yet: the calls started inside it finish first." ;
+                        ];
+                    }
+                };
+            };
+            // Шаг 7: все уровни пройдены — засчитать выбранное действие.
             `fragment`:commitCorrectAction();
         };
         error -> {

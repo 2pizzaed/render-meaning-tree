@@ -16,7 +16,7 @@ from src.model.rules import (
     InterruptionType,
     TransitionDeclaration,
 )
-from src.model.situation import SemanticValue
+from src.model.situation import SemanticValue, ValueAnnotation
 from src.types import Node
 from test.helpers.trace import TraceBuilder, ast_node
 
@@ -549,3 +549,19 @@ def test_completion_marker_is_not_collected_as_a_skill() -> None:
     builder.act(root.end_action())
     assert is_everything_evaluated(builder.ast, builder.trace)
     assert "everything_evaluated" not in collect_skills(builder.ast, builder.trace)
+
+
+def test_call_return_skill_needs_named_call_exit() -> None:
+    builder = TraceBuilder(
+        ast_node(1, "program_entry_point", body=[ast_node(2, "function_call")])
+    )
+    call = builder.construct(2, name="func_call_structure", kind="inline.call")
+    end = call.end_action()
+    end.values = [SemanticValue(None)]
+    end.bind_values()
+    end.annotation = ValueAnnotation(values=(None,), hints=(None,), marker="<! (-) >", line=1)
+    builder.act(end, value=end.values[0])
+    # Подсказку END ставит трасса findCorrect; без неё выбирать вызов не из чего.
+    assert "call_return_matches_activation" not in collect_skills(builder.ast, builder.trace)
+    end.values[0].hint_override = "f(1)"
+    assert "call_return_matches_activation" in collect_skills(builder.ast, builder.trace)

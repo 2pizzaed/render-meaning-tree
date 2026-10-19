@@ -792,9 +792,9 @@
             <mxGeometry height="26" width="2000" x="40" y="1400" as="geometry" />
           </mxCell>
         </object>
-        <object label="&lt;b&gt;Дано&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;S&lt;/font&gt; — &lt;font color=&quot;#CC0066&quot;&gt;состояние трассировки&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt; — последний корректный &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; — выбранное студентом &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;" tpgKind="DecisionTreeInputs" tpgVar="S: TraceState, P: TraceAct, A: ConcreteAction" tpgExpr="tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction)" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_entry">
+        <object label="&lt;b&gt;Дано&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;S&lt;/font&gt; — &lt;font color=&quot;#CC0066&quot;&gt;состояние трассировки&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P&lt;/font&gt; — последний корректный &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;A&lt;/font&gt; — выбранное студентом &lt;font color=&quot;#CC0066&quot;&gt;действие&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;V&lt;/font&gt; — выбранный вместе с ним вызов (&lt;font color=&quot;#CC0066&quot;&gt;значение времени выполнения&lt;/font&gt;)" tpgKind="DecisionTreeInputs" tpgVar="S: TraceState, P: TraceAct, A: ConcreteAction, V: SemanticValue = obj:NoValue" tpgExpr="tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction, V: SemanticValue = obj:NoValue)" tpgNote="V задаёт пункт dropdown у завершения вызова; без выбора V = NoValue" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_entry">
           <mxCell parent="1" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#000000;size=0.06;fontSize=20;" vertex="1">
-            <mxGeometry height="180" width="360" x="1080" y="1510" as="geometry" />
+            <mxGeometry height="215" width="360" x="1080" y="1510" as="geometry" />
           </mxCell>
         </object>
         <object label="&lt;font color=&quot;#3333CC&quot;&gt;Запомнить&lt;/font&gt; границу: последний &lt;font color=&quot;#CC0066&quot;&gt;акт трассы&lt;/font&gt; до достраивания&lt;br&gt;&lt;font color=&quot;#B38F00&quot;&gt;P0&lt;/font&gt;" tpgKind="FindActionNode" tpgVar="P0: TraceAct" tpgExpr="P" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="всё, что появится в трассе после P0, достроено автоматически" id="ck_p0">
@@ -978,13 +978,8 @@
           </mxCell>
         </object>
         <object label="все уровни пройдены" tpgOutcome="CORRECT" id="k_cy_ok">
-          <mxCell edge="1" parent="1" source="ck_cycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="cm_dpfin">
-            <mxGeometry relative="1" as="geometry">
-              <Array as="points">
-                <mxPoint x="2900" y="4780" />
-                <mxPoint x="2900" y="3181" />
-              </Array>
-            </mxGeometry>
+          <mxCell edge="1" parent="1" source="ck_cycle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_q_value">
+            <mxGeometry relative="1" as="geometry" />
           </mxCell>
         </object>
         <object label="" id="k_note_pre_e">
@@ -1159,6 +1154,52 @@
         </object>
         <object label="Нет" tpgOutcome="false" id="lv_w2d">
           <mxCell edge="1" parent="g_level" source="lv_q_credit_cond" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="lv_r_trans_ok">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label='&lt;font color="#3333CC"&gt;Выбран ли&lt;/font&gt; вместе с &lt;font color="#B38F00"&gt;A&lt;/font&gt; вызов &lt;font color="#B38F00"&gt;V&lt;/font&gt;, который сейчас не завершается?' tpgKind="QuestionNode" tpgExpr="V != obj:NoValue and A=&gt;hasValue() and V != findUnusedValue(A)" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="сейчас завершается выполнение A с ближайшим неиспользованным значением; без выбора V = NoValue — ответ «нет»" id="ck_q_value">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="200" width="400" x="1720" y="4680" as="geometry" />
+          </mxCell>
+        </object>
+        <object label='&lt;font color="#3333CC"&gt;Завершился ли&lt;/font&gt; уже вызов &lt;font color="#B38F00"&gt;V&lt;/font&gt; (&lt;font color="#009900"&gt;использовано&lt;/font&gt;)?' tpgKind="QuestionNode" tpgExpr="V.used" tpgSource="domain/main.tpg :: tpg CtrlFlow_check" tpgNote="значения завершения вызова расходуются в порядке выхода: использованное значение — завершившийся вызов" id="ck_q_used">
+          <mxCell parent="1" style="ellipse;whiteSpace=wrap;html=1;rounded=0;fillColor=#FFFFFF;strokeColor=#000000;fontSize=20;" vertex="1">
+            <mxGeometry height="160" width="380" x="2240" y="4700" as="geometry" />
+          </mxCell>
+        </object>
+        <object label='&lt;b&gt;Из этого вызова уже вышли&lt;/b&gt;&lt;br&gt;&lt;font color="#7F7F7F" style="font-size:16px"&gt;call_return_matches_activation&lt;/font&gt;' tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="call_return_matches_activation" tpgRuExplanation="Вызов ${V} уже завершился, вернуться из него ещё раз нельзя." tpgEnExplanation="The call ${V} has already finished, so it cannot be returned from again." tpgExpr='conclude: error [ skill = "call_return_matches_activation" ; ];' tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_call_done">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="150" width="290" x="2285" y="4410" as="geometry" />
+          </mxCell>
+        </object>
+        <object label='&lt;b&gt;Вызов ещё ждёт вложенные вызовы&lt;/b&gt;&lt;br&gt;&lt;font color="#7F7F7F" style="font-size:16px"&gt;call_return_matches_activation&lt;/font&gt;' tpgKind="BranchResultNode" tpgResult="ERROR" tpgSkill="call_return_matches_activation" tpgRuExplanation="Вызов ${V} ещё не может завершиться: сначала завершаются вызовы, начатые внутри него." tpgEnExplanation="The call ${V} cannot finish yet: the calls started inside it finish first." tpgExpr='conclude: error [ skill = "call_return_matches_activation" ; ];' tpgSource="domain/main.tpg :: tpg CtrlFlow_check" id="ck_e_call_waits">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#F8CECC;strokeColor=#B85450;fontSize=20;" vertex="1">
+            <mxGeometry height="160" width="320" x="2710" y="4700" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_val_yes">
+          <mxCell edge="1" parent="1" source="ck_q_value" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_q_used">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_val_no">
+          <mxCell edge="1" parent="1" source="ck_q_value" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="cm_dpfin">
+            <mxGeometry x="-0.92" relative="1" as="geometry">
+              <Array as="points">
+                <mxPoint x="1920" y="4980" />
+                <mxPoint x="3100" y="4980" />
+                <mxPoint x="3100" y="3181" />
+              </Array>
+            </mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Да" tpgOutcome="true" id="k_used_yes">
+          <mxCell edge="1" parent="1" source="ck_q_used" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="ck_e_call_done">
+            <mxGeometry relative="1" as="geometry" />
+          </mxCell>
+        </object>
+        <object label="Нет" tpgOutcome="false" id="k_used_no">
+          <mxCell edge="1" parent="1" source="ck_q_used" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;strokeColor=#000000;labelBackgroundColor=#FFFFFF;fontSize=17;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ck_e_call_waits">
             <mxGeometry relative="1" as="geometry" />
           </mxCell>
         </object>

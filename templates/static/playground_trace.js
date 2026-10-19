@@ -165,12 +165,14 @@ function updateTraceView() {
 
 function createTraceItem(traceAction, index) {
     const item = document.createElement("div");
-    item.className = index === pendingErrorStepIndex ? "trace-item trace-item-error" : "trace-item";
+    item.className = index === pendingErrorStepIndex ? "trace-act trace-act-error" : "trace-act";
     if (index === pendingErrorStepIndex) {
         item.title = "Incorrect step: the next selected action will replace it";
     }
     item.draggable = true;
     item.dataset.index = String(index);
+    // По data-action и .value-hint фрагмент кода находит значения актов трассы.
+    item.dataset.action = traceAction;
 
     const handle = document.createElement("span");
     handle.className = "trace-drag-handle";
@@ -186,7 +188,7 @@ function createTraceItem(traceAction, index) {
     label.appendChild(actionName);
     if (typeof traceHints[index] === "string" && traceHints[index]) {
         const hint = document.createElement("span");
-        hint.className = "trace-value-hint";
+        hint.className = "value-hint";
         hint.textContent = traceHints[index];
         hint.title = traceHints[index];
         label.appendChild(hint);
@@ -205,8 +207,8 @@ function createTraceItem(traceAction, index) {
     const highlightButton = document.createElement("button");
     highlightButton.type = "button";
     highlightButton.className = traceAction === highlightedTraceAction
-        ? "trace-item-icon-button trace-highlight-button active"
-        : "trace-item-icon-button trace-highlight-button";
+        ? "trace-act-icon-button trace-highlight-button active"
+        : "trace-act-icon-button trace-highlight-button";
     highlightButton.title = hasCodeButton ? "Highlight action button in code" : "No action button in code";
     highlightButton.setAttribute("aria-label", "Highlight action button in code");
     highlightButton.setAttribute("aria-pressed", String(traceAction === highlightedTraceAction));
@@ -216,7 +218,7 @@ function createTraceItem(traceAction, index) {
 
     const treeButton = document.createElement("button");
     treeButton.type = "button";
-    treeButton.className = "trace-item-icon-button trace-tree-button";
+    treeButton.className = "trace-act-icon-button trace-tree-button";
     treeButton.title = "Show action node in Source Map";
     treeButton.setAttribute("aria-label", "Show action node in Source Map");
     treeButton.innerHTML = '<i class="ri-node-tree" aria-hidden="true"></i>';

@@ -427,7 +427,7 @@ button.submit-btn:hover {
     font-size: 13px;
 }
 
-.trace-item.trace-item-error {
+.trace-act.trace-act-error {
     background: #ffebee;
     border-color: #ef9a9a;
 }
@@ -611,7 +611,7 @@ button.submit-btn:hover {
     text-align: center;
 }
 
-.trace-item {
+.trace-act {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) 28px 28px 28px;
     align-items: center;
@@ -624,7 +624,7 @@ button.submit-btn:hover {
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.trace-item.dragging {
+.trace-act.dragging {
     opacity: 0.45;
 }
 
@@ -658,7 +658,7 @@ button.submit-btn:hover {
     text-overflow: ellipsis;
 }
 
-.trace-value-hint {
+.value-hint {
     flex: 0 1 auto;
     max-width: 45%;
     overflow: hidden;
@@ -688,7 +688,7 @@ button.submit-btn:hover {
     background: #ffe4e6;
 }
 
-.trace-item-icon-button {
+.trace-act-icon-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -703,11 +703,11 @@ button.submit-btn:hover {
     font-size: 16px;
 }
 
-.trace-item-icon-button:hover {
+.trace-act-icon-button:hover {
     background: #eef2f7;
 }
 
-.trace-item-icon-button:disabled {
+.trace-act-icon-button:disabled {
     color: #cbd5e1;
     background: transparent;
     cursor: not-allowed;

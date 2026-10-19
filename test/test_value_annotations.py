@@ -175,6 +175,20 @@ def test_null_markers_bind_to_calls_on_their_line():
     }
 
 
+def test_markers_bind_in_code_with_crlf_line_endings():
+    code = 'def f(n):\r\n    return n\r\nf(1)  # <! (-, "f(1)") >\r\nf(2)  # <! (-, "f(2)") >\r\n'
+
+    registry = code_snippet_to_registry(code)
+
+    hints = sorted(
+        value.hint
+        for action in registry.all_actions()
+        if action.annotation is not None
+        for value in action.values
+    )
+    assert hints == ["f(1)", "f(2)"]
+
+
 @pytest.mark.parametrize(
     ("code", "message"),
     [

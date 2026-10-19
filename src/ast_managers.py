@@ -1310,6 +1310,9 @@ def prepare_code(
 ) -> CodeManager:
     config: JSON = {"translationUnitMode": mode}
     render_language = target_language or language
+    # С CRLF MT оставляет \r в тексте комментариев и теряет их токены, и маркеры <! … >
+    # не находят свою строку. CRLF присылает, например, textarea формы playground.
+    code = code.replace("\r\n", "\n").replace("\r", "\n")
     # 1. Токенизация
     tokens_list = to_tokens(language, code, render_language, config=config)
     if not tokens_list:

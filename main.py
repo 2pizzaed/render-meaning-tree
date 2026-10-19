@@ -29,6 +29,7 @@ from src.generator.utilities import (
     code_snippet_to_problem_pipeline,
     problems_to_question_templates,
 )
+from src.generator.value_marker import format_flag
 
 DEFAULT_CONFIG = ProblemGenerationConfig()
 
@@ -73,7 +74,7 @@ def _describe(problem: LearningProblem) -> str:
     code = problem.registry.code
     chains = ", ".join(
         f"{role}@{code.code_line_number_by_id(ast_id) if ast_id else '?'}="
-        + "".join("T" if value else "F" for value in values)
+        + "".join(format_flag(value) for value in values)
         for (_, ast_id, role), values in problem.values.items()
     )
     score = f"{problem.score:.3f}" if problem.score is not None else "-"

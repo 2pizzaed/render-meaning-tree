@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import textwrap
+from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +18,7 @@ from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
 from src.generator.value_plan import action_key
-from src.helpers.tpg import TraceStep
+from src.helpers.tpg import PipelineReasoningOutput, TraceStep
 from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult, TreeNode, TreeNodeMetadataEntry
 from test.helpers.trace import TraceBuilder, ast_node
@@ -106,7 +107,7 @@ def test_hint_trace_returns_hints_for_prefix_and_added_action(monkeypatch: pytes
     ) -> SimpleNamespace:
         action = selected_trace[0].action
         registry.add(TraceAct(action, None, registry, action.values[0]))
-        return SimpleNamespace(result=ReasoningResult(True))
+        return SimpleNamespace(result=ReasoningResult(True), exported_loqi=None)
 
     def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
         action = registry.trace_acts[-1].action
@@ -145,7 +146,7 @@ def test_call_value_steps_reach_check_and_hint(monkeypatch: pytest.MonkeyPatch) 
         directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
     ) -> SimpleNamespace:
         checked.extend(selected_trace)
-        return SimpleNamespace(result=ReasoningResult(True))
+        return SimpleNamespace(result=ReasoningResult(True), exported_loqi=None)
 
     def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
         action = checked[-1].action
@@ -276,6 +277,44 @@ def test_build_answer_objects_exports_action_names_only() -> None:
     )
 
 
+def test_reason_trace_continues_from_accepted_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = code_manager_to_registry(prepare_code("x = 1\ny = 2\n", "python"))
+    serializer, _ = registry_to_loqi(registry)
+    a, b = [name for action in registry.all_actions() if (name := serializer.object_name(action))][:2]
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(registry))
+    monkeypatch.setattr(playground_app, "_checked_prefixes", OrderedDict())
+    checked: list[int] = []
+    restored: list[str] = []
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> PipelineReasoningOutput:
+        checked.append(len(selected_trace))
+        # Третья проверка отклоняет свой первый шаг.
+        correct = len(checked) != 3
+        return PipelineReasoningOutput(
+            serializer=serializer, loqi_file=Path(), loqi_text="", result=ReasoningResult(correct),
+            exported_loqi=f"after check {len(checked)}", trace_acts=[], trace_state=None,
+            step_index=len(selected_trace) - 1 if correct else 0,
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "restore_trace_from_loqi", lambda loqi, _: restored.append(loqi))
+    client = playground_app.app.test_client()
+
+    def reason(trace: list[str], **flags: object) -> dict[str, Any]:
+        return client.post("/reason-trace", json={"code": "", "trace": trace, **flags}).get_json()
+
+    reason([a])
+    reason([a, b])
+    # Отклонённый шаг - третий в полной трассе, хотя проверялся только он.
+    assert reason([a, b, a])["failedStepIndex"] == 2
+    reason([a, b, a], no_cache=True)
+
+    assert checked == [1, 1, 1, 3]
+    assert restored == ["after check 1", "after check 2"]
+
+
 def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
     code = textwrap.dedent(
         """
@@ -404,6 +443,7 @@ def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
             step_index=len(selected_trace) - 1,
             loqi_text="obj check_input : ActionSpec {}",
             result=SimpleNamespace(result=True, exceptions=[]),
+            exported_loqi=None,
         )
 
     def fake_find_graph_next_correct_action(directory, registry, **kwargs):  # type: ignore[no-untyped-def]

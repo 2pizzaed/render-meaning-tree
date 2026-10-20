@@ -387,6 +387,16 @@ button.submit-btn:hover {
     padding: 0 4px;
 }
 
+.trace-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #243142;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
 .trace-action-button {
     padding: 0 10px;
     gap: 6px;

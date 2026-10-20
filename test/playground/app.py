@@ -1,7 +1,8 @@
 import argparse
 import traceback
+from collections import OrderedDict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -33,8 +34,11 @@ from src.generator.utilities import code_manager_to_registry, problem_statement_
 from src.helpers.files import make_project_temp_dir
 from src.helpers.tpg import (
     NextCorrectActionOutput,
+    PipelineReasoningOutput,
+    TraceStep,
     check_graph_stepwise_reasoning,
     find_graph_next_correct_action,
+    restore_trace_from_loqi,
 )
 from src.helpers.tpg.explanations import (
     DEFAULT_MORE_LABEL,
@@ -58,6 +62,8 @@ PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
 PLAYGROUND_SNIPPETS_DIR = PROJECT_ROOT / "test" / "data"
 # Ситуаций (код, языки, seed) в памяти: генерация задачи по seed занимает до минут.
 PLAYGROUND_SITUATION_CACHE_SIZE = 16
+# Принятых префиксов трассы в памяти; одна запись - экспортированный LOQI ситуации, ~70 КБ.
+PLAYGROUND_PREFIX_CACHE_SIZE = 256
 # Расширение файла примера → исходный язык playground.
 SNIPPET_LANGUAGES_BY_SUFFIX: dict[str, SupportedProgrammingLanguage] = {
     ".java": "java",
@@ -300,25 +306,22 @@ def reason_trace():
 
     reasoning_tmp: Path | None = None
     try:
-        registry = load_situation(
-            code, language, target_language, read_seed(payload.get("seed"))
-        ).registry.clone()
+        situation_key = (code, language, target_language, read_seed(payload.get("seed")))
+        registry = load_situation(*situation_key).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_steps = resolve_trace_steps(serializer, selected_trace)
         selected_actions = [step.action for step in selected_steps]
         trace_start = len(registry.trace_acts)
         reasoning_tmp = _playground_temp_dir("playground-reason-")
-        reasoning = check_graph_stepwise_reasoning(
+        reasoning = check_trace_steps(
             reasoning_tmp,
             registry,
+            selected_trace,
             selected_steps,
-            model_dir=PLAYGROUND_REASON_MODEL_DIR,
+            situation_key=situation_key,
+            use_cache=payload.get("no_cache") is not True,
             filename="playground-trace.loqi",
-            tree=PLAYGROUND_REASON_TREE,
-            export_domain=True,
-            debug_enabled=True,
             json_trace=True,
-            time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
         )
     except Exception as e:
         traceback.print_exc()
@@ -360,9 +363,8 @@ def hint_trace():
 
     hint_tmp: Path | None = None
     try:
-        registry = load_situation(
-            code, language, target_language, read_seed(payload.get("seed"))
-        ).registry.clone()
+        situation_key = (code, language, target_language, read_seed(payload.get("seed")))
+        registry = load_situation(*situation_key).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_steps = resolve_trace_steps(serializer, selected_trace)
         selected_actions = [step.action for step in selected_steps]
@@ -370,16 +372,14 @@ def hint_trace():
         hint_tmp = _playground_temp_dir("playground-hint-")
         if selected_steps:
             # Восстанавливаем трассу (с прозрачными актами) пошаговой проверкой.
-            checked = check_graph_stepwise_reasoning(
+            checked = check_trace_steps(
                 hint_tmp,
                 registry,
+                selected_trace,
                 selected_steps,
-                model_dir=PLAYGROUND_REASON_MODEL_DIR,
+                situation_key=situation_key,
+                use_cache=payload.get("no_cache") is not True,
                 filename="playground-hint-check.loqi",
-                tree=PLAYGROUND_REASON_TREE,
-                export_domain=True,
-                debug_enabled=True,
-                time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
             )
             if checked.result.result is not True or checked.result.exceptions:
                 step = (checked.step_index or 0) + 1
@@ -467,7 +467,71 @@ def export_question():
 @app.post("/clear-cache")
 def clear_cache():
     load_situation.cache_clear()
+    _checked_prefixes.clear()
     return jsonify({"ok": True})
+
+
+# Экспортированный LOQI ситуации после принятого префикса трассы. Ключ - ситуация,
+# файлы модели и шаги префикса: правка графа не продолжает проверку со старых состояний.
+_checked_prefixes: OrderedDict[tuple[object, ...], str] = OrderedDict()
+
+
+def check_trace_steps(
+    directory: Path,
+    registry: SituationRegistry,
+    trace: Sequence[str],
+    steps: Sequence[TraceStep],
+    *,
+    situation_key: tuple[object, ...],
+    use_cache: bool,
+    filename: str,
+    json_trace: bool = False,
+) -> PipelineReasoningOutput:
+    """Пошаговая проверка трассы; с ``use_cache`` - от самого длинного принятого префикса.
+
+    Последний шаг проверяется всегда: его результат нужен ответу. Принятая трасса
+    запоминается и без ``use_cache``.
+    """
+    model_key = (*situation_key, _model_fingerprint())
+    start = 0
+    if use_cache:
+        start = next(
+            (size for size in range(len(steps) - 1, 0, -1)
+             if (*model_key, *trace[:size]) in _checked_prefixes),
+            0,
+        )
+    if start:
+        cached_key = (*model_key, *trace[:start])
+        _checked_prefixes.move_to_end(cached_key)
+        restore_trace_from_loqi(_checked_prefixes[cached_key], registry)
+    output = check_graph_stepwise_reasoning(
+        directory,
+        registry,
+        steps[start:],
+        model_dir=PLAYGROUND_REASON_MODEL_DIR,
+        filename=filename,
+        tree=PLAYGROUND_REASON_TREE,
+        export_domain=True,
+        debug_enabled=True,
+        json_trace=json_trace,
+        time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
+    )
+    if output.result.result is True and not output.result.exceptions and output.exported_loqi:
+        _checked_prefixes[(*model_key, *trace)] = output.exported_loqi
+        _checked_prefixes.move_to_end((*model_key, *trace))
+        while len(_checked_prefixes) > PLAYGROUND_PREFIX_CACHE_SIZE:
+            _checked_prefixes.popitem(last=False)
+    # Индекс шага - в полной трассе, а не в проверенном остатке.
+    return replace(output, step_index=start + (output.step_index or 0)) if start else output
+
+
+def _model_fingerprint() -> tuple[tuple[str, int], ...]:
+    # Модель читается из файлов верхнего уровня каталога, без вложенных папок.
+    return tuple(
+        (path.name, path.stat().st_mtime_ns)
+        for path in sorted(PLAYGROUND_REASON_MODEL_DIR.iterdir())
+        if path.is_file()
+    )
 
 
 @app.post("/tracing")

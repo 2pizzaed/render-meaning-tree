@@ -13,7 +13,27 @@ var loqiViewerSource = "";
 var loqiMatches = [];
 var loqiMatchIndex = -1;
 const EXPLANATION_LANGUAGE_STORAGE_KEY = "playground.trace.explanationLanguage";
+const NO_CACHE_STORAGE_KEY = "playground.trace.noCache";
 var lastReasoningPayload = null;
+
+function initializeNoCache() {
+    const checkbox = document.getElementById("no-cache-checkbox");
+    if (!checkbox) return;
+    checkbox.checked = readStoredValue(NO_CACHE_STORAGE_KEY) === "true";
+    checkbox.addEventListener("change", () => storeValue(NO_CACHE_STORAGE_KEY, String(checkbox.checked)));
+}
+
+// Тело запросов /reason-trace и /hint-trace: ситуация из формы Render и шаги трассы.
+function traceRequestBody(trace) {
+    return JSON.stringify({
+        code: document.querySelector('textarea[name="code"]')?.value || "",
+        language: document.querySelector('select[name="language"]')?.value || "java",
+        target_language: document.querySelector('select[name="target_language"]')?.value || "",
+        seed: document.querySelector('input[name="seed"]')?.value || "",
+        trace,
+        no_cache: Boolean(document.getElementById("no-cache-checkbox")?.checked),
+    });
+}
 
 function initializeExplanationLanguage() {
     const select = document.getElementById("explanation-language");
@@ -342,13 +362,7 @@ async function reasonTrace() {
         const response = await fetch("/reason-trace", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                code: document.querySelector('textarea[name="code"]')?.value || "",
-                language: document.querySelector('select[name="language"]')?.value || "java",
-                target_language: document.querySelector('select[name="target_language"]')?.value || "",
-                seed: document.querySelector('input[name="seed"]')?.value || "",
-                trace: requestedTrace,
-            }),
+            body: traceRequestBody(requestedTrace),
         });
         const payload = await response.json();
         if (JSON.stringify(traceData) !== JSON.stringify(requestedTrace)) return;
@@ -376,13 +390,7 @@ async function requestHint() {
         const response = await fetch("/hint-trace", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                code: document.querySelector('textarea[name="code"]')?.value || "",
-                language: document.querySelector('select[name="language"]')?.value || "java",
-                target_language: document.querySelector('select[name="target_language"]')?.value || "",
-                seed: document.querySelector('input[name="seed"]')?.value || "",
-                trace: checkedTracePrefix(),
-            }),
+            body: traceRequestBody(checkedTracePrefix()),
         });
         const payload = await response.json();
         if (JSON.stringify(traceData) !== JSON.stringify(requestedTrace)) return;
@@ -817,4 +825,5 @@ function initializeLoqiModal() {
 initializeLoqiModal();
 initializeProblemLoqi();
 initializeExplanationLanguage();
+initializeNoCache();
 updateTraceView();

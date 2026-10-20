@@ -6,6 +6,10 @@
             <button type="button" id="reason-button" class="trace-action-button" onclick="reasonTrace()">Reason</button>
             <button type="button" id="hint-button" class="trace-action-button" onclick="requestHint()">Hint</button>
             <button type="button" id="tracing-button" class="trace-action-button" onclick="openCorrectTrace()">Tracing</button>
+            <label class="trace-checkbox"
+                   title="Reason and Hint recheck the whole trace step by step instead of continuing from the longest already accepted prefix">
+                <input type="checkbox" id="no-cache-checkbox"> No cache
+            </label>
             {% endif %}
         </div>
         <div class="trace-clipboard-actions">

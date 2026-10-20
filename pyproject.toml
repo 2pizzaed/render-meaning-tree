@@ -39,6 +39,7 @@ render-construct-automaton = "src.cli.render_construct_automaton:main"
 # main.py is not a package: importable only in the editable install (uv sync), not from a wheel.
 generate-problems = "main:main"
 playground = "test.playground.app:main"
+playground-e2e = "test.tools.playground_e2e:main"
 tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
 validate-dsm = "src.validate_dsm:main"
 

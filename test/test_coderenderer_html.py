@@ -133,3 +133,21 @@ def test_case_groups_have_one_annotated_condition_and_button_per_branch(
             if isinstance(entity, Token) and entity.value.strip() not in {"", ":"}
         ]
         assert values[-1] == last_value
+
+
+def test_condition_button_precedes_header_colon_despite_trailing_comment() -> None:
+    # Meaning Tree вешает комментарий конца строки на условие (trailing_comments),
+    # но кнопка всё равно должна стоять сразу после условия, перед `:`.
+    manager = prepare_code("if x <= 1:  # <! T >\n    y = 1\n", "python")
+
+    context = prepare_html_context(manager)
+    [button] = [
+        button for button in extract_buttons_from_context(context)
+        if button["type"] == "question"
+    ]
+    before_button = context["lines"][button["line_index"]][:button["column_index"]]
+    values = [
+        entity.value for entity in before_button
+        if isinstance(entity, Token) and entity.value.strip()
+    ]
+    assert values == ["if", "x", "<=", "1"]

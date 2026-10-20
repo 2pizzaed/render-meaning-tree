@@ -689,10 +689,16 @@ class CodeManager:
         ast_node_id = ast_node.id if isinstance(ast_node, NodePathElement) else ast_node
         min_i, max_i = self.token_count, 0
         for i, token in enumerate(self):
-            if token.ast_node and (
-                token.ast_node.id == ast_node_id
-                or token.ast_node.has_parent(ast_node_id)
-            ):
+            if not token.ast_node:
+                continue
+            is_own = token.ast_node.id == ast_node_id
+            # Комментарий в конце строки Meaning Tree вешает на выражение
+            # (trailing_comments), но кодом узла он не является: иначе диапазон
+            # узла растягивается до конца строки, например за `:` заголовка if.
+            is_descendant = (
+                token.ast_node.has_parent(ast_node_id) and token.type != "comment"
+            )
+            if is_own or is_descendant:
                 min_i = min(min_i, i)
                 max_i = max(max_i, i)
         if min_i <= max_i:

@@ -698,6 +698,15 @@ fragment checkLevel(C: ConcreteConstruct) {
                 }
             };
         };
+        // Роль раскрывает конструкцию с выбранным действием до себя и уже выполнилась:
+        // эта конструкция завершена, снова войти в неё можно только при новом выполнении роли.
+        ask (P->hasAction == Dp and isDeferredUnfoldAction(Dp, A)) out false else {
+            conclude: error [
+                skill = "passed_action_repeat" ;
+                RU.explanation = "Выполнение ${Dp}[case='р'] уже закончилось, поэтому ${A} сейчас повторно не выполняется." ;
+                EN.explanation = "The ${Dp} has already finished, so the ${A} is not executed again now." ;
+            ];
+        };
         // Выбранное действие глубже совпавших ролей: ограничения проверят вложенные уровни.
         conclude: correct;
     };

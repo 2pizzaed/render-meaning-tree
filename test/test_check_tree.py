@@ -196,6 +196,14 @@ def f(x):
 print(f(5))
 """
 
+ASSIGN_CALL = """
+def f(x):
+    return x + 1
+
+y = f(1)
+print(y)
+"""
+
 TWO_CALLS_IN_EXPRESSION = """
 def f(x):
     return x + 1
@@ -763,6 +771,15 @@ CHECK_CASES: list[Any] = [
     ),
     # --- вызовы внутри оператора: плоские content самого внешнего inline.compound ---
     CheckCase(
+        # Оператор с вызовом уже выполнен: повторно войти в его вызов нельзя.
+        id="assign_call_begin_after_statement_is_error",
+        language="python",
+        code=ASSIGN_CALL,
+        advance_to=(5, "first"),
+        action=(5, "BEGIN", "func_call_structure"),
+        expected_skills=("passed_action_repeat",),
+    ),
+    CheckCase(
         # После выхода из f(1) в выражении следующим начинается f(2).
         id="second_call_in_expression_after_first_exit",
         language="python",
@@ -772,6 +789,15 @@ CHECK_CASES: list[Any] = [
         action_occurrence=1,
         expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
+    ),
+    CheckCase(
+        # Повторно начать только что завершённый вызов f(1) нельзя.
+        id="first_call_in_expression_not_repeated_after_exit",
+        language="python",
+        code=TWO_CALLS_IN_EXPRESSION,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "BEGIN", "func_call_structure"),
+        expected_skills=("passed_action_repeat",),
     ),
     CheckCase(
         # Вызов в аргументе выполняется раньше внешнего вызова.

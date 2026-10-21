@@ -250,6 +250,12 @@ class _Layout:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    # Сниппеты в UTF-8 с LF, а перенаправленные потоки на Windows по умолчанию в кодировке
+    # ANSI и с CRLF: `annotate-trace f.py > out.py` записал бы кириллицу в cp1251.
+    if isinstance(sys.stdin, io.TextIOWrapper):
+        sys.stdin.reconfigure(encoding="utf-8")
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     code = (
         args.code_file.read_text(encoding="utf-8")
         if args.code_file

@@ -107,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     form = {
         "code": args.code_file.read_text(encoding="utf-8"),
         "language": args.language or SNIPPET_LANGUAGES_BY_SUFFIX[args.code_file.suffix.lower()],
+        "target_language": args.target_language or "",
         "seed": str(args.seed),
     }
     request: dict[str, object] = {**form, "no_cache": args.no_cache}
@@ -145,6 +146,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--language",
         choices=sorted(set(SNIPPET_LANGUAGES_BY_SUFFIX.values())),
         help="Snippet language (default: by file extension).",
+    )
+    parser.add_argument(
+        "--target-language",
+        choices=sorted(set(SNIPPET_LANGUAGES_BY_SUFFIX.values())),
+        help="Translate the snippet to this language, as the playground translation selector does.",
     )
     return parser.parse_args(argv)
 

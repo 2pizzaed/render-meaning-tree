@@ -47,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         config=replace(DEFAULT_CONFIG, top_k=args.top_k, selection=args.selection),
         origin=args.origin,
         origin_license=args.origin_license,
+        target_language=args.target_language,
     )
     problems = pipeline.results()
     for problem in problems:
@@ -111,6 +112,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--language",
         default="python",
         help="Source language passed to the MeaningTree converter.",
+    )
+    parser.add_argument(
+        "--target-language",
+        choices=("java", "python", "c++"),
+        help="Language of the problem code: the fragment is translated by MeaningTree "
+        "(default: source language).",
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Generation seed.")
     parser.add_argument(

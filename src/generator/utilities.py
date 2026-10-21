@@ -20,6 +20,7 @@ from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.value_plan import action_key
 from src.model.situation import SemanticValue
+from src.types import SupportedProgrammingLanguage
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +78,13 @@ def code_snippet_to_problem_pipeline(
     config: ProblemGenerationConfig | None = None,
     origin: str | None = None,
     origin_license: str | None = None,
+    target_language: SupportedProgrammingLanguage | None = None,
 ) -> LearningProblemGeneratorPipeline:
-    """Выполненный pipeline задач по фрагменту: задачи - ``pipeline.results()``."""
-    manager = prepare_code(code, language, mode=mode)  # type: ignore[arg-type]
+    """Выполненный pipeline задач по фрагменту: задачи - ``pipeline.results()``.
+
+    С ``target_language`` код задачи - перевод фрагмента MT на этот язык.
+    """
+    manager = prepare_code(code, language, mode=mode, target_language=target_language)  # type: ignore[arg-type]
     pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed, config=config)
     if origin is not None:
         pipeline.set_origin(origin, origin_license)

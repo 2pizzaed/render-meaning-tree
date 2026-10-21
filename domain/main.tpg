@@ -917,6 +917,15 @@ fragment checkLevel(C: ConcreteConstruct) {
                     conclude: correct;
                 }
                 true -> {
+                    // Раскрытая до Dp конструкция только что завершилась, а сама Dp ещё не выполнена.
+                    // Акт Dp из прошлой итерации цикла её текущее выполнение не заменяет.
+                    ask (isPendingUnfoldAction(Dp)) out false else {
+                        conclude: error [
+                            skill = "inner_construct_finished_before_next" ;
+                            RU.explanation = "Выполнение ${Dp}[case='р'] ещё не завершено, поэтому ${A} сейчас не выполняется." ;
+                            EN.explanation = "The ${Dp} has not finished yet, so the ${A} is not executed now." ;
+                        ];
+                    };
                     var DpAct: TraceAct = lastActOf(Dp) out true else {
                         // При раскрытии до инициировавшего действия его акт появляется только после завершения,
                         // поэтому отсутствие акта означает, что раскрытая конструкция ещё выполняется.

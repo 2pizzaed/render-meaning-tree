@@ -264,6 +264,28 @@ def f(x):
 result = f(1)
 """
 
+# Условие цикла с вызовом раскрывается до самого условия: после тела очередь условия.
+WHILE_CALL_CONDITION = """
+def count(items):
+    i = 0
+    while i < len(items):
+        i += 1
+    print(i)
+
+count([5, 6, 7])
+"""
+
+WHILE_CALL_CONDITION_ELSE = """
+def find(items):
+    i = 0
+    while i < len(items):
+        i += 1
+    else:
+        print("end")
+
+find([5, 6])
+"""
+
 WHILE_BREAK = """
 while flag:
     break
@@ -909,6 +931,38 @@ CHECK_CASES: list[Any] = [
         expected_skills=("call_return_matches_activation",),
         expected_explanation="уже завершился",
         value_patches=((2, "first_cond", [False, False, True]),),
+    ),
+    # --- условие цикла с вызовом: акт условия прошлой итерации не заменяет текущее ---
+    CheckCase(
+        # Следующее значение условия true, но само условие ещё не вычислено.
+        id="while_call_condition_body_not_repeated_before_condition",
+        language="python",
+        code=WHILE_CALL_CONDITION,
+        advance_to=(4, "first"),
+        action=(4, "first"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((3, "cond", [True, True, True, False]),),
+    ),
+    CheckCase(
+        id="while_call_condition_else_not_before_condition",
+        language="python",
+        code=WHILE_CALL_CONDITION_ELSE,
+        advance_to=(4, "first"),
+        advance_occurrence=2,
+        action=(6, "first"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((3, "cond", [True, True, False]),),
+    ),
+    CheckCase(
+        # Условие после тела — верный шаг.
+        id="while_call_condition_after_body",
+        language="python",
+        code=WHILE_CALL_CONDITION,
+        advance_to=(4, "first"),
+        action=(3, "cond"),
+        expected_skills=("inner_construct_finished_before_next",),
+        expected_correct=True,
+        value_patches=((3, "cond", [True, True, True, False]),),
     ),
     # --- return с вызовом (preorder): прерывание начинается на самом return ---
     CheckCase(

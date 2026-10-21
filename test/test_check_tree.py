@@ -196,6 +196,22 @@ def f(x):
 print(f(5))
 """
 
+TWO_CALLS_IN_EXPRESSION = """
+def f(x):
+    return x + 1
+
+y = f(1) + f(2)
+print(y)
+"""
+
+NESTED_CALL = """
+def f(x):
+    return x + 1
+
+y = f(f(1))
+print(y)
+"""
+
 RETURN_COMPOUND_DEAD_CODE = """
 def g(x):
     return x + 1
@@ -743,6 +759,40 @@ CHECK_CASES: list[Any] = [
         advance_to=(5, "END", "func_call_structure"),
         action=(5, "first"),
         expected_skills=("inner_construct_finished_before_next",),
+        expected_correct=True,
+    ),
+    # --- вызовы внутри оператора: плоские content самого внешнего inline.compound ---
+    CheckCase(
+        # После выхода из f(1) в выражении следующим начинается f(2).
+        id="second_call_in_expression_after_first_exit",
+        language="python",
+        code=TWO_CALLS_IN_EXPRESSION,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "BEGIN", "func_call_structure"),
+        action_occurrence=1,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Вызов в аргументе выполняется раньше внешнего вызова.
+        id="nested_call_argument_begins_first",
+        language="python",
+        code=NESTED_CALL,
+        advance_to=None,
+        action=(5, "BEGIN", "func_call_structure"),
+        action_occurrence=1,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # После выхода из вызова в аргументе начинается внешний вызов.
+        id="outer_call_begins_after_argument_call_exit",
+        language="python",
+        code=NESTED_CALL,
+        advance_to=(5, "END", "func_call_structure"),
+        advance_action_occurrence=1,
+        action=(5, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
     ),
     # --- return с вызовом (preorder): прерывание начинается на самом return ---

@@ -152,13 +152,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         if ast_id in self.registry.constructs:
             return self.registry.constructs[ast_id]
         node_type: str = cast(str, node.get("type"))
-        construct_decl = locate_construct_declaration_by_ast_node(
-            node,
-            self.registry.rules,
-            type_matcher=self._matches_ast_node_type,
-            call_matcher=self._calls_program_procedure,
-            parent_type_lookup=self.code.ast.parent_type_of,
-        )
+        construct_decl = self._locate_construct_declaration(node)
         if not construct_decl:
             # Ветви if и switch - части своего ветвления, а не самостоятельные операторы.
             is_branch = node_type == "condition_branch" or self.code.ast.instanceof(
@@ -175,6 +169,10 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             return
         if "call" in construct_decl.kind_classes and self.code.program_procedure_definition(ast_id) is None:
             return
+        # Подвыражение с вызовами внутри оператора или условия выполняется через content
+        # самого внешнего inline.compound: свой конструкт продублировал бы его действия.
+        if _is_inline_compound(construct_decl) and self._outer_inline_compound(ast_id) is not None:
+            return
         parent = self._build_parent_construct(ast_id)
         if parent is None and construct_decl is not self.root_rule:
             raise ValueError(
@@ -186,6 +184,11 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         return self.registry.constructs[ast_id]
 
     def _build_parent_construct(self, ast_id: int) -> Construct | None:
+        # Вызовы внутри оператора, в том числе в аргументах другого вызова, - плоские
+        # действия content самого внешнего inline.compound, а не потомки ближайшего конструкта.
+        outer = self._outer_inline_compound(ast_id)
+        if outer is not None:
+            return self._build_construct(*outer)
         par_node = self.code.ast.get_parent_of(ast_id)
         while par_node:
             par_node_id = cast(int | None, par_node.get("id"))
@@ -196,6 +199,29 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
                 return parent
             par_node = self.code.ast.get_parent_of(par_node_id)
         return None
+
+    def _outer_inline_compound(self, ast_id: int) -> tuple[int, Node] | None:
+        """Самый внешний предок узла, для которого строится конструкт inline.compound."""
+        outer: tuple[int, Node] | None = None
+        par_node = self.code.ast.get_parent_of(ast_id)
+        while par_node:
+            par_node_id = cast(int | None, par_node.get("id"))
+            if par_node_id is None:
+                break
+            decl = self._locate_construct_declaration(par_node)
+            if decl is not None and decl.should_build_construct and _is_inline_compound(decl):
+                outer = (par_node_id, par_node)
+            par_node = self.code.ast.get_parent_of(par_node_id)
+        return outer
+
+    def _locate_construct_declaration(self, node: Node) -> ConstructDeclaration | None:
+        return locate_construct_declaration_by_ast_node(
+            node,
+            self.registry.rules,
+            type_matcher=self._matches_ast_node_type,
+            call_matcher=self._calls_program_procedure,
+            parent_type_lookup=self.code.ast.parent_type_of,
+        )
 
     def _matches_ast_node_type(self, node: NodeQueryFormat, node_type: str) -> bool:
         ast_id = cast(int | None, node.get("id"))
@@ -216,7 +242,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         action_decl: ActionDeclaration,
         previous_path: JSONPath | None,
     ) -> tuple[Node | None, JSONPath | None]:
-        if self._is_inline_compound_construct(construct):
+        if _is_inline_compound(construct.rule):
             inline_call_node = lookup_next_inline_compound_call_node(
                 construct, previous_path
             )
@@ -228,9 +254,6 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         raise ValueError(
             f"{action_decl.role} in {construct.rule.name} can't be identified"
         )
-
-    def _is_inline_compound_construct(self, construct: Construct) -> bool:
-        return {"inline", "compound"}.issubset(construct.rule.kind_classes)
 
     def _add_action_for_node(
         self,
@@ -660,6 +683,10 @@ def _transition_absent_roles(transition: TransitionDeclaration) -> tuple[str, ..
     if isinstance(transition.to_when_absent, list):
         return tuple(transition.to_when_absent)
     return (transition.to_when_absent,)
+
+
+def _is_inline_compound(rule: ConstructDeclaration) -> bool:
+    return {"inline", "compound"}.issubset(rule.kind_classes)
 
 
 def _has_assumed_value(action_decl: ActionDeclaration) -> bool:

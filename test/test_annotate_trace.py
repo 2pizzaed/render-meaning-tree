@@ -132,6 +132,15 @@ def test_warns_about_call_that_does_not_reach_marker_line(
         pytest.param(
             """
             def f(x):
+                return x + 1
+            y = f(f(1))
+            print(y)
+            """,
+            id="nested-call",
+        ),
+        pytest.param(
+            """
+            def f(x):
                 while x > 0:
                     x -= 1
             f(1)

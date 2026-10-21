@@ -519,7 +519,7 @@ class CodeManager:
             "byte_positions", {}
         )  # type: ignore
 
-        candidates: list[tuple[int, tuple[int, int]]] = []
+        candidates: list[tuple[int, tuple[int, int, int]]] = []
         for ast_id, byte_range in map_byteranges.items():
             ast_id = int(ast_id)
             ast_path = self.get_path(ast_id)
@@ -531,8 +531,10 @@ class CodeManager:
                 and ast_path
                 and ast_path.type != "program_entry_point"
             ):
-                candidates.append((ast_id, (start_byte, length)))
-        candidates.sort(key=lambda x: (x[1][1], -x[1][0]))  # по уровню вложенности
+                # При одинаковом диапазоне (тело ветки case из одного оператора) токен
+                # принадлежит самому вложенному узлу, иначе оператор остаётся без позиции.
+                candidates.append((ast_id, (length, -start_byte, -_node_path_depth(ast_path))))
+        candidates.sort(key=lambda x: x[1])  # по уровню вложенности
         if candidates:
             ast_id = candidates[0][0]
             path_element = self._ast.get_path(ast_id)

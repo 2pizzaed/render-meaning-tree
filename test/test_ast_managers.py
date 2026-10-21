@@ -258,3 +258,31 @@ def test_program_procedure_definition_accepts_only_program_procedures_with_body(
     assert {call: definition is not None for call, definition in calls.items()} == expected
     for definition in calls.values():
         assert definition is None or definition["type"] == "function_definition"
+
+
+def test_isinstance_check_is_parsed_with_its_node_kind() -> None:
+    # Поле type узла проверки типа было занято проверяемым типом, и разбор падал.
+    manager = prepare_code("x = [1]\nprint(isinstance(x, list))\n", "python")
+
+    assert manager.ast.find_paths_by_type("instance_of_operator")
+
+
+def test_single_statement_case_body_keeps_statement_line() -> None:
+    # Тело ветки из одного оператора занимает тот же диапазон, что и оператор:
+    # токены достаются самому вложенному узлу, иначе continue остаётся без строки.
+    manager = prepare_code(
+        "for (int i = 0; i < 2; i++) {\n"
+        "    switch (i) {\n"
+        "        case 1:\n"
+        "            continue;\n"
+        "        default:\n"
+        "            x = 3;\n"
+        "    }\n"
+        "}\n",
+        "c++",
+    )
+
+    [continue_path] = manager.ast.find_paths_by_type("continue_statement")
+    line = manager.code_line_number_by_id(continue_path.id)
+    assert line is not None
+    assert manager.code.splitlines()[line - 1].strip() == "continue;"

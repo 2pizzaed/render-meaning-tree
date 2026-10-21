@@ -220,6 +220,39 @@ y = f(f(1))
 print(y)
 """
 
+RETURN_NESTED_CALL = """
+def f(x):
+    return x + 1
+
+def g(x):
+    return f(f(x))
+
+y = g(1)
+"""
+
+# Присваивание с вызовом в рекурсии: значения вызова размечены, повторного значения нет.
+RECURSION_ASSIGN_ANNOTATED = """
+def total(n):
+    if n == 0:
+        return 0
+    s = total(n - 1)  # <! (-, "total(0)") >
+    return s + n
+
+r = total(1)  # <! (-, "total(1)") >
+print(r)
+"""
+
+# Хвостовой вызов-оператор: два выхода подряд из одного места вызова.
+TAIL_CALL_ANNOTATED = """
+def down(n):
+    if n == 0:
+        return
+    print("n =", n)
+    down(n - 1)  # <! (-, "down(1)"), (-, "down(0)") >
+
+down(2)  # <! (-, "down(2)") >
+"""
+
 RETURN_COMPOUND_DEAD_CODE = """
 def g(x):
     return x + 1
@@ -820,6 +853,62 @@ CHECK_CASES: list[Any] = [
         action=(5, "BEGIN", "func_call_structure"),
         expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
+    ),
+    CheckCase(
+        # То же в return: вызов в аргументе выполняется раньше внешнего вызова.
+        id="return_nested_call_argument_begins_first",
+        language="python",
+        code=RETURN_NESTED_CALL,
+        advance_to=(9, "BEGIN", "func_call_structure"),
+        action=(6, "BEGIN", "func_call_structure"),
+        action_occurrence=1,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        id="return_outer_call_begins_after_argument_call_exit",
+        language="python",
+        code=RETURN_NESTED_CALL,
+        advance_to=(6, "END", "func_call_structure"),
+        advance_action_occurrence=1,
+        action=(6, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Оператор с вызовом рекурсии уже выполнен: ошибка вместо исчерпанной цепочки значений.
+        id="recursion_assign_call_begin_after_statement_is_error",
+        language="python",
+        code=RECURSION_ASSIGN_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(4, "BEGIN", "func_call_structure"),
+        expected_skills=("passed_action_repeat",),
+        value_patches=((2, "first_cond", [False, True]),),
+    ),
+    CheckCase(
+        # Второй выход подряд из хвостового вызова берёт следующее значение (down(1)).
+        id="tail_call_second_exit_takes_next_value",
+        language="python",
+        code=TAIL_CALL_ANNOTATED,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "END", "func_call_structure"),
+        value=((5, "END", "func_call_structure"), 1),
+        expected_skills=("inner_construct_finished_before_next",),
+        unexpected_skills=("call_return_matches_activation",),
+        expected_correct=True,
+        value_patches=((2, "first_cond", [False, False, True]),),
+    ),
+    CheckCase(
+        # Значение первого выхода (down(0)) уже израсходовано.
+        id="tail_call_second_exit_rejects_used_value",
+        language="python",
+        code=TAIL_CALL_ANNOTATED,
+        advance_to=(5, "END", "func_call_structure"),
+        action=(5, "END", "func_call_structure"),
+        value=((5, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="уже завершился",
+        value_patches=((2, "first_cond", [False, False, True]),),
     ),
     # --- return с вызовом (preorder): прерывание начинается на самом return ---
     CheckCase(

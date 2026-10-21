@@ -1149,3 +1149,17 @@ def test_domain_pipeline_builds_python_match_without_implicit_break():
         ("match_structure", "case_branch", "match_case_body_structure"),
         ("match_structure", "default_branch", "case_body_structure"),
     ]
+
+
+def test_list_unpacking_declaration_with_call_runs_the_call_through_content():
+    # `a, b = f(1)` - list_unpacking_variable_declaration, которого нет в иерархии типов MT.
+    registry = code_snippet_to_registry("def f(x):\n    return x, x\n\na, b = f(1)\n")
+
+    [declaration] = registry.code.ast.find_paths_by_type("list_unpacking_variable_declaration")
+    construct = registry.get_construct_for(declaration.id)
+    assert construct is not None
+    assert construct.rule.name == "inline_compound_atom_structure"
+    [call] = registry.code.ast.find_paths_by_type("function_call")
+    call_construct = registry.get_construct_for(call.id)
+    assert call_construct is not None
+    assert call_construct.parent is construct

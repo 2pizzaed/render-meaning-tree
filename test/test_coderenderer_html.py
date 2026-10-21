@@ -151,3 +151,12 @@ def test_condition_button_precedes_header_colon_despite_trailing_comment() -> No
         if isinstance(entity, Token) and entity.value.strip()
     ]
     assert values == ["if", "x", "<=", "1"]
+
+
+def test_list_unpacking_declaration_gets_play_button() -> None:
+    manager = prepare_code("def f(x):\n    return x, x\n\na, b = f(1)\n", "python")
+
+    buttons = extract_buttons_from_context(prepare_html_context(manager))
+
+    played = {manager.code_piece(button["node_id"]) for button in buttons if button["type"] == "play"}
+    assert "a, b = f(1)" in played

@@ -1,0 +1,1165 @@
+import textwrap
+from unittest.mock import Mock
+
+import pytest
+
+from src.ast_managers import prepare_code
+from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.serialization import (
+    registry_to_loqi,
+    serialize_domain_objects_to_loqi,
+)
+from src.generator.utilities import code_snippet_to_registry
+from src.generator.value_plan import default_condition_values
+from src.model.rules import (
+    ActionDeclaration,
+    Behaviour,
+    ConstructDeclaration,
+    EffectDeclaration,
+    Identification,
+    InterruptionType,
+    TransitionDeclaration,
+)
+from src.model.situation import Action, Construct, SemanticValue, TraceAct, TraceState
+from src.types import Node
+
+
+def test_non_python_rule_patch_makes_compound_actions_transparent():
+    pipeline = LearningProblemGeneratorPipeline.from_code(Mock(language="c++"))
+    body = ActionDeclaration(role="body", kind="compound")
+    block_begin = ActionDeclaration(role="BEGIN", kind="BEGIN")
+    block_end = ActionDeclaration(role="END", kind="END")
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="while_structure",
+            kind="compound.loop",
+            ast_node="while_loop",
+            actions=[body],
+        ),
+        ConstructDeclaration(
+            name="block_structure",
+            kind="compound.sequence.block",
+            ast_node="compound_statement",
+            actions=[block_begin, block_end],
+        ),
+    ]
+
+    pipeline._patch_rules_for_language()
+
+    assert not body.is_opaque
+    assert block_begin.is_opaque
+    assert block_end.is_opaque
+
+
+def test_domain_pipeline_build_construct_skips_atomic_inline_and_noop_rules():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(name="root", kind="compound", ast_node="root_node"),
+        ConstructDeclaration(name="atom", kind="inline", ast_node="atom_node"),
+        ConstructDeclaration(name="ignored", kind="noop", ast_node="ignored_node"),
+    ]
+
+    assert pipeline._build_construct(2, {"id": 2, "type": "atom_node"}) is None
+    assert pipeline._build_construct(3, {"id": 3, "type": "ignored_node"}) is None
+    assert pipeline.registry.constructs == {}
+
+
+def test_domain_pipeline_build_construct_keeps_procedure_noop_rule():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        "id": ast_id,
+        "type": "procedure_node",
+    }
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="procedure",
+            kind="compound.procedure.noop",
+            ast_node="procedure_node",
+            actions=[ActionDeclaration(role="body", kind="compound")],
+        ),
+    ]
+
+    construct = pipeline._build_construct(4, {"id": 4, "type": "procedure_node"})
+
+    assert construct is not None
+    assert construct.rule.name == "procedure"
+
+
+def test_domain_pipeline_build_construct_keeps_inline_construct_with_explicit_actions():
+    manager = Mock(language="python")
+    manager.program_procedure_definition.return_value = {"id": 1, "type": "function_definition"}
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        "id": ast_id,
+        "type": "call_node",
+    }
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="call",
+            kind="inline.call",
+            ast_node="call_node",
+            actions=[
+                ActionDeclaration(role="name", kind="identifier"),
+                ActionDeclaration(role="func", kind="compound"),
+            ],
+        ),
+    ]
+
+    construct = pipeline._build_construct(2, {"id": 2, "type": "call_node"})
+
+    assert construct is not None
+    assert construct.rule.name == "call"
+
+
+def test_domain_pipeline_first_construct_declaration_is_root_rule_without_parent():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        "id": ast_id,
+        "type": "root_node",
+    }
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        _construct_rule("root", "compound", "root_node"),
+        _construct_rule("child", "compound", "child_node"),
+    ]
+
+    construct = pipeline._build_construct(1, {"id": 1, "type": "root_node"})
+
+    assert construct is not None
+    assert construct.parent is None
+    assert construct.rule is pipeline.root_rule
+
+
+def test_domain_pipeline_non_root_construct_requires_construct_parent():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.return_value = None
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        _construct_rule("root", "compound", "root_node"),
+        _construct_rule("child", "compound", "child_node"),
+    ]
+
+    with pytest.raises(ValueError, match="Non-root construct 'child'.*has no parent construct"):
+        pipeline._build_construct(2, {"id": 2, "type": "child_node"})
+
+
+def test_domain_pipeline_uses_nearest_constructable_ancestor_as_parent():
+    nodes: dict[int, Node] = {
+        1: {"id": 1, "type": "root_node"},
+        2: {"id": 2, "type": "atom_node"},
+        3: {"id": 3, "type": "child_node"},
+    }
+    parents = {3: nodes[2], 2: nodes[1], 1: None}
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.ast.get_parent_of.side_effect = lambda ast_id: parents[ast_id]
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes[ast_id]
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        _construct_rule("root", "compound", "root_node"),
+        _construct_rule("atom", "inline", "atom_node"),
+        _construct_rule("child", "compound", "child_node"),
+    ]
+
+    child = pipeline._build_construct(3, nodes[3])
+
+    assert child is not None
+    assert child.parent is pipeline.registry.get_construct_for(1)
+    assert child.parent is not None
+    assert child.parent.rule is pipeline.root_rule
+
+
+def _construct_rule(name: str, kind: str, ast_node: str) -> ConstructDeclaration:
+    return ConstructDeclaration(
+        name=name,
+        kind=kind,
+        ast_node=ast_node,
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+
+
+def test_domain_pipeline_implements_situation_context_registry_methods():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="END", kind="END"),
+            ActionDeclaration(role="body", kind="inline"),
+        ],
+    )
+
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    action = Action(
+        ast_id=11,
+        values=[],
+        rule=rule.actions[2],
+        parent=construct,
+        owner=pipeline.registry,
+    )
+    trace_act = TraceAct(action=action, used_transition=None, situation=pipeline.registry)
+    pipeline.registry.add(construct)
+    pipeline.registry.add(action)
+    pipeline.registry.add(trace_act)
+
+    assert pipeline.code is manager
+    assert pipeline.registry.get_construct_for(10) is construct
+    assert pipeline.registry.get_construct_for(404) is None
+    assert pipeline.registry.get_actions_for(11) == [action]
+    assert pipeline.registry.get_related_actions(construct) == [
+        construct.begin_action(),
+        action,
+        construct.end_action(),
+    ]
+    assert pipeline.registry.trace_acts == [trace_act]
+    assert isinstance(pipeline.registry.trace_state, TraceState)
+    assert pipeline.registry.variables["S"] is pipeline.registry.trace_state
+
+
+def test_situation_registry_can_be_used_directly_to_lookup_actions_and_store_trace_acts():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="body", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    action = Action(
+        ast_id=11,
+        values=[],
+        rule=rule.actions[1],
+        parent=construct,
+        owner=pipeline.registry,
+    )
+    pipeline.registry.add(construct)
+    pipeline.registry.add(action)
+
+    trace_act = TraceAct(
+        action=pipeline.registry.require_action(ast_id=11, role="body", construct_ast_id=10),
+        used_transition=None,
+        situation=pipeline.registry,
+    )
+    pipeline.registry.add(trace_act)
+
+    assert pipeline.registry.get_construct_for(10) is construct
+    assert pipeline.registry.find_actions(ast_id=11, role="body") == [action]
+    assert trace_act.action is action
+    assert pipeline.registry.trace_acts == [trace_act]
+
+
+def test_situation_registry_require_action_rejects_ambiguous_matches():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="body", kind="inline"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+    pipeline.registry.add(Action(ast_id=11, values=[], rule=rule.actions[1], parent=construct, owner=pipeline.registry))
+    pipeline.registry.add(Action(ast_id=12, values=[], rule=rule.actions[1], parent=construct, owner=pipeline.registry))
+
+    with pytest.raises(LookupError, match="Expected exactly one action"):
+        pipeline.registry.require_action(role="body", construct_ast_id=10)
+
+
+def test_trace_act_index_distinguishes_equal_acts_of_repeated_action():
+    registry = code_snippet_to_registry("x = 1\n")
+    action = registry.trace_acts[0].action
+    first = TraceAct(action, None, registry)
+    repeated = TraceAct(action, None, registry)
+    registry.trace_acts.extend([first, repeated])
+
+    assert first == repeated
+    assert registry.trace_act_index(repeated) == len(registry.trace_acts) - 1
+    assert registry.trace_act_index(TraceAct(action, None, registry)) is None
+
+
+def test_situation_registry_collects_used_rules_before_situation_objects():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    used_rule = _construct_rule("used", "compound", "used_node")
+    unused_rule = _construct_rule("unused", "compound", "unused_node")
+    pipeline.registry.rules = [unused_rule, used_rule]
+
+    construct = Construct(parent=None, ast_id=10, rule=used_rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    collected = pipeline.registry.domain_objects()
+
+    assert collected[0] is used_rule
+    assert unused_rule not in collected
+    assert collected.index(used_rule) < collected.index(construct)
+
+
+def test_situation_registry_collects_rules_used_by_actions():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    parent_rule = _construct_rule("parent", "compound", "parent_node")
+    action_rule_owner = _construct_rule("action_owner", "compound", "action_owner_node")
+    action_rule = action_rule_owner.actions[0]
+    pipeline.registry.rules = [parent_rule, action_rule_owner]
+
+    construct = Construct(parent=None, ast_id=10, rule=parent_rule, owner=pipeline.registry)
+    action = Action(
+        ast_id=11,
+        values=[],
+        rule=action_rule,
+        parent=construct,
+        owner=pipeline.registry,
+    )
+    pipeline.registry.add(construct)
+    pipeline.registry.add(action)
+
+    collected = pipeline.registry.domain_objects()
+
+    assert collected[:2] == [parent_rule, action_rule_owner]
+    assert collected.index(action_rule_owner) < collected.index(construct)
+    assert collected.index(action_rule_owner) < collected.index(action)
+
+
+def test_registry_to_loqi_serializes_registry_with_variable_map():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    serializer, loqi = registry_to_loqi(pipeline.registry, variables={"DemoRule": rule})
+
+    assert serializer.object_name(rule) == "construct_demo"
+    assert serializer.object_by_name("construct_demo") is rule
+    assert "var DemoRule = obj construct_demo : ConstructSpec {" in loqi
+    assert "var S = obj trace_state : TraceState {" in loqi
+
+
+def test_registry_trace_state_is_singleton_and_can_be_replaced():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    initial_state = pipeline.registry.trace_state
+    replacement = TraceState(InterruptionType.BREAK)
+
+    pipeline.registry.add(replacement)
+
+    assert pipeline.registry.trace_state is replacement
+    assert initial_state not in pipeline.registry.domain_objects()
+    assert replacement in pipeline.registry.domain_objects()
+    assert pipeline.registry.variables["S"] is replacement
+
+
+def test_registry_default_variables_can_be_overridden_by_call_variables():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    override_state = TraceState(InterruptionType.BREAK)
+
+    serializer, loqi = registry_to_loqi(pipeline.registry, variables={"S": override_state})
+
+    assert serializer.object_name(override_state) == "trace_state_2"
+    assert "var S = obj trace_state_2 : TraceState {" in loqi
+
+
+def test_registry_to_loqi_keeps_forked_registries_separate():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+    pipeline.fork_redirect(LearningProblemGeneratorPipeline)
+    child = pipeline.fork_redirect(LearningProblemGeneratorPipeline)
+    child.registry.add(
+        TraceAct(
+            action=child.registry.require_action(ast_id=10, role="BEGIN"),
+            used_transition=None,
+            situation=child.registry,
+        )
+    )
+
+    rendered = [registry_to_loqi(registry) for registry in pipeline.results()]
+
+    assert len(rendered) == 2
+    assert "obj act_root : TraceAct {" not in rendered[0][1]
+    assert "obj act_root : TraceAct {" in rendered[1][1]
+
+
+def test_pipeline_registry_utilities_allow_editing_before_serialization():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    registries = pipeline.results()
+    trace_act = TraceAct(
+        action=registries[0].require_action(ast_id=10, role="BEGIN"),
+        used_transition=None,
+        situation=pipeline.registry,
+    )
+    registries[0].add(trace_act)
+    objects = registries[0].domain_objects()
+    serializer, rendered = serialize_domain_objects_to_loqi(objects, variables={"DemoRule": rule})
+
+    assert serializer.object_name(trace_act) == "act_root"
+    assert "var DemoRule = obj construct_demo : ConstructSpec {" in rendered
+    assert "obj act_root : TraceAct {" in rendered
+
+
+def test_registry_to_loqi_serializes_registry_roots():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {"id": ast_id, "type": "demo_node"}
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = _construct_rule("demo", "compound", "demo_node")
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    serializer, rendered = registry_to_loqi(pipeline.results()[0])
+
+    assert serializer.object_name(construct) == "construct_demo_ast10"
+    assert "obj construct_demo_ast10 : ConcreteConstruct {" in rendered
+
+
+def test_action_possible_transitions_uses_compiled_concrete_transitions():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="sequence",
+        kind="compound",
+        ast_node="sequence_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="first", kind="inline", generalization="item"),
+            ActionDeclaration(role="next", kind="inline", generalization="item"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    first_action = Action(
+        ast_id=11,
+        values=[],
+        rule=rule.actions[1],
+        parent=construct,
+        owner=pipeline.registry,
+    )
+
+    transitions = first_action.possible_transitions()
+
+    assert [(transition.from_role, transition.to_role) for transition in transitions] == [("first", "next")]
+
+
+def test_domain_pipeline_fill_actions_adds_loop_values_for_condition_actions():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "while_loop",
+            "condition": {"id": 11, "type": "identifier"},
+            "body": {"id": 12, "type": "compound_statement"},
+        },
+        11: {"id": 11, "type": "identifier"},
+        12: {"id": 12, "type": "compound_statement"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="while_loop",
+        kind="compound.loop",
+        ast_node="while_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="cond",
+                kind="inline.condition",
+                identification=Identification(property="condition"),
+            ),
+            ActionDeclaration(
+                role="body",
+                kind="compound",
+                identification=Identification(property="body"),
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="cond"),
+            TransitionDeclaration.from_dict(
+                {
+                    "from": "cond",
+                    "to": "body",
+                    "constraints": {"condition_value": True},
+                }
+            ),
+            TransitionDeclaration(from_role="body", to_role="cond"),
+            TransitionDeclaration.from_dict(
+                {
+                    "from": "cond",
+                    "to": "END",
+                    "constraints": {"condition_value": False},
+                }
+            ),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    cond_actions = pipeline.registry.get_actions_for(11)
+    body_actions = pipeline.registry.get_actions_for(12)
+    assert len(cond_actions) == 1
+    assert default_condition_values(cond_actions[0]) == (True, True, False)
+    assert len(body_actions) == 1
+    assert default_condition_values(body_actions[0]) == ()
+
+
+def test_domain_pipeline_fill_actions_adds_single_true_for_non_loop_condition():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "if_statement",
+            "condition": {"id": 11, "type": "identifier"},
+        },
+        11: {"id": 11, "type": "identifier"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="if_structure",
+        kind="compound.alternative",
+        ast_node="if_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="cond",
+                kind="inline.condition",
+                identification=Identification(property="condition"),
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="cond"),
+            TransitionDeclaration(from_role="cond", to_role="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    cond_actions = pipeline.registry.get_actions_for(11)
+    assert len(cond_actions) == 1
+    assert default_condition_values(cond_actions[0]) == (True,)
+
+
+def test_domain_pipeline_fill_actions_creates_assumed_action_when_node_absent():
+    manager = Mock(language="python")
+    manager.program_procedure_definition.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {"id": 10, "type": "for_loop"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="for_structure",
+        kind="compound.loop",
+        ast_node="for_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="cond",
+                kind="inline.condition",
+                identification=Identification(property="condition"),
+                behaviour=Behaviour(assumed_value=True),
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="cond"),
+            TransitionDeclaration(from_role="cond", to_role="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    cond_actions = construct.action_by_role("cond")
+    assert len(cond_actions) == 1
+    assert cond_actions[0].ast_id == 0
+    assert cond_actions[0].ast_type == "bool_literal"
+    assert [value.bool_value for value in cond_actions[0].values] == [True]
+
+
+def test_domain_pipeline_fill_actions_skips_absent_optional_action():
+    manager = Mock(language="python")
+    manager.program_procedure_definition.return_value = None
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "general_for_loop",
+            "condition": {"id": 11, "type": "identifier"},
+        },
+        11: {"id": 11, "type": "identifier"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="for_structure",
+        kind="compound.loop",
+        ast_node="for_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="init", kind="inline.optional"),
+            ActionDeclaration(
+                role="cond",
+                kind="inline.condition",
+                identification=Identification(property="condition"),
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="init"),
+            TransitionDeclaration(from_role="init", to_role="cond"),
+            TransitionDeclaration(from_role="cond", to_role="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    assert pipeline.registry.get_actions_for(0) == []
+    assert construct.action_by_role("init") == []
+    cond_actions = pipeline.registry.get_actions_for(11)
+    assert len(cond_actions) == 1
+    assert cond_actions[0].rule.role == "cond"
+
+
+def test_domain_pipeline_fill_actions_creates_multiple_actions_for_self_loop_role():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "compound_statement",
+            "statements": [
+                {"id": 11, "type": "expression_statement"},
+                {"id": 12, "type": "expression_statement"},
+                {"id": 13, "type": "expression_statement"},
+            ],
+        },
+        11: {"id": 11, "type": "expression_statement"},
+        12: {"id": 12, "type": "expression_statement"},
+        13: {"id": 13, "type": "expression_statement"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="block",
+        kind="compound.sequence.block",
+        ast_node="block_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="first",
+                kind="auto",
+                identification=Identification(property_path="statements / [0]"),
+                generalization="item",
+            ),
+            ActionDeclaration(
+                role="next",
+                kind="auto",
+                identification=Identification(origin="previous", property_path="[next]"),
+                generalization="item",
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    assert [action.rule.role for action in pipeline.registry.get_actions_for(11)] == ["first"]
+    assert [action.rule.role for action in pipeline.registry.get_actions_for(12)] == ["next"]
+    assert [action.rule.role for action in pipeline.registry.get_actions_for(13)] == ["next"]
+
+
+def test_domain_pipeline_fill_actions_skips_noop_nodes_without_materializing_concrete_action():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "compound_statement",
+            "statements": [
+                {"id": 11, "type": "comment"},
+                {"id": 12, "type": "expression_statement"},
+            ],
+        },
+        11: {"id": 11, "type": "comment"},
+        12: {"id": 12, "type": "expression_statement"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="block",
+        kind="compound.sequence.block",
+        ast_node="block_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(
+                role="first",
+                kind="auto",
+                identification=Identification(property_path="statements / [0]"),
+                generalization="item",
+            ),
+            ActionDeclaration(
+                role="next",
+                kind="auto",
+                identification=Identification(origin="previous", property_path="[next]"),
+                generalization="item",
+            ),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    pipeline.registry.rules = [
+        rule,
+        ConstructDeclaration(name="noop", kind="noop", ast_node="comment"),
+        ConstructDeclaration(name="atom", kind="inline", ast_node="expression_statement"),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    assert pipeline.registry.get_actions_for(11) == []
+    visible_actions = pipeline.registry.get_actions_for(12)
+    assert [action.rule.role for action in visible_actions] == ["first"]
+
+
+def test_domain_pipeline_fill_actions_skips_procedure_noop_inside_block_sequence():
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "compound_statement",
+            "statements": [
+                {"id": 11, "type": "function_definition"},
+                {"id": 12, "type": "expression_statement"},
+            ],
+        },
+        11: {"id": 11, "type": "function_definition"},
+        12: {"id": 12, "type": "expression_statement"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="block",
+        kind="compound.sequence.block",
+        ast_node="block_node",
+        actions=[
+            ActionDeclaration(role="first", kind="auto", identification=Identification(property_path="statements / [0]"), generalization="item"),
+            ActionDeclaration(role="next", kind="auto", identification=Identification(origin="previous", property_path="[next]"), generalization="item"),
+        ],
+        transitions=[
+            TransitionDeclaration(from_role="BEGIN", to_role="first"),
+            TransitionDeclaration(from_role="item", to_role="next", to_when_absent="END"),
+        ],
+    )
+    pipeline.registry.rules = [
+        rule,
+        ConstructDeclaration(name="function", kind="compound.procedure.noop", ast_node="function_definition"),
+        ConstructDeclaration(name="atom", kind="inline", ast_node="expression_statement"),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    assert pipeline.registry.get_actions_for(11) == []
+    assert [action.rule.role for action in pipeline.registry.get_actions_for(12)] == ["first"]
+
+
+def test_domain_pipeline_fill_actions_materializes_inline_construct_effects_on_concrete_action():
+    manager = Mock(language="python")
+    manager.ast.instanceof.return_value = False
+    manager.get_node_by_id.side_effect = lambda ast_id: {
+        10: {
+            "id": 10,
+            "type": "root_node",
+            "body": {"id": 11, "type": "return_statement"},
+        },
+        11: {"id": 11, "type": "return_statement"},
+    }.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="root",
+            kind="compound",
+            ast_node="root_node",
+            actions=[
+                ActionDeclaration(role="BEGIN", kind="BEGIN"),
+                ActionDeclaration(
+                    role="body",
+                    kind="inline",
+                    identification=Identification(property="body"),
+                ),
+                ActionDeclaration(role="END", kind="END"),
+            ],
+            transitions=[TransitionDeclaration(from_role="BEGIN", to_role="body")],
+        ),
+        ConstructDeclaration(
+            name="return_action",
+            kind="inline",
+            ast_node="return_statement",
+            effects=EffectDeclaration(interruption_start=InterruptionType.RETURN),
+        ),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=pipeline.registry.rules[0], owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    action = pipeline.registry.require_action(ast_id=11, role="body", construct_ast_id=10)
+    assert action.effects is not None
+    assert action.effects.interruption_start is InterruptionType.RETURN
+
+
+def test_domain_pipeline_fill_actions_expands_inline_call_content_from_inner_to_outer():
+    nodes = {
+        10: {
+            "id": 10,
+            "type": "assignment_statement",
+            "right": {
+                "id": 11,
+                "type": "function_call",
+                "function": {"type": "identifier", "repr_name": "outer"},
+                "arguments": [
+                    {
+                        "id": 12,
+                        "type": "function_call",
+                        "function": {"type": "identifier", "repr_name": "inner"},
+                    }
+                ],
+            },
+        },
+        11: {
+            "id": 11,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "outer"},
+        },
+        12: {
+            "id": 12,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "inner"},
+        },
+    }
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline.registry.rules = [
+        ConstructDeclaration(
+            name="inline_compound_atom",
+            kind="inline.compound",
+            ast_node="assignment_statement",
+            actions=[
+                ActionDeclaration(role="content", kind="auto"),
+            ],
+            transitions=[
+                TransitionDeclaration(from_role="BEGIN", to_role="content"),
+                TransitionDeclaration(
+                    from_role="content",
+                    to_role="content",
+                    to_when_absent="END",
+                ),
+            ],
+        ),
+        ConstructDeclaration(
+            name="function_call",
+            kind="inline.call",
+            ast_node="function_call",
+            actions=[
+                ActionDeclaration(role="func", kind="compound"),
+            ],
+        ),
+    ]
+    construct = Construct(
+        parent=None,
+        ast_id=10,
+        rule=pipeline.registry.rules[0],
+        owner=pipeline.registry,
+    )
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    content_actions = [
+        action for action in construct.actions if action.rule.role == "content"
+    ]
+    assert [action.ast_id for action in content_actions] == [12, 11]
+
+
+def test_domain_pipeline_skips_call_construct_for_non_user_defined_function():
+    registry = code_snippet_to_registry("result = len([1, 2, 3])")
+
+    call_nodes = registry.code.ast.find_paths_by_type("function_call")
+    assert len(call_nodes) == 1
+    assert registry.get_construct_for(call_nodes[0].id) is None
+
+
+def test_user_function_call_with_call_argument_gets_call_construct():
+    registry = code_snippet_to_registry(
+        "def f(a, b):\n    return a + b\n\narr = [1, 2]\ny = f(1, len(arr))\n"
+    )
+
+    [user_call] = [
+        path
+        for path in registry.code.ast.find_paths_by_type("function_call")
+        if registry.code.program_procedure_definition(path.id) is not None
+    ]
+    construct = registry.get_construct_for(user_call.id)
+    assert construct is not None
+    assert construct.rule.name == "func_call_structure"
+
+
+@pytest.mark.parametrize(
+    ("statement", "rule_name"),
+    [
+        ("g(1)", "call_statement_structure"),
+        ("g(g(1))", "call_statement_structure"),
+        ("print(g(1))", "inline_compound_atom_structure"),
+        ("d.add(1)", "inline_compound_atom_structure"),
+        ("len(d)", "inline_compound_atom_structure"),
+    ],
+)
+def test_only_user_function_call_statement_is_call_statement(statement: str, rule_name: str):
+    registry = code_snippet_to_registry(
+        f"def g(a):\n    return a\n\nd = set()\n{statement}\n"
+    )
+
+    [statement_path] = registry.code.ast.find_paths_by_type("expression_statement")
+    construct = registry.get_construct_for(statement_path.id)
+    assert construct is not None
+    assert construct.rule.name == rule_name
+
+
+def test_domain_pipeline_fill_actions_materializes_external_noop_outside_program_or_block():
+    nodes = {
+        10: {
+            "id": 10,
+            "type": "function_call",
+            "function": {"type": "identifier", "repr_name": "add"},
+        },
+        14: {"id": 14, "type": "function_declaration", "name": "add"},
+        15: {
+            "id": 15,
+            "type": "function_definition",
+            "declaration": {"id": 14, "type": "function_declaration", "name": "add"},
+        },
+    }
+    manager = Mock(language="python")
+    manager.get_node_by_id.side_effect = lambda ast_id: nodes.get(ast_id)
+    manager.program_procedure_definition.side_effect = lambda ast_id: (
+        nodes[15] if ast_id == 10 else None
+    )
+
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    call_rule = ConstructDeclaration(
+        name="function_call",
+        kind="inline.call",
+        ast_node="function_call",
+        actions=[ActionDeclaration(role="func", kind="compound")],
+        transitions=[TransitionDeclaration(from_role="BEGIN", to_role="func")],
+    )
+    pipeline.registry.rules = [
+        call_rule,
+        ConstructDeclaration(
+            name="function",
+            kind="compound.procedure.noop",
+            ast_node="function_definition",
+        ),
+    ]
+    construct = Construct(parent=None, ast_id=10, rule=call_rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+
+    pipeline.fill_actions()
+
+    assert [action.rule.role for action in pipeline.registry.get_actions_for(15)] == ["func"]
+
+
+def test_situation_registry_clone_is_independent_situation():
+    manager = Mock(language="python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    rule = ConstructDeclaration(
+        name="demo",
+        kind="compound",
+        ast_node="demo_node",
+        actions=[
+            ActionDeclaration(role="BEGIN", kind="BEGIN"),
+            ActionDeclaration(role="cond", kind="inline.condition"),
+            ActionDeclaration(role="END", kind="END"),
+        ],
+    )
+    pipeline.registry.rules = [rule]
+    construct = Construct(parent=None, ast_id=10, rule=rule, owner=pipeline.registry)
+    pipeline.registry.add(construct)
+    cond = Action(
+        ast_id=11,
+        values=[],
+        rule=rule.actions[1],
+        parent=construct,
+        owner=pipeline.registry,
+    )
+    pipeline.registry.add(cond)
+
+    clone = pipeline.registry.clone()
+
+    cloned_construct = clone.get_construct_for(10)
+    assert cloned_construct is not None
+    assert cloned_construct is not construct
+    assert cloned_construct.owner is clone
+    assert cloned_construct.rule is rule
+    assert clone.code is manager
+    assert clone.rules is pipeline.registry.rules
+    assert [action.rule.role for action in cloned_construct.actions] == ["BEGIN", "cond", "END"]
+    [cloned_cond] = clone.get_actions_for(11)
+    cloned_cond.values = [SemanticValue(False)]
+    assert cond.values == []
+
+
+def test_single_situation_stops_at_default_values_without_branches():
+    pipeline = LearningProblemGeneratorPipeline.from_code(
+        prepare_code(
+            textwrap.dedent(
+                """
+                while x:
+                    x = 0
+                """
+            ),
+            "python",
+        )
+    )
+
+    pipeline.run_until("assign_default_values")
+
+    assert pipeline.forked == []
+    [condition] = [action for action in pipeline.registry.all_actions() if action.is_condition]
+    assert [value.bool_value for value in condition.values] == [True, True, False]
+    assert condition in condition.chain
+
+
+def _switch_shape(registry) -> list[tuple[str, str, str | None]]:
+    """(правило конструкта, роль, правило раскрываемого конструкта) действий switch и тел веток."""
+    return [
+        (
+            action.parent.rule.name,
+            action.rule.role,
+            target.rule.name if (target := action.expands_to()) is not None else None,
+        )
+        for construct in registry.constructs.values()
+        if construct.rule.name.endswith(("switch_structure", "match_structure", "body_structure"))
+        for action in construct.actions
+        if action.rule.role not in {"BEGIN", "END", "first", "next"}
+    ]
+
+
+def test_domain_pipeline_builds_switch_branches_by_case_kind():
+    registry = code_snippet_to_registry(
+        textwrap.dedent(
+            """
+            switch (x) {
+                case 1:
+                    a = 1;
+                case 2:
+                    a = 2;
+                    break;
+                default:
+                    a = 3;
+            }
+            """
+        ),
+        language="c++",
+    )
+
+    assert _switch_shape(registry) == [
+        ("switch_structure", "subject", None),
+        ("switch_structure", "first_case", None),
+        ("switch_structure", "case_branch", "case_body_structure"),
+        ("switch_structure", "next_case", None),
+        ("switch_structure", "case_branch", "case_break_body_structure"),
+        ("switch_structure", "default_branch", "case_body_structure"),
+        # Неявный break на узле тела ветки не раскрывает собственный конструкт.
+        ("case_break_body_structure", "case_exit", None),
+    ]
+
+
+def test_domain_pipeline_builds_python_match_without_implicit_break():
+    registry = code_snippet_to_registry(
+        textwrap.dedent(
+            """
+            match x:
+                case 1:
+                    a = 1
+                case _:
+                    a = 2
+            """
+        ),
+        language="python",
+    )
+
+    assert _switch_shape(registry) == [
+        ("match_structure", "subject", None),
+        ("match_structure", "first_case", None),
+        ("match_structure", "case_branch", "match_case_body_structure"),
+        ("match_structure", "default_branch", "case_body_structure"),
+    ]
+
+
+def test_list_unpacking_declaration_with_call_runs_the_call_through_content():
+    # `a, b = f(1)` - list_unpacking_variable_declaration, которого нет в иерархии типов MT.
+    registry = code_snippet_to_registry("def f(x):\n    return x, x\n\na, b = f(1)\n")
+
+    [declaration] = registry.code.ast.find_paths_by_type("list_unpacking_variable_declaration")
+    construct = registry.get_construct_for(declaration.id)
+    assert construct is not None
+    assert construct.rule.name == "inline_compound_atom_structure"
+    [call] = registry.code.ast.find_paths_by_type("function_call")
+    call_construct = registry.get_construct_for(call.id)
+    assert call_construct is not None
+    assert call_construct.parent is construct

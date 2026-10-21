@@ -1,0 +1,178 @@
+digraph python_sequential_function_calls_trace_acts {
+rankdir=LR;
+bgcolor="#fbfbf8";
+pad=0.3;
+nodesep=0.45;
+ranksep=0.65;
+splines=spline;
+concentrate=false;
+node [shape=box, style="rounded,filled", fontname=Arial, fontsize=11, color="#5c4b3b", fillcolor="#fffdf7", penwidth=1.4, margin="0.18,0.10"];
+edge [color="#6b7280", fontname=Arial, fontsize=10, arrowsize=0.7, penwidth=1.2];
+subgraph cluster_cluster_0_43 {
+label="global_statements_structure [43]";
+style="rounded,filled";
+color="#d97706";
+fillcolor="#fef3c7";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+trace_act_0 [label="global_statements_structure.BEGIN\nrole: BEGIN\nast_id: 43", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_1 [label="global_statements_structure.first\nrole: first\nast_id: 36\n\nresult = f(1)"];
+trace_act_26 [label="global_statements_structure.END\nrole: END\nast_id: 43", fillcolor="#fee2e2", color="#b45309", penwidth=3.0, style="rounded,filled,diagonals,bold"];
+}
+trace_act_0 -> trace_act_1;
+subgraph cluster_cluster_1_36 {
+label="inline_compound_atom_structure [36]";
+style="rounded,filled";
+color="#2563eb";
+fillcolor="#dbeafe";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_1_36__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_2 [label="inline_compound_atom_structure.BEGIN\nrole: BEGIN\nast_id: 36", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_3 [label="inline_compound_atom_structure.content\nrole: content\nast_id: 32\n\nf(1)", fillcolor="#fef9c3", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+trace_act_25 [label="inline_compound_atom_structure.END\nrole: END\nast_id: 36", fillcolor="#fee2e2", color="#dc2626", style="rounded,filled,diagonals"];
+}
+cluster_1_36__note [label="ast_id: 36\nresult = f(1)", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_1_36__anchor -> cluster_1_36__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_1 -> trace_act_2;
+trace_act_2 -> trace_act_3;
+subgraph cluster_cluster_2_32 {
+label="func_call_structure [32]";
+style="rounded,filled";
+color="#16a34a";
+fillcolor="#dcfce7";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_2_32__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_4 [label="func_call_structure.BEGIN\nrole: BEGIN\nast_id: 32", fillcolor="#e0f2fe", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+trace_act_5 [label="func_call_structure.func\nrole: func\nast_id: 26\n\ndef f(x):\n    return g(x)"];
+trace_act_24 [label="func_call_structure.END\nrole: END\nast_id: 32", fillcolor="#fee2e2", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+}
+cluster_2_32__note [label="ast_id: 32\nf(1)", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_2_32__anchor -> cluster_2_32__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_3 -> trace_act_4;
+trace_act_4 -> trace_act_5;
+subgraph cluster_cluster_3_26 {
+label="func_def_structure [26]";
+style="rounded,filled";
+color="#db2777";
+fillcolor="#fce7f3";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_3_26__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_6 [label="func_def_structure.BEGIN\nrole: BEGIN\nast_id: 26", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_7 [label="func_def_structure.func_body\nrole: func_body\nast_id: 24\n\nreturn g(x)"];
+trace_act_23 [label="func_def_structure.END\nrole: END\nast_id: 26", fillcolor="#fee2e2", color="#dc2626", style="rounded,filled,diagonals"];
+}
+cluster_3_26__note [label="ast_id: 26\ndef f(x):\n    return g(x)", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_3_26__anchor -> cluster_3_26__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_5 -> trace_act_6;
+trace_act_6 -> trace_act_7;
+subgraph cluster_cluster_4_24 {
+label="block_structure [24]";
+style="rounded,filled";
+color="#7c3aed";
+fillcolor="#ede9fe";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_4_24__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_8 [label="block_structure.BEGIN\nrole: BEGIN\nast_id: 24", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_9 [label="block_structure.first\nrole: first\nast_id: 23\n\nreturn g(x)"];
+trace_act_22 [label="block_structure.END\nrole: END\nast_id: 24", fillcolor="#fee2e2", color="#dc2626", style="rounded,filled,diagonals"];
+}
+cluster_4_24__note [label="ast_id: 24\nreturn g(x)", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_4_24__anchor -> cluster_4_24__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_7 -> trace_act_8;
+trace_act_8 -> trace_act_9;
+subgraph cluster_cluster_5_23 {
+label="return_compound_action [23]";
+style="rounded,filled";
+color="#c026d3";
+fillcolor="#fae8ff";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_5_23__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_10 [label="return_compound_action.BEGIN\nrole: BEGIN\nast_id: 23", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_11 [label="return_compound_action.content\nrole: content\nast_id: 22\n\ng(x)", fillcolor="#fef9c3", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+trace_act_21 [label="return_compound_action.END\nrole: END\nast_id: 23", fillcolor="#fee2e2", color="#dc2626", style="rounded,filled,diagonals"];
+}
+cluster_5_23__note [label="ast_id: 23\nreturn g(x)", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_5_23__anchor -> cluster_5_23__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_9 -> trace_act_10;
+trace_act_10 -> trace_act_11;
+subgraph cluster_cluster_6_22 {
+label="func_call_structure [22]";
+style="rounded,filled";
+color="#d97706";
+fillcolor="#fef3c7";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_6_22__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_12 [label="func_call_structure.BEGIN\nrole: BEGIN\nast_id: 22", fillcolor="#e0f2fe", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+trace_act_13 [label="func_call_structure.func\nrole: func\nast_id: 12\n\ndef g(x):\n    return x + 1"];
+trace_act_20 [label="func_call_structure.END\nrole: END\nast_id: 22", fillcolor="#fee2e2", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+}
+cluster_6_22__note [label="ast_id: 22\ng(x)", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_6_22__anchor -> cluster_6_22__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_11 -> trace_act_12;
+trace_act_12 -> trace_act_13;
+subgraph cluster_cluster_7_12 {
+label="func_def_structure [12]";
+style="rounded,filled";
+color="#2563eb";
+fillcolor="#dbeafe";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_7_12__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_14 [label="func_def_structure.BEGIN\nrole: BEGIN\nast_id: 12", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_15 [label="func_def_structure.func_body\nrole: func_body\nast_id: 10\n\nreturn x + 1"];
+trace_act_19 [label="func_def_structure.END\nrole: END\nast_id: 12", fillcolor="#fee2e2", color="#dc2626", style="rounded,filled,diagonals"];
+}
+cluster_7_12__note [label="ast_id: 12\ndef g(x):\n    return x + 1", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_7_12__anchor -> cluster_7_12__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_13 -> trace_act_14;
+trace_act_14 -> trace_act_15;
+subgraph cluster_cluster_8_10 {
+label="block_structure [10]";
+style="rounded,filled";
+color="#16a34a";
+fillcolor="#dcfce7";
+fontname="Arial Bold";
+fontsize=12;
+margin=18;
+penwidth=1.8;
+cluster_8_10__anchor [label="", shape=point, width=0.01, height=0.01, color="#94a3b8"];
+trace_act_16 [label="block_structure.BEGIN\nrole: BEGIN\nast_id: 10", fillcolor="#e0f2fe", color="#0284c7", style="rounded,filled,diagonals"];
+trace_act_17 [label="block_structure.first\nrole: first\nast_id: 9\n\nreturn x + 1", fillcolor="#fef9c3", color="#b45309", penwidth=3.0, style="rounded,filled,bold"];
+trace_act_18 [label="block_structure.END\nrole: END\nast_id: 10", fillcolor="#fee2e2", color="#dc2626", style="rounded,filled,diagonals"];
+}
+cluster_8_10__note [label="ast_id: 10\nreturn x + 1", shape=box, style="rounded,filled", fontname="Courier New", fontsize=10, color="#94a3b8", fillcolor="#f8fafc", margin="0.18,0.18"];
+cluster_8_10__anchor -> cluster_8_10__note [style=dotted, arrowhead=none, color="#94a3b8"];
+trace_act_15 -> trace_act_16;
+trace_act_16 -> trace_act_17;
+trace_act_17 -> trace_act_18 [label=return];
+trace_act_18 -> trace_act_19;
+trace_act_19 -> trace_act_20;
+trace_act_20 -> trace_act_21;
+trace_act_21 -> trace_act_22;
+trace_act_22 -> trace_act_23;
+trace_act_23 -> trace_act_24;
+trace_act_24 -> trace_act_25;
+trace_act_25 -> trace_act_26;
+}

@@ -1,0 +1,336 @@
+enum InterruptionType {
+	break [
+		RU.localizedName = "выход по break" ;
+		EN.localizedName = "break" ;
+	],
+	continue [
+		RU.localizedName = "прерывание итерации цикла" ;
+		EN.localizedName = "continue" ;
+	],
+	return [
+		RU.localizedName = "возврат из функции" ;
+		EN.localizedName = "return" ;
+	],
+	exception [
+		RU.localizedName = "исключение" ;
+		EN.localizedName = "exception" ;
+	],
+	fatal [
+		RU.localizedName = "падение программы с ошибкой"; 
+		EN.localizedName = "fatal error" ;
+	],
+	any [
+		RU.localizedName = "любое" ;
+		EN.localizedName = "any" ;
+	],
+	none [
+		RU.localizedName = "обычное выполнение" ;
+		EN.localizedName = "usual flow" ;
+	],
+} [
+	RU.localizedName = "тип прерывания" ;
+	EN.localizedName = "interruption type" ;
+]
+
+enum CallStackAction {
+	none [
+		RU.localizedName = "без изменений фрейма вызовов" ;
+		EN.localizedName = "no frame change" ;
+	
+	],
+	add_frame [
+		RU.localizedName = "добавление фрейма функции" ;
+		EN.localizedName = "add frame" ;
+	
+	],
+	drop_frame [
+		RU.localizedName = "удаление фрейма функции" ;
+		EN.localizedName = "drop frame" ;
+	],
+} [
+	RU.localizedName = "действие стека вызовов" ;
+	EN.localizedName = "call stack action" ;
+]
+
+enum InterruptionStackAction {
+	none [
+		RU.localizedName = "без изменений стека прерываний" ;
+		EN.localizedName = "no interruption stack change" ;
+	],
+	push [
+		RU.localizedName = "отложить текущее прерывание" ;
+		EN.localizedName = "suspend current interruption" ;
+	],
+	pop [
+		RU.localizedName = "вернуть отложенное прерывание" ;
+		EN.localizedName = "resume suspended interruption" ;
+	],
+} [
+	RU.localizedName = "действие стека прерываний" ;
+	EN.localizedName = "interruption stack action" ;
+]
+
+// -------- Правила предметной области --------
+
+class AbstractSpec {
+    // класс спецификаций (т.е. правил предметной области, задействованных при решении)
+} [
+	RU.localizedName = "абстрактная спецификация" ;
+	EN.localizedName = "abstract specification" ;
+]
+
+// Видимо придется создавать его всегда при переходах
+class Constraint {
+	obj prop interruption_mode: InterruptionType ;
+
+	obj prop condition_value: OptionalBool ;
+	obj prop type_matched: OptionalBool ; // только строгое равенство типа
+	obj prop type_compatible: OptionalBool ; // приведение типов разрешено
+
+	// если не заданы - type_matched и type_compatible сравнивают по TraceState->hasInterruptionSemantic:
+	rel allowedFor(Type); // ограничение разрешает только указанные типы и их наследники
+	rel strictAllowedFor(Type); // ограничение разрешает только указанные типы
+} [
+	RU.localizedName = "ограничение" ;
+	EN.localizedName = "constraint" ;
+]
+
+class Effect {
+	obj prop interruption_stop: InterruptionType ;
+	obj prop interruption_start: InterruptionType ;
+	obj prop call_stack: CallStackAction ;
+	// push - при входе в finally / цепочку деструкторов, pop - при любом выходе из них
+	obj prop interruption_stack: InterruptionStackAction ;
+} [
+	RU.localizedName = "эффект" ;
+	EN.localizedName = "effect" ;
+]
+
+class ActionSpec : AbstractSpec {
+	obj prop role: string ;
+	obj prop generalization: string ; // по факту не должно использоваться - автоматическое разворачивание
+	obj prop kind: string ;
+	obj prop is_opaque: bool ;
+
+	rel belongsTo(ConstructSpec) : {* -> 1} ;
+	rel hasEffects(Effect) : {* -> 1} ; // нужен только для отслеживания завершения прерываний (но в переходы также встраивается, поэтому применяется только в прерываниях!!)
+} [
+	RU.localizedName = "спецификация действия" ;
+	EN.localizedName = "action specification" ;
+]
+
+class ActionSpecChainPlaceholder {
+	rel contains(ActionSpec) : {* -> 1} ;
+
+	rel directlyBeforeOf(ActionSpecChainPlaceholder) : linear ;
+	rel directlyAfterOf(ActionSpecChainPlaceholder) : opposite to directlyBeforeOf ;
+	rel beforeOf(ActionSpecChainPlaceholder) : transitive to directlyBeforeOf ;
+	rel afterOf(ActionSpecChainPlaceholder) : transitive to directlyAfterOf ;
+	rel isBetween(ActionSpecChainPlaceholder, ActionSpecChainPlaceholder) : between to beforeOf ;
+	rel isCloserToThan(ActionSpecChainPlaceholder, ActionSpecChainPlaceholder) : closer to beforeOf ;
+	rel isFurtherFromThan(ActionSpecChainPlaceholder, ActionSpecChainPlaceholder) : further to beforeOf ;
+} [
+	RU.localizedName = "порядок спецификации действий" ;
+	EN.localizedName = "action specification ordered chain" ;
+]
+
+class TransitionSpec : AbstractSpec {
+	rel from_(ActionSpec) ; // может быть несколько from из-за generalization
+	rel to_(ActionSpec): {* -> 1};
+	rel to_when_absent(ActionSpecChainPlaceholder) : {* -> 1};
+
+	rel belongsTo(ConstructSpec) : {* -> 1} ;
+	rel hasConstraints(Constraint): {* -> 1};
+	rel hasEffects(Effect): {* -> 1};
+} [
+	RU.localizedName = "спецификация перехода" ;
+	EN.localizedName = "transition specification" ;
+]
+
+class ConstructSpec : AbstractSpec {
+	obj prop name: string ;
+	obj prop kind: string ;
+	// конструкт раскрывается ДО породившего его действия: это действие попадает в трассу после END конструкта
+	obj prop preorder: bool ;
+
+	rel hasActions(ActionSpec) : {1 -> *} ;
+	rel hasTransitions(TransitionSpec) : {1 -> *};
+	// rel hasEffects(Effect): {* -> 1} ; не нужно т.к. этот эффект автоматически привязывается к ActionSpec этого конструкта с ролью END (см. ActionSpec->hasEffects)
+} [
+	RU.localizedName = "спецификация конструкции" ;
+	EN.localizedName = "construct specification" ;
+]
+
+// -------- Отображение узлов AST на модель --------
+
+class ASTEntity {
+    obj prop ast_id: int ;
+    obj prop ast_type: string;
+
+    rel hasValue(SemanticValue) ;
+} [
+	RU.localizedName = "сущность, связанная с AST" ;
+	EN.localizedName = "AST-related entity" ;
+]
+
+class Type : ASTEntity {
+	obj prop name: string ;
+	obj prop is_abstract: bool ;
+
+	rel hasParentType(Type) : partial ;
+	rel inheritedFrom(Type): transitive to hasParentType ;
+	rel hasChildren(Type) : opposite to inheritedFrom ;
+
+	rel implicitlyCastsTo(Type) ; // тип может быть приведен неявно к другому
+} [
+	RU.localizedName = "тип данных" ;
+	EN.localizedName = "type" ;
+]
+
+class CallArgument {
+	rel hasType(Type) : {* -> 1};
+	rel isInSignature(CallSignature): opposite to CallSignature->hasArguments ;
+
+	rel directlyBeforeOf(CallArgument) : linear ;
+	rel directlyAfterOf(CallArgument) : opposite to directlyBeforeOf ;
+	rel beforeOf(CallArgument) : transitive to directlyBeforeOf ;
+	rel afterOf(CallArgument) : transitive to directlyAfterOf ;
+	rel isBetween(CallArgument, CallArgument) : between to beforeOf ;
+	rel isCloserToThan(CallArgument, CallArgument) : closer to beforeOf ;
+	rel isFurtherFromThan(CallArgument, CallArgument) : further to beforeOf ;
+} [
+	RU.localizedName = "аргумент вызова" ;
+	EN.localizedName = "call argument" ;
+]
+
+class CallSignature {
+	obj prop name : string ;
+	obj prop staticDispatch: bool ;
+
+	rel hasOwner(Type): {* -> 1} ; // может не принадлежать типу, тогда - функция, иначе - метод
+
+	rel hasReturnType(Type) : {* -> 1} ;
+	rel hasArguments(CallArgument): {* -> 1} ;
+	
+	rel belongsToFunctionBody(ConcreteConstruct): {* -> 1} ; // тело функции, в которую можно войти
+	rel belongsToCall(ConcreteConstruct) ; // вызовы, которые имеют данную сигнатуру
+} [
+	RU.localizedName = "прототип вызова" ;
+	EN.localizedName = "call prototype signature" ;
+]
+
+class SemanticValue {
+    obj prop bool_value: OptionalBool ;
+	obj prop used: bool ;
+
+	rel hasType(Type) : {* -> 1} ;
+
+	rel directlyBeforeOf(SemanticValue) : linear ;
+	rel directlyAfterOf(SemanticValue) : opposite to directlyBeforeOf ;
+	rel beforeOf(SemanticValue) : transitive to directlyBeforeOf ;
+	rel afterOf(SemanticValue) : transitive to directlyAfterOf ;
+	rel isBetween(SemanticValue, SemanticValue) : between to beforeOf ;
+	rel isCloserToThan(SemanticValue, SemanticValue) : closer to beforeOf ;
+	rel isFurtherFromThan(SemanticValue, SemanticValue) : further to beforeOf ;
+} [
+	RU.localizedName = "значение времени выполнения" ;
+	EN.localizedName = "runtime value" ;
+]
+
+class ConcreteConstruct : ASTEntity {
+    rel hasActions(ConcreteAction) : {1 -> *};
+
+    rel derivedFrom(ConstructSpec): {* -> 1};
+	
+	rel hasParent(ConcreteConstruct) : partial ; // прямой родитель (many-to-one -> лес конструктов)
+	rel hasAncestor(ConcreteConstruct) : transitive to hasParent ; // все конструкты-предки (транзитивное замыкание hasParent)
+} [
+	RU.localizedName = "конструкция" ;
+	EN.localizedName = "construct" ;
+]
+
+class ConcreteAction : ASTEntity {
+	rel belongsTo(ConcreteConstruct) : {* -> 1};
+    rel derivedFrom(ActionSpec) : {* -> 1};
+
+	rel hasEffects(Effect) : {* -> 1}; // проверяется только во времени выполнения, заранее неизвестен, поэтому не привязывается к переходам автоматически
+
+	rel directlyBeforeOf(ConcreteAction) : linear ;
+	rel directlyAfterOf(ConcreteAction) : opposite to directlyBeforeOf ;
+	rel beforeOf(ConcreteAction) : transitive to directlyBeforeOf ;
+	rel afterOf(ConcreteAction) : transitive to directlyAfterOf ;
+	rel isBetween(ConcreteAction, ConcreteAction) : between to beforeOf ;
+	rel isCloserToThan(ConcreteAction, ConcreteAction) : closer to beforeOf ;
+	rel isFurtherFromThan(ConcreteAction, ConcreteAction) : further to beforeOf ;
+} [
+	RU.localizedName = "действие" ;
+	EN.localizedName = "action" ;
+]
+
+// -------- Данные, которые будут собираться по ходу решения задачи  --------
+
+class TraceAct {
+    rel hasAction(ConcreteAction) : {* -> 1};
+	rel hasTransition(TransitionSpec) : {* -> 1};
+	rel hasValue(SemanticValue);
+	// заполняется только у BEGIN-акта развернутого конструкта: действие, из которого конструкт развернут
+	rel unfoldedFrom(ConcreteAction) : {* -> 1};
+	// кадр вызова: акт действия func, открывший активацию функции (для глобального кода - корневой акт трассы).
+	// Акты разных активаций одной функции различаются кадром, поэтому BEGIN/END сопоставляются только внутри кадра
+	rel inFrame(TraceAct) : {* -> 1};
+
+	rel directlyBeforeOf(TraceAct) : linear ;
+	rel directlyAfterOf(TraceAct) : opposite to directlyBeforeOf ;
+	rel beforeOf(TraceAct) : transitive to directlyBeforeOf ;
+	rel afterOf(TraceAct) : transitive to directlyAfterOf ;
+	rel isBetween(TraceAct, TraceAct) : between to beforeOf ;
+	rel isCloserToThan(TraceAct, TraceAct) : closer to beforeOf ;
+	rel isFurtherFromThan(TraceAct, TraceAct) : further to beforeOf ;
+} [
+	RU.localizedName = "действие в трассе" ;
+	EN.localizedName = "trace act" ;
+]
+
+class TraceState {
+	obj prop interruption_mode: InterruptionType ;
+
+	rel hasInterruptionSemantic(SemanticValue) : {* -> 1}; // вспомогательная информация о прерывании - например, тип исключения
+	rel hasSuspended(SuspendedInterruption) : {* -> 1}; // вершина стека отложенных прерываний (текущее прерывание в стеке не лежит)
+} [
+	RU.localizedName = "состояние трассировки" ;
+	EN.localizedName = "trace state" ;
+]
+
+// прерывание, отложенное на время finally / цепочки деструкторов
+class SuspendedInterruption {
+	obj prop interruption_mode: InterruptionType ;
+
+	rel hasInterruptionSemantic(SemanticValue) : {* -> 1};
+	rel below(SuspendedInterruption) : {* -> 1}; // следующий элемент стека
+} [
+	RU.localizedName = "отложенное прерывание" ;
+	EN.localizedName = "suspended interruption" ;
+]
+
+class TraceConfigSpec {
+	obj prop stop_on_opaque: bool ; // остановить поиск следующего действия перед первым непрозрачным действием (т.е. пройти только прозрачные действия)
+} [
+	RU.localizedName = "конфигурация трассировки" ;
+	EN.localizedName = "trace configuration" ;
+]
+
+obj TraceConfig : TraceConfigSpec {
+	stop_on_opaque = true ;
+} [
+	RU.localizedName = "глобальная конфигурация трассировки" ;
+	EN.localizedName = "global trace configuration" ;
+] 
+
+obj NoValue : SemanticValue {
+	bool_value = OptionalBool:`null`;
+	used = false; // не должен меняться и учитываться для этого объекта
+} [
+	RU.localizedName = "без значения";
+	EN.localizedName = "no value";
+	hint = "";
+]

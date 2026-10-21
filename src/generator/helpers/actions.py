@@ -1,0 +1,176 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from src.generator.registry import SituationRegistry
+from src.helpers.tpg.reasoning import TraceStep
+from src.model.rules import TransitionDeclaration
+from src.model.situation import Action, SemanticValue, TraceAct
+from src.serialization.loqi import LoqiSerializer
+
+
+@dataclass(frozen=True, slots=True)
+class ActionLinePosition:
+    line_number: int
+    action_index: int
+    ast_id: int
+
+
+def line_actions(
+    registry: SituationRegistry,
+    line_number: int,
+    *,
+    include_transparent: bool = False,
+) -> list[Action]:
+    """Вернуть actions для строки; по умолчанию только opaque, опционально и transparent."""
+    actions: list[Action] = []
+    seen: set[int] = set()
+    for node in registry.code.line_number_to_ast_nodes(line_number):
+        for action in registry.get_actions_for(node.id):
+            if not include_transparent and not action.is_opaque:
+                continue
+            action_identity = id(action)
+            if action_identity in seen:
+                continue
+            seen.add(action_identity)
+            actions.append(action)
+    return actions
+
+
+def require_line_action(
+    registry: SituationRegistry,
+    line_number: int,
+    *,
+    action_index: int = 0,
+    include_transparent: bool = False,
+) -> Action:
+    """Выбрать action по номеру строки и индексу действия на этой строке."""
+    actions = line_actions(
+        registry,
+        line_number,
+        include_transparent=include_transparent,
+    )
+    if action_index < 0 or action_index >= len(actions):
+        raise LookupError(
+            f"Expected action index {action_index} on line {line_number}, found {len(actions)} action(s)"
+        )
+    return actions[action_index]
+
+
+def action_line_position(
+    registry: SituationRegistry,
+    action: Action,
+    *,
+    include_transparent: bool = False,
+) -> ActionLinePosition | None:
+    """Вернуть line/action-index/ast_id для action в терминах line_actions()."""
+    if action.ast_id is None:
+        return None
+
+    code_manager = registry.code
+    line_number = code_manager.code_line_number_by_id(action.ast_id)
+    if line_number is None:
+        return None
+
+    for action_index, candidate in enumerate(
+        line_actions(
+            registry,
+            line_number,
+            include_transparent=include_transparent,
+        )
+    ):
+        if candidate is action:
+            return ActionLinePosition(
+                line_number=line_number,
+                action_index=action_index,
+                ast_id=action.ast_id,
+            )
+    return None
+
+
+def add_trace_act_for_line(
+    registry: SituationRegistry,
+    line_number: int,
+    *,
+    action_index: int = 0,
+    include_transparent: bool = False,
+    transition: TransitionDeclaration | None = None,
+    variable_name: str | None = "P",
+) -> TraceAct:
+    """Создать TraceAct для action на строке и добавить его в registry."""
+    action = require_line_action(
+        registry,
+        line_number,
+        action_index=action_index,
+        include_transparent=include_transparent,
+    )
+    trace_act = TraceAct(
+        action=action,
+        used_transition=_resolve_transition(action, transition),
+        situation=registry,
+    )
+    registry.add(trace_act)
+    if variable_name is not None:
+        registry.variables[variable_name] = trace_act
+    return trace_act
+
+
+def add_trace_act_for_action(
+    registry: SituationRegistry,
+    action: Action,
+    *,
+    transition: TransitionDeclaration | None = None,
+    variable_name: str | None = "P",
+) -> TraceAct:
+    """Создать TraceAct для уже выбранного action и добавить его в registry."""
+    trace_act = TraceAct(
+        action=action,
+        used_transition=_resolve_transition(action, transition),
+        situation=registry,
+    )
+    registry.add(trace_act)
+    if variable_name is not None:
+        registry.variables[variable_name] = trace_act
+    return trace_act
+
+
+def resolve_trace_steps(
+    serializer: LoqiSerializer,
+    selected_trace: list[str],
+) -> list[TraceStep]:
+    """Разрешить шаги loqi-трассы в объекты ситуации.
+
+    Шаг - ``domainInfo`` ответа: имя действия или, у пункта dropdown вызова,
+    ``<имя действия>,<имя SemanticValue>``.
+    """
+    steps: list[TraceStep] = []
+    for step in selected_trace:
+        action_name, _, value_name = step.partition(",")
+        action = serializer.object_by_name(action_name)
+        if not isinstance(action, Action):
+            raise LookupError(
+                f"Expected Action for {action_name!r}, found {type(action).__name__}"
+            )
+        value = serializer.object_by_name(value_name) if value_name else None
+        if value_name and not isinstance(value, SemanticValue):
+            raise LookupError(
+                f"Expected SemanticValue for {value_name!r}, found {type(value).__name__}"
+            )
+        steps.append(TraceStep(action, value))
+    return steps
+
+
+def _resolve_transition(
+    action: Action,
+    transition: TransitionDeclaration | None,
+) -> TransitionDeclaration | None:
+    if transition is not None:
+        return transition
+    transitions = action.possible_transitions()
+    if len(transitions) == 1:
+        return transitions[0]
+    if not transitions:
+        return None
+    raise LookupError(
+        f"Expected explicit transition for action {action.rule.role!r}, found {len(transitions)} candidates"
+    )

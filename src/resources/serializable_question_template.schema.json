@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./src/resources/serializable_question_template.schema.json",
+  "title": "SerializableQuestionTemplate",
+  "description": "Question file for the CompPrehension question bank: one question body and the metadata records that share it. Mirrors SerializableQuestionTemplate (Gson). Differs from it in that statement facts may be given as an RDF Turtle string (statementFactsTTL) instead of the statementFacts list.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["commonQuestion", "metadataList"],
+  "properties": {
+    "commonQuestion": {
+      "$ref": "#/$defs/serializableQuestion"
+    },
+    "metadataList": {
+      "description": "Metadata records of the bank; all of them point to the same commonQuestion body.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/questionMetadata"
+      }
+    }
+  },
+  "$defs": {
+    "serializableQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionData"],
+      "properties": {
+        "questionData": {
+          "$ref": "#/$defs/questionData"
+        },
+        "concepts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "negativeLaws": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "questionData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionType", "questionText", "questionDomainType", "answerObjects"],
+      "properties": {
+        "questionType": {
+          "type": "string",
+          "enum": ["SINGLE_CHOICE", "MULTI_CHOICE", "MATCHING", "ORDER"]
+        },
+        "questionText": {
+          "type": "string"
+        },
+        "questionName": {
+          "description": "Defaults to questionText when omitted.",
+          "type": "string"
+        },
+        "questionDomainType": {
+          "type": "string"
+        },
+        "options": {
+          "description": "Shape depends on questionType.",
+          "type": "object"
+        },
+        "answerObjects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/answerObject" }
+        },
+        "statementFacts": {
+          "description": "Facts of the question statement as subject-verb-object records. Mutually exclusive with statementFactsTTL.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/statementFact" }
+        },
+        "statementFactsTTL": {
+          "description": "Facts of the question statement as an RDF Turtle document. Mutually exclusive with statementFacts. Local names live in the http://www.vstu.ru/poas/code# namespace (its_DomainModel default).",
+          "type": "string",
+          "minLength": 1,
+          "contentMediaType": "text/turtle"
+        }
+      },
+      "oneOf": [
+        { "required": ["statementFacts"] },
+        { "required": ["statementFactsTTL"] }
+      ],
+      "allOf": [
+        {
+          "if": { "properties": { "questionType": { "const": "ORDER" } }, "required": ["questionType"] },
+          "then": { "properties": { "options": { "$ref": "#/$defs/orderOptions" } } }
+        },
+        {
+          "if": { "properties": { "questionType": { "const": "MATCHING" } }, "required": ["questionType"] },
+          "then": { "properties": { "options": { "$ref": "#/$defs/matchingOptions" } } }
+        },
+        {
+          "if": { "properties": { "questionType": { "const": "SINGLE_CHOICE" } }, "required": ["questionType"] },
+          "then": { "properties": { "options": { "$ref": "#/$defs/singleChoiceOptions" } } }
+        },
+        {
+          "if": { "properties": { "questionType": { "const": "MULTI_CHOICE" } }, "required": ["questionType"] },
+          "then": { "properties": { "options": { "$ref": "#/$defs/multiChoiceOptions" } } }
+        }
+      ]
+    },
+    "answerObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answerId"],
+      "properties": {
+        "answerId": { "type": "integer" },
+        "hyperText": { "type": "string" },
+        "domainInfo": { "type": "string" },
+        "isRightCol": { "type": "boolean" },
+        "concept": { "type": "string" }
+      }
+    },
+    "statementFact": {
+      "description": "One RDF triple. Resources are written as local names (op2__4) or prefixed names (rdf:type); literals carry an xsd:* objectType, resources rdf:resource.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "verb", "object"],
+      "properties": {
+        "subjectType": {
+          "description": "Free-form type of the subject; empty when unknown.",
+          "type": "string"
+        },
+        "subject": { "type": "string" },
+        "verb": { "type": "string" },
+        "objectType": {
+          "description": "rdf:resource for a resource, xsd:* for a literal, empty for a plain string.",
+          "type": "string"
+        },
+        "object": { "type": "string" }
+      }
+    },
+    "baseOptions": {
+      "type": "object",
+      "properties": {
+        "requireContext": {
+          "description": "Question text contains answers.",
+          "type": "boolean"
+        },
+        "showSupplementaryQuestions": { "type": "boolean" }
+      }
+    },
+    "orderOptions": {
+      "type": "object",
+      "$ref": "#/$defs/baseOptions",
+      "unevaluatedProperties": false,
+      "properties": {
+        "showTrace": { "type": "boolean" },
+        "multipleSelectionEnabled": { "type": "boolean" },
+        "requireAllAnswers": { "type": "boolean" },
+        "orderNumberOptions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "delimiter": { "type": "string" },
+            "position": {
+              "type": "string",
+              "enum": ["PREFIX", "SUFFIX", "BOTTOM", "NONE"]
+            },
+            "replacers": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "matchingOptions": {
+      "type": "object",
+      "$ref": "#/$defs/baseOptions",
+      "unevaluatedProperties": false,
+      "properties": {
+        "displayMode": {
+          "type": "string",
+          "enum": ["COMBOBOX", "DRAGNDROP"]
+        },
+        "multipleSelectionEnabled": { "type": "boolean" }
+      }
+    },
+    "singleChoiceOptions": {
+      "type": "object",
+      "$ref": "#/$defs/baseOptions",
+      "unevaluatedProperties": false,
+      "properties": {
+        "displayMode": {
+          "type": "string",
+          "enum": ["RADIO", "DRAGNDROP"]
+        }
+      }
+    },
+    "multiChoiceOptions": {
+      "type": "object",
+      "$ref": "#/$defs/baseOptions",
+      "unevaluatedProperties": false,
+      "properties": {
+        "displayMode": {
+          "type": "string",
+          "enum": ["SWITCH", "DRAGNDROP"]
+        },
+        "selectorReplacers": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "questionMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "domainShortname", "templateId"],
+      "properties": {
+        "name": {
+          "description": "Unique question name within the domain.",
+          "type": "string"
+        },
+        "domainShortname": { "type": "string" },
+        "templateId": { "type": "string" },
+        "tagBits": { "type": "integer" },
+        "conceptBits": { "type": "integer" },
+        "lawBits": { "type": "integer" },
+        "violationBits": { "type": "integer" },
+        "traceConceptBits": { "type": "integer" },
+        "skillBits": { "type": "integer" },
+        "solutionStructuralComplexity": { "type": "number" },
+        "integralComplexity": { "type": "number" },
+        "solutionSteps": { "type": "integer", "minimum": 0 },
+        "distinctErrorsCount": { "type": "integer", "minimum": 0 },
+        "version": { "type": "integer" },
+        "structureHash": { "type": "string" },
+        "origin": { "type": "string" },
+        "originLicense": { "type": ["string", "null"] },
+        "dateCreated": {
+          "description": "UTC timestamp in the yyyy-MM-dd'T'HH:mm:ss'Z' format.",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "language": { "type": "string" },
+        "treeHashCode": { "type": "integer" }
+      }
+    }
+  }
+}

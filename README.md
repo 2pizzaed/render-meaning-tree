@@ -1,145 +1,116 @@
 # render-meaning-tree
 
-**render-meaning-tree** — это расширение для проекта [meaning_tree](https://github.com/2pizzaed/meaning_tree), позволяющее преобразовать абстрактное смысловое дерево сразу в наглядный HTML‑интерфейс. В основе визуализации лежит класс StatementFact из репозитория [CompPrehension](https://github.com/CompPrehension/CompPrehension), который собирает детальную информацию о каждом операторе (statement) в дереве.
+Генератор учебных задач на порядок выполнения кода для тренажёра CompPrehension. По фрагменту кода на Python, Java или C++ он строит ситуацию, подбирает значения условий, получает эталонную трассу с помощью рассуждателя по графу мыслительного процесса (TPG) и отбирает задачи для студента.
 
----
+## Основные команды
 
-## Требования
+### `uv run generate-problems` — генерация задач
 
-- `Java 21+`
-- [`uv`](https://github.com/astral-sh/uv)
-- `make`
-- `Python 3.8+` (для модуля визуализации CFG)
-- `NetworkX` и `matplotlib` (автоматически устанавливаются)
+Генерирует задачи по фрагменту кода и печатает отобранные: значения условий, число шагов, оценку Q, скиллы и концепты. Логи pipeline с причинами отказов пишутся в stderr.
+
+```bash
+uv run generate-problems snippet.py                         # язык по умолчанию: python
+uv run generate-problems Snippet.java --language java
+uv run generate-problems snippet.py --target-language java  # задачи на переводе фрагмента в Java
+uv run generate-problems snippet.py --output out/           # сохранить вопросы CompPrehension в JSON
+```
+
+Другие опции: `--seed`, `--top-k`, `--selection score|random`, `--origin` и `--origin-license` (источник фрагмента для метаданных вопроса).
+
+Значения условий можно задать вручную маркером в конце строки заголовка: `while i < n:  # <! TTF >`. Для условий внутри рекурсивных функций разметка обязательна. Подробнее — в [docs/generator_pipeline.md](docs/generator_pipeline.md).
+
+### `uv run playground` — интерактивная проверка
+
+Веб-интерфейс (Flask, по умолчанию <http://127.0.0.1:5000>) для ручной проверки домена и генератора:
+
+- загрузить фрагмент из `test/data` или вставить свой, выбрать язык и, при необходимости, язык перевода;
+- с seed — открыть сгенерированную задачу, без seed — ситуацию со значениями по умолчанию;
+- решать задачу кнопками действий: Reason проверяет шаг, Hint подсказывает следующий;
+- посмотреть эталонную трассу и экспортировать задачу как вопрос CompPrehension.
+
+Опции: `--host`, `--port`, `--snippets-dir`, `--no-debug`.
 
 ## Установка
 
-```bash
-# 0. Склонируйте репозиторий
-git clone --recurse-submodules -j8 https://github.com/2pizzaed/render-meaning-tree.git
-  # или ...
-git clone --recurse-submodules -j8 git@github.com:2pizzaed/render-meaning-tree.git
-cd render-meaning-tree
-
-# 1. Сборка core‑модуля meaning_tree
-make mt
-
-# 2. Генерация HTML‑визуализации AST
-make run
-
-# 3. Запуск тестов
-make test
-```
-
----
-
-## Запуск:
+Нужны: [uv](https://docs.astral.sh/uv/), JDK и Maven, Git. На Windows скрипты запускаются в Git Bash. Для SVG-схем трассы в playground нужен [Graphviz](https://graphviz.org/) (`dot` в `PATH`).
 
 ```bash
-uv run main.py \
-  --file examples/Sample.java \
-  --output result          \
-  --cfg                    \
-  --analyze
+git clone --recurse-submodules <адрес этого репозитория> && cd render-meaning-tree
+uv sync
+cp .env.example .env    # затем прописать пути, см. ниже
 ```
 
-**Опции:**
-- `-f, --file` - путь до файла с исходным кодом
-- `-c, --code "<строка кода>"` - обработать код из переданной строки вместо файла
-- `-o, --output <имя>` - имя выходного `.html` файла, по умолчанию `result`
-- `-g, --cfg` - сгенерировать и сохранить граф потока управления (Control Flow Graph)
-- `-a, --analyze` - вывести в консоль статистику: количество базовых блоков, редуцируемость, количество заголовков циклов, обратных и критических рёбер и т. д.
+Подмодуль `meaning_tree/` — это Meaning Tree, транслятор кода в универсальное AST. Рассуждатель и модель домена — отдельные проекты `its_DomainModel` и `its_Reasoner`, их нужно склонировать рядом.
 
-### Пример
-```bash
-uv run main.py -c "a = 10; if (b > 10) { a = b; c = 10; }"
-```
-В результате в файл `result.html` сохраняется графическое представление данного фрагмента кода, а в консоль выводится следующая информация:
-```python
-CompPrehensionQuestion(type='',
-                       name='',
-                       statement_facts=[StatementFact(subject_id=19,
-                                                      subject_type='program_entry_point',
-                                                      verb='parent_of',
-                                                      object_id=4,
-                                                      object_type='assignment_statement'),
-                                        StatementFact(subject_id=19,
-                                                      subject_type='program_entry_point',
-                                                      verb='parent_of',
-                                                      object_id=17,
-                                                      object_type='if_statement'),
-                                        StatementFact(subject_id=4,
-                                                      subject_type='assignment_statement',
-                                                      verb='next_sibling',
-                                                      object_id=17,
-                                                      object_type='if_statement'),
-                                        StatementFact(subject_id=17,
-                                                      subject_type='if_statement',
-                                                      verb='branches_item',
-                                                      object_id=18,
-                                                      object_type='condition_branch')])
-```
+### Сборка Java-библиотек: `build_libs.sh`
 
-### Пример с глубокой вложенностью
-```bash
-python  main.py -c "a = 10; if (b > 10) if (X) if (Y) if (Z) if (W) if (N) if(M) { a = b; c = 10; }"
-````
-
----
-
-## Архитектура
-
-Проект построен по принципу разделения на два основных слоя: ядро анализа и парсинга (Java, папка `meaning_tree/`) и слой визуализации и инструментов (Python, папка `src/` и основной скрипт `main.py`). Взаимодействие между слоями происходит через сериализацию AST в JSON/словарь и дальнейшую обработку в Python.
-
-### Ядро анализа и парсинга (Java, `meaning_tree/`)
-- **Парсер и AST:** В директории `meaning_tree/` реализованы парсер исходного кода (Java, Python, C++ и др.) и построение абстрактного синтаксического дерева (AST). Каждый язык поддерживается отдельным модулем (`languages/java/JavaLanguage.java`, `languages/python/PythonLanguage.java` и т.д.).
-- **Узлы AST:** Для каждого типа синтаксической конструкции реализован свой класс-узел (например, `nodes/expressions/BinaryExpression.java`, `nodes/statements/CompoundStatement.java`).
-- **Сериализация:** AST сериализуется в JSON или структуру, пригодную для передачи в Python.
-- **Расширяемость:** Для добавления нового языка или конструкции достаточно реализовать соответствующий класс и зарегистрировать его в фабрике парсера.
-
-### Слой визуализации и инструментов (Python, `src/`, `main.py`)
-- **Рендеринг AST:** Модуль `src/renderer.py` содержит класс `Renderer`, который с помощью декоратора `@r.node(type=...)` регистрирует функции-обработчики для разных типов AST-узлов. Это позволяет гибко наращивать поддержку новых конструкций без изменения основной логики.
-- **Генерация HTML:** Для визуализации используется Jinja2 и шаблоны из папки `templates/`. Каждый узел AST преобразуется в HTML с подсветкой синтаксиса и разметкой по шаблону.
-- **Генерация CFG:** Модуль `src/cfg.py` строит граф потока управления (Control Flow Graph) на основе AST.
-- **Визуализация CFG:** Модуль `src/cfg/cfg_visualizer.py` создаёт наглядные изображения CFG с использованием NetworkX и matplotlib, отображая структуру графа с информацией о kind узлов, AST ID и constraints на рёбрах.
-- **Сериализация и отладка:** Модули в `src/serializers/` позволяют сериализовать AST для отладки или интеграции с внешними инструментами.
-
-### Взаимодействие компонентов
-1. Пользователь запускает `main.py`, передавая исходный код или файл.
-2. Код парсится Java-модулем, AST сериализуется и передаётся в Python.
-3. Python-слой визуализирует AST, строит HTML и (опционально) CFG.
-4. Результаты сохраняются в виде HTML-файла и/или PNG-графа.
-
-## Визуализация CFG
-
-Для создания изображений графов потока управления используйте модуль `src/cfg/cfg_visualizer.py`:
-
-```python
-from src.cfg.cfg_visualizer import visualize_cfg
-from src.cfg.cfg_builder import CFGBuilder
-from src.cfg.abstractions import load_constructs
-from src.cfg.ast_wrapper import ASTNodeWrapper
-
-# Загрузка конструкций и создание CFG
-constructs = load_constructs()
-builder = CFGBuilder(constructs)
-
-# Создание CFG из AST
-wrapped_ast = ASTNodeWrapper(ast_node=your_ast_data)
-cfg = builder.make_cfg_for_ast(wrapped_ast)
-
-# Визуализация
-if cfg:
-    output_file = visualize_cfg(cfg, "my_cfg.png")
-    print(f"CFG сохранён: {output_file}")
-```
-
-### Запуск тестов визуализации
+Собирает библиотеки через `mvn clean install` в локальный репозиторий Maven (`~/.m2`), а затем пересобирает RPC-сервер (`rpc_server.sh build`).
 
 ```bash
-# Все тесты модуля визуализации
-python test/test_cfg_visualizer.py
-
-# Конкретный тест (воспроизводит создание example_cfg.png)
-python -m unittest test.test_cfg_visualizer.TestCFGVisualizer.test_visualize_cfg_from_ast -v
+./build_libs.sh          # всё: its_DomainModel, its_Reasoner, meaning_tree
+./build_libs.sh tpg      # только its_DomainModel и its_Reasoner
+./build_libs.sh mt       # только meaning_tree
 ```
+
+Пути задаются в `.env`:
+
+| Переменная | Значение |
+| --- | --- |
+| `ITS_DOMAINMODEL_PATH` | каталог `its_DomainModel` |
+| `ITS_REASONER_PATH` | каталог `its_Reasoner` |
+| `MEANING_TREE_PATH` | каталог Meaning Tree, по умолчанию `./meaning_tree` |
+
+### RPC-сервер: `rpc_server.sh`
+
+Python-часть вызывает Java-инструменты (Meaning Tree, its_DomainModel, its_Reasoner) одним из двух способов:
+
+- `cli` — запуск JAR из `~/.m2` отдельным процессом на каждый вызов. Работает без сервера, но каждый вызов заново поднимает JVM, а генерация одного фрагмента вызывает рассуждатель десятки и сотни раз;
+- `rpc` — вызовы по JSON-RPC к постоянно запущенному `compph-toolchain-server`. Это намного быстрее, поэтому рекомендуется. Тот же сервер отдаёт MCP-инструменты для агентов (`/mcp`, см. `.mcp.json`).
+
+```bash
+./rpc_server.sh build            # собрать сервер (mvn package)
+./rpc_server.sh start [--build]  # запустить в фоне, лог — .rpc_server.log
+./rpc_server.sh status
+./rpc_server.sh stop
+```
+
+Настройки в `.env`:
+
+| Переменная | Значение |
+| --- | --- |
+| `TOOLCHAIN_SERVER_PATH` | каталог проекта `compph-toolchain-server` (обязательно) |
+| `JSON_RPC_TOOLCHAIN_PORT`, `JSON_RPC_TOOLCHAIN_HOST` | порт и адрес, на которых запускается сервер |
+| `JSON_RPC_TOOLCHAIN_SERVER` | адрес, по которому к серверу обращается Python, например `http://localhost:9001`; порт должен совпадать с `JSON_RPC_TOOLCHAIN_PORT` |
+| `JSON_RPC_TOOLCHAIN_ACCESS_SECRET` | общий секрет; пусто, если сервер без секрета |
+| `TOOLCHAIN_BACKEND` | `rpc`, `cli` или `auto` (RPC, если сервер доступен, иначе CLI); переопределения для отдельных инструментов — `MEANING_TREE_BACKEND`, `TPG_BACKEND` |
+| `TOOLCHAIN_LOCAL_FILES` | `true` — передавать серверу пути к файлам вместо содержимого; только для локального сервера с `LOCAL_FILES_DISCOVERY=true` |
+
+После изменения Java-библиотек сервер нужно пересобрать и перезапустить: `./build_libs.sh …`, затем `./rpc_server.sh stop && ./rpc_server.sh start`.
+
+## Для разработчиков
+
+Проверки:
+
+```bash
+uv run pytest            # все тесты; make test — параллельно (xdist) и затем serial-тесты
+uv run ruff check .
+uv run pyright
+```
+
+Инструменты отладки:
+
+| Команда | Назначение |
+| --- | --- |
+| `uv run playground-e2e FILE [--seed N] [--target-language LANG]` | e2e-прогон playground без сервера: кнопки + Reason до конца программы, затем сверка Hint на каждом шаге |
+| `uv run annotate-trace FILE` | выполнить Python-фрагмент и вывести его с маркерами `<! … >` по реальной трассе |
+| `uv run find-correct-trace-actions` | последовательность действий findCorrect для фрагмента |
+| `uv run render-construct-automaton` | автомат переходов конструкции по правилам из `src/resources/constructs.yml` |
+| `uv run tree-loqi-to-xml` | перевести дерево TPG/LOQI в XML для диагностики синтаксиса |
+| `uv run validate-dsm` | проверить модель домена (DomainSolvingModel) |
+
+Структура:
+
+- `src/` — генератор (`src/generator/`), модель ситуации, сериализация в LOQI, клиенты Meaning Tree и TPG;
+- `domain/` — домен и графы рассуждений (`main.tpg`, `findCorrect.tpg`, `domain.loqi`);
+- `test/playground/` — playground, `test/tools/` — инструменты отладки, `test/data/` — фрагменты кода;
+- `docs/` — документация: pipeline генератора ([generator_pipeline.md](docs/generator_pipeline.md)), домен ([domain.md](docs/domain.md)), графы проверки и поиска правильного шага ([check_graph_idea.md](docs/check_graph_idea.md), [findCorrect_graph_idea.md](docs/findCorrect_graph_idea.md)).

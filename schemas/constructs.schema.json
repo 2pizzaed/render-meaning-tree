@@ -1,0 +1,812 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schemas/constructs.schema.json",
+  "title": "CtrlFlow Domain Rules",
+  "description": "Schema for constructs.yml",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+  },
+  "additionalProperties": {
+    "oneOf": [
+      {
+        "$ref": "#/$defs/construct"
+      },
+      {
+        "$ref": "#/$defs/sharedDefinition"
+      }
+    ]
+  },
+  "$defs": {
+    "sharedDefinition": {
+      "description": "Top-level reusable YAML anchor value. It is not treated as a construct by the loader.",
+      "oneOf": [
+        {
+          "type": "array"
+        },
+        {
+          "type": "object",
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "required": [
+                  "ast_node"
+                ]
+              }
+            ]
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "astNode": {
+      "description": "Single AST node kind, a list of AST node kinds, or an AST node query object.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/stringList"
+        },
+        {
+          "$ref": "#/$defs/astNodeInstanceOf"
+        },
+        {
+          "$ref": "#/$defs/astNodePredicate"
+        }
+      ]
+    },
+    "astNodeType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/astNodeInstanceOf"
+        },
+        {
+          "$ref": "#/$defs/stringList"
+        }
+      ]
+    },
+    "astNodeInstanceOf": {
+      "type": "object",
+      "properties": {
+        "instanceof": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/stringList"
+            }
+          ]
+        }
+      },
+      "required": [
+        "instanceof"
+      ],
+      "additionalProperties": false
+    },
+    "jsonValue": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    },
+    "astNodePredicate": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/astNodeQueryCondition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeQueryCondition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/astNodeAtomicTypeOnly"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicExists"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicEquals"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicLength"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicContains"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicContainsAny"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicCallsProgramProcedure"
+        },
+        {
+          "$ref": "#/$defs/astNodeAtomicParentType"
+        },
+        {
+          "$ref": "#/$defs/astNodeAnd"
+        },
+        {
+          "$ref": "#/$defs/astNodeOr"
+        },
+        {
+          "$ref": "#/$defs/astNodeNot"
+        }
+      ]
+    },
+    "astNodeAnd": {
+      "type": "object",
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/astNodeQueryCondition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "and"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeOr": {
+      "type": "object",
+      "properties": {
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/astNodeQueryCondition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "or"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeNot": {
+      "type": "object",
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/astNodeQueryCondition"
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicTypeOnly": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicExists": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "exists": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "type",
+        "exists"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicCallsProgramProcedure": {
+      "type": "object",
+      "description": "Путь к узлу вызова; условие истинно, если вызывается процедура (пока только функция) с телом из кода программы (CodeManager.program_procedure_definition).",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "calls_program_procedure": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "type",
+        "calls_program_procedure"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicParentType": {
+      "type": "object",
+      "description": "Тип родительского узла AST (строка или список точных типов): так тело ветки case отличается от других блоков.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "parent_type": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/stringList"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "parent_type"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicEquals": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "equals": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "required": [
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "equals"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicLength": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "length": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "equals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "anyOf": [
+            {
+              "required": [
+                "equals"
+              ]
+            },
+            {
+              "required": [
+                "min"
+              ]
+            },
+            {
+              "required": [
+                "max"
+              ]
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "length"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicContains": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "contains": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "required": [
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "contains"
+      ],
+      "additionalProperties": false
+    },
+    "astNodeAtomicContainsAny": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/astNodeType"
+        },
+        "contains_any": {
+          "$ref": "#/$defs/containsAnyExpression"
+        }
+      },
+      "required": [
+        "type",
+        "contains_any"
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyExpression": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/containsAnyPredicate"
+        },
+        {
+          "$ref": "#/$defs/containsAnyAnd"
+        },
+        {
+          "$ref": "#/$defs/containsAnyOr"
+        },
+        {
+          "$ref": "#/$defs/containsAnyNot"
+        }
+      ]
+    },
+    "containsAnyPredicate": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "$ref": "#/$defs/jsonValue"
+        },
+        "value_in": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "value"
+                ]
+              },
+              {
+                "required": [
+                  "value_in"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "value"
+          ],
+          "not": {
+            "required": [
+              "value_in"
+            ]
+          }
+        },
+        {
+          "required": [
+            "value_in"
+          ],
+          "not": {
+            "required": [
+              "value"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyAnd": {
+      "type": "object",
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/containsAnyExpression"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "and"
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyOr": {
+      "type": "object",
+      "properties": {
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/containsAnyExpression"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "or"
+      ],
+      "additionalProperties": false
+    },
+    "containsAnyNot": {
+      "type": "object",
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/containsAnyExpression"
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "locale_trace_name": {
+          "type": "string"
+        },
+        "locale_pronoun": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "identification": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string",
+          "enum": [
+            "parent",
+            "previous"
+          ]
+        },
+        "property": {
+          "type": "string",
+          "minLength": 1
+        },
+        "property_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role_in_list": {
+          "type": "string",
+          "enum": [
+            "first_in_list",
+            "next_in_list"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "behaviour": {
+      "type": "object",
+      "properties": {
+        "assumed_value": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "interruption_start": {
+          "type": "string",
+          "enum": [
+            "break",
+            "continue",
+            "return",
+            "exception"
+          ]
+        },
+        "interruption_stop": {
+          "type": "string",
+          "enum": [
+            "break",
+            "continue",
+            "return",
+            "exception"
+          ]
+        },
+        "call_stack": {
+          "type": "string",
+          "enum": [
+            "add_frame",
+            "drop_frame"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "interruption_start"
+          ]
+        },
+        {
+          "required": [
+            "interruption_stop"
+          ]
+        },
+        {
+          "required": [
+            "call_stack"
+          ]
+        }
+      ]
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "condition_value": {
+          "type": "boolean"
+        },
+        "interruption_mode": {
+          "type": "string",
+          "enum": [
+            "any",
+            "no_interruption",
+            "break",
+            "continue",
+            "return",
+            "exception"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "roleTarget": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$|^BEGIN$|^END$"
+    },
+    "toWhenAbsent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/roleTarget"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/roleTarget"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/roleTarget"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+        },
+        "opaque": {
+          "type": "boolean"
+        },
+        "identification": {
+          "$ref": "#/$defs/identification"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "generalization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "behaviour": {
+          "$ref": "#/$defs/behaviour"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "role",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "transition": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/roleTarget"
+        },
+        "to": {
+          "$ref": "#/$defs/roleTarget"
+        },
+        "to_when_absent": {
+          "$ref": "#/$defs/toWhenAbsent"
+        },
+        "constraints": {
+          "$ref": "#/$defs/constraints"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "construct": {
+      "type": "object",
+      "properties": {
+        "disabled": {
+          "type": "boolean"
+        },
+        "applicable_languages": {
+          "$ref": "#/$defs/stringList"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+        },
+        "preorder": {
+          "description": "The construct is unfolded before the action that spawns it: that action is appended to the trace after the construct's END (nested calls run first).",
+          "type": "boolean"
+        },
+        "ast_node": {
+          "$ref": "#/$defs/astNode"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "effects": {
+          "description": "Effect of the statement itself, carried by the action that represents the node in its parent. Allowed only for atomic inline and preorder constructs; inside a compound construct declare effects on actions or transitions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "minItems": 1
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transition"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "kind",
+        "ast_node"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

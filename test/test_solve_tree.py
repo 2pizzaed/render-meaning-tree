@@ -1,0 +1,1882 @@
+import textwrap
+from pathlib import Path
+from typing import cast
+
+import pytest
+
+from src.generator.helpers import (
+    line_actions,
+    require_line_action,
+)
+from src.generator.registry import SituationRegistry
+from src.generator.utilities import code_snippet_to_registry
+from src.helpers.files import open_file_and_wait, resolve_project_root
+from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
+from src.model.rules import InterruptionType
+from src.model.situation import Action, SemanticValue, TraceAct
+from src.tpg_domain import ReasoningResult
+from test.helpers import (
+    pipeline_debug_json_artifacts,
+    registries_to_loqi_files,
+    render_trace_acts_artifacts,
+    should_open_test_artifacts,
+)
+
+pytestmark = [pytest.mark.serial, pytest.mark.xdist_group("solve_tree")]
+
+TREE_NAME = "findCorrect"
+ActionValuePatches = dict[tuple[int, int], list[bool]]
+SequenceCase = tuple[
+    str,
+    str,
+    dict[int, list[str]] | None,
+    list[tuple[int, int]],
+    str,
+    ActionValuePatches | None,
+]
+
+# TODO: данные тестов пока не валидны!
+SEQUENCE_CASES: list[tuple[object, ...]] = [
+    (
+        "python",
+        """
+        if x == 1:
+            x = 1
+        elif x == 2:
+            x = 2
+        elif x == 3:
+            x = 3
+        else:
+            x = 4
+        y = x
+        """,
+        {
+            1: ["first", "first_cond"],
+            2: ["if_branch", "first"],
+            3: ["next_cond"],
+            4: ["if_branch", "first"],
+            5: ["next_cond"],
+            6: ["if_branch", "first"],
+            8: ["else_branch", "first"],
+            9: ["next"],
+        },
+        [(1, 1), (3, 0), (5, 0), (8, 1), (9, 0)],
+        "python_if_elseif_elseif_else.loqi",
+        {
+            (1, 1): [False],
+            (3, 0): [False],
+            (5, 0): [False],
+        },
+    ),
+    (
+        "python",
+        """
+        if x == 1:
+            x = 1
+        elif x == 2:
+            x = 2
+        elif x == 3:
+            x = 3
+        y = x
+        """,
+        {
+            1: ["first", "first_cond"],
+            2: ["if_branch", "first"],
+            3: ["next_cond"],
+            4: ["if_branch", "first"],
+            5: ["next_cond"],
+            6: ["if_branch", "first"],
+            7: ["next"],
+        },
+        [(1, 1), (3, 0), (5, 0), (6, 1), (7, 0)],
+        "python_if_elseif_elseif.loqi",
+        {
+            (1, 1): [False],
+            (3, 0): [False],
+            (5, 0): [True],
+        },
+    ),
+    (
+        "python",
+        """
+        if x == 1:
+            x = 1
+        y = x
+        """,
+        {
+            1: ["first", "first_cond"],
+            2: ["if_branch", "first"],
+            3: ["next"],
+        },
+        [(1, 1), (2, 1), (3, 0)],
+        "python_if_only.loqi",
+    ),
+    (
+        "python",
+        """
+        for value in values:
+            total = total + value
+        result = total
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first"],
+            3: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (3, 0)],
+        "python_for_each.loqi",
+    ),
+    (
+        "python",
+        """
+        for i in range(3):
+            total = total + i
+        result = total
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first"],
+            3: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (3, 0)],
+        "python_for_range.loqi",
+    ),
+    (
+        "python",
+        """
+        while flag:
+            break
+        x = 1
+        """,
+        {
+            1: ["first", "cond"],
+            2: ["body", "first"],
+            3: ["next"],
+        },
+        [(1, 1), (2, 1), (3, 0)],
+        "python_break.loqi",
+    ),
+    (
+        "python",
+        """
+        while flag:
+            continue
+        x = 1
+        """,
+        {
+            1: ["first", "cond"],
+            2: ["body", "first"],
+            3: ["next"],
+        },
+        [(1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (3, 0)],
+        "python_continue.loqi",
+    ),
+    (
+        "python",
+        """
+        def g(x):
+            return x + 1
+
+        def f(x):
+            return g(x)
+
+        result = f(1)
+        """,
+        {
+            1: ["func"],
+            2: ["func_body", "first"],
+            5: ["func"],
+            6: ["func_body", "first", "BEGIN", "END"],
+            9: ["first", "BEGIN", "END"],
+        },
+        # вызов выполняется раньше породившего его действия (preorder):
+        # BEGIN(f) -> BEGIN(g) -> return x+1 -> END(g) -> return g(x) -> END(f) -> result = f(1)
+        [(9, 1), (6, 2), (2, 1), (6, 3), (6, 1), (9, 2), (9, 0)],
+        "python_sequential_function_calls.loqi",
+    ),
+    (
+        "c++",
+        """
+        int x = 2;
+        if (x == 1) {
+            x = 10;
+        } else if (x == 2) {
+            x = 20;
+        } else if (x == 3) {
+            x = 30;
+        } else {
+            x = 40;
+        }
+        int y = x;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next_cond"],
+            7: ["BEGIN", "END"],
+            8: ["first"],
+            10: ["next_cond"],
+            11: ["BEGIN", "END"],
+            12: ["first"],
+        },
+        [(1, 0), (2, 1), (6, 0), (10, 0), (15, 0), (16, 0), (15, 1), (18, 0)],
+        "cpp_if_elseif_elseif_else.loqi",
+        {
+            (2, 1): [False],
+            (6, 0): [False],
+            (10, 0): [False],
+        },
+    ),
+    (
+        "c++",
+        """
+        int x = 2;
+        if (x == 1) {
+            x = 10;
+        } else if (x == 2) {
+            x = 20;
+        } else if (x == 3) {
+            x = 30;
+        }
+        int y = x;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next_cond"],
+            7: ["BEGIN", "END"],
+            8: ["first"],
+            10: ["next_cond"],
+        },
+        [(1, 0), (2, 1), (6, 0), (10, 0), (11, 0), (12, 0), (11, 1), (14, 0)],
+        "cpp_if_elseif_elseif.loqi",
+        {
+            (2, 1): [False],
+            (6, 0): [False],
+            (10, 0): [True],
+        },
+    ),
+    (
+        "c++",
+        """
+        int x = 1;
+        if (x == 1) {
+            x = 10;
+        }
+        int y = x;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next"],
+        },
+        [(1, 0), (2, 1), (3, 0), (4, 0), (3, 1), (6, 0)],
+        "cpp_if_only.loqi",
+    ),
+    (
+        "c++",
+        """
+        int total = 0;
+        for (int value : values) {
+            total = total + value;
+        }
+        int result = total;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond", "init"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next"],
+        },
+        [
+            (1, 0),
+            (2, 2),
+            (2, 1),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+            (6, 0),
+        ],
+        "cpp_for_each.loqi",
+    ),
+    (
+        "c++",
+        """
+        int total = 0;
+        for (int i = 0; i < 3; i = i + 1) {
+            total = total + i;
+        }
+        int result = total;
+        """,
+        None,
+        [
+            (1, 0),
+            (2, 1),
+            (2, 2),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 3),
+            (2, 2),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 3),
+            (2, 2),
+            (6, 0),
+        ],
+        "cpp_general_for.loqi",
+    ),
+    (
+        "c++",
+        """
+        int total = 0;
+        int i = 0;
+        for (; i < 3; i = i + 1) {
+            total = total + i;
+        }
+        int result = total;
+        """,
+        None,
+        [
+            (1, 0),
+            (2, 0),
+            (3, 1),
+            (4, 0),
+            (5, 0),
+            (4, 1),
+            (3, 2),
+            (3, 1),
+            (4, 0),
+            (5, 0),
+            (4, 1),
+            (3, 2),
+            (3, 1),
+            (7, 0),
+        ],
+        "cpp_general_for_missing_init.loqi",
+    ),
+    (
+        "c++",
+        """
+        bool flag = true;
+        while (flag) {
+            break;
+        }
+        int x = 1;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next"],
+        },
+        [(1, 0), (2, 1), (3, 0), (4, 0), (6, 0)],
+        "cpp_break.loqi",
+    ),
+    (
+        "c++",
+        """
+        bool flag = true;
+        while (flag) {
+            continue;
+        }
+        int x = 1;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next"],
+        },
+        [
+            (1, 0),
+            (2, 1),
+            (3, 0),
+            (4, 0),
+            (2, 1),
+            (3, 0),
+            (4, 0),
+            (2, 1),
+            (6, 0),
+        ],
+        "cpp_continue.loqi",
+    ),
+    (
+        "c++",
+        """
+        int g(int x) {
+            return x + 1;
+        }
+        int f(int x) {
+            return g(x);
+        }
+        int main() {
+            int result = f(1);
+            return result;
+        }
+        """,
+        {
+            1: ["func"],
+            2: ["BEGIN", "END"],
+            3: ["first"],
+            5: ["func"],
+            6: ["BEGIN", "END"],
+            7: ["first", "BEGIN", "END"],
+            10: [],
+            11: ["first", "BEGIN", "END"],
+            12: ["next"],
+        },
+        [
+            (11, 1),
+            (6, 0),
+            (7, 1),
+            (2, 0),
+            (3, 0),
+            (7, 2),
+            (7, 0),
+            (11, 2),
+            (11, 0),
+            (12, 0),
+        ],
+        "cpp_sequential_function_calls.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int x = 2;
+                if (x == 1) {
+                    x = 10;
+                } else if (x == 2) {
+                    x = 20;
+                } else if (x == 3) {
+                    x = 30;
+                } else {
+                    x = 40;
+                }
+                int y = x;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next_cond", "BEGIN", "END"],
+            6: ["first"],
+            8: ["next_cond", "BEGIN", "END"],
+            9: ["first"],
+            11: ["BEGIN", "END"],
+            12: ["first"],
+            14: ["next"],
+        },
+        [(1, 0), (2, 1), (5, 0), (8, 0), (11, 0), (12, 0), (11, 1), (14, 0)],
+        "java_if_elseif_elseif_else.loqi",
+        {
+            (2, 1): [False],
+            (5, 0): [False],
+            (8, 0): [False],
+        },
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int x = 2;
+                if (x == 1) {
+                    x = 10;
+                } else if (x == 2) {
+                    x = 20;
+                } else if (x == 3) {
+                    x = 30;
+                }
+                int y = x;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next_cond", "BEGIN", "END"],
+            6: ["first"],
+            8: ["next_cond", "BEGIN", "END"],
+            9: ["first"],
+            11: ["next"],
+        },
+        [(1, 0), (2, 1), (5, 0), (8, 0), (8, 1), (9, 0), (8, 2), (11, 0)],
+        "java_if_elseif_elseif.loqi",
+        {
+            (2, 1): [False],
+            (5, 0): [False],
+            (8, 0): [True],
+        },
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int x = 1;
+                if (x == 1) {
+                    x = 10;
+                }
+                int y = x;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next"],
+        },
+        [(1, 0), (2, 1), (2, 2), (3, 0), (2, 3), (5, 0)],
+        "java_if_only.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int total = 0;
+                for (int value : values) {
+                    total = total + value;
+                }
+                int result = total;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond", "init", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next"],
+        },
+        [
+            (1, 0),
+            (2, 2),
+            (2, 1),
+            (2, 3),
+            (3, 0),
+            (2, 4),
+            (2, 1),
+            (2, 3),
+            (3, 0),
+            (2, 4),
+            (2, 1),
+            (5, 0),
+        ],
+        "java_for_each.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int total = 0;
+                for (int i = 0; i < 3; i = i + 1) {
+                    total = total + i;
+                }
+                int result = total;
+            }
+        }
+        """,
+        None,
+        [
+            (1, 0),
+            (2, 1),
+            (2, 2),
+            (2, 4),
+            (3, 0),
+            (2, 5),
+            (2, 3),
+            (2, 2),
+            (2, 4),
+            (3, 0),
+            (2, 5),
+            (2, 3),
+            (2, 2),
+            (5, 0),
+        ],
+        "java_general_for.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int total = 0;
+                int i = 0;
+                for (; i < 3; i = i + 1) {
+                    total = total + i;
+                }
+                int result = total;
+            }
+        }
+        """,
+        None,
+        [
+            (1, 0),
+            (2, 0),
+            (3, 1),
+            (3, 3),
+            (4, 0),
+            (3, 4),
+            (3, 2),
+            (3, 1),
+            (3, 3),
+            (4, 0),
+            (3, 4),
+            (3, 2),
+            (3, 1),
+            (6, 0),
+        ],
+        "java_general_for_missing_init.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                boolean flag = true;
+                while (flag) {
+                    break;
+                }
+                int x = 1;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next"],
+        },
+        [(1, 0), (2, 1), (2, 2), (3, 0), (5, 0)],
+        "java_break.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                boolean flag = true;
+                while (flag) {
+                    continue;
+                }
+                int x = 1;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next"],
+        },
+        [
+            (1, 0),
+            (2, 1),
+            (2, 2),
+            (3, 0),
+            (2, 1),
+            (2, 2),
+            (3, 0),
+            (2, 1),
+            (5, 0),
+        ],
+        "java_continue.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static int g(int x) {
+                return x + 1;
+            }
+            static int f(int x) {
+                return g(x);
+            }
+            static void main(String[] args) {
+                int result = f(1);
+            }
+        }
+        """,
+        {
+            1: ["func", "BEGIN", "END"],
+            2: ["first"],
+            5: ["func", "BEGIN", "END"],
+            6: ["first", "BEGIN", "END"],
+            9: [],
+            10: ["first", "BEGIN", "END"],
+        },
+        [
+            (10, 1),
+            (5, 1),
+            (6, 1),
+            (1, 1),
+            (2, 0),
+            (6, 2),
+            (6, 0),
+            (10, 2),
+            (10, 0),
+        ],
+        "java_sequential_function_calls.loqi",
+    ),
+    (
+        "python",
+        """
+        if True:
+            x = 1
+        else:
+            x = 2
+        y = 3
+        """,
+        {
+            1: ["first", "first_cond"],
+            2: ["if_branch", "first"],
+            4: ["else_branch", "first"],
+            5: ["next"],
+        },
+        [(1, 1), (2, 1), (5, 0)],
+        "python_if_else.loqi",
+    ),
+    (
+        "python",
+        """
+        i = 0
+        while i < 2:
+            i = i + 1
+        x = i
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["body", "first"],
+            4: ["next"],
+        },
+        [(1, 0), (2, 1), (3, 1), (2, 1), (3, 1), (2, 1), (4, 0)],
+        "python_while.loqi",
+    ),
+    (
+        "python",
+        """
+        def add(a, b):
+            return a + b
+
+        x = add(1, 2)
+        """,
+        {
+            1: ["func"],
+            2: ["func_body", "first"],
+            5: ["first", "BEGIN", "END"],
+        },
+        # preorder: вызов целиком выполняется раньше оператора, который его содержит
+        [(5, 1), (2, 1), (5, 2), (5, 0)],
+        "python_function_call.loqi",
+    ),
+    (
+        # Вызов внутри условия: значение условия становится известно только после
+        # возврата из вызова, поэтому first_cond выполняется ПОСЛЕ END вызова
+        # (иначе значение условия расходуется до вызова и переход по нему не найти).
+        "python",
+        """
+        def f(x):
+            return x
+
+        if f(1):
+            y = 2
+        z = 3
+        """,
+        {
+            1: ["func"],
+            2: ["func_body", "first"],
+            5: ["first", "BEGIN", "END", "first_cond"],
+            6: ["if_branch", "first"],
+            7: ["next"],
+        },
+        [(5, 1), (2, 1), (5, 2), (5, 3), (6, 1), (7, 0)],
+        "python_if_condition_call.loqi",
+    ),
+    (
+        # return с вызовом: прерывание return начинается на самом операторе return,
+        # который выполняется после завершения вложенного вызова, поэтому код
+        # после return (строка 7) в трассу не попадает.
+        "python",
+        """
+        def g(x):
+            return x + 1
+
+        def f(x):
+            return g(x)
+            y = 5
+
+        result = f(1)
+        """,
+        {
+            1: ["func"],
+            2: ["func_body", "first"],
+            5: ["func"],
+            6: ["func_body", "first", "BEGIN", "END"],
+            7: ["next"],
+            10: ["first", "BEGIN", "END"],
+        },
+        [(10, 1), (6, 2), (2, 1), (6, 3), (6, 1), (10, 2), (10, 0)],
+        "python_return_compound_interruption.loqi",
+    ),
+    (
+        "c++",
+        """
+        bool cond = true;
+        if (cond) {
+            int x = 1;
+        }
+        int y = 0;
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond"],
+            3: ["BEGIN", "END"],
+            4: ["first"],
+            6: ["next"],
+        },
+        [(1, 0), (2, 1), (3, 0), (4, 0), (3, 1), (6, 0)],
+        "cpp_if.loqi",
+    ),
+    (
+        "c++",
+        """
+        bool cond = true;
+        while (cond) {
+            cond = false;
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["BEGIN", "END"],
+        },
+        [
+            (1, 0),
+            (2, 1),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (2, 1),
+        ],
+        "cpp_while.loqi",
+    ),
+    (
+        "c++",
+        """
+        int add(int a, int b) {
+            return a + b;
+        }
+        int main() {
+            int x = add(1, 2);
+            return x;
+        }
+        """,
+        {
+            1: ["func"],
+            2: ["BEGIN", "END"],
+            3: ["first"],
+            6: [],
+            7: ["first", "BEGIN", "END"],
+            8: ["next"],
+        },
+        [(7, 1), (2, 0), (3, 0), (7, 2), (7, 0), (8, 0)],
+        "cpp_function_call.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int x = 0;
+                if (x == 0) {
+                    x = 1;
+                }
+                x = 2;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "first_cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next"],
+        },
+        [(1, 0), (2, 1), (2, 2), (3, 0), (2, 3), (5, 0)],
+        "java_if.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static void main(String[] args) {
+                int i = 0;
+                while (i < 2) {
+                    i = i + 1;
+                }
+                int x = i;
+            }
+        }
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond", "BEGIN", "END"],
+            3: ["first"],
+            5: ["next"],
+        },
+        [
+            (1, 0),
+            (2, 1),
+            (2, 2),
+            (3, 0),
+            (2, 3),
+            (2, 1),
+            (2, 2),
+            (3, 0),
+            (2, 3),
+            (2, 1),
+            (5, 0),
+        ],
+        "java_while.loqi",
+    ),
+    (
+        "java",
+        """
+        public class Main {
+            static int add(int a, int b) {
+                return a + b;
+            }
+            static void main(String[] args) {
+                int x = add(1, 2);
+            }
+        }
+        """,
+        {
+            1: ["func", "BEGIN", "END"],
+            2: ["first"],
+            5: [],
+            6: ["first", "BEGIN", "END"],
+        },
+        [(6, 1), (1, 1), (2, 0), (6, 2), (6, 0)],
+        "java_function_call.loqi",
+    ),
+    (
+        # Повторный вызов функции с циклом в теле: во втором вызове условие цикла
+        # снова проходит все значения. Цепочка задана на оба вызова.
+        "python",
+        """
+        def factorial(x):
+            s = 1
+            for i in range(x+1):
+                s *= i
+            return x
+
+
+        if factorial(5) == 125:
+           print("Hello")
+        print(factorial(5))
+        """,
+        {
+            1: ["func", "func"],
+            2: ["func_body", "first"],
+            3: ["next", "cond", "init"],
+            4: ["body", "first"],
+            5: ["next"],
+            8: ["first", "first_cond", "BEGIN", "END"],
+            9: ["if_branch", "first"],
+            10: ["next", "BEGIN", "END"],
+        },
+        [
+            (8, 2),
+            (2, 1),
+            (3, 2),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (5, 0),
+            (8, 3),
+            (8, 1),
+            (9, 1),
+            (10, 1),
+            # второй вызов: цикл снова проходит все значения условия
+            (2, 1),
+            (3, 2),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (4, 1),
+            (3, 1),
+            (5, 0),
+            (10, 2),
+            (10, 0),
+        ],
+        "python_factorial_repeated_call.loqi",
+        {(3, 1): [True, True, False, True, True, False]},
+    ),
+    (
+        # Повторный вход в тело цикла: условие вложенного if вычисляется на каждой
+        # итерации. Цепочка задана на обе итерации.
+        "python",
+        """
+        for i in range(3):
+            if i > 0:
+                x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first", "first_cond"],
+            3: ["if_branch", "first"],
+        },
+        [(1, 2), (1, 1), (2, 2), (3, 1), (1, 1), (2, 2), (3, 1), (1, 1), (4, 0)],
+        "python_for_if_reentry.loqi",
+        {(2, 2): [True, True]},
+    ),
+    # --- else у циклов (Python) ---
+    # MT генерирует после цикла с else пустую строку, поэтому номер следующего оператора
+    # на единицу больше, чем в исходном фрагменте.
+    (
+        # Выход по условию: else выполняется один раз после всех итераций.
+        "python",
+        """
+        i = 0
+        while i < 2:
+            i = i + 1
+        else:
+            x = i
+        y = 1
+        """,
+        {
+            1: ["first"],
+            2: ["next", "cond"],
+            3: ["body", "first"],
+            5: ["else", "first"],
+            7: ["next"],
+        },
+        [(1, 0), (2, 1), (3, 1), (2, 1), (3, 1), (2, 1), (5, 1), (7, 0)],
+        "python_while_else.loqi",
+    ),
+    (
+        "python",
+        """
+        for i in range(2):
+            total = total + i
+        else:
+            x = total
+        y = 1
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first"],
+            4: ["else", "first"],
+            6: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 1), (1, 1), (2, 1), (1, 1), (4, 1), (6, 0)],
+        "python_for_range_else.loqi",
+    ),
+    (
+        # break в теле: выход из цикла минуя else.
+        "python",
+        """
+        for v in values:
+            if v:
+                break
+        else:
+            x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first", "first_cond"],
+            3: ["if_branch", "first"],
+            5: ["else", "first"],
+            7: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 2), (3, 1), (7, 0)],
+        "python_for_each_else_break.loqi",
+        {(2, 2): [True]},
+    ),
+    (
+        # break не выполнился: после последней проверки условия цикла - else.
+        "python",
+        """
+        for v in values:
+            if v:
+                break
+        else:
+            x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first", "first_cond"],
+            3: ["if_branch", "first"],
+            5: ["else", "first"],
+            7: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 2), (1, 1), (2, 2), (1, 1), (5, 1), (7, 0)],
+        "python_for_each_else_no_break.loqi",
+        {(2, 2): [False, False]},
+    ),
+    (
+        # break в else вложенного цикла относится к внешнему циклу: выход из обоих,
+        # x = 1 и вторая итерация внешнего цикла пропускаются.
+        "python",
+        """
+        for i in range(2):
+            j = 0
+            while j < 1:
+                j = j + 1
+            else:
+                break
+            x = 1
+        y = 2
+        """,
+        {
+            1: ["first", "cond", "init"],
+            2: ["body", "first"],
+            3: ["next", "cond"],
+            4: ["body", "first"],
+            6: ["else", "first"],
+            8: ["next"],
+            9: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 1), (3, 1), (4, 1), (3, 1), (6, 1), (9, 0)],
+        "python_nested_else_break.loqi",
+        {(3, 1): [True, False]},
+    ),
+    # --- Рекурсия ---
+    # Активации одной функции различаются кадрами вызова (TraceAct.inFrame), возврат
+    # из вложенной активации продолжает внешнюю. Значения условий расходуются по всей
+    # трассе, поэтому патч задаёт их для всех активаций подряд; при привязке значений
+    # к активации патчи, вероятно, придётся переписать.
+    (
+        # Глубина 2: после возврата из вложенного вызова внешняя активация
+        # продолжается с того же места (END вызова, оператор, print).
+        "python",
+        """
+        def f(n):
+            if n > 0:
+                f(n - 1)
+            print(n)
+
+
+        f(2)
+        """,
+        {
+            2: ["func_body", "first", "first_cond"],
+            3: ["if_branch", "first", "BEGIN", "END"],
+            4: ["next"],
+            7: ["first", "BEGIN", "END"],
+        },
+        # Оператор-вызов (`f(n - 1)`, `f(2)`) - не шаг студента: после выхода из
+        # вызова (END) сразу следующий оператор.
+        [
+            (7, 1),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (4, 0),
+            # возврат в активацию f(1)
+            (3, 3),
+            (4, 0),
+            # возврат в активацию f(2)
+            (3, 3),
+            (4, 0),
+            (7, 2),
+        ],
+        "python_recursion_depth2.loqi",
+        {(2, 2): [True, True, False]},
+    ),
+    (
+        # Выход из рекурсии через return: прерывание снимается на вызове своей
+        # активации, return 0 во внешних активациях не выполняется.
+        "python",
+        """
+        def f(n):
+            if n > 0:
+                return f(n - 1)
+            return 0
+
+
+        print(f(2))
+        """,
+        None,
+        [
+            (7, 1),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (3, 2),
+            (2, 2),
+            (4, 0),
+            (3, 3),
+            (3, 1),
+            (3, 3),
+            (3, 1),
+            (7, 2),
+            (7, 0),
+        ],
+        "python_recursion_return.loqi",
+        {(2, 2): [True, True, False]},
+    ),
+    (
+        # Взаимная рекурсия f -> g -> f.
+        "python",
+        """
+        def g(n):
+            f(n)
+
+
+        def f(n):
+            if n > 0:
+                g(n - 1)
+            print(n)
+
+
+        f(1)
+        """,
+        None,
+        [
+            (11, 1),
+            (6, 2),
+            (7, 2),
+            (2, 2),
+            (6, 2),
+            (8, 0),
+            (2, 3),
+            (7, 3),
+            (8, 0),
+            (11, 2),
+        ],
+        "python_recursion_mutual.loqi",
+        {(6, 2): [True, False]},
+    ),
+    # --- switch: MT убирает завершающий break, выход задаёт тип ветки ---
+    (
+        # case 2 проваливается в case 3, после case 3 - неявный break.
+        "c++",
+        """
+        int x = 2;
+        switch (x) {
+            case 1:
+                x = 10;
+                break;
+            case 2:
+                x = 20;
+            case 3:
+                x = 30;
+                break;
+            default:
+                x = 40;
+        }
+        int y = x;
+        """,
+        {
+            1: ["first"],
+            2: ["next"],
+            4: ["first_case"],
+            5: ["first"],
+            7: ["next_case"],
+            8: ["first"],
+            9: ["next_case"],
+            10: ["first"],
+            13: ["first"],
+            16: ["next"],
+        },
+        [(1, 0), (4, 0), (7, 0), (8, 0), (10, 0), (16, 0)],
+        "cpp_switch_fallthrough_break.loqi",
+        {(4, 0): [False], (7, 0): [True]},
+    ),
+    (
+        # Ни одно значение не совпало: default через to_when_absent последнего case.
+        "c++",
+        """
+        int x = 2;
+        switch (x) {
+            case 1:
+                x = 10;
+                break;
+            case 2:
+                x = 20;
+            case 3:
+                x = 30;
+                break;
+            default:
+                x = 40;
+        }
+        int y = x;
+        """,
+        None,
+        [(1, 0), (4, 0), (7, 0), (9, 0), (13, 0), (16, 0)],
+        "cpp_switch_no_match_default.loqi",
+        {(4, 0): [False], (7, 0): [False], (9, 0): [False]},
+    ),
+    (
+        # Последняя ветка case без break проваливается в default.
+        "c++",
+        """
+        int x = 3;
+        switch (x) {
+            case 1:
+                x = 10;
+                break;
+            case 3:
+                x = 30;
+            default:
+                x = 40;
+        }
+        int y = x;
+        """,
+        None,
+        [(1, 0), (4, 0), (7, 0), (8, 0), (10, 0), (13, 0)],
+        "cpp_switch_fallthrough_into_default.loqi",
+        {(4, 0): [False], (7, 0): [True]},
+    ),
+    (
+        # switch в цикле: break из if снимается на switch, continue проходит switch
+        # и останавливается на цикле (y = 2 пропускается).
+        "c++",
+        """
+        for (int i = 0; i < 2; i++) {
+            switch (i) {
+                case 0:
+                    if (i > 5) {
+                        break;
+                    }
+                    x = 1;
+                case 1:
+                    continue;
+                default:
+                    x = 3;
+            }
+            y = 2;
+        }
+        """,
+        None,
+        [
+            (1, 1),
+            (1, 2),
+            (2, 0),
+            (5, 0),
+            (6, 1),
+            (10, 0),
+            (12, 0),
+            (1, 2),
+            (2, 0),
+            (5, 0),
+            (6, 1),
+            (7, 0),
+            (8, 0),
+            (17, 0),
+            (2, 1),
+            (1, 2),
+        ],
+        "cpp_switch_in_loop_break_continue.loqi",
+        {(1, 2): [True, True, False], (5, 0): [True, True], (6, 1): [False, True]},
+    ),
+    (
+        # break в ветке match относится к циклу: вторая итерация не выполняется.
+        "python",
+        """
+        for i in range(2):
+            match i:
+                case 0:
+                    x = 1
+                    break
+                case _:
+                    x = 2
+        y = 3
+        """,
+        {
+            2: ["body", "first", "first_case"],
+            3: ["case_branch", "first"],
+            4: ["next"],
+            6: ["default_branch", "first"],
+            7: ["next"],
+        },
+        [(1, 2), (1, 1), (2, 2), (3, 1), (4, 0), (7, 0)],
+        "python_match_break_exits_loop.loqi",
+        {(1, 1): [True, True, False], (2, 2): [True]},
+    ),
+]
+
+
+def _normalize_sequence_case(case: tuple[object, ...]) -> SequenceCase:
+    if len(case) == 5:
+        language, code, expected_roles, expected_actions, loqi_filename = case
+        return (
+            cast(str, language),
+            cast(str, code),
+            cast(dict[int, list[str]] | None, expected_roles),
+            cast(list[tuple[int, int]], expected_actions),
+            cast(str, loqi_filename),
+            None,
+        )
+
+    language, code, expected_roles, expected_actions, loqi_filename, value_patches = (
+        case
+    )
+    return (
+        cast(str, language),
+        cast(str, code),
+        cast(dict[int, list[str]] | None, expected_roles),
+        cast(list[tuple[int, int]], expected_actions),
+        cast(str, loqi_filename),
+        cast(ActionValuePatches | None, value_patches),
+    )
+
+
+SEQUENCE_CASE_PARAMS: list[SequenceCase] = [
+    _normalize_sequence_case(case) for case in SEQUENCE_CASES
+]
+
+
+# -- Tests --------------------------------------------------------------------
+
+
+def test_plain_statements(tmp_path: Path):
+    loqi_filename = "plain_statements.loqi"
+    code = textwrap.dedent("""
+        x = 1
+        y = 2
+        a = x + y
+    """)
+    registry = code_snippet_to_registry(code, language="python")
+
+    assert (
+        registry.get_construct_for(
+            registry.code.ast.find_paths_by_type("program_entry_point")[0].id
+        )
+        is not None
+    )
+
+    expected_actions = [
+        require_line_action(registry, 1, action_index=0),
+        require_line_action(registry, 2, action_index=0),
+        require_line_action(registry, 3, action_index=0),
+    ]
+
+    assert [action.rule.role for action in line_actions(registry, 1)] == ["first"]
+    assert [action.rule.role for action in line_actions(registry, 2)] == ["next"]
+    assert [action.rule.role for action in line_actions(registry, 3)] == ["next"]
+    first_node = registry.code.line_number_to_ast_node(1)
+    second_node = registry.code.line_number_to_ast_node(2)
+    third_node = registry.code.line_number_to_ast_node(3)
+    assert first_node is not None
+    assert second_node is not None
+    assert third_node is not None
+    assert [action.ast_id for action in expected_actions] == [
+        first_node.id,
+        second_node.id,
+        third_node.id,
+    ]
+    trace_state_history: list[tuple[int, InterruptionType]] = []
+
+    registry.variables["P"] = registry.trace_acts[0]
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        registry,
+        filename_stem=Path(loqi_filename).stem,
+    )
+
+    for expected_action in expected_actions:
+        _advance_until_expected_action(
+            tmp_path,
+            registry,
+            expected_action,
+            loqi_filename=loqi_filename,
+            trace_act_interruptions=trace_state_history,
+        )
+
+    _write_final_loqi_trace_artifacts(
+        tmp_path,
+        registry,
+        loqi_filename=loqi_filename,
+        trace_act_interruptions=trace_state_history,
+    )
+    open_file_and_wait(tmp_path / loqi_filename, enabled=should_open_test_artifacts())
+
+
+@pytest.mark.parametrize(
+    (
+        "language",
+        "code",
+        "expected_roles",
+        "expected_actions",
+        "loqi_filename",
+        "value_patches",
+    ),
+    [
+        *(
+            pytest.param(*case, id=Path(case[4]).stem)
+            for case in SEQUENCE_CASE_PARAMS
+        ),
+    ],
+)
+def test_solve_tree_sequences(
+    tmp_path: Path,
+    *,
+    language: str,
+    code: str,
+    expected_roles: dict[int, list[str]] | None,
+    expected_actions: list[tuple[int, int]],
+    loqi_filename: str,
+    value_patches: ActionValuePatches | None,
+):
+    registry = _build_registry(code, language=language)
+    _apply_action_value_patches(registry, value_patches)
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        registry,
+        filename_stem=Path(loqi_filename).stem,
+    )
+    _assert_line_roles(registry, expected_roles)
+    _assert_solve_sequence(
+        tmp_path,
+        code=code,
+        language=language,
+        expected_actions=expected_actions,
+        loqi_filename=loqi_filename,
+        value_patches=value_patches,
+    )
+
+
+def test_line_actions_excludes_transparent_by_default() -> None:
+    registry = _build_registry(
+        """
+        if True:
+            x = 1
+        """,
+        language="python",
+    )
+
+    assert [action.rule.role for action in line_actions(registry, 1)] == [
+        "first",
+        "first_cond",
+    ]
+    assert [
+        action.rule.role
+        for action in line_actions(registry, 1, include_transparent=True)
+    ] == [
+        "BEGIN",
+        "END",
+        "first",
+        "first_cond",
+    ]
+
+
+# -- Helpers ------------------------------------------------------------------
+
+
+def _build_registry(code: str, *, language: str) -> SituationRegistry:
+    registry = code_snippet_to_registry(textwrap.dedent(code), language=language)
+    registry.variables["P"] = registry.trace_acts[0]
+    return registry
+
+
+def _assert_line_roles(
+    registry: SituationRegistry,
+    expectations: dict[int, list[str]] | None,
+    *,
+    include_transparent: bool = False,
+) -> None:
+    if expectations is None:
+        return
+    for line_number, expected_roles in expectations.items():
+        assert [
+            action.rule.role
+            for action in line_actions(
+                registry,
+                line_number,
+                include_transparent=include_transparent,
+            )
+        ] == expected_roles
+
+
+def _apply_action_value_patches(
+    registry: SituationRegistry,
+    patches: ActionValuePatches | None,
+) -> None:
+    if patches is None:
+        return
+    for (line_number, action_index), values in patches.items():
+        action = require_line_action(
+            registry,
+            line_number,
+            action_index=action_index,
+        )
+        action.values = [SemanticValue(value) for value in values]
+        action.bind_values()
+
+
+def _assert_solve_sequence(
+    tmp_path: Path,
+    *,
+    code: str,
+    language: str,
+    expected_actions: list[tuple[int, int]],
+    loqi_filename: str,
+    value_patches: ActionValuePatches | None = None,
+) -> None:
+    registry = _build_registry(code, language=language)
+    _apply_action_value_patches(registry, value_patches)
+    trace_state_history: list[tuple[int, InterruptionType]] = []
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        registry,
+        filename_stem=Path(loqi_filename).stem,
+    )
+    end_action = _require_root_end_action(registry)
+    actions = [
+        require_line_action(registry, line_number, action_index=action_index)
+        for line_number, action_index in expected_actions
+    ]
+    actions.append(end_action)
+
+    solver_stops: set[int] = set()
+    for expected_action in actions:
+        _advance_until_expected_action(
+            tmp_path,
+            registry,
+            expected_action,
+            loqi_filename=loqi_filename,
+            trace_act_interruptions=trace_state_history,
+        )
+        p_act = registry.variables.get("P")
+        stop_index = registry.trace_act_index(p_act) if isinstance(p_act, TraceAct) else None
+        if stop_index is not None:
+            solver_stops.add(stop_index)
+
+    _write_final_loqi_trace_artifacts(
+        tmp_path,
+        registry,
+        loqi_filename=loqi_filename,
+        trace_act_interruptions=trace_state_history,
+        solver_stops=solver_stops,
+    )
+
+
+def _require_root_end_action(registry: SituationRegistry) -> Action:
+    entry_point_id = registry.code.ast.find_paths_by_type("program_entry_point")[0].id
+    entry_point = registry.get_construct_for(entry_point_id)
+    assert entry_point is not None
+    return next(
+        action
+        for action in registry.get_related_actions(entry_point)
+        if action.rule.role == "END"
+    )
+
+
+def _write_final_loqi_trace_artifacts(
+    tmp_path: Path,
+    registry: SituationRegistry,
+    *,
+    loqi_filename: str,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
+    solver_stops: set[int] | None = None,
+) -> Path:
+    _serializer, loqi_file = registries_to_loqi_files(
+        tmp_path,
+        [registry],
+        filename=loqi_filename,
+    )[0]
+    loqi_text = loqi_file.read_text(encoding="utf-8")
+    trace_acts, trace_state = restore_trace_from_loqi(loqi_text, registry)
+    assert trace_state is not None
+    render_trace_acts_artifacts(
+        tmp_path,
+        trace_acts,
+        filename_stem=f"{Path(loqi_filename).stem}-trace-acts",
+        trace_act_interruptions=trace_act_interruptions,
+        solver_stops=solver_stops,
+    )
+    pipeline_debug_json_artifacts(
+        tmp_path,
+        registry,
+        filename_stem=Path(loqi_filename).stem,
+    )
+    return loqi_file
+
+
+def _advance_until_expected_action(
+    tmp_path: Path,
+    registry: SituationRegistry,
+    expected_action: Action,
+    *,
+    loqi_filename: str,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
+) -> ReasoningResult:
+    serializer, _ = registries_to_loqi_files(
+        tmp_path,
+        [registry],
+        filename=loqi_filename,
+    )[0]
+    expected_action_name = serializer.object_name(expected_action)
+    assert expected_action_name is not None
+
+    previous_trace_length = len(registry.trace_acts)
+    last_output: ReasoningResult | None = None
+    solve_output = _solve_once(
+        tmp_path,
+        registry,
+        loqi_filename=loqi_filename,
+        trace_act_interruptions=trace_act_interruptions,
+    )
+    last_output = solve_output
+    current_trace_length = len(registry.trace_acts)
+    if current_trace_length <= previous_trace_length:
+        _write_trace_artifacts(
+            tmp_path,
+            f"{Path(loqi_filename).stem}-failtrace-{len(registry.trace_acts) - 1:02d}",
+            registry.trace_acts,
+            _require_specific_domain(solve_output),
+            trace_act_interruptions=trace_act_interruptions,
+        )
+        raise AssertionError(
+            f"Trace did not grow while waiting for {expected_action_name!r} "
+        )
+    previous_trace_length = current_trace_length
+    actual_trace_act = registry.variables.get("P")
+    actual_action = (
+        actual_trace_act.action if isinstance(actual_trace_act, TraceAct) else None
+    )
+    if actual_action is expected_action:
+        return solve_output
+
+    _write_trace_artifacts(
+        tmp_path,
+        f"{Path(loqi_filename).stem}-failtrace-{len(registry.trace_acts) - 1:02d}",
+        registry.trace_acts,
+        _require_specific_domain(last_output),
+        trace_act_interruptions=trace_act_interruptions,
+    )
+    actual_p_name = (
+        serializer.object_name(actual_action) if actual_action is not None else None
+    )
+    raise AssertionError(
+        f"Did not reach expected action {expected_action_name!r}; "
+        f"last P={actual_p_name!r}"
+    )
+
+
+def _solve_once(
+    tmp_path: Path,
+    registry: SituationRegistry,
+    *,
+    loqi_filename: str,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
+) -> ReasoningResult:
+    reasoner_output_file = tmp_path / "reasoner_output.txt"
+    with reasoner_output_file.open("a", encoding="utf-8") as reasoner_out:
+        reasoning = solve_pipeline_reasoning(
+            tmp_path,
+            registry,
+            model_dir=resolve_project_root() / "domain",
+            filename=loqi_filename,
+            tree=TREE_NAME,
+            export_domain=True,
+            debug_enabled=True,
+            time_limit_seconds=30,
+            reasoner_output_stream=reasoner_out,
+            restore_exported_trace=False,
+        )
+
+    solve_output = reasoning.result
+    if solve_output.trace is not None:
+        reasoning.loqi_file.with_suffix(".trace.txt").write_text(
+            str(solve_output.trace), encoding="utf-8"
+        )
+    exported_loqi = reasoning.exported_loqi
+    if solve_output.result is not True or solve_output.exceptions:
+        restored_trace_acts, restored_trace_state = restore_trace_from_loqi(
+            exported_loqi or reasoning.loqi_text, registry, replace_existing=False
+        )
+        if (
+            trace_act_interruptions is not None
+            and restored_trace_state is not None
+            and restored_trace_state.interruption_mode is not InterruptionType.NONE
+            and restored_trace_acts
+        ):
+            trace_act_interruptions.append(
+                (len(restored_trace_acts) - 1, restored_trace_state.interruption_mode)
+            )
+        _write_trace_artifacts(
+            tmp_path,
+            f"{Path(loqi_filename).stem}-failtrace-{len(registry.trace_acts) - 1:02d}",
+            restored_trace_acts,
+            exported_loqi if isinstance(exported_loqi, str) else reasoning.loqi_text,
+            trace_act_interruptions=trace_act_interruptions,
+        )
+    assert solve_output.result is True
+    assert not solve_output.exceptions, str(solve_output)
+    assert isinstance(exported_loqi, str)
+
+    trace_acts, trace_state = restore_trace_from_loqi(exported_loqi, registry)
+    assert trace_state is not None
+    assert trace_acts
+    if (
+        trace_state.interruption_mode is not InterruptionType.NONE
+        and trace_act_interruptions is not None
+    ):
+        trace_act_interruptions.append(
+            (len(trace_acts) - 1, trace_state.interruption_mode)
+        )
+
+    assert registry.variables["P"] is trace_acts[-1]
+    return solve_output
+
+
+def _require_specific_domain(result: ReasoningResult | None) -> str:
+    assert result is not None
+    exported_loqi = result.artifacts.get("specificDomain")
+    assert isinstance(exported_loqi, str)
+    return exported_loqi
+
+
+def _write_trace_artifacts(
+    tmp_path: Path,
+    stem: str,
+    trace_acts: list[TraceAct],
+    loqi_content: str,
+    *,
+    trace_act_interruptions: list[tuple[int, InterruptionType]] | None = None,
+) -> None:
+    render_trace_acts_artifacts(
+        tmp_path,
+        trace_acts,
+        filename_stem=stem,
+        trace_act_interruptions=trace_act_interruptions,
+    )
+    (tmp_path / f"{stem}.loqi").write_text(loqi_content, encoding="utf-8", newline="")

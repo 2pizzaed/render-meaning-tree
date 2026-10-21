@@ -1,0 +1,62 @@
+# Project Agent Instructions
+
+## Skills To Use
+
+- When working with AST, Meaning Tree output, language translators, semantic nodes, serializers, or the embedded `meaning_tree/` project, use the `meaning-tree` skill. Prefer local project sources and local Maven source jars over memory or external documentation.
+- When diagnosing, explaining, extending, or validating the reasoner, thought process graphs, `.tpg` files, `.loqi` domain/tree files, DomainSolvingModel data, or CompPrehension reasoning behavior, use the `thought-process-graph` skill.
+- For syntax-sensitive TPG/LOQI work, ground conclusions in documentation or source code before proposing code. Use the skill references and, when needed, inspect the current TPG/LOQI grammar, builder/writer code, reasoner code, and local domain files.
+
+## TPG And LOQI Safety
+
+- Do not modify `.tpg` or `.loqi` files without explicit developer approval for that specific change.
+- The same approval rule applies to TPG documentation: `docs/check_graph_idea.md`, `docs/findCorrect_graph_idea.md`, `docs/diagrams/` and any other `docs/` file describing thought process graphs. Propose the text for review instead of editing these files.
+- For `.tpg` and `.loqi` requests, default to diagnosis: explain the suspected issue, cite the relevant file/construct, and propose a patch or replacement snippet for developer review.
+- Before recommending TPG/LOQI code, check that the syntax and constructs are valid for the current project. Validate against the relevant documentation, grammar, source implementation, or available conversion/validation tooling.
+- If a proposed reasoner/domain change cannot be validated locally, say exactly what was checked and what remains unverified.
+
+## Validation And Testing
+
+Use `uv` for project commands.
+
+- `uv run pytest` - run the test suite.
+- `uv run ruff check .` - lint Python code and import ordering.
+- `uv run pyright` - type-check Python code.
+- `uv run find-correct-trace-actions` - inspect the sequence of actions produced by the `findCorrect` reasoning flow for a code snippet.
+- `uv run render-construct-automaton` - render a construct transition automaton from construct rules for debugging rule flow.
+- `uv run generate-problems` (same as `uv run main.py`) - generate learning problems for a code snippet and print the selected ones; `--output DIR` saves them as CompPrehension question JSON files; `--target-language LANG` generates problems on the MeaningTree translation of the snippet.
+- `uv run playground` - start the Flask playground (`test/playground/app.py`). Reason and Hint continue from the exported LOQI of the longest already accepted trace prefix (in-memory cache keyed by situation, `domain/` file mtimes and prefix steps); the `No cache` checkbox in Answer Trace (`no_cache: true` in `/reason-trace` and `/hint-trace`) rechecks the whole trace step by step.
+- `uv run playground-e2e FILE [--seed N] [--limit N] [--no-cache] [--language LANG] [--target-language LANG]` - e2e check of the playground for a snippet without a running server (`test/tools/playground_e2e.py`): presses action buttons with Reason until the graph reports the finished program (`everything_evaluated`; more than `--limit` accepted steps is an error), then checks that Hint suggests the same action on every step; prints the accepted action order. `--target-language` translates the snippet as the playground translation selector does.
+- `uv run annotate-trace` - run a Python snippet and print it with `<! … >` value markers built from its real execution trace (`test/tools/annotate_trace.py`).
+- `uv run tree-loqi-to-xml` - convert a TPG/LOQI tree file to XML for syntax/build diagnostics.
+
+Run only the checks that are required by the task and the risk of the change. For small, local edits, prefer the narrowest relevant test, script, or validator instead of the full suite. If a change is broad, touches shared behavior, or affects core generation/reasoning paths, run the relevant test file; for large or cross-cutting changes, run `uv run pytest`.
+
+When changing Python code, run `ruff` and `pyright` when feasible, especially for non-trivial edits. When changing reasoning/domain behavior, also run the narrow script or validator that exercises the affected graph, LOQI file, or construct.
+
+## Toolchain MCP
+
+The project registers the CompPrehension toolchain MCP server.
+If that MCP is unavailable, check the local RPC server first:
+
+- `bash rpc_server.sh status`
+- If it is not running, start it with `bash rpc_server.sh start`
+
+Tip: Use Git Bash in Windows
+
+## Code Hygiene
+
+- Keep Python changes typed and consistent with existing module patterns.
+- Prefer small, focused edits over broad refactors.
+- When adding new code, reuse existing helper modules instead of re-implementing the same utility logic; in tests, prefer `test/helpers` utilities over new local helpers.
+- Preserve generated/domain artifacts unless the developer explicitly asks to regenerate or update them.
+
+## Solution Quality Review
+
+- Before completing a task, review all solutions created or changed during the session for correctness, readability, cognitive load, and impact on project complexity. Resolve issues within the task scope before reporting completion.
+- Prefer straightforward control flow, clear names, and existing project patterns. Avoid unnecessary abstractions, indirection, configuration options, dependencies, and duplication; any added complexity must be justified by the task's requirements.
+- Keep comments concise and understandable to a human reader. Explain non-obvious intent, constraints, or tradeoffs rather than restating the code.
+
+## Project Documentation
+
+- Record important, lasting information from the task in the relevant existing document under `docs/` (TPG documentation only with explicit approval, see "TPG And LOQI Safety"), including behavior changes, design decisions, constraints, and usage or maintenance instructions. Keep documentation focused and consistent with the final implementation.
+- Create new documents under `docs/` only with explicit user approval. If no suitable existing document is available, propose a filename and purpose and request approval before creating it.

@@ -1,0 +1,947 @@
+# ================================
+# Универсальные управляющие структуры
+# ================================
+
+# kind - классы через точку (compound, condition, annotated, procedure, auto, ...),
+# их смысл описан в docs/domain.md, «Возможные виды действий и конструктов»
+
+# --------------------------------
+# Глобальные операторы -- разновидность блока { ... }
+# --------------------------------
+global_statements_structure:
+  kind: compound.sequence.program
+  ast_node: program_entry_point
+  metadata:
+    locale_trace_name: "program"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        origin: parent
+        property_path: 'body / [0]'  # statements -> body
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+    - role: BEGIN
+      kind: program
+      metadata:
+        locale_trace_name: "program"
+        locale_pronoun: "she"
+    - role: END
+      kind: program
+      metadata:
+        locale_trace_name: "program"
+        locale_pronoun: "she"
+  transitions:
+    - from: BEGIN
+      to: first
+    - from: item
+      to: next       # переход к следующему элементу
+      to_when_absent: END
+
+# --------------------------------
+# Условный оператор (if / else-if / else)
+# --------------------------------
+if_structure:
+  kind: compound.alternative              # тип действия (ветвление)
+  ast_node: if_statement
+  metadata:
+    locale_trace_name: "alternative"
+    locale_pronoun: "it"
+  actions:
+    - role: first_cond             # первое условие ветвления
+      kind: inline.condition.annotated        # true / false
+      identification:
+        property_path: 'branches / [0] / condition'
+        role_in_list: first_in_list
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: cond
+    - role: next_cond             # следующее условие ветвления
+      kind: inline.condition.annotated
+      identification:
+        origin: previous
+        property_path: '^ / [next] / condition'
+        role_in_list: next_in_list
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: cond
+    - role: if_branch           # ветка при true
+      kind: compound
+      identification:
+        origin: previous
+        property_path: '^ / body'
+      generalization: branch
+    - role: else_branch           # ветка при false
+      kind: compound
+      identification:
+        property: elseBranch
+      generalization: branch
+  transitions:
+    - from: BEGIN
+      to: first_cond
+    - from: cond
+      to: if_branch                # → переход в "true"-ветку
+      constraints:
+        condition_value: true        # если условие истинно
+    - from: cond
+      to: next_cond
+      to_when_absent: ['else_branch', 'END']   # → в "false"-ветку
+      constraints:
+        condition_value: false       # если ложно
+    - from: branch
+      to: END   # если ветка отсутствует, сразу окончание
+
+# --------------------------------
+# Множественное ветвление switch (Java, C++)
+# --------------------------------
+# MT убирает завершающий break ветки и задаёт выход типом ветки: basic_case_block
+# заканчивает switch (неявный break, см. case_break_body_structure), fallthrough_case_block
+# проваливается в тело следующей ветки. Явный break в теле снимается на switch.
+# Условие привязано к case_block: одна проверка на match_value или всю группу match_values.
+switch_structure:
+  kind: compound.alternative
+  ast_node: switch_statement
+  applicable_languages: [java, c++]
+  metadata:
+    locale_trace_name: "multiple_alternative"
+    locale_pronoun: "it"
+    keyword: switch
+  actions:
+    - role: subject              # выражение switch: шаг студента - сравнения с case
+      kind: inline
+      opaque: false
+      identification:
+        property: expression
+    - role: first_case
+      kind: inline.condition.annotated
+      identification:
+        property_path: 'cases / [0]'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: next_case
+      kind: inline.condition.annotated
+      identification:
+        origin: previous
+        property_path: '[next]'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: case_branch
+      kind: compound
+      identification:
+        origin: previous
+        # Тело своего условия; при fallthrough следующую ветку выбирает рассуждатель по цепочке.
+        property_path: 'body'
+      generalization: branch
+    - role: default_branch       # MT хранит default отдельно; исходная позиция не сохраняется
+      kind: compound
+      identification:
+        property_path: 'default / body'
+      generalization: branch
+  transitions:
+    - from: BEGIN
+      to: subject
+    - from: subject
+      to: first_case
+      to_when_absent: ['default_branch', 'END']
+    - from: case
+      to: case_branch
+      constraints:
+        condition_value: true
+    - from: case
+      to: next_case
+      to_when_absent: ['default_branch', 'END']
+      constraints:
+        condition_value: false
+    - from: case_branch
+      to: case_branch            # fallthrough в следующую ветку
+      to_when_absent: ['default_branch', 'END']
+    - from: branch
+      to: END                    # выход по break (явному или неявному в конце basic-ветки)
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: default_branch
+      to: END
+
+# --------------------------------
+# Сопоставление match (Python)
+# --------------------------------
+# Ветки не проваливаются, а break в теле ветки относится к охватывающему циклу:
+# перехода для break нет, и выход из match по нему вынужденный.
+# Как и у switch, вся группа значений case получает одно условие на case_block.
+match_structure:
+  kind: compound.alternative
+  ast_node: switch_statement
+  applicable_languages: [python]
+  metadata:
+    locale_trace_name: "multiple_alternative"
+    locale_pronoun: "it"
+    keyword: match
+  actions:
+    - role: subject
+      kind: inline
+      opaque: false
+      identification:
+        property: expression
+    - role: first_case
+      kind: inline.condition.annotated
+      identification:
+        property_path: 'cases / [0]'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: next_case
+      kind: inline.condition.annotated
+      identification:
+        origin: previous
+        property_path: '[next]'
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      generalization: case
+    - role: case_branch
+      kind: compound
+      identification:
+        origin: previous
+        property_path: 'body'
+      generalization: branch
+    - role: default_branch
+      kind: compound
+      identification:
+        property_path: 'default / body'
+      generalization: branch
+  transitions:
+    - from: BEGIN
+      to: subject
+    - from: subject
+      to: first_case
+      to_when_absent: ['default_branch', 'END']
+    - from: case
+      to: case_branch
+      constraints:
+        condition_value: true
+    - from: case
+      to: next_case
+      to_when_absent: ['default_branch', 'END']
+      constraints:
+        condition_value: false
+    - from: branch
+      to: END
+
+# --------------------------------
+# Тело ветки switch/match
+# --------------------------------
+# Последовательность операторов, но не block: у тела ветки нет фигурных скобок,
+# поэтому BEGIN/END прозрачны во всех языках.
+case_body_structure:
+  kind: compound.sequence.case
+  ast_node:
+    query:
+      - type: compound_statement
+        parent_type: [fallthrough_case_block, default_case_block]
+  metadata:
+    locale_trace_name: "case_branch"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+  transitions:
+    - from: BEGIN
+      to: first
+      to_when_absent: END        # пустая ветка: case 1: case 2: ...
+    - from: item
+      to: next
+      to_when_absent: END
+
+# Ветка с завершающим break (Java, C++): MT убрал break из тела, его заменяет
+# прозрачное действие case_exit на узле тела ветки
+case_break_body_structure:
+  kind: compound.sequence.case
+  ast_node:
+    query:
+      - type: compound_statement
+        parent_type: basic_case_block
+  applicable_languages: [java, c++]
+  metadata:
+    locale_trace_name: "case_branch"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+    - role: case_exit            # неявный break: выход из switch после ветки
+      kind: inline
+      opaque: false
+      identification: {}         # сам узел тела ветки
+      metadata:
+        locale_trace_name: "case_exit"
+        locale_pronoun: "it"
+      effects:
+        - interruption_start: break
+  transitions:
+    - from: BEGIN
+      to: first
+      to_when_absent: case_exit
+    - from: item
+      to: next
+      to_when_absent: case_exit
+    - from: case_exit
+      to: END
+
+# Ветка match (Python): после тела выход из match задаёт match_structure
+match_case_body_structure:
+  kind: compound.sequence.case
+  ast_node:
+    query:
+      - type: compound_statement
+        parent_type: basic_case_block
+  applicable_languages: [python]
+  metadata:
+    locale_trace_name: "case_branch"
+    locale_pronoun: "she"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+  transitions:
+    - from: BEGIN
+      to: first
+      to_when_absent: END
+    - from: item
+      to: next
+      to_when_absent: END
+
+# --------------------------------
+# Цикл while
+# --------------------------------
+while_structure:
+  kind: compound.loop
+  ast_node: while_loop
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
+    keyword: while
+  actions:
+    - role: cond
+      kind: inline.condition.annotated
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      identification:
+        property: condition
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: else                 # while-else (Python): выполняется при выходе по условию, не по break
+      kind: compound
+      identification:
+        property: elseBranch
+  transitions:
+    - from: BEGIN
+      to: cond
+    - from: cond
+      to: body
+      constraints:
+        condition_value: true        # если условие истинно → выполняем тело
+    - from: cond
+      to: else
+      to_when_absent: END
+      constraints:
+        condition_value: false       # если ложно → в else или выходим из цикла
+    - from: body
+      to: cond                   # после тела возвращаемся к условию
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: else
+      to: END
+
+# --------------------------------
+# Цикл do-while
+# --------------------------------
+do_while_structure:
+  kind: compound.loop
+  ast_node: do_while_loop
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
+    keyword: do while
+  actions:
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: cond
+      kind: inline.condition.annotated
+      identification:
+        property: condition
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+  transitions:
+    - from: BEGIN
+      to: body
+    - from: body
+      to: cond              # сначала выполняем тело
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: cond
+      to: body
+      constraints:
+        condition_value: true        # если условие истинно → снова тело
+    - from: cond
+      to: END
+      constraints:
+        condition_value: false       # иначе → выход
+
+# --------------------------------
+# Цикл for (универсальная форма)
+# --------------------------------
+for_structure:
+  kind: compound.loop
+  ast_node: general_for_loop
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
+    keyword: for
+  actions:
+    - role: init
+      identification:
+        property: "initializer"
+      kind: inline.optional
+      metadata:
+        locale_trace_name: "init"
+        locale_pronoun: "she"
+    - role: cond
+      kind: inline.condition.annotated
+      metadata:
+        locale_trace_name: "condition"
+        locale_pronoun: "it"
+      identification:
+        property: "condition"
+      behaviour:
+        assumed_value: true
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: update
+      metadata:
+        locale_trace_name: "update"
+        locale_pronoun: "it"
+      identification:
+        property: "update"
+      kind: inline.optional
+  transitions:
+    - from: BEGIN
+      to: init
+    - from: init
+      to: cond
+    - from: cond
+      to: body
+      constraints:
+        condition_value: true
+    - from: cond
+      to: END
+      constraints:
+        condition_value: false       # false → выход
+    - from: body
+      to: update
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: update
+      to: cond
+
+# --------------------------------
+# Цикл for each (по контейнеру)
+# --------------------------------
+for_each_structure:
+  kind: compound.loop
+  ast_node: for_each_loop
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
+    keyword: for
+  actions:
+    - role: init
+      kind: inline
+      identification:
+        property: 'container'
+      metadata:
+        locale_trace_name: "container"
+        locale_pronoun: "he"
+    - role: cond
+      kind: inline.condition.annotated
+      behaviour:
+        assumed_value: true
+      metadata:
+        locale_trace_name: "condition_for_each"
+        locale_pronoun: "it"
+      identification:
+        property_path: 'item / declarators / [0] / identifier'
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: else                 # for-else (Python): выполняется при выходе по условию, не по break
+      kind: compound
+      identification:
+        property: elseBranch
+  transitions:
+    - from: BEGIN
+      to: init
+    - from: init
+      to: cond
+    - from: cond
+      to: body
+      constraints:
+        condition_value: true
+    - from: cond
+      to: else
+      to_when_absent: END
+      constraints:
+        condition_value: false       # false → в else или выход
+    - from: body
+      to: cond
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: else
+      to: END
+
+# --------------------------------
+# Цикл for по диапазону (range_for_loop)
+# --------------------------------
+for_range_structure:
+  kind: compound.loop
+  ast_node: range_for_loop
+  metadata:
+    locale_trace_name: "loop"
+    locale_pronoun: "he"
+    keyword: for
+  actions:
+    - role: init
+      kind: inline
+      metadata:
+        locale_trace_name: "init"
+        locale_pronoun: "she"
+      identification:
+        property: 'range'
+    - role: cond
+      kind: inline.condition.annotated
+      metadata:
+        locale_trace_name: "condition_range_for"
+        locale_pronoun: "it"
+      identification:
+        property: 'identifier'
+    - role: body
+      kind: compound
+      identification:
+        property: body
+      effects:
+        - interruption_stop: continue
+    - role: else                 # for-else (Python): выполняется при выходе по условию, не по break
+      kind: compound
+      identification:
+        property: elseBranch
+  transitions:
+    - from: BEGIN
+      to: init
+    - from: init
+      to: cond
+    - from: cond
+      to: body
+      constraints:
+        condition_value: true
+    - from: cond
+      to: else
+      to_when_absent: END
+      constraints:
+        condition_value: false       # false → в else или выход
+    - from: body
+      to: cond
+    - from: body
+      to: END                    # выход из цикла по break в теле
+      constraints:
+        interruption_mode: break
+      effects:
+        - interruption_stop: break
+    - from: else
+      to: END
+
+# --------------------------------
+# Блок операторов { ... }
+# --------------------------------
+block_structure:
+  kind: compound.sequence.block
+  ast_node: compound_statement
+  metadata:
+    locale_trace_name: "block"
+    locale_pronoun: "he"
+  actions:
+    - role: first
+      kind: auto
+      identification:
+        origin: parent
+        property_path: 'statements / [0]'
+      generalization: item
+    - role: next
+      kind: auto
+      identification:
+        origin: previous
+        property_path: '[next]'
+      generalization: item
+  transitions:
+    - from: BEGIN
+      to: first
+    - from: item
+      to: next       # переход к следующему элементу
+      to_when_absent: END
+
+# --------------------------------
+# Определение функции
+# --------------------------------
+func_def_structure:
+  kind: compound.procedure.noop
+  ast_node: ['function_definition', 'method_definition']
+  metadata:
+    locale_trace_name: "function_def"
+    locale_pronoun: "it"
+    identifier: true
+  actions:
+    - role: name
+      opaque: false
+      kind: identifier
+      identification:
+        property_path: 'declaration / name'
+    - role: func_body
+      kind: compound
+      identification:
+        property: 'body'
+  transitions:
+    - from: BEGIN
+      to: func_body
+    - from: func_body
+      to: END
+
+# --------------------------------
+# Вызов функции
+# --------------------------------
+func_call_structure:
+  kind: inline.call
+  preorder: true  # вызов выполняется раньше действия, которое его раскрывает (условие, оператор)
+  ast_node: ['function_call', 'method_call']
+  metadata:
+    locale_trace_name: "function_call"
+    locale_pronoun: "he"
+    identifier: true
+  actions:
+    # BEGIN и END размечаются <! (-, "…") >: значения - подсказки вызовов в трассе
+    - role: BEGIN
+      kind: auto.annotated
+      opaque: true
+    - role: name
+      kind: identifier
+      identification:
+        property_path: 'function / name'
+    - role: func
+      kind: procedure
+      # identification: func def lookup (see Python code)
+      effects:
+        - interruption_stop: return
+    - role: END
+      opaque: true
+      kind: END.annotated
+      effects:
+        - interruption_stop: return
+  transitions:
+    - from: BEGIN
+      to: func
+      effects:
+        - call_stack: add_frame        # при входе в функцию создаём стековый фрейм
+    - from: func
+      to: END
+      constraints:
+        interruption_mode: any  # В любом случае
+      effects:
+        - interruption_stop: return
+        - call_stack: drop_frame       # при выходе убираем фрейм
+
+# --------------------------------
+# return
+# --------------------------------
+return_action:
+  kind: inline  # this kind matters
+  ast_node: return_statement
+  metadata:
+    locale_trace_name: 'return'
+    locale_pronoun: 'it'
+  effects:
+    - interruption_start: return
+
+return_compound_action:
+  kind: inline.compound
+  metadata:
+    locale_trace_name: 'return'
+    locale_pronoun: 'it'
+  preorder: true  # вложенные вызовы выполняются раньше самого оператора return
+  effects:
+    - interruption_start: return
+  ast_node:
+    query:
+      - type: return_statement
+        contains_any:
+          key: "type"
+          value_in: [
+            'function_call',
+            'method_call' # могут быть другие вложенные конструкты
+          ]
+  actions:
+    - role: content
+      kind: optional
+      opaque: false  # технический шаг к вложенным вызовам; шагом студента является сам оператор/условие
+  transitions:
+    - from: BEGIN
+      to: content
+      to_when_absent: END
+    - from: content
+      to: content
+      to_when_absent: END
+
+# --------------------------------
+# break
+# --------------------------------
+break_action:
+  kind: inline
+  metadata:
+    locale_trace_name: 'break'
+    locale_pronoun: 'he'
+  ast_node: break_statement
+  effects:
+    - interruption_start: break
+
+# --------------------------------
+# continue
+# --------------------------------
+continue_action:
+  kind: inline
+  metadata:
+    locale_trace_name: 'continue'
+    locale_pronoun: 'he'
+  ast_node: continue_statement
+  effects:
+    - interruption_start: continue
+
+
+# --------------------------------
+# Блок try-except c нетипизированной (неизбирательной) ловлей исключений
+# --------------------------------
+try_except_structure:
+  disabled: true  # TODO: not implemented yet
+  kind: compound.try
+  metadata:
+    locale_trace_name: 'catch'
+    locale_pronoun: 'he'
+  ast_node: exception_catch_statement 
+  actions:
+    - role: try
+      kind: compound
+    - role: catch
+      kind: compound
+    - role: else     # entered if no exception was raised. Python only.
+      kind: compound
+    - role: finally
+      kind: compound
+  transitions:
+    - from: BEGIN
+      to: try
+    - from: try
+      to: catch                     # в блок catch, если
+      constraints:
+        interruption_mode: exception  # были исключения
+      effects:
+        - interruption_stop: exception
+    - from: try
+      to: else                 # в блок else, если
+      constraints:
+        interruption_mode: no_interruption
+    - from: catch
+      to: finally
+      constraints:
+        interruption_mode: any  # В любом случае
+    - from: else
+      to: finally
+      constraints:
+        interruption_mode: any  # В любом случае
+    - from: finally
+      to: END
+      # polyfill interruption exits...
+    - from: try
+      to: END
+      constraints:
+        interruption_mode: return
+    - from: try
+      to: END
+      constraints:
+        interruption_mode: break
+    - from: try
+      to: END
+      constraints:
+        interruption_mode: continue
+
+
+# --------------------------------
+# Заглушка для всех простых действий (с одной кнопкой СТАРТ)
+# --------------------------------
+inline_atom_ast_nodes: &inline_atom_ast_nodes
+  - identifier
+  - variable_declaration
+  - expression
+  - assignment_statement
+  - expression_statement
+  - multiple_assignment_statement
+  # `a, b = f(x)`: в иерархии типов MT узла нет, поэтому он не наследует variable_declaration
+  - list_unpacking_variable_declaration
+  - range
+  # TODO: add new here
+
+
+inline_atom_structure:
+  kind: inline
+  ast_node: 
+    instanceof:
+      *inline_atom_ast_nodes
+
+inline_compound_atom_structure:
+  kind: inline.compound
+  preorder: true  # вложенные вызовы выполняются раньше самого оператора
+  ast_node:
+    query:
+      # Сам вызов - expression, но раскрывается func_call_structure, даже если в его
+      # аргументах есть другие вызовы.
+      - not:
+          type:
+            instanceof: ['function_call', 'method_call']
+      - type:
+          instanceof: *inline_atom_ast_nodes
+        contains_any:
+          key: "type"
+          value_in: [
+            'function_call',
+            'method_call' # могут быть другие вложенные конструкты
+          ]
+  actions:
+    - role: content
+      kind: optional
+      opaque: false  # технический шаг к вложенным вызовам; шагом студента является сам оператор/условие
+  transitions:
+    - from: BEGIN
+      to: content
+      to_when_absent: END
+    - from: content
+      to: content
+      to_when_absent: END
+
+# Оператор - вызов пользовательской функции (`g(1)`): сам оператор не шаг студента.
+# Конструкт раскрывается после действия оператора с прозрачным BEGIN, поэтому
+# findCorrect добавляет оператор автоматически, и следующим шагом становится вход в
+# вызов. Только вызов процедуры с телом из кода программы; библиотечные вызовы (`len(x)`,
+# `d.add(1)`) остаются обычными шагами.
+call_statement_structure:
+  kind: inline.compound
+  preorder: false
+  ast_node:
+    query:
+      - type: expression_statement
+        equals:
+          path: "expression / type"
+          value: function_call
+      - type: expression_statement
+        calls_program_procedure: "expression"
+  actions:
+    - role: content
+      kind: optional
+      opaque: false  # технический шаг к вложенным вызовам
+  transitions:
+    - from: BEGIN
+      to: content
+      to_when_absent: END
+    - from: content
+      to: content
+      to_when_absent: END
+
+# --------------------------------
+# Заглушка для комментария и др. незначимых для CFG действий (без кнопок)
+# --------------------------------
+noop_structure:
+  kind: noop
+  ast_node: [
+    'comment',
+    'class_definition',
+    'import_module',
+    'import_members_from_module',
+    # TODO: add more no-op ast node types here
+  ]
+

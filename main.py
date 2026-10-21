@@ -1,95 +1,148 @@
+"""Сгенерировать учебные задачи по фрагменту и показать отобранные.
+
+Печатает для каждой задачи вариант значений, N, Q, итоговые цепочки условий,
+скиллы и концепты; логи pipeline (отказы с причинами и сводка) идут в stderr.
+Нужен для подбора чисел ProblemGenerationConfig и разбора, почему фрагмент не дал задач.
+С ``--output`` сохраняет задачи в каталог как вопросы CompPrehension
+(SerializableQuestionTemplate), по файлу ``<questionName>.json`` на вопрос, как экспорт playground,
+и сообщает в stdout, сколько вопросов сохранено и куда. Вывод в stdout - на английском.
+"""
+
+from __future__ import annotations
+
 import argparse
 import json
+import logging
+import sys
+import textwrap
+import time
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
 
-from src.cfg_tools import cfg
-from src.code_renderer import CodeHighlightGenerator
-from src.meaning_tree import convert, to_dict, to_tokens
+from src.generator.problems import (
+    DEFAULT_SEED,
+    LearningProblem,
+    ProblemGenerationConfig,
+)
+from src.generator.utilities import (
+    code_snippet_to_problem_pipeline,
+    problems_to_question_templates,
+)
+from src.generator.value_marker import format_flag
+
+DEFAULT_CONFIG = ProblemGenerationConfig()
 
 
-def save_as_html(output_file: str, code: str, language: str):
-    source_map = convert(code, language, language, source_map=True)
-    if not source_map or isinstance(source_map, str):
-        raise ValueError("Source map generation failure")
-    tokens = to_tokens(language, source_map["source_code"])
-    if not tokens:
-        raise ValueError("Token obtaining failure")
-    gen = CodeHighlightGenerator()
-    lines = gen.prepare_interactive_data(
-        source_map,
-        tokens,
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+    started = time.monotonic()
+    pipeline = code_snippet_to_problem_pipeline(
+        textwrap.dedent(_read_code(args)),
+        language=args.language,
+        seed=args.seed,
+        config=replace(DEFAULT_CONFIG, top_k=args.top_k, selection=args.selection),
+        origin=args.origin,
+        origin_license=args.origin_license,
+        target_language=args.target_language,
     )
-    gen.generate_html(lines, source_map, output_file=output_file)
+    problems = pipeline.results()
+    for problem in problems:
+        print(_describe(problem))
+    if args.output is not None:
+        questions = problems_to_question_templates(pipeline, problems)
+        _write_questions(args.output, questions)
+        print(
+            f"Export completed: {len(questions)} of {len(problems)} questions "
+            f"saved to {args.output.resolve()}"
+        )
+    print(f"Problems: {len(problems)}, {time.monotonic() - started:.1f} s")
+    return 0
 
 
-def save_cfg(node, output_file="cfg.png"):
-    graph = cfg.generate_cfg(node)
-    return cfg.visualize(output_file)
+def _write_questions(output_dir: Path, questions: list[dict[str, Any]]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for question in questions:
+        name = question["commonQuestion"]["questionData"]["questionName"]
+        text = json.dumps(question, ensure_ascii=False, indent=2)
+        (output_dir / f"{name}.json").write_text(text, encoding="utf-8")
+
+
+def _describe(problem: LearningProblem) -> str:
+    code = problem.registry.code
+    chains = ", ".join(
+        f"{role}@{code.code_line_number_by_id(ast_id) if ast_id else '?'}="
+        + "".join(format_flag(value) for value in values)
+        for (_, ast_id, role), values in problem.values.items()
+    )
+    score = f"{problem.score:.3f}" if problem.score is not None else "-"
+    return (
+        f"[{problem.variant}] trace steps (N)={problem.steps}, selection score (Q)={score}, "
+        f"cyclomatic complexity (M)={problem.cyclomatic_complexity}, "
+        f"difficulty (complexity)={problem.complexity:.3f}\n"
+        f"  values: {chains}\n"
+        f"  skills: {', '.join(sorted(problem.skills))}\n"
+        f"  concepts: {', '.join(sorted(problem.concepts))}"
+    )
+
+
+def _read_code(args: argparse.Namespace) -> str:
+    if args.code is not None:
+        return args.code
+    if args.code_file is not None:
+        return args.code_file.read_text(encoding="utf-8")
+    return sys.stdin.read()
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate learning problems for a code fragment and print the selected ones."
+    )
+    parser.add_argument(
+        "code_file",
+        nargs="?",
+        type=Path,
+        help="Code fragment file. If omitted, code is read from stdin.",
+    )
+    parser.add_argument("--code", help="Code fragment text. Overrides stdin and code_file.")
+    parser.add_argument(
+        "--language",
+        default="python",
+        help="Source language passed to the MeaningTree converter.",
+    )
+    parser.add_argument(
+        "--target-language",
+        choices=("java", "python", "c++"),
+        help="Language of the problem code: the fragment is translated by MeaningTree "
+        "(default: source language).",
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Generation seed.")
+    parser.add_argument(
+        "--top-k", type=int, default=DEFAULT_CONFIG.top_k, help="Problems to select."
+    )
+    parser.add_argument(
+        "--selection",
+        choices=("score", "random"),
+        default=DEFAULT_CONFIG.selection,
+        help="Selection strategy: top-k by Q or k random problems.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Directory to save problems as CompPrehension question JSON files.",
+    )
+    parser.add_argument("--origin", help="Source of the code fragment for question metadata.")
+    parser.add_argument(
+        "--origin-license", help="License of the code fragment source. Requires --origin."
+    )
+    args = parser.parse_args(argv)
+    if args.origin_license is not None and args.origin is None:
+        parser.error("--origin-license requires --origin")
+    return args
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process code into meaning tree and generate visualizations"
-    )
-    parser.add_argument("--file", "-f", help="Source file to process")
-    parser.add_argument("--code", "-c", help="Code string to process")
-    parser.add_argument(
-        "--cfg", "-g", action="store_true", help="Generate control flow graph"
-    )
-    parser.add_argument(
-        "--output", "-o", default="result", help="Output filename (without extension)"
-    )
-    parser.add_argument(
-        "--analyze", "-a", action="store_true", help="Print CFG analysis information"
-    )
-
-    args = parser.parse_args()
-
-    # file_path = args.file
-    N = 10
-    file_path = f"test/data/examples/code_example{N}.py"
-
-    if file_path:
-        with open(file_path) as f:
-            code = f.read()
-    elif args.code:
-        code = args.code
-    else:
-        parser.print_help()
-        exit(1)
-
-    # ast = to_dict("java", code)
-    # ast = to_dict("c++", code)
-    ast = to_dict("python", code)
-
-    if not ast:
-        print("Failed to parse the code")
-        exit(1)
-
-    if 1:
-        # save json
-        with open(f"test/data/ast/ast{N}.json", "w") as f:
-            json.dump(ast, f, indent=2)
-
-    html_output = f"{args.output}.html"
-    save_as_html(html_output, code, "python")
-    print(f"HTML output saved to {html_output}")
-
-    if 0 and args.cfg:
-        cfg_output = f"{args.output}_cfg.png"
-        cfg_graph = cfg.generate_cfg(ast)
-        cfg.visualize(cfg_output)
-        print(f"Control flow graph saved to {cfg_output}")
-
-        if args.analyze:
-            print("\nCFG Analysis:")
-            print(f"- Number of basic blocks: {len(cfg.blocks)}")
-            print(f"- Reducible: {cfg.is_reducible()}")
-            print(f"- Loop headers: {len(cfg.loop_headers)}")
-            print(f"- Loop connectedness: {cfg.get_loop_connectedness()}")
-            print(f"- Back edges: {len(cfg.back_edges)}")
-            print(f"- Critical edges: {len(cfg.critical_edges)}")
-            print(f"- Impossible edges: {len(cfg.impossible_edges)}")
-
-    # from src.serializers.compprehension_serializer import serialize
-    # from pprint import pprint
-    # pprint(serialize(ast))
+    raise SystemExit(main())

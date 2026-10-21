@@ -1,0 +1,712 @@
+from __future__ import annotations
+
+import logging
+import textwrap
+from collections import OrderedDict
+from collections.abc import Sequence
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from src.ast_managers import prepare_code
+from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
+from src.generator.compprehension_serializer import QuestionTemplateError
+from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.registry import SituationRegistry
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_manager_to_registry
+from src.generator.value_plan import action_key
+from src.helpers.tpg import PipelineReasoningOutput, TraceStep
+from src.model.situation import Action, SemanticValue, TraceAct
+from src.tpg_domain import ReasoningResult, TreeNode, TreeNodeMetadataEntry
+from test.helpers.trace import TraceBuilder, ast_node
+from test.playground import app as playground_app
+from test.playground.app import (
+    PlaygroundSituation,
+    build_answer_objects,
+    build_trace_hints,
+    load_situation,
+    serialize_reasoning_result,
+)
+
+
+def test_trace_hints_follow_actual_values_for_repeated_actions() -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[
+        ast_node(2, "condition"), ast_node(3, "assignment_expression"),
+        ast_node(4, "function_call"), ast_node(5, "assignment_expression"),
+    ]))
+    program = builder.construct(1, name="global_statements_structure")
+    condition = builder.action(2, program, role="condition")
+    statement = builder.action(3, program, role="statement")
+    call = builder.action(4, program, role="call")
+    unexecuted = builder.action(5, program, role="unexecuted")
+    condition.values = [SemanticValue(True), SemanticValue(False)]
+    call.values = [SemanticValue(None, hint_override="result <x>"), SemanticValue(None)]
+    builder.act(program.begin_action())
+    trace_start = len(builder.trace)
+    # The explicit value links, rather than occurrence counts, determine the hint.
+    builder.act(condition, value=condition.values[1])
+    builder.act(program.begin_action())
+    builder.act(statement)
+    builder.act(condition, value=condition.values[0])
+    builder.act(call, value=call.values[0])
+    builder.act(call, value=call.values[1])
+
+    assert build_trace_hints(
+        builder.registry, [condition, statement, condition, call, call, unexecuted], trace_start,
+    ) == ["False", None, "True", "result <x>", None]
+
+
+def test_reason_trace_hints_stop_before_incorrect_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[ast_node(2, "condition")]))
+    program = builder.construct(1, name="global_statements_structure")
+    condition = builder.action(2, program, role="condition")
+    condition.values = [SemanticValue(True), SemanticValue(False)]
+    builder.act(program.begin_action())
+    serializer, _ = registry_to_loqi(builder.registry)
+    name = serializer.object_name(condition)
+    assert name is not None
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> SimpleNamespace:
+        action = selected_trace[0].action
+        # Even if a failed step has partially added an act, its hint must stay hidden.
+        for value in action.values:
+            registry.add(TraceAct(action, None, registry, value))
+        return SimpleNamespace(
+            step_index=1, result=ReasoningResult(False), loqi_text="",
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    response = playground_app.app.test_client().post(
+        "/reason-trace", json={"code": "", "trace": [name, name, name]},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["traceHints"] == ["True"]
+    assert payload["failedStepIndex"] == 1
+
+
+def test_hint_trace_returns_hints_for_prefix_and_added_action(monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[ast_node(2, "condition")]))
+    program = builder.construct(1, name="global_statements_structure")
+    condition = builder.action(2, program, role="condition")
+    condition.values = [SemanticValue(True), SemanticValue(False, hint_override="stop")]
+    builder.act(program.begin_action())
+    serializer, _ = registry_to_loqi(builder.registry)
+    name = serializer.object_name(condition)
+    assert name is not None
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> SimpleNamespace:
+        action = selected_trace[0].action
+        registry.add(TraceAct(action, None, registry, action.values[0]))
+        return SimpleNamespace(result=ReasoningResult(True), exported_loqi=None)
+
+    def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
+        action = registry.trace_acts[-1].action
+        registry.add(TraceAct(action, None, registry, action.values[1]))
+        return SimpleNamespace(
+            action=action, finished=False, value=None, output=SimpleNamespace(loqi_text=""),
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", hint)
+    response = playground_app.app.test_client().post(
+        "/hint-trace", json={"code": "", "trace": [name]},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["traceHints"] == ["True", "stop"]
+
+
+def test_call_value_steps_reach_check_and_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = code_manager_to_registry(
+        prepare_code('def f(n):\n    return n\nf(1)  # <! (-, "f(1)") >\n', "python")
+    )
+    [end] = [
+        action
+        for action in registry.all_actions()
+        if action.annotation is not None and action.rule.role == "END"
+    ]
+    # Подсказку END в задаче ставит трасса findCorrect.
+    end.values[0].hint_override = "f(1)"
+    serializer, _ = registry_to_loqi(registry)
+    end_name = serializer.object_name(end)
+    value_name = serializer.object_name(end.values[0])
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(registry))
+    checked: list[TraceStep] = []
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> SimpleNamespace:
+        checked.extend(selected_trace)
+        return SimpleNamespace(result=ReasoningResult(True), exported_loqi=None)
+
+    def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
+        action = checked[-1].action
+        return SimpleNamespace(
+            action=action, finished=False, value=action.values[0], output=SimpleNamespace(loqi_text=""),
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", hint)
+    response = playground_app.app.test_client().post(
+        "/hint-trace", json={"code": "", "trace": [end_name, f"{end_name},{value_name}"]},
+    )
+
+    assert response.status_code == 200
+    # Шаг пункта dropdown передаёт и действие, и значение; обычный шаг - только действие.
+    assert [step.value is not None for step in checked] == [False, True]
+    assert checked[1].value is checked[1].action.values[0]
+    # Подсказка для END размеченного вызова - шаг с правильным значением.
+    assert response.get_json()["action"] == f"{end_name},{value_name}"
+
+
+@pytest.mark.parametrize("with_trace", [False, True])
+def test_reasoning_explanations_include_both_languages(with_trace: bool) -> None:
+    metadata = [
+        {"name": "explanation", "locCode": "RU", "value": "Выполните <code>while</code>."},
+        {"name": "explanation", "locCode": "EN", "value": "Execute <code>while</code>."},
+    ]
+    result = ReasoningResult(
+        result=False,
+        final_node=TreeNode(
+            "BranchResultNode",
+            metadata=[
+                TreeNodeMetadataEntry(entry["name"], entry["locCode"], entry["value"])
+                for entry in metadata
+            ],
+        ),
+        trace={
+            "branchResult": "ERROR",
+            "elements": [{
+                "nodeType": "BranchResultNode",
+                "nodeResult": "ERROR",
+                "metadata": metadata,
+            }],
+        } if with_trace else None,
+    )
+
+    serialized = serialize_reasoning_result(result)
+    localized = serialized["localizedExplanations"]
+    assert isinstance(localized, dict)
+    for language, expected in (("RU", "Выполните"), ("EN", "Execute")):
+        assert localized[language]["explanations"] == [f"{expected} <code>while</code>."]
+        view = localized[language]["explanationView"]
+        if with_trace:
+            assert view["children"][0]["text"] == f"{expected} <code>while</code>."
+        else:
+            assert view is None
+    assert serialized["explanations"] == localized["EN"]["explanations"]
+
+
+def test_reasoning_explanations_fall_back_when_translation_is_missing() -> None:
+    result = ReasoningResult(
+        result=True,
+        final_node=TreeNode("BranchResultNode", metadata=[
+            TreeNodeMetadataEntry("explanation", "EN", "Execute the next action."),
+        ]),
+    )
+    localized = serialize_reasoning_result(result)["localizedExplanations"]
+    assert isinstance(localized, dict)
+    assert localized["RU"]["explanations"] == ["Execute the next action."]
+
+
+def test_playground_serves_template_static_assets() -> None:
+    client = playground_app.app.test_client()
+    css_response = client.get("/static/playground.css")
+    js_response = client.get("/static/playground.js")
+
+    assert css_response.status_code == 200
+    assert b".trace-container" in css_response.data
+    assert js_response.status_code == 200
+    assert b"findSourceMapNodePath" in js_response.data
+    assert b"sourceMapEditor.setSelection({path})" in js_response.data
+    assert b"initializeNodeIdSearch" in js_response.data
+
+
+def test_playground_renders_node_id_search_when_source_map_is_available() -> None:
+    with playground_app.app.app_context():
+        rendered = playground_app.app.jinja_env.get_template(
+            "playground.html"
+        ).render(
+            static_used=True,
+            lines=[],
+            error=None,
+            nodes_json="{}",
+            source_map={"type": "source_map", "origin": {}},
+            enable_trace=False,
+            answer_objects=None,
+        )
+
+    assert 'id="node-id-search-input"' in rendered
+    assert 'id="node-id-search-form"' in rendered
+    assert 'class="ri-search-line"' in rendered
+    assert "source-map-json-button" not in rendered
+
+
+def test_build_answer_objects_exports_action_names_only() -> None:
+    code = textwrap.dedent(
+        """
+        if x:
+            y = 1
+        else:
+            y = 2
+        """
+    )
+    manager = prepare_code(code, "python")
+    context = prepare_html_context(manager, answer_objects={})
+    buttons = extract_buttons_from_context(context)
+    assert buttons
+
+    answer_objects = build_answer_objects(code_manager_to_registry(manager), context, enable_trace=True)
+    assert answer_objects
+
+    serializer, _ = registry_to_loqi(code_manager_to_registry(manager))
+
+    assert all(isinstance(value, str) for value in answer_objects.values())
+    assert all(
+        isinstance(serializer.object_by_name(str(value)), Action)
+        for value in answer_objects.values()
+    )
+
+
+def test_reason_trace_continues_from_accepted_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = code_manager_to_registry(prepare_code("x = 1\ny = 2\n", "python"))
+    serializer, _ = registry_to_loqi(registry)
+    a, b = [name for action in registry.all_actions() if (name := serializer.object_name(action))][:2]
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(registry))
+    monkeypatch.setattr(playground_app, "_checked_prefixes", OrderedDict())
+    checked: list[int] = []
+    restored: list[str] = []
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> PipelineReasoningOutput:
+        checked.append(len(selected_trace))
+        # Третья проверка отклоняет свой первый шаг.
+        correct = len(checked) != 3
+        return PipelineReasoningOutput(
+            serializer=serializer, loqi_file=Path(), loqi_text="", result=ReasoningResult(correct),
+            exported_loqi=f"after check {len(checked)}", trace_acts=[], trace_state=None,
+            step_index=len(selected_trace) - 1 if correct else 0,
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "restore_trace_from_loqi", lambda loqi, _: restored.append(loqi))
+    client = playground_app.app.test_client()
+
+    def reason(trace: list[str], **flags: object) -> dict[str, Any]:
+        return client.post("/reason-trace", json={"code": "", "trace": trace, **flags}).get_json()
+
+    reason([a])
+    reason([a, b])
+    # Отклонённый шаг - третий в полной трассе, хотя проверялся только он.
+    assert reason([a, b, a])["failedStepIndex"] == 2
+    reason([a, b, a], no_cache=True)
+
+    assert checked == [1, 1, 1, 3]
+    assert restored == ["after check 1", "after check 2"]
+
+
+def test_reason_trace_accepts_action_name_trace(monkeypatch) -> None:
+    code = textwrap.dedent(
+        """
+        if x:
+            y = 1
+        else:
+            y = 2
+        """
+    )
+    manager = prepare_code(code, "python")
+    context = prepare_html_context(manager, answer_objects={})
+    answer_objects = build_answer_objects(code_manager_to_registry(manager), context, enable_trace=True)
+    assert answer_objects is not None
+    trace = [str(value) for value in answer_objects.values()][:2]
+    assert trace
+
+    captured: dict[str, Any] = {}
+
+    def fake_check_graph_stepwise_reasoning(
+        directory,
+        registry,
+        selected_trace,
+        **kwargs,
+    ):  # type: ignore[no-untyped-def]
+        captured["selected_trace"] = list(selected_trace)
+        serializer, _ = registry_to_loqi(registry)
+        captured["selected_trace_names"] = [
+            serializer.object_name(step.action) for step in selected_trace
+        ]
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(
+            step_index=len(selected_trace) - 1,
+            loqi_text="obj reason_input : ActionSpec {}",
+            result=SimpleNamespace(
+                result=False,
+                exceptions=[],
+                trace=None,
+                final_node=SimpleNamespace(
+                    node_type="ExceptionNode",
+                    children=None,
+                    metadata=[
+                        SimpleNamespace(name="id", loc_code=None, value="n-42"),
+                        SimpleNamespace(name="line", loc_code=None, value="12"),
+                        SimpleNamespace(
+                            name="exceptionName",
+                            loc_code=None,
+                            value="IllegalStateException",
+                        ),
+                        SimpleNamespace(name="skill", loc_code="EN", value="Branching"),
+                        SimpleNamespace(
+                            name="explanation",
+                            loc_code="EN",
+                            value="Condition matched the selected branch.",
+                        ),
+                    ],
+                ),
+                variables={"answer": 42},
+            )
+        )
+
+    monkeypatch.setattr(
+        playground_app,
+        "check_graph_stepwise_reasoning",
+        fake_check_graph_stepwise_reasoning,
+    )
+
+    client = playground_app.app.test_client()
+    response = client.post(
+        "/reason-trace",
+        json={
+            "code": code,
+            "language": "python",
+            "target_language": "",
+            "trace": trace,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    assert payload["ok"] is True
+    assert payload["trace"] == trace
+    assert payload["failedStepIndex"] == len(trace) - 1
+    assert payload["loqi"] == "obj reason_input : ActionSpec {}"
+    assert payload["reasoning"]["status"] == "error"
+    assert payload["reasoning"]["hasException"] is True
+    # finalNode несёт полную информацию; отдельных finalNodeId/Type/Line больше нет.
+    final_node = payload["reasoning"]["finalNode"]
+    assert final_node["nodeType"] == "ExceptionNode"
+    final_node_metadata = {
+        entry["name"]: entry["value"] for entry in final_node["metadata"]
+    }
+    assert final_node_metadata["id"] == "n-42"
+    assert final_node_metadata["line"] == "12"
+    assert "finalNodeId" not in payload["reasoning"]
+    assert "finalNodeType" not in payload["reasoning"]
+    assert "finalNodeLine" not in payload["reasoning"]
+    assert payload["reasoning"]["skills"] == ["Branching"]
+    assert payload["reasoning"]["explanations"] == [
+        "Condition matched the selected branch."
+    ]
+    assert all(
+        isinstance(step.action, Action) and step.value is None for step in captured["selected_trace"]
+    )
+    assert captured["selected_trace_names"] == trace
+
+
+def _hint_request_setup(monkeypatch, *, finished: bool) -> tuple[str, Any]:
+    code = textwrap.dedent(
+        """
+        if x:
+            y = 1
+        else:
+            y = 2
+        """
+    )
+    manager = prepare_code(code, "python")
+    context = prepare_html_context(manager, answer_objects={})
+    answer_objects = build_answer_objects(code_manager_to_registry(manager), context, enable_trace=True)
+    assert answer_objects is not None
+    names = [str(value) for value in answer_objects.values()]
+    trace, hint_name = names[:1], names[1]
+
+    def fake_check_graph_stepwise_reasoning(directory, registry, selected_trace, **kwargs):  # type: ignore[no-untyped-def]
+        return SimpleNamespace(
+            step_index=len(selected_trace) - 1,
+            loqi_text="obj check_input : ActionSpec {}",
+            result=SimpleNamespace(result=True, exceptions=[]),
+            exported_loqi=None,
+        )
+
+    def fake_find_graph_next_correct_action(directory, registry, **kwargs):  # type: ignore[no-untyped-def]
+        serializer, _ = registry_to_loqi(registry)
+        action = None if finished else serializer.object_by_name(hint_name)
+        return SimpleNamespace(
+            action=action,
+            finished=finished,
+            value=None,
+            output=SimpleNamespace(loqi_text="obj hint_input : ActionSpec {}"),
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", fake_check_graph_stepwise_reasoning)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", fake_find_graph_next_correct_action)
+
+    response = playground_app.app.test_client().post(
+        "/hint-trace",
+        json={"code": code, "language": "python", "target_language": "", "trace": trace},
+    )
+    assert response.status_code == 200
+    return hint_name, response.get_json()
+
+
+def test_hint_trace_returns_next_action_name(monkeypatch) -> None:
+    hint_name, payload = _hint_request_setup(monkeypatch, finished=False)
+
+    assert payload["ok"] is True
+    assert payload["finished"] is False
+    assert payload["action"] == hint_name
+    # LOQI последнего запуска reasoner: findCorrect идёт после пошаговой проверки.
+    assert payload["loqi"] == "obj hint_input : ActionSpec {}"
+
+
+def test_hint_trace_reports_finished_program(monkeypatch) -> None:
+    _, payload = _hint_request_setup(monkeypatch, finished=True)
+
+    assert payload["ok"] is True
+    assert payload["finished"] is True
+    assert payload["action"] is None
+
+
+def test_load_situation_with_seed_uses_first_generated_problem_values() -> None:
+    code = textwrap.dedent(
+        """
+        if x:
+            y = 1
+        else:
+            y = 2
+        """
+    )
+    manager = prepare_code(code, "python")
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=7)
+    problems = pipeline.run().results()
+    best = max(problems, key=lambda problem: problem.score or 0.0)
+
+    situation = load_situation(code, "python", "", 7)
+
+    assert load_situation(code, "python", "", 7) is situation
+    assert situation.problem is not None and best.variant in situation.problem
+    assert situation.problems[0].variant == best.variant
+    scores = [problem.score or 0.0 for problem in situation.problems]
+    assert scores == sorted(scores, reverse=True)
+    assert situation.base_registry is not None
+    registry = situation.registry
+    assert len(registry.trace_acts) == 1
+    assert {
+        action_key(action): tuple(value.bool_value for value in action.values)
+        for action in registry.all_actions()
+        if action.is_condition
+    } == best.values
+
+
+def test_load_situation_without_seed_keeps_default_values() -> None:
+    situation = load_situation("if x:\n    y = 1\n", "python", "", None)
+
+    assert situation.problem is None
+    [condition] = [action for action in situation.registry.all_actions() if action.is_condition]
+    assert [value.bool_value for value in condition.values] == [True]
+
+
+def test_index_embeds_problem_loqi_only_for_generated_problem(monkeypatch) -> None:
+    code = "if x:\n    y = 1\n"
+    default = load_situation(code, "python", "", None)
+    problem = PlaygroundSituation(
+        default.registry, problem="if@1=if; N=3; Q=0.50", problem_loqi="obj p : Act {}"
+    )
+    monkeypatch.setattr(
+        playground_app,
+        "load_situation",
+        lambda code, language, target_language, seed: default if seed is None else problem,
+    )
+    client = playground_app.app.test_client()
+    form = {"code": code, "language": "python", "target_language": ""}
+
+    seeded = client.post("/", data={**form, "seed": "5"}).get_data(as_text=True)
+    plain = client.post("/", data={**form, "seed": ""}).get_data(as_text=True)
+
+    assert 'id="problem_loqi"' in seeded
+    assert '"loqi": "obj p : Act {}"' in seeded and '"seed": "5"' in seeded
+    assert "if@1=if; N=3; Q=0.50" in seeded
+    assert 'id="problem_loqi"' not in plain
+
+
+def test_index_renders_export_tab_with_question_count_only_for_seed(monkeypatch) -> None:
+    code = "if x:\n    y = 1\n"
+    default = load_situation(code, "python", "", None)
+    seeded =PlaygroundSituation(
+        default.registry,
+        problem="if@1=if; N=3; Q=0.50",
+        problems=(SimpleNamespace(), SimpleNamespace()),  # type: ignore[arg-type]
+        base_registry=default.registry,
+    )
+    monkeypatch.setattr(
+        playground_app,
+        "load_situation",
+        lambda code, language, target_language, seed: default if seed is None else seeded,
+    )
+    client = playground_app.app.test_client()
+    form = {"code": code, "language": "python", "target_language": ""}
+
+    with_seed = client.post("/", data={**form, "seed": "5"}).get_data(as_text=True)
+    without_seed = client.post("/", data={**form, "seed": ""}).get_data(as_text=True)
+
+    assert 'data-tab-name="tab-export"' in with_seed
+    assert 'id="export-question-count"' in with_seed and 'max="2"' in with_seed
+    assert '"questionCount": 2' in with_seed and '"seed": "5"' in with_seed
+    assert 'data-tab-name="tab-export"' in without_seed
+    assert 'id="export-question-count"' not in without_seed
+    assert "Render with a seed to export generated questions." in without_seed
+
+
+def _export_situation(monkeypatch) -> PlaygroundSituation:
+    default = load_situation("if x:\n    y = 1\n", "python", "", None)
+    situation = PlaygroundSituation(
+        default.registry,
+        problems=(SimpleNamespace(values={}),),  # type: ignore[arg-type]
+        base_registry=default.registry,
+    )
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: situation)
+    return situation
+
+
+def test_export_question_returns_question_template(monkeypatch) -> None:
+    situation = _export_situation(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_problem_to_question_template(problem, statement, html):  # type: ignore[no-untyped-def]
+        captured["problem"] = problem
+        captured["statement"] = statement
+        return {"commonQuestion": {"questionData": {"questionName": "if_x_1_0"}}}
+
+    monkeypatch.setattr(
+        playground_app, "problem_to_question_template", fake_problem_to_question_template
+    )
+
+    response = playground_app.app.test_client().post(
+        "/export-question",
+        json={"code": "c", "language": "python", "target_language": "", "seed": "5", "index": 0},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True and payload["name"] == "if_x_1_0"
+    assert payload["question"]["commonQuestion"]["questionData"]["questionName"] == "if_x_1_0"
+    assert captured["problem"] is situation.problems[0]
+    # Условие строится на копии исходной ситуации, кэш не меняется.
+    assert captured["statement"] is not situation.base_registry
+
+
+def test_export_question_logs_and_reports_skipped_problem(monkeypatch, caplog) -> None:
+    _export_situation(monkeypatch)
+
+    def fail(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise QuestionTemplateError("no buttons for trace steps: act_1")
+
+    monkeypatch.setattr(playground_app, "problem_to_question_template", fail)
+
+    with caplog.at_level(logging.WARNING, logger=playground_app.app.logger.name):
+        response = playground_app.app.test_client().post(
+            "/export-question", json={"code": "c", "language": "python", "seed": "5", "index": 0}
+        )
+
+    assert response.status_code == 422
+    assert response.get_json() == {
+        "ok": False,
+        "skipped": True,
+        "error": "no buttons for trace steps: act_1",
+    }
+    assert "no buttons for trace steps: act_1" in caplog.text
+
+
+def test_export_question_rejects_missing_seed_and_unknown_index(monkeypatch) -> None:
+    _export_situation(monkeypatch)
+    client = playground_app.app.test_client()
+    body = {"code": "c", "language": "python"}
+
+    no_seed = client.post("/export-question", json={**body, "seed": "", "index": 0})
+    out_of_range = client.post("/export-question", json={**body, "seed": "5", "index": 1})
+    bad_index = client.post("/export-question", json={**body, "seed": "5", "index": "0"})
+
+    assert no_seed.status_code == 400
+    assert out_of_range.status_code == 400
+    assert bad_index.status_code == 400
+    assert out_of_range.get_json()["ok"] is False
+
+
+def test_clear_cache_endpoint_drops_cached_situations() -> None:
+    situation = load_situation("y = 1\n", "python", "", None)
+
+    response = playground_app.app.test_client().post("/clear-cache")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True}
+    assert load_situation("y = 1\n", "python", "", None) is not situation
+
+
+def test_trace_template_renders_loqi_viewer_only_outside_static_page() -> None:
+    template = playground_app.app.jinja_env.get_template("playground_trace.html")
+    with playground_app.app.app_context():
+        interactive = template.render(static_used=False)
+        static = template.render(static_used=True)
+
+    assert 'id="loqi-button"' in interactive
+    assert 'id="loqi-modal"' in interactive
+    assert 'id="loqi-search-input"' in interactive
+    assert 'id="loqi-button"' not in static
+    assert 'id="loqi-modal"' not in static
+
+
+def test_snippet_endpoint_loads_code_and_language_from_extension(tmp_path, monkeypatch) -> None:
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "Loop.java").write_text("class Loop {}", encoding="utf-8")
+    (tmp_path / "sum.py").write_text("x = 1", encoding="utf-8")
+    (tmp_path / "main.cpp").write_text("int main() {}", encoding="utf-8")
+    (tmp_path / "notes.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setitem(playground_app.app.config, "SNIPPETS_DIR", tmp_path)
+
+    assert playground_app.list_snippet_files(tmp_path) == ["main.cpp", "nested/Loop.java", "sum.py"]
+
+    client = playground_app.app.test_client()
+    response = client.get("/snippet", query_string={"path": "nested/Loop.java"})
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "path": "nested/Loop.java",
+        "code": "class Loop {}",
+        "language": "java",
+    }
+    assert client.get("/snippet", query_string={"path": "main.cpp"}).get_json()["language"] == "c++"
+
+    index = client.get("/")
+    assert b'<option value="nested/Loop.java">' in index.data
+
+
+def test_snippet_endpoint_rejects_paths_outside_directory_and_unknown_extensions(tmp_path, monkeypatch) -> None:
+    snippets = tmp_path / "snippets"
+    snippets.mkdir()
+    (snippets / "notes.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "secret.py").write_text("token = 1", encoding="utf-8")
+    monkeypatch.setitem(playground_app.app.config, "SNIPPETS_DIR", snippets)
+
+    client = playground_app.app.test_client()
+    for path in ["../secret.py", str(tmp_path / "secret.py"), "notes.json", "missing.py", ""]:
+        response = client.get("/snippet", query_string={"path": path})
+        assert response.status_code == 404, path
+        assert response.get_json()["ok"] is False

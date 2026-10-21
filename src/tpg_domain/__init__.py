@@ -1,0 +1,80 @@
+"""tpg_domain facade.
+
+Re-exports the public API bound to the active backend (``cli`` by default; ``rpc`` when explicitly
+configured or selected by ``auto`` mode via ``TOOLCHAIN_BACKEND``/``TPG_BACKEND``). The CLI and
+JSON-RPC implementations live in :mod:`src.tpg_domain.cli` and :mod:`src.tpg_domain.rpc`; the
+shared data model lives in :mod:`src.tpg_domain.models`. All three stay importable directly.
+"""
+
+from src.env import TPG_BACKEND_ENV_VAR, select_backend
+
+from . import cli
+from .models import (
+    DiscoverTreeResult,
+    DomainBuildMethod,
+    ExpressionQueryResult,
+    ReasoningCallError,
+    ReasoningException,
+    ReasoningResult,
+    ReasoningTrace,
+    TpgProject,
+    TreeNode,
+    TreeNodeChildren,
+    TreeNodeDescriptor,
+    TreeNodeMetadataEntry,
+    parse_discover_tree_jsonl,
+    parse_expression_query_jsonl,
+    parse_reasoning_jsonl,
+    variable_localized_name,
+)
+
+_backend = select_backend(
+    TPG_BACKEND_ENV_VAR,
+    required_rpc_tools=("its_DomainModel", "its_Reasoner"),
+)
+if _backend == "rpc":
+    from . import rpc as _impl
+else:
+    _impl = cli
+
+#: Name of the backend selected at import time ("cli" or "rpc").
+ACTIVE_BACKEND = _backend
+
+validate_domain_solving_model = _impl.validate_domain_solving_model
+validate_domain_loqi = _impl.validate_domain_loqi
+tree_loqi_to_xml = _impl.tree_loqi_to_xml
+discover_tree = _impl.discover_tree
+domain_to_rdf = _impl.domain_to_rdf
+rdf_to_domain_loqi = _impl.rdf_to_domain_loqi
+solve_reasoning = _impl.solve_reasoning
+solve_reasoning_result = _impl.solve_reasoning_result
+query_expression = _impl.query_expression
+
+__all__ = [
+    "ACTIVE_BACKEND",
+    "DiscoverTreeResult",
+    "DomainBuildMethod",
+    "ExpressionQueryResult",
+    "ReasoningCallError",
+    "ReasoningException",
+    "ReasoningResult",
+    "ReasoningTrace",
+    "TpgProject",
+    "TreeNode",
+    "TreeNodeChildren",
+    "TreeNodeDescriptor",
+    "TreeNodeMetadataEntry",
+    "discover_tree",
+    "domain_to_rdf",
+    "parse_discover_tree_jsonl",
+    "parse_expression_query_jsonl",
+    "parse_reasoning_jsonl",
+    "query_expression",
+    "rdf_to_domain_loqi",
+    "solve_reasoning",
+    "solve_reasoning_result",
+    "tree_loqi_to_xml",
+    "validate_domain_loqi",
+    "validate_domain_solving_model",
+    "variable_localized_name",
+]

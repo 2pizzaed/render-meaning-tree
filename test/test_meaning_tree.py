@@ -1,63 +1,137 @@
-from typing import Dict, Any
-from src.meaning_tree import to_dict
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+from src.meaning_tree import rpc as meaning_tree_rpc
+from src.meaning_tree.cli import _parse_source_map, convert, generate, to_tokens
+from src.toolchain_rpc import RpcError
 
 
-def test_java_to_dict_conversion():
-    code = """
-    if (a < 3) {
-        b = b + 6;
+def test_convert_supports_skip_errors_and_project_context(monkeypatch) -> None:
+    calls: list[tuple[tuple[str, ...], str | None]] = []
+
+    def fake_run_meaning_tree(*args: str, stdin_data: str | None = None) -> str:
+        calls.append((args, stdin_data))
+        return "converted"
+
+    monkeypatch.setattr("src.meaning_tree.cli._run_meaning_tree", fake_run_meaning_tree)
+
+    result = convert(
+        "print(1)",
+        "python",
+        "python",
+        skip_errors=True,
+        project_root="/repo",
+        project_file="src/main.py",
+    )
+
+    assert result == "converted"
+    args, stdin_data = calls[0]
+    assert args[:5] == ("translate", "--from", "python", "--to", "python")
+    assert "--skip-errors" in args
+    assert "--project" in args
+    assert args[args.index("--project") + 1] == f"{Path('/repo')}{os.pathsep}{Path('src/main.py')}"
+    assert stdin_data == "print(1)"
+
+
+def test_to_tokens_supports_skip_errors_without_conversion(monkeypatch) -> None:
+    calls: list[tuple[tuple[str, ...], str | None]] = []
+
+    def fake_run_meaning_tree(*args: str, stdin_data: str | None = None) -> str:
+        calls.append((args, stdin_data))
+        return "{}"
+
+    monkeypatch.setattr("src.meaning_tree.cli._run_meaning_tree", fake_run_meaning_tree)
+
+    result = to_tokens("python", "print(1)", skip_errors=True)
+
+    assert result == {}
+    args, _stdin_data = calls[0]
+    assert args[:3] == ("translate", "--from", "python")
+    assert "--tokenize-noconvert" in args
+    assert "--skip-errors" in args
+
+
+def test_rpc_tokenization_preserves_server_error(monkeypatch) -> None:
+    def fail_rpc_call(*_args, **_kwargs):
+        raise RpcError("translate failed: Given code has syntax errors: [def (]")
+
+    monkeypatch.setattr(meaning_tree_rpc, "_rpc_call", fail_rpc_call)
+
+    with pytest.raises(RpcError, match="Given code has syntax errors"):
+        meaning_tree_rpc.to_tokens("python", "def (", "python")
+
+
+def test_generate_supports_skip_errors(monkeypatch) -> None:
+    calls: list[tuple[tuple[str, ...], str | None]] = []
+
+    def fake_run_meaning_tree(*args: str, stdin_data: str | None = None) -> str:
+        calls.append((args, stdin_data))
+        return "generated"
+
+    monkeypatch.setattr("src.meaning_tree.cli._run_meaning_tree", fake_run_meaning_tree)
+
+    result = generate('{"root_node": {}}', "python", skip_errors=True)
+
+    assert result == "generated"
+    args, stdin_data = calls[0]
+    assert args[:5] == ("generate", "--to", "python", "--format", "json")
+    assert "--skip-errors" in args
+    assert stdin_data == '{"root_node": {}}'
+
+
+def test_convert_requires_both_project_root_and_project_file() -> None:
+    with pytest.raises(
+        ValueError, match="project_root and project_file must be provided together"
+    ):
+        convert("print(1)", "python", "python", project_root="/repo")
+
+
+def test_parse_source_map_accepts_current_scope_table_format() -> None:
+    render_scope_table = {
+        "type": "scope_table",
+        "current_scope_id": 0,
+        "assignment_binding": "LOCAL",
+        "symbols": {
+            "declarations": [],
+            "definitions": [],
+            "overload_groups": [],
+        },
+        "types": {
+            "declared_types": [],
+            "type_declarations": [],
+            "hierarchy": [],
+        },
+        "imports": {"items": []},
+        "scopes": [],
     }
-    """
+    source_map = {
+        "type": "source_map",
+        "origin": {"id": 1, "type": "program_entry_point"},
+        "source_code": "",
+        "language": "python",
+        "byte_positions": {},
+        "render_scope_table": render_scope_table,
+        "metrics": {},
+    }
 
-    result = to_dict("java", code)
+    parsed = _parse_source_map(json.dumps(source_map))
 
-    assert result is not None, "Result should not be None"
-
-    tree: Dict[str, Any] = result
-
-    assert tree["type"] == "program_entry_point"
-    assert "body" in tree
-
-    if_statement = tree["body"][0]
-    assert if_statement["type"] == "if_statement"
-    assert "branches" in if_statement
-
-    branch = if_statement["branches"][0]
-    assert "condition" in branch
-    condition = branch["condition"]
-    assert condition["type"] == "lt_operator"
-
-    assert "body" in branch
-    body = branch["body"]
-    assert body["type"] == "compound_statement"
-
-    assignment = body["statements"][0]
-    assert assignment["type"] == "assignment_statement"
-    assert "target" in assignment
-    assert "value" in assignment
-
-    addition = assignment["value"]
-    assert addition["type"] == "add_operator"
-    assert "left_operand" in addition
-    assert "right_operand" in addition
-
-    literal = addition["right_operand"]
-    assert literal["type"] == "int_literal"
-    assert literal["value"] == 6
+    assert parsed is not None
+    assert parsed["render_scope_table"] == render_scope_table
 
 
-def test_invalid_language():
-    result = to_dict("nonexistent_language", "some code")
-    assert result is None
+def test_parse_source_map_rejects_legacy_scope_table_format() -> None:
+    source_map = {
+        "type": "source_map",
+        "origin": {"id": 1, "type": "program_entry_point"},
+        "source_code": "",
+        "language": "python",
+        "byte_positions": {},
+        "scope_table": {},
+        "metrics": {},
+    }
 
-
-def test_empty_code():
-    result = to_dict("java", "")
-
-    assert result is not None, "Empty code should produce a result"
-
-    tree: Dict[str, Any] = result
-
-    assert tree["type"] == "program_entry_point"
-    assert "body" in tree
-    assert len(tree["body"]) == 0
+    assert _parse_source_map(json.dumps(source_map)) is None

@@ -587,10 +587,10 @@ class CodeManager:
     def line_number(self, token: int | Token) -> int | None:
         line = 1
         token_index = token.index if isinstance(token, Token) else token
-        for i, token in enumerate(self):
+        for i, current in enumerate(self):
             if i == token_index:
                 return line
-            if newlines := token.has_newline():
+            if newlines := current.has_newline():
                 line += newlines
         return None
 
@@ -1317,19 +1317,24 @@ def prepare_code(
     target_language: SupportedProgrammingLanguage | None = None,
 ) -> CodeManager:
     config: JSON = {"translationUnitMode": mode}
-    render_language = target_language or language
     # С CRLF MT оставляет \r в тексте комментариев и теряет их токены, и маркеры <! … >
     # не находят свою строку. CRLF присылает, например, textarea формы playground.
     code = code.replace("\r\n", "\n").replace("\r", "\n")
+    if target_language is not None and target_language != language:
+        # Source map перевода хранит дерево исходника, а печатает дерево, доработанное
+        # под целевой язык (например, else цикла становится флагом и if). Перевод
+        # разбирается заново, чтобы дерево, действия и показанный код совпадали.
+        translated = convert(code, language, target_language, config=config)
+        if not isinstance(translated, str):
+            raise ValueError(f"Failed to translate code to {target_language}")
+        code, language = translated, target_language
     # 1. Токенизация
-    tokens_list = to_tokens(language, code, render_language, config=config)
+    tokens_list = to_tokens(language, code, language, config=config)
     if not tokens_list:
         raise ValueError("Failed to tokenize code (backend returned None)")
 
     # 2. Source Map
-    source_map = convert(
-        code, language, render_language, source_map=True, config=config
-    )
+    source_map = convert(code, language, language, source_map=True, config=config)
     if not source_map or not isinstance(source_map, dict):
         raise ValueError("Failed to generate source map")
     return manage_code(tokens_list, source_map)

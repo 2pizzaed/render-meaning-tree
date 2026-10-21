@@ -54,6 +54,7 @@ class ControlFlowButtons(InjectionPool):
                 "expression_statement",
                 "assignment_statement",
                 "variable_declaration",
+                "list_unpacking_variable_declaration",  # `a, b = f(x)`
                 "return_statement",
                 "break_statement",
                 "continue_statement",

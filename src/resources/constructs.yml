@@ -862,6 +862,8 @@ inline_atom_ast_nodes: &inline_atom_ast_nodes
   - assignment_statement
   - expression_statement
   - multiple_assignment_statement
+  # `a, b = f(x)`: в иерархии типов MT узла нет, поэтому он не наследует variable_declaration
+  - list_unpacking_variable_declaration
   - range
   # TODO: add new here
 

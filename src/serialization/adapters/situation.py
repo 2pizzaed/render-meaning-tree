@@ -58,8 +58,11 @@ class ActionAdapter:
         return "ConcreteAction"
 
     def describe(self, obj: Action, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        # Значение текущего акта P при сериализации ещё не считается израсходованным.
-        consumed_count = obj.consumed_value_count(exclude=_current_trace_act(obj))
+        # Значение условия в текущем акте P ещё не считается израсходованным: по нему
+        # выбирается переход. Значения вызова так не держим, иначе повторный END того же
+        # вызова подряд (хвостовая рекурсия) взял бы то же значение.
+        current = _current_trace_act(obj) if obj.is_condition else None
+        consumed_count = obj.consumed_value_count(exclude=current)
         obj.bind_values()
         for index, value in enumerate(obj.values):
             value.used = index < consumed_count

@@ -130,6 +130,18 @@ def test_warns_about_call_that_does_not_reach_marker_line(
             id="recursion",
         ),
         pytest.param(
+            # Два выхода подряд из одного вызова на строке down(n - 1).
+            """
+            def down(n):
+                if n == 0:
+                    return
+                print("n =", n)
+                down(n - 1)
+            down(2)
+            """,
+            id="tail-call",
+        ),
+        pytest.param(
             """
             def f(x):
                 return x + 1

@@ -1,16 +1,14 @@
 # Глубина вложенного списка (как дерева)
 def tree_depth(node):
-    if not isinstance(node, list):
+    if not isinstance(node, list):  # <! FF >
         return 0
-    if len(node) == 0:
-        return 1
     max_child = 0
-    for child in node:
-        d = tree_depth(child)
-        if d > max_child:
+    for child in node:  # <! TFF >
+        d = tree_depth(child)  # <! (-, "tree_depth([])") >
+        if d > max_child:  # <! T >
             max_child = d
     return 1 + max_child
 
-tree = [1, [2, [3, 4]], [5]]
-depth = tree_depth(tree)
-print("tree depth:", depth)
+tree = [[]]
+depth = tree_depth(tree)  # <! (-, "tree_depth([[]])") >
+print("depth:", depth)

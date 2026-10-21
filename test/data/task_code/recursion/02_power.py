@@ -1,8 +1,10 @@
 # Возведение в степень
 def power(base, exp):
-    if exp == 0:
+    if exp == 0:  # <! FFFT >
         return 1
-    return base * power(base, exp - 1)
+    return base * power(base, exp - 1)  # <! (-, "power(2, 2)"), (-, "power(2, 1)"), (-, "power(2, 0)") >
 
-result = power(2, 4)
-print("2^4 =", result)
+base = 2
+exp = 3
+result = power(base, exp)  # <! (-, "power(2, 3)") >
+print("power:", result)

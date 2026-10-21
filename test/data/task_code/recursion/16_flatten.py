@@ -1,13 +1,11 @@
-# Разглаживание вложенного списка
+# Разглаживание списка на один уровень вложенности
 def flatten(lst):
-    if len(lst) == 0:
+    if lst == []:  # <! FFT >
         return []
-    first = lst[0]
-    rest = flatten(lst[1:])
-    if isinstance(first, list):
-        return flatten(first) + rest
-    return [first] + rest
+    if isinstance(lst[0], list):  # <! FT >
+        return lst[0] + flatten(lst[1:])  # <! (-, "flatten([])") >
+    return [lst[0]] + flatten(lst[1:])  # <! (-, "flatten([[2, 3]])") >
 
-nested = [1, [2, 3], [4, [5, 6]]]
-result = flatten(nested)
+nested = [1, [2, 3]]
+result = flatten(nested)  # <! (-, "flatten([1, [2, 3]])") >
 print("flatten:", result)

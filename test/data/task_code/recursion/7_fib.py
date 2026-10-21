@@ -1,8 +1,9 @@
 def fib(n):
-    if n <= 2:
+    if n <= 2:  # <! FTT >
         return 1
-    return fib(n - 1) + fib(n - 2)
+    return fib(n - 1) + fib(n - 2)  # <! fib#1: (-, "fib(2)") > <! fib#2: (-, "fib(1)") >
 
 
-x = fib(5)
-print("fib(5) =", x)
+n = 3
+x = fib(n)  # <! (-, "fib(3)") >
+print("fib:", x)

@@ -1,12 +1,11 @@
 # Проверка на отсортированность
 def is_sorted(lst):
-    if len(lst) <= 1:
+    if len(lst) <= 1:  # <! FFF >
         return True
-    if lst[0] > lst[1]:
+    if lst[0] > lst[1]:  # <! FFT >
         return False
-    return is_sorted(lst[1:])
+    return is_sorted(lst[1:])  # <! (-, "is_sorted([2, 4, 3])"), (-, "is_sorted([4, 3])") >
 
-arr1 = [1, 2, 3, 4, 5]
-arr2 = [1, 3, 2, 4, 5]
-print("is_sorted([1,2,3,4,5]):", is_sorted(arr1))
-print("is_sorted([1,3,2,4,5]):", is_sorted(arr2))
+numbers = [1, 2, 4, 3]
+result = is_sorted(numbers)  # <! (-, "is_sorted([1, 2, 4, 3])") >
+print("sorted:", result)

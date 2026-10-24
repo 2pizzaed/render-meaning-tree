@@ -10,9 +10,12 @@ its_DomainModel (``domain-to-rdf``) вместе с базовым домено�
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import logging
 import re
 import tempfile
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +28,7 @@ from src.generator.question_html import QuestionHtml
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.skills import ERRORNEOUS_SKILLS, SKILLS
+from src.generator.value_plan import ActionKey
 from src.helpers.bitflags import pack_flags
 from src.serialization.loqi import LoqiSerializer
 from src.tpg_domain import domain_to_rdf
@@ -50,6 +54,7 @@ LANGUAGE_TAG_BITS: dict[SupportedProgrammingLanguage, int] = {
     "python": 8,
 }
 QUESTION_NAME_EXCERPT_LENGTH = 48
+QUESTION_NAME_VALUES_HASH_LENGTH = 10
 
 # Символы, недопустимые в именах файлов, и всё, кроме букв, цифр, «-», «_», «.» и пробела.
 _FORBIDDEN_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -75,7 +80,7 @@ def problem_to_question_template(
     serializer, loqi = registry_to_loqi(statement)
     tree_hash = _tree_hash(statement.code)
     language = statement.code.language
-    name = question_name(problem.code, tree_hash, problem.variant_index)
+    name = question_name(problem.code, tree_hash, problem.values)
     concepts = sorted(problem.concepts)
     concept_bits = pack_flags(CONCEPTS, concepts)
 
@@ -124,12 +129,24 @@ def problem_to_question_template(
     }
 
 
-def question_name(code: str, tree_hash: int, variant_index: int) -> str:
-    """Имя вопроса: начало кода, пригодное для имени файла, хэш дерева и номер варианта."""
+def question_name(
+    code: str, tree_hash: int, values: Mapping[ActionKey, tuple[bool | None, ...]]
+) -> str:
+    """Имя вопроса: начало кода, пригодное для имени файла, хэш дерева и хэш значений.
+
+    Имя определяется кодом и значениями задачи, а не сидом: загрузчик банка заменяет
+    вопрос с тем же именем.
+    """
     excerpt = re.sub(r"\s+", " ", code).strip()
     excerpt = _NON_NAME_CHARS.sub("_", _FORBIDDEN_NAME_CHARS.sub("", excerpt))
     excerpt = excerpt[:QUESTION_NAME_EXCERPT_LENGTH].rstrip(" .")
-    return f"{excerpt}_{tree_hash}_{variant_index}"
+    return f"{excerpt}_{tree_hash}_{_values_hash(values)}"
+
+
+def _values_hash(values: Mapping[ActionKey, tuple[bool | None, ...]]) -> str:
+    # Пары сортируются по JSON: в ключах бывает None, кортежи с ним не сравниваются.
+    canonical = json.dumps(sorted(json.dumps([key, chain]) for key, chain in values.items()))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:QUESTION_NAME_VALUES_HASH_LENGTH]
 
 
 def _answer_objects(

@@ -33,6 +33,16 @@ SCHEMA_PATH = (
     / "resources"
     / "serializable_question_template.schema.json"
 )
+# При сидах 2 и 3 вариант #4 этого кода - разные задачи.
+LOOP_CODE = textwrap.dedent(
+    """
+    n = 5
+    while n > 0:
+        if n % 2 == 0:
+            print(n)
+        n = n - 1
+    """
+)
 FAST_CONFIG = ProblemGenerationConfig(random_variants=0, max_loop_iterations=2)
 BRANCH_CODE = textwrap.dedent(
     """
@@ -46,18 +56,34 @@ BRANCH_CODE = textwrap.dedent(
 )
 
 
-def test_question_name_keeps_file_safe_code_excerpt_hash_and_variant():
-    name = question_name('if a > "b":\n    print(a)\n', 42, 3)
+CONDITION_KEY: ActionKey = (5, None, "condition")
+LOOP_KEY: ActionKey = (9, 0, "condition")
+
+
+def test_question_name_keeps_file_safe_code_excerpt_tree_hash_and_values_hash():
+    name = question_name('if a > "b":\n    print(a)\n', 42, {CONDITION_KEY: (True,)})
 
     # Запрещённые в именах файлов символы удаляются, прочие - заменяются на «_».
-    assert name == "if a  b print_a__42_3"
+    assert re.fullmatch(r"if a  b print_a__42_[0-9a-f]{10}", name)
 
 
 def test_question_name_cuts_code_excerpt():
-    name = question_name("x = 1\n" * 20, -7, 0)
+    name = question_name("x = 1\n" * 20, -7, {})
 
-    assert name.endswith("_-7_0")
-    assert len(name.removesuffix("_-7_0")) <= 48
+    excerpt, tree_hash, _ = name.rsplit("_", 2)
+    assert tree_hash == "-7"
+    assert len(excerpt) <= 48
+
+
+def test_question_name_depends_on_values_not_on_their_order():
+    values = {CONDITION_KEY: (True, False), LOOP_KEY: (True, True, False)}
+    reordered = {LOOP_KEY: (True, True, False), CONDITION_KEY: (True, False)}
+    other_values = {CONDITION_KEY: (False,), LOOP_KEY: (True, True, False)}
+
+    name = question_name("x = 1", 1, values)
+
+    assert question_name("x = 1", 1, reordered) == name
+    assert question_name("x = 1", 1, other_values) != name
 
 
 def test_integral_complexity_grows_with_steps_and_stays_in_unit_interval():
@@ -244,6 +270,29 @@ def _condition_values(registry: SituationRegistry) -> dict[ActionKey, tuple[bool
         for action in registry.all_actions()
         if action.is_condition or action.annotation is not None
     }
+
+
+def test_question_names_follow_values_regardless_of_seed():
+    # Сид меняет набор и порядок вариантов, но не имя задачи с теми же значениями.
+    manager = prepare_code(LOOP_CODE, "python")
+    tree_hash = manager.ast.root.get("unique_hash")
+    assert isinstance(tree_hash, int)
+    config = ProblemGenerationConfig(random_variants=3, max_loop_iterations=3)
+    names_by_values: dict[str, set[str]] = {}
+    for seed in (2, 3):
+        problems = LearningProblemGeneratorPipeline.from_code(
+            manager, seed=seed, config=config
+        ).run().results()
+        for problem in problems:
+            key = json.dumps(sorted(json.dumps([k, v]) for k, v in problem.values.items()))
+            names_by_values.setdefault(key, set()).add(
+                question_name(problem.code, tree_hash, problem.values)
+            )
+
+    assert all(len(names) == 1 for names in names_by_values.values())
+    assert len({name for names in names_by_values.values() for name in names}) == len(
+        names_by_values
+    )
 
 
 def test_student_steps_skip_structural_actions(

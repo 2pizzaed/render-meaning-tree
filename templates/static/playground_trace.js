@@ -46,11 +46,13 @@ function initializeExplanationLanguage() {
 }
 
 function renderExplanationText(text) {
-    // Escape first; restore only attribute-free formatting tags.
-    return escapeHtml(text).replace(
-        /&lt;(\/?)(code|strong|b|em|i|u|s|kbd|samp|var|sub|sup|small|mark|br)\s*\/?&gt;/gi,
-        (_, closing, tag) => `<${closing}${tag.toLowerCase()}>`,
-    );
+    // Escape first; allow only plain formatting tags and the identifier code class.
+    return escapeHtml(text)
+        .replace(/&lt;code\s+class=&quot;id&quot;\s*&gt;/gi, '<code class="id">')
+        .replace(
+            /&lt;(\/?)(code|strong|b|em|i|u|s|kbd|samp|var|sub|sup|small|mark|br)\s*\/?&gt;/gi,
+            (_, closing, tag) => `<${closing}${tag.toLowerCase()}>`,
+        );
 }
 
 function buildTraceActionIdsByName() {

@@ -43,13 +43,14 @@ lambda interruptionAllowed(t: TransitionSpec, S: TraceState) =
     t->hasConstraints.interruption_mode == S.interruption_mode or
     t->hasConstraints.interruption_mode == InterruptionType:any;
 
-// Если у L есть значение условия — переход должен требовать именно его.
+// Если у L есть значение условия — переход должен требовать именно его. Берём значение акта L,
+// а не очередное неизрасходованное: при добавлении акта его значение уже помечено израсходованным.
 // Значение без bool_value (аннотация акта) переходы не ограничивает
 lambda valueFits(t: TransitionSpec, L: TraceAct) =
     not L=>hasValue() or
     L->hasValue.bool_value == OptionalBool:`null` or (
         t=>hasConstraints() and
-        findUnusedValue(L->hasAction).bool_value == t->hasConstraints.condition_value
+        L->hasValue.bool_value == t->hasConstraints.condition_value
     );
 
 // BEGIN-действие (правило) конструкта C

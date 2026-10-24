@@ -824,7 +824,6 @@ def test_action_consumed_value_count_counts_acts_and_explicit_values() -> None:
     ctx.add(second)
 
     assert action.consumed_value_count() == 3
-    assert action.consumed_value_count(exclude=second) == 1
 
 
 def test_serialize_loqi_situation_trace_state() -> None:

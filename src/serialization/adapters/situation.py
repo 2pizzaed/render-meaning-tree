@@ -58,11 +58,9 @@ class ActionAdapter:
         return "ConcreteAction"
 
     def describe(self, obj: Action, ctx: LoqiAdapterContext) -> LoqiObjectSpec:
-        # Значение условия в текущем акте P ещё не считается израсходованным: по нему
-        # выбирается переход. Значения вызова так не держим, иначе повторный END того же
-        # вызова подряд (хвостовая рекурсия) взял бы то же значение.
-        current = _current_trace_act(obj) if obj.is_condition else None
-        consumed_count = obj.consumed_value_count(exclude=current)
+        # Значение израсходовано любым актом трассы, в том числе текущим P: переход от
+        # условия графы выбирают по значению его акта, как и при засчитывании в одном рассуждении.
+        consumed_count = obj.consumed_value_count()
         obj.bind_values()
         for index, value in enumerate(obj.values):
             value.used = index < consumed_count
@@ -265,17 +263,6 @@ def _trace_act_value_occurrence_index(trace_act: TraceAct) -> int:
         for prior_trace_act in chain[:order]
         if prior_trace_act.action is trace_act.action
     )
-
-
-def _current_trace_act(action: Action) -> TraceAct | None:
-    registry = getattr(action.owner, "registry", None)
-    variables = getattr(registry, "variables", None) or getattr(
-        action.owner, "variables", None
-    )
-    if not isinstance(variables, dict):
-        return None
-    current = variables.get("P")
-    return current if isinstance(current, TraceAct) else None
 
 
 def _serialize_construct_spec(

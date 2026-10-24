@@ -78,15 +78,13 @@ class Action:
     def is_empty(self) -> bool:
         return self.ast_id == -1
 
-    def consumed_value_count(self, *, exclude: TraceAct | None = None) -> int:
+    def consumed_value_count(self) -> int:
         """Сколько значений цепочки израсходовала трасса: по одному на акт действия.
 
         Акт с явной ссылкой на значение расходует цепочку до этого значения включительно.
         """
         acts = [
-            trace_act
-            for trace_act in self.owner.trace_acts
-            if trace_act is not exclude and trace_act.action is self
+            trace_act for trace_act in self.owner.trace_acts if trace_act.action is self
         ]
         explicit_count = 1 + max(
             (act.value.index for act in acts if isinstance(act.value, SemanticValue)),

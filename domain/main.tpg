@@ -148,6 +148,15 @@ lambda frameServes(X: TraceAct, C: ConcreteConstruct) =
         }
     };
 
+// Кадр акта действия A, добавляемого после логической точки prev: BEGIN после входа по переходу
+// с add_frame (действие func вызова) открывает кадр prev, остальные акты остаются в кадре prev.
+// Зеркало frameAfter в findCorrect.tpg и _frame_acts в serialization/adapters/situation.py.
+lambda frameOfNext(prev: TraceAct, A: ConcreteAction) = if (
+    A->derivedFrom.role == "BEGIN" and
+    prev=>hasTransition() and prev->hasTransition=>hasEffects() and
+    prev->hasTransition->hasEffects.call_stack == CallStackAction:add_frame
+) prev else prev->inFrame;
+
 // Текущий кадр — самый внутренний незавершённый вызов охватывающей функции.
 lambda frameOf(C: ConcreteConstruct) = findExtreme innermost [
     not $innermost=>beforeOf($fx)
@@ -239,11 +248,14 @@ lambda interruptionOk(t: TransitionSpec, S: TraceState) =
     t->hasConstraints.interruption_mode == S.interruption_mode or
     t->hasConstraints.interruption_mode == InterruptionType:any;
 
-// Ограничение перехода по значению условия выполнено.
-lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction) =
+// Ограничение перехода по значению условия выполнено. Условие, вычисленное последним (акт cur),
+// выбирает переход по значению своего акта: оно уже помечено израсходованным.
+// Иначе условие ещё ждёт вычисления (например, возврата из вызова в нём) и получит очередное значение.
+lambda conditionOk(t: TransitionSpec, fromA: ConcreteAction, cur: TraceAct) =
     not t=>hasConstraints() or
     not hasConditionValue(fromA) or
-    findUnusedValue(fromA).bool_value == t->hasConstraints.condition_value;
+    (if (cur->hasAction == fromA and cur=>hasValue()) cur->hasValue else findUnusedValue(fromA)).bool_value
+        == t->hasConstraints.condition_value;
 
 // Декомпозиция, п. 7; шаг 5.2.2.2: обе роли ведут сразу в завершение — это альтернативные ветви.
 lambda branchAlternatives(fromA: ConcreteAction, toA: ConcreteAction, C: ConcreteConstruct) =
@@ -419,7 +431,7 @@ fragment commitCorrectAction() {
     var Tin: TransitionSpec = find TransitionSpec t {
         transitionLeads($t, DpFin, A, A->belongsTo) and
         interruptionOk($t, S) and
-        conditionOk($t, DpFin)
+        conditionOk($t, DpFin, P)
     } out true else {
         // При входе или вынужденном завершении без перехода применяем эффекты правила явно.
         var ExpandsNT: ConcreteConstruct = find ConcreteConstruct cc {
@@ -435,6 +447,7 @@ fragment commitCorrectAction() {
                 P = +obj : TraceAct (
                     {
                         hasAction(A);
+                        inFrame(frameOfNext(P, A));
                         (A=>hasValue()) ? hasValue(findUnusedValue(A));
                     }
                 );
@@ -446,6 +459,7 @@ fragment commitCorrectAction() {
                 P = +obj : TraceAct (
                     {
                         hasAction(beginActionOf(ExpandsNT));
+                        inFrame(frameOfNext(P, beginActionOf(ExpandsNT)));
                     }
                 );
                 Prev +=> directlyBeforeOf(P);
@@ -460,6 +474,7 @@ fragment commitCorrectAction() {
             P = +obj : TraceAct (
                 {
                     hasAction(A);
+                    inFrame(frameOfNext(P, A));
                     // Запись входа сохраняет связь с инициировавшим действием, отложенным до завершения.
                     (A->derivedFrom.role == "BEGIN" and hasUnfoldingAction(A->belongsTo)) ? unfoldedFrom(unfoldingActionOf(A->belongsTo));
                     (A=>hasValue()) ? hasValue(findUnusedValue(A));
@@ -489,6 +504,7 @@ fragment commitCorrectAction() {
             P = +obj : TraceAct (
                 {
                     hasAction(A);
+                    inFrame(frameOfNext(P, A));
                     hasTransition(Tin);
                     (A=>hasValue()) ? hasValue(findUnusedValue(A));
                 }
@@ -501,6 +517,7 @@ fragment commitCorrectAction() {
             P = +obj : TraceAct (
                 {
                     hasAction(beginActionOf(Expands));
+                    inFrame(frameOfNext(P, beginActionOf(Expands)));
                 }
             );
             Prev +=> directlyBeforeOf(P);
@@ -515,6 +532,7 @@ fragment commitCorrectAction() {
         P = +obj : TraceAct (
             {
                 hasAction(A);
+                inFrame(frameOfNext(P, A));
                 hasTransition(Tin);
                 (A->derivedFrom.role == "BEGIN" and hasUnfoldingAction(A->belongsTo)) ? unfoldedFrom(unfoldingActionOf(A->belongsTo));
                 (A=>hasValue()) ? hasValue(findUnusedValue(A));
@@ -873,7 +891,7 @@ fragment checkLevel(C: ConcreteConstruct) {
             ask (forAny TransitionSpec t {
                 transitionLeads($t, Dp, Da, C) and
                 interruptionOk($t, S) and
-                conditionOk($t, Dp)
+                conditionOk($t, Dp, P)
             }) out true else {
                 // В объяснение подставляем требуемое переходом значение, а не фактическое.
                 // Подходящий режим прерывания уже гарантирован проверкой 5.2.2.4.
@@ -898,7 +916,7 @@ fragment checkLevel(C: ConcreteConstruct) {
             ask (hasConditionValue(Dp) and forAny TransitionSpec t {
                 transitionLeads($t, Dp, Da, C) and
                 interruptionOk($t, S) and
-                conditionOk($t, Dp) and
+                conditionOk($t, Dp, P) and
                 $t=>hasConstraints() and
                 $t->hasConstraints.condition_value != OptionalBool:`null`
             }) out false else {

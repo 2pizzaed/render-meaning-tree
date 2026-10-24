@@ -156,6 +156,7 @@
                     {% if call_values %}
                     {# Пункты - отдельные ответы; не внутри кнопки: CompPrehension восстанавливает её innerHTML #}
                     <div class="call-value-menu" popover>
+                        <div class="call-value-menu-prompt" data-localization-key="traceui.function_return_dropdown">Which function call is ending here?</div>
                         {% for option in call_values %}
                         <button type="button" id="answer_{{ option.answer_id }}"
                                 data-action="{{ option.begin_name }}"
@@ -195,6 +196,13 @@
             font: 13px 'Consolas', 'Monaco', 'Courier New', monospace;
         }
 
+        .call-value-menu-prompt {
+            padding: 4px 10px;
+            margin-bottom: 2px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }
+
         .call-value-menu button {
             display: block;
             width: 100%;
@@ -211,8 +219,7 @@
         }
 
         .call-value-menu button:disabled {
-            color: #aaa;
-            cursor: default;
+            display: none;
         }
     </style>
     <script>
@@ -226,7 +233,7 @@
                 const button = menu.previousElementSibling;
                 button.addEventListener("click", () => {
                     let available = false;
-                    for (const option of menu.children) {
+                    for (const option of menu.querySelectorAll("button[data-hint]")) {
                         const selector = `.trace-act[data-action="${option.dataset.action}"] .value-hint`;
                         const hints = Array.from(traceRoot.querySelectorAll(selector), (hint) => hint.textContent);
                         option.disabled = !hints.includes(option.dataset.hint);

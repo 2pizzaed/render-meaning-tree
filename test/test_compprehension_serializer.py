@@ -67,6 +67,16 @@ def test_question_name_keeps_file_safe_code_excerpt_tree_hash_and_values_hash():
     assert re.fullmatch(r"if a  b print_a__42_[0-9a-f]{10}", name)
 
 
+def test_question_name_has_no_leading_underscores():
+    name = question_name("# Сумма чисел от 1 до n\ndef f(n):\n    return n\n", 3, {})
+    dash = question_name("# Выражение - число\nx = 1\n", 3, {})
+    empty_excerpt = question_name("# Комментарий\n", 3, {})
+
+    assert name.startswith("1 _ n def f_n_")
+    assert dash.startswith("x _ 1_3_")
+    assert re.fullmatch(r"3_[0-9a-f]{10}", empty_excerpt)
+
+
 def test_question_name_cuts_code_excerpt():
     name = question_name("x = 1\n" * 20, -7, {})
 

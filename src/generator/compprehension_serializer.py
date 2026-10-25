@@ -44,7 +44,7 @@ ORDER_OPTIONS: dict[str, Any] = {
     "showTrace": True,
     "requireContext": True,
     "requireAllAnswers": True,
-    "orderNumberOptions": {"position": "SUFFIX", "delimiter": "/"},
+    "orderNumberOptions": {"position": "NONE", "delimiter": "/"},
     "multipleSelectionEnabled": True,
     "showSupplementaryQuestions": False,
 }
@@ -139,8 +139,9 @@ def question_name(
     """
     excerpt = re.sub(r"\s+", " ", code).strip()
     excerpt = _NON_NAME_CHARS.sub("_", _FORBIDDEN_NAME_CHARS.sub("", excerpt))
-    excerpt = excerpt[:QUESTION_NAME_EXCERPT_LENGTH].rstrip(" .")
-    return f"{excerpt}_{tree_hash}_{_values_hash(values)}"
+    # Начальный комментарий на кириллице иначе даёт имя вида «_ _ _ _ 1 _ n def ...».
+    excerpt = excerpt.lstrip("_ -.")[:QUESTION_NAME_EXCERPT_LENGTH].rstrip(" .")
+    return "_".join(part for part in (excerpt, str(tree_hash), _values_hash(values)) if part)
 
 
 def _values_hash(values: Mapping[ActionKey, tuple[bool | None, ...]]) -> str:

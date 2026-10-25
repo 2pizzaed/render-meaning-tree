@@ -107,6 +107,43 @@
         outline: 1px solid rgba(0,0,0,0.1);
         border-radius: 3px;
     }
+
+    /* Dropdown значений вызова */
+    .ctrl-flow-code-block .call-value-menu {
+        inset: auto;
+        margin: 0;
+        padding: 2px 0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        font: 13px 'Consolas', 'Monaco', 'Courier New', monospace;
+    }
+
+    .ctrl-flow-code-block .call-value-menu-prompt {
+        padding: 4px 10px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid #e0e0e0;
+        color: #666;
+    }
+
+    .ctrl-flow-code-block .call-value-menu button {
+        display: block;
+        width: 100%;
+        padding: 2px 10px;
+        border: none;
+        background: none;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .ctrl-flow-code-block .call-value-menu button:hover:enabled {
+        background: #eef2f7;
+    }
+
+    .ctrl-flow-code-block .call-value-menu button:disabled {
+        display: none;
+    }
 </style>
 {% endif %}
 
@@ -156,7 +193,7 @@
                     {% if call_values %}
                     {# Пункты - отдельные ответы; не внутри кнопки: CompPrehension восстанавливает её innerHTML #}
                     <div class="call-value-menu" popover>
-                        <div class="call-value-menu-prompt" data-localization-key="traceui.function_return_dropdown">Which function call is ending here?</div>
+                        <div class="call-value-menu-prompt" data-localization-key="ctrlflow_function_return_dropdown_tooltip">Which function call is ending here?</div>
                         {% for option in call_values %}
                         <button type="button" id="answer_{{ option.answer_id }}"
                                 data-action="{{ option.begin_name }}"
@@ -185,43 +222,6 @@
         {% endfor %}
     </div>
     {% if call_value_menus %}
-    <style>
-        .call-value-menu {
-            inset: auto;
-            margin: 0;
-            padding: 2px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            font: 13px 'Consolas', 'Monaco', 'Courier New', monospace;
-        }
-
-        .call-value-menu-prompt {
-            padding: 4px 10px;
-            margin-bottom: 2px;
-            border-bottom: 1px solid #e0e0e0;
-            color: #666;
-        }
-
-        .call-value-menu button {
-            display: block;
-            width: 100%;
-            padding: 2px 10px;
-            border: none;
-            background: none;
-            font: inherit;
-            text-align: left;
-            cursor: pointer;
-        }
-
-        .call-value-menu button:hover:enabled {
-            background: #eef2f7;
-        }
-
-        .call-value-menu button:disabled {
-            display: none;
-        }
-    </style>
     <script>
         (() => {
             // Dropdown значений вызова (docs/ideas/function_return_dropdown.md). Пункт

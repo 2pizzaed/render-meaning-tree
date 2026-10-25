@@ -16,12 +16,17 @@ from src.serialization.localized_names import (
     TRACED_SUFFIX_KEY,
     NameMetadata,
     NameParts,
+    NamingContext,
     format_localized_name,
+    resolve_semantic_value,
 )
 from src.serialization.loqi import (
     LoqiAdapterContext,
+    LoqiEnumLiteral,
     LoqiMetadataEntry,
+    LoqiObject,
     LoqiObjectSpec,
+    LoqiProperty,
     LoqiRenderResult,
     LoqiSerializer,
 )
@@ -299,10 +304,21 @@ def test_boundary_action_spec_without_own_metadata_uses_construct_spec(trace_loq
     }
 
 
-def test_semantic_value_name_copies_hint_for_every_language(trace_loqi: str) -> None:
+def test_semantic_value_showing_bool_value_gets_translated_name(trace_loqi: str) -> None:
     metadata = _object_metadata(trace_loqi, "semantic_value_action_54_28_cond_2")
 
-    assert metadata == {"hint": "False", "EN.localizedName": "False", "RU.localizedName": "False"}
+    assert metadata == {"hint": "False", "EN.localizedName": "false", "RU.localizedName": "ложь"}
+
+
+def test_semantic_value_name_copies_own_hint_for_every_language() -> None:
+    value = LoqiObject(
+        "value",
+        "SemanticValue",
+        properties=[LoqiProperty("bool_value", LoqiEnumLiteral("OptionalBool", "`true`"))],
+        metadata=[LoqiMetadataEntry("hint", "i < 3")],
+    )
+
+    assert resolve_semantic_value(value, NamingContext(LoqiRenderResult((), (value,)))) == "i < 3"
 
 
 def _definition_keys(bundle: MessageBundle, lang: str) -> set[str]:

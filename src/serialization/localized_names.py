@@ -6,8 +6,8 @@
 достаточно написать резолвер и добавить его в ``DEFAULT_NAME_RESOLVERS``.
 
 Резолвер возвращает либо части имени, переводимые через бандл, либо готовую
-строку, одинаковую во всех языках: так ``SemanticValue`` пока получает имя из
-своей подсказки ``hint``.
+строку, одинаковую во всех языках: так ``SemanticValue`` получает имя из своей
+подсказки ``hint``; логическое значение без своей подсказки переводится.
 
 Исходные значения берутся из сырых метаданных ``ConstructSpec``/``ActionSpec``
 (``locale_trace_name``, ``locale_pronoun``, ``keyword``, ``identifier``), номер
@@ -52,8 +52,10 @@ from src.model.rules import (
     Metadata,
     locate_construct_declaration_by_ast_node,
 )
+from src.serialization.adapters.rules import OPTIONAL_BOOL_VALUES
 from src.serialization.loqi import (
     LoqiDecorator,
+    LoqiEnumLiteral,
     LoqiMetadataEntry,
     LoqiObject,
     LoqiRenderIndex,
@@ -244,10 +246,20 @@ def resolve_trace_act(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     return replace(parts, prefix_key=TRACED_PREFIX_KEY, suffix_key=TRACED_SUFFIX_KEY)
 
 
-def resolve_semantic_value(obj: LoqiObject, ctx: NamingContext) -> str | None:
-    """Пока имя значения совпадает с его подсказкой ``hint``."""
+def resolve_semantic_value(obj: LoqiObject, ctx: NamingContext) -> NameParts | str | None:
+    """Имя значения — его подсказка ``hint`` без перевода.
+
+    Если подсказка показывает само логическое значение (``True``/``False``, как у
+    значений без разметки), имя переводится ключом ``true``/``false``.
+    """
     hint = LoqiRenderIndex.metadata_value(obj, "hint")
-    return hint if isinstance(hint, str) and hint else None
+    if not isinstance(hint, str) or not hint:
+        return None
+    bool_value = LoqiRenderIndex.property_value(obj, "bool_value")
+    for value in (True, False):
+        if hint == str(value) and bool_value == LoqiEnumLiteral("OptionalBool", OPTIONAL_BOOL_VALUES[value]):
+            return NameParts(NameMetadata(trace_name=str(value).lower()))
+    return hint
 
 
 DEFAULT_NAME_RESOLVERS: Mapping[str, NameResolver] = {

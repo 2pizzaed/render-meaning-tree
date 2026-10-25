@@ -379,8 +379,10 @@ lambda lastInterrupterAction() = find ConcreteAction ia {
 };
 
 // Вход в другую ветвь уровня выбранного действия; вход в тело функции сюда не относится.
+// Preorder-конструкция раскрывается до своего действия: оно ещё не выполнено, ветвь не выбрана.
 lambda entersSiblingBranch(t: TraceAct, A: ConcreteAction) =
     t->hasAction->derivedFrom.role == "BEGIN" and
+    not t->hasAction->belongsTo->derivedFrom.preorder and
     t->hasAction.ast_id != A.ast_id and
     t->hasAction->belongsTo=>hasParent(A->belongsTo) and
     forAny ConcreteAction sibling {
@@ -421,6 +423,33 @@ fragment commitCorrectAction() {
         creditRepeat -> {
             ask (forAny TraceAct t { $t->hasAction == A }) out false else {
                 conclude: correct [ skill = "passed_action_repeat" ; ];
+            };
+            conclude: correct;
+        };
+        creditFunctionBody -> {
+            ask (forAny TraceAct t {
+                $t=>afterOf(P0) and
+                $t->hasAction->derivedFrom.role == "BEGIN" and
+                $t->hasAction->belongsTo->derivedFrom.name == "func_def_structure"
+            }) out false else {
+                conclude: correct [ skill = "function_body_runs_on_call" ; ];
+            };
+            conclude: correct;
+        };
+        creditFunctionExit -> {
+            ask (forAny TraceAct t {
+                $t=>afterOf(P0) and
+                $t->hasAction->derivedFrom.role == "END" and
+                $t->hasAction->belongsTo->derivedFrom.name == "func_def_structure"
+            }) out false else {
+                conclude: correct [ skill = "function_not_resumed_after_exit" ; ];
+            };
+            conclude: correct;
+        };
+        creditCallReturn -> {
+            // Шаг 6 уже сверил выбранное значение с текущим выполнением A.
+            ask (V != obj:NoValue) out false else {
+                conclude: correct [ skill = "call_return_matches_activation" ; ];
             };
             conclude: correct;
         };
@@ -926,6 +955,10 @@ fragment checkLevel(C: ConcreteConstruct) {
         };
         dpConstructFinished -> {
             // 5.2.3: предыдущая конструкция — раскрытая предыдущей ролью — должна быть завершена.
+            // Возврат к пройденной роли без перехода уже объяснён в 5.2.2.2: вперёд от Dp студент не идёт.
+            ask (Da=>beforeOf(Dp) and not forAny TransitionSpec t { transitionLeads($t, Dp, Da, C) }) out false else {
+                conclude: correct;
+            };
             var Dcc: ConcreteConstruct = find ConcreteConstruct cc {
                 $cc != C and
                 $cc.ast_id == Dp.ast_id
@@ -1096,6 +1129,14 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction, V: SemanticVal
             }
         } out true else {
             conclude: error [ exception = true; exceptionName = "NoBlockingConstruct"; ];
+        };
+        // Раскрытие самого A названо так же, как A: объясняем через вложенные вызовы.
+        ask (Blocking.ast_id == A.ast_id) out false else {
+            conclude: error [
+                skill = "inner_construct_finished_before_next" ;
+                RU.explanation = "Вызовы функций внутри ${A}[case='р'] выполняются раньше самого этого действия. Так как выполнены ещё не все из них, ${A} сейчас не выполняется." ;
+                EN.explanation = "The function calls inside the ${A} are executed before this action itself. Since not all of them have been executed yet, the ${A} is not executed now." ;
+            ];
         };
         conclude: error [
             skill = "inner_construct_finished_before_next" ;

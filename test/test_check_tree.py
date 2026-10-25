@@ -721,6 +721,26 @@ CHECK_CASES: list[Any] = [
         expected_correct=True,
     ),
     CheckCase(
+        # Первое действие тела после входа в вызов засчитывает правило «тело выполняется при вызове».
+        id="function_body_entry_credits_call_rule",
+        language="python",
+        code=FUNCTION_CALL,
+        advance_to=(5, "BEGIN", "func_call_structure"),
+        action=(2, "first"),
+        expected_skills=("function_body_runs_on_call",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        # Выход из вызова после завершения тела засчитывает правило «тело не продолжается после выхода».
+        id="function_exit_credits_finished_body",
+        language="python",
+        code=FUNCTION_CALL,
+        advance_to=(2, "first"),
+        action=(5, "END", "func_call_structure"),
+        expected_skills=("function_not_resumed_after_exit",),
+        expected_correct=True,
+    ),
+    CheckCase(
         # Действие внутри функции, из которой уже вышли.
         id="function_already_exited",
         language="python",
@@ -898,6 +918,17 @@ CHECK_CASES: list[Any] = [
         expected_correct=True,
     ),
     CheckCase(
+        # return до вложенных в него вызовов: раскрытие названо так же, как сам return,
+        # поэтому объяснение говорит о вызовах внутри него, а не о незавершённом return.
+        id="return_before_its_calls",
+        language="python",
+        code=RETURN_NESTED_CALL,
+        advance_to=(9, "BEGIN", "func_call_structure"),
+        action=(6, "first"),
+        expected_skills=("inner_construct_finished_before_next",),
+        expected_explanation="выполняются раньше самого этого действия",
+    ),
+    CheckCase(
         # Оператор с вызовом рекурсии уже выполнен: ошибка вместо исчерпанной цепочки значений.
         id="recursion_assign_call_begin_after_statement_is_error",
         language="python",
@@ -915,8 +946,7 @@ CHECK_CASES: list[Any] = [
         advance_to=(5, "END", "func_call_structure"),
         action=(5, "END", "func_call_structure"),
         value=((5, "END", "func_call_structure"), 1),
-        expected_skills=("inner_construct_finished_before_next",),
-        unexpected_skills=("call_return_matches_activation",),
+        expected_skills=("call_return_matches_activation",),
         expected_correct=True,
         value_patches=((2, "first_cond", [False, False, True]),),
     ),
@@ -1337,13 +1367,14 @@ CHECK_CASES: list[Any] = [
     CheckCase(
         # Возврат к уже выполненному оператору, пока идёт вызов из более
         # позднего оператора: акта этого оператора в трассе ещё нет.
-        # Сопутствующий диагноз агрегации: вызов ещё не завершён.
+        # Незавершённость вызова к возврату назад не относится и не сообщается.
         id="back_to_statement_during_call",
         language="python",
         code=CALL_AFTER_STATEMENT,
         advance_to=(2, "first"),
         action=(5, "first"),
         expected_skills=("passed_action_repeat",),
+        unexpected_skills=("inner_construct_finished_before_next",),
     ),
     CheckCase(
         # То же внутри вызывающей функции при вложенном вызове.
@@ -1353,6 +1384,18 @@ CHECK_CASES: list[Any] = [
         advance_to=(7, "first"),
         action=(2, "first"),
         expected_skills=("passed_action_repeat",),
+        unexpected_skills=("inner_construct_finished_before_next",),
+    ),
+    CheckCase(
+        # Повтор оператора перед оператором с вызовом: предпрогонка уже начала раскрытие
+        # следующего оператора, но это не вход в другую ветвь программы.
+        id="statement_repeated_before_call_statement",
+        language="python",
+        code=CALL_AFTER_STATEMENT,
+        advance_to=(5, "first"),
+        action=(5, "first"),
+        expected_skills=("passed_action_repeat",),
+        unexpected_skills=("inner_construct_finished_before_next",),
     ),
     CheckCase(
         # Не закрыт `}` и пропущен оператор: агрегация AND сообщает обе ошибки
@@ -1508,8 +1551,7 @@ CHECK_CASES: list[Any] = [
         advance_to=(4, "next"),
         action=(3, "END", "func_call_structure"),
         value=((3, "END", "func_call_structure"), 0),
-        expected_skills=("inner_construct_finished_before_next",),
-        unexpected_skills=("call_return_matches_activation",),
+        expected_skills=("call_return_matches_activation",),
         expected_correct=True,
         value_patches=RECURSION_VALUES,
     ),

@@ -52,7 +52,7 @@ from src.helpers.tpg.loqi_values import LoqiPropertyResolver
 from src.model.situation import Action
 from src.serialization.loqi import LoqiRenderIndex, LoqiSerializer
 from src.tpg_domain import ReasoningResult, TreeNode
-from src.types import SupportedProgrammingLanguage
+from src.types import SNIPPET_LANGUAGES_BY_SUFFIX, SupportedProgrammingLanguage
 from test.helpers.dot import trace_acts_to_dot
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -64,18 +64,6 @@ PLAYGROUND_SNIPPETS_DIR = PROJECT_ROOT / "test" / "data"
 PLAYGROUND_SITUATION_CACHE_SIZE = 16
 # Принятых префиксов трассы в памяти; одна запись - экспортированный LOQI ситуации, ~70 КБ.
 PLAYGROUND_PREFIX_CACHE_SIZE = 256
-# Расширение файла примера → исходный язык playground.
-SNIPPET_LANGUAGES_BY_SUFFIX: dict[str, SupportedProgrammingLanguage] = {
-    ".java": "java",
-    ".py": "python",
-    ".cpp": "c++",
-    ".cc": "c++",
-    ".cxx": "c++",
-    ".hpp": "c++",
-    ".hh": "c++",
-    ".h": "c++",
-}
-
 template_dir = (Path(__file__).parent / "../../templates").absolute()
 app = Flask(
     __name__,

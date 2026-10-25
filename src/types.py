@@ -4,6 +4,17 @@ from typing_extensions import TypedDict
 
 type SupportedProgrammingLanguage = Literal["java", "python", "c++"]
 
+SNIPPET_LANGUAGES_BY_SUFFIX: dict[str, SupportedProgrammingLanguage] = {
+    ".java": "java",
+    ".py": "python",
+    ".cpp": "c++",
+    ".cc": "c++",
+    ".cxx": "c++",
+    ".hpp": "c++",
+    ".hh": "c++",
+    ".h": "c++",
+}
+
 type AstId = int
 type ScopeId = int
 type BytePosition = list[int]

@@ -13,7 +13,13 @@ uv run generate-problems snippet.py                         # язык по ум
 uv run generate-problems Snippet.java --language java
 uv run generate-problems snippet.py --target-language java  # задачи на переводе фрагмента в Java
 uv run generate-problems snippet.py --output out/           # сохранить вопросы CompPrehension в JSON
+uv run generate-problems snippets/ --output out/            # рекурсивно обработать каталог Python-сниппетов
+uv run generate-problems snippets/ --language java --output out/  # только Java-сниппеты
 ```
+
+При входном каталоге каждый файл — отдельный сниппет, для которого отбирается до `--top-k` задач. Язык задаётся общим `--language` (по умолчанию `python`); файлы других языков и неизвестных расширений пропускаются. Задачи сниппета `snippets/loops/example.py` записываются в `out/loops/example.py/<questionName>.json`: относительный путь и расширение сохраняются в имени подкаталога. Для одного входного файла JSON по-прежнему записываются прямо в `out/`.
+
+В пакетном режиме команда показывает прогресс и итоговые количества сниппетов, задач и сохранённых вопросов. Ошибка одного файла не мешает обработать остальные; код завершения — `1` при ошибках файлов или отсутствии подходящих сниппетов. Отклонённый генератором сниппет может дать ноль задач. Повторный запуск перезаписывает вопросы с тем же именем; старые файлы автоматически не удаляются.
 
 Другие опции: `--seed`, `--top-k`, `--selection score|random`, `--origin` и `--origin-license` (источник фрагмента для метаданных вопроса).
 

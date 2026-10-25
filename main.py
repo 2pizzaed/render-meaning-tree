@@ -1,4 +1,4 @@
-"""Сгенерировать учебные задачи по фрагменту и показать отобранные.
+"""Сгенерировать учебные задачи по фрагменту или каталогу фрагментов.
 
 Печатает для каждой задачи вариант значений, N, Q, итоговые цепочки условий,
 скиллы и концепты; логи pipeline (отказы с причинами и сводка) идут в stderr.
@@ -30,8 +30,10 @@ from src.generator.utilities import (
     problems_to_question_templates,
 )
 from src.generator.value_marker import format_flag
+from src.types import SNIPPET_LANGUAGES_BY_SUFFIX
 
 DEFAULT_CONFIG = ProblemGenerationConfig()
+logger = logging.getLogger(__name__)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -39,9 +41,53 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
+    if args.code is None and args.code_file is not None and args.code_file.is_dir():
+        return _generate_directory(args.code_file, args)
+    _generate_problems(_read_code(args), args, args.output)
+    return 0
+
+
+def _generate_directory(directory: Path, args: argparse.Namespace) -> int:
+    started = time.monotonic()
+    files = sorted(
+        path
+        for path in directory.rglob("*")
+        if path.is_file()
+        and SNIPPET_LANGUAGES_BY_SUFFIX.get(path.suffix.lower()) == args.language
+    )
+    if not files:
+        logger.error("No %s snippets found in %s", args.language, directory)
+        return 1
+
+    total_problems = total_questions = failed = 0
+    for index, path in enumerate(files, start=1):
+        relative_path = path.relative_to(directory)
+        print(f"[{index}/{len(files)}] {relative_path}", flush=True)
+        output = args.output / relative_path if args.output is not None else None
+        try:
+            problems, questions = _generate_problems(
+                path.read_text(encoding="utf-8"), args, output
+            )
+        except Exception:
+            logger.exception("Failed to generate problems for %s", path)
+            failed += 1
+            continue
+        total_problems += problems
+        total_questions += questions
+    print(
+        f"Batch completed: {len(files) - failed}/{len(files)} snippets processed, "
+        f"{failed} failed, {total_problems} problems, {total_questions} questions saved, "
+        f"{time.monotonic() - started:.1f} s"
+    )
+    return 1 if failed else 0
+
+
+def _generate_problems(
+    code: str, args: argparse.Namespace, output: Path | None
+) -> tuple[int, int]:
     started = time.monotonic()
     pipeline = code_snippet_to_problem_pipeline(
-        textwrap.dedent(_read_code(args)),
+        textwrap.dedent(code),
         language=args.language,
         seed=args.seed,
         config=replace(DEFAULT_CONFIG, top_k=args.top_k, selection=args.selection),
@@ -52,15 +98,17 @@ def main(argv: list[str] | None = None) -> int:
     problems = pipeline.results()
     for problem in problems:
         print(_describe(problem))
-    if args.output is not None:
+    saved = 0
+    if output is not None:
         questions = problems_to_question_templates(pipeline, problems)
-        _write_questions(args.output, questions)
+        _write_questions(output, questions)
+        saved = len(questions)
         print(
             f"Export completed: {len(questions)} of {len(problems)} questions "
-            f"saved to {args.output.resolve()}"
+            f"saved to {output.resolve()}"
         )
     print(f"Problems: {len(problems)}, {time.monotonic() - started:.1f} s")
-    return 0
+    return len(problems), saved
 
 
 def _write_questions(output_dir: Path, questions: list[dict[str, Any]]) -> None:
@@ -99,19 +147,23 @@ def _read_code(args: argparse.Namespace) -> str:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate learning problems for a code fragment and print the selected ones."
+        description="Generate learning problems for a code fragment or directory of snippets."
     )
     parser.add_argument(
         "code_file",
         nargs="?",
         type=Path,
-        help="Code fragment file. If omitted, code is read from stdin.",
+        help="Code fragment file or directory (searched recursively for --language files). "
+        "If omitted, code is read from stdin.",
     )
-    parser.add_argument("--code", help="Code fragment text. Overrides stdin and code_file.")
+    parser.add_argument(
+        "--code", help="Code fragment text. Overrides stdin and code_file."
+    )
     parser.add_argument(
         "--language",
         default="python",
-        help="Source language passed to the MeaningTree converter.",
+        help="Source language passed to MeaningTree; also filters directory files "
+        "by extension (default: python).",
     )
     parser.add_argument(
         "--target-language",
@@ -119,9 +171,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Language of the problem code: the fragment is translated by MeaningTree "
         "(default: source language).",
     )
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Generation seed.")
     parser.add_argument(
-        "--top-k", type=int, default=DEFAULT_CONFIG.top_k, help="Problems to select."
+        "--seed", type=int, default=DEFAULT_SEED, help="Generation seed."
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=DEFAULT_CONFIG.top_k,
+        help="Problems to select per snippet.",
     )
     parser.add_argument(
         "--selection",
@@ -132,11 +189,15 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Directory to save problems as CompPrehension question JSON files.",
+        help="Directory to save CompPrehension question JSON files. For directory input, "
+        "each snippet's relative path (including extension) becomes a subdirectory.",
     )
-    parser.add_argument("--origin", help="Source of the code fragment for question metadata.")
     parser.add_argument(
-        "--origin-license", help="License of the code fragment source. Requires --origin."
+        "--origin", help="Source of the code fragment for question metadata."
+    )
+    parser.add_argument(
+        "--origin-license",
+        help="License of the code fragment source. Requires --origin.",
     )
     args = parser.parse_args(argv)
     if args.origin_license is not None and args.origin is None:

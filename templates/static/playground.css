@@ -304,6 +304,11 @@ button.submit-btn:hover {
     color: #0d47a1;
 }
 
+.token:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    outline: 1px solid rgba(0,0,0,0.1);
+}
+
 .token.selected-token {
     background-color: #fff3cd;
 }

@@ -63,10 +63,11 @@ def _generate_directory(directory: Path, args: argparse.Namespace) -> int:
     for index, path in enumerate(files, start=1):
         relative_path = path.relative_to(directory)
         print(f"[{index}/{len(files)}] {relative_path}", flush=True)
-        output = args.output / relative_path if args.output is not None else None
+        # Вопросы всех сниппетов — в одном каталоге, имя файла начинается с пути сниппета.
+        prefix = "__".join(relative_path.with_suffix("").parts) + "__"
         try:
             problems, questions = _generate_problems(
-                path.read_text(encoding="utf-8"), args, output
+                path.read_text(encoding="utf-8"), args, args.output, prefix
             )
         except Exception:
             logger.exception("Failed to generate problems for %s", path)
@@ -83,7 +84,7 @@ def _generate_directory(directory: Path, args: argparse.Namespace) -> int:
 
 
 def _generate_problems(
-    code: str, args: argparse.Namespace, output: Path | None
+    code: str, args: argparse.Namespace, output: Path | None, prefix: str = ""
 ) -> tuple[int, int]:
     started = time.monotonic()
     pipeline = code_snippet_to_problem_pipeline(
@@ -101,7 +102,7 @@ def _generate_problems(
     saved = 0
     if output is not None:
         questions = problems_to_question_templates(pipeline, problems)
-        _write_questions(output, questions)
+        _write_questions(output, questions, prefix)
         saved = len(questions)
         print(
             f"Export completed: {len(questions)} of {len(problems)} questions "
@@ -111,12 +112,12 @@ def _generate_problems(
     return len(problems), saved
 
 
-def _write_questions(output_dir: Path, questions: list[dict[str, Any]]) -> None:
+def _write_questions(output_dir: Path, questions: list[dict[str, Any]], prefix: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     for question in questions:
         name = question["commonQuestion"]["questionData"]["questionName"]
         text = json.dumps(question, ensure_ascii=False, indent=2)
-        (output_dir / f"{name}.json").write_text(text, encoding="utf-8")
+        (output_dir / f"{prefix}{name}.json").write_text(text, encoding="utf-8")
 
 
 def _describe(problem: LearningProblem) -> str:
@@ -190,7 +191,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--output",
         type=Path,
         help="Directory to save CompPrehension question JSON files. For directory input, "
-        "each snippet's relative path (including extension) becomes a subdirectory.",
+        "file names of each snippet's questions start with its relative path "
+        "without extension, with '__' between path parts and before the question name.",
     )
     parser.add_argument(
         "--origin", help="Source of the code fragment for question metadata."

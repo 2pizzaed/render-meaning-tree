@@ -195,9 +195,11 @@
                     <div class="call-value-menu" popover>
                         <div class="call-value-menu-prompt" data-localization-key="ctrlflow_function_return_dropdown_tooltip">Which function call is ending here?</div>
                         {% for option in call_values %}
+                        {# Номер шага CompPrehension рисует на кнопке step-out: пункт в закрытом списке не виден #}
                         <button type="button" id="answer_{{ option.answer_id }}"
                                 data-action="{{ option.begin_name }}"
-                                data-hint="{{ option.hint }}">{{ option.hint }}</button>
+                                data-hint="{{ option.hint }}"
+                                data-comp-ph-order-answer="{{ entity.attrs['action-id'] }}">{{ option.hint }}</button>
                         {% endfor %}
                     </div>
                     {% endif %}

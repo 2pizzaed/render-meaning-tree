@@ -1,0 +1,39 @@
+{
+  "function_definition": {
+    "identifier_path": ["declaration", "name"]
+  },
+  "method_definition": {
+    "identifier_path": ["declaration", "name"]
+  },
+  "function_call": {
+    "metadata": {"locale_trace_name": "function_call", "locale_pronoun": "he", "identifier": true},
+    "identifier_path": ["function"]
+  },
+  "method_call": {
+    "metadata": {"locale_trace_name": "method_call", "locale_pronoun": "he", "identifier": true},
+    "identifier_path": ["method_name"]
+  },
+  "variable_declaration": {
+    "metadata": {"locale_trace_name": "assignment", "locale_pronoun": "it", "identifier": true},
+    "identifier_path": ["declarators", "*", "identifier"]
+  },
+  "list_unpacking_variable_declaration": {
+    "metadata": {"locale_trace_name": "assignment", "locale_pronoun": "it", "identifier": true},
+    "identifier_path": ["variable_names", "*"]
+  },
+  "list_unpacking_assignment_statement": {
+    "metadata": {"locale_trace_name": "assignment", "locale_pronoun": "it", "identifier": true},
+    "identifier_path": ["variable_names", "*"]
+  },
+  "assignment_statement": {
+    "metadata": {"locale_trace_name": "assignment", "locale_pronoun": "it", "identifier": true},
+    "identifier_path": ["target"]
+  },
+  "multiple_assignment_statement": {
+    "metadata": {"locale_trace_name": "assignment", "locale_pronoun": "it", "identifier": true},
+    "identifier_path": ["targets", "*", "target"]
+  },
+  "print_values": {
+    "metadata": {"locale_trace_name": "output", "locale_pronoun": "he"}
+  }
+}

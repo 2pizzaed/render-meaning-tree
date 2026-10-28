@@ -13,8 +13,10 @@
 (``locale_trace_name``, ``locale_pronoun``, ``keyword``, ``identifier``), номер
 строки и имя идентификатора — из кода. Атомарные inline-конструкты (``break``,
 ``continue``, ...) в представление не попадают, поэтому их метаданные ищутся по
-объявлениям правил. Если метаданных нет ни в одном источнике (например, у
-простых операторов), используется ``DEFAULT_NAME_METADATA`` — «действие».
+объявлениям правил. Если правила метаданных не задают (например, у простых
+операторов), они берутся по типу AST-узла из ``resources/ast_node_names.json``,
+а для типа вне этого реестра используется ``DEFAULT_NAME_METADATA`` — «действие».
+Там же для каждого типа узла задан путь к его идентификатору.
 
 ``ActionSpec`` с собственными метаданными получает то же имя, что и его
 конкретные действия, но без номера строки и идентификатора: спецификация не
@@ -37,6 +39,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import cache
@@ -46,7 +49,7 @@ from typing import Any, cast
 from src.ast_managers import CodeManager
 from src.helpers.grammar_case import GrammaticalCase, decline
 from src.helpers.templating import interpolate, modifiers_for_language
-from src.localization import MessageBundle
+from src.localization import RESOURCES_DIR, MessageBundle
 from src.model.rules import (
     ConstructDeclaration,
     Metadata,
@@ -121,8 +124,35 @@ class NameMetadata:
         )
 
 
-# Имя объекта, у правила которого нет locale_trace_name (простые операторы и т.п.).
+# Имя объекта, у правила которого нет locale_trace_name, а тип узла не описан в реестре.
 DEFAULT_NAME_METADATA = NameMetadata(trace_name="statement", pronoun="it")
+
+AST_NODE_NAMES_FILE = RESOURCES_DIR / "ast_node_names.json"
+# Шаг пути к идентификатору, проходящий по всем элементам списка: `lo, hi = ...` называется обоими именами.
+EACH = "*"
+
+
+@dataclass(frozen=True, slots=True)
+class AstNodeNaming:
+    """Как называть AST-узел своего типа: имя (если правила его не задают) и путь к идентификатору."""
+
+    metadata: NameMetadata | None = None
+    identifier_path: tuple[str, ...] = ()
+
+
+@cache
+def ast_node_namings() -> Mapping[str, AstNodeNaming]:
+    """Реестр ``resources/ast_node_names.json``; ``metadata`` — в формате ``metadata`` правил."""
+    entries = json.loads(AST_NODE_NAMES_FILE.read_text(encoding="utf-8"))
+    registry: dict[str, AstNodeNaming] = {}
+    for node_type, entry in entries.items():
+        metadata = None
+        if "metadata" in entry:
+            metadata = NameMetadata.from_metadata(Metadata.from_dict(entry["metadata"]))
+            if metadata is None:
+                raise ValueError(f"{AST_NODE_NAMES_FILE.name}: no name for AST node type {node_type!r}")
+        registry[node_type] = AstNodeNaming(metadata, tuple(entry.get("identifier_path", ())))
+    return registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,14 +204,22 @@ class NamingContext:
 
     def identifier(self, ast_id: int | None) -> str | None:
         node = self.node(ast_id)
-        name_node = _identifier_node(node) if node is not None else None
-        if name_node is None or self.code is None:
+        if node is None or self.code is None:
             return None
+        names = [name for name_node in _identifier_nodes(_named_node(node)) if (name := self._name(name_node))]
+        return ", ".join(names) or None
+
+    def _name(self, name_node: Node) -> str | None:
         name = name_node.get("name")
         if isinstance(name, str) and name:
             return name
         name_id = name_node.get("id")
-        return self.code.code_piece(name_id) if isinstance(name_id, int) else None
+        return self.code.code_piece(name_id) if self.code is not None and isinstance(name_id, int) else None
+
+    def node_type_metadata(self, ast_id: int | None) -> NameMetadata | None:
+        node = self.node(ast_id)
+        naming = ast_node_namings().get(str(_named_node(node).get("type"))) if node is not None else None
+        return naming.metadata if naming is not None else None
 
     def inline_rule(self, ast_id: int | None) -> ConstructDeclaration | None:
         node = self.node(ast_id)
@@ -209,16 +247,17 @@ type NameResolver = Callable[[LoqiObject, NamingContext], NameParts | str | None
 
 
 def resolve_construct(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
-    metadata = NameMetadata.from_spec(ctx.index.target(obj, "derivedFrom"))
-    return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id_of(obj))
+    ast_id = ast_id_of(obj)
+    metadata = NameMetadata.from_spec(ctx.index.target(obj, "derivedFrom")) or ctx.node_type_metadata(ast_id)
+    return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id)
 
 
 def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     """
     Метаданные берутся целиком из одного источника, чтобы местоимение было
     согласовано с названием: собственный Spec → Spec конструкта с тем же
-    ``ast_id`` → объявление атомарного inline-конструкта узла →
-    ``DEFAULT_NAME_METADATA``.
+    ``ast_id`` → объявление атомарного inline-конструкта узла → реестр типов
+    AST-узлов → ``DEFAULT_NAME_METADATA``.
     """
     ast_id = ast_id_of(obj)
     spec = ctx.index.target(obj, "derivedFrom")
@@ -227,6 +266,8 @@ def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
         metadata = NameMetadata.from_spec(ctx.index.target(construct, "derivedFrom"))
     if metadata is None and (inline_rule := ctx.inline_rule(ast_id)) is not None:
         metadata = NameMetadata.from_metadata(inline_rule.metadata)
+    if metadata is None:
+        metadata = ctx.node_type_metadata(ast_id)
     return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id, boundary_key=boundary_key_of(spec))
 
 
@@ -379,19 +420,23 @@ def _optional(bundle: MessageBundle, key: str | None, lang: str) -> str | None:
     return bundle.get(key, lang) if key is not None else None
 
 
-_IDENTIFIER_PATHS: dict[str, tuple[str, ...]] = {
-    "function_definition": ("declaration", "name"),
-    "method_definition": ("declaration", "name"),
-    "function_call": ("function",),
-    "method_call": ("method_name",),
-}
+def _identifier_nodes(node: Node) -> list[Node]:
+    naming = ast_node_namings().get(str(node.get("type")))
+    if naming is None or not naming.identifier_path:
+        return []
+    current: list[Any] = [node]
+    for key in naming.identifier_path:
+        if key == EACH:
+            current = [item for value in current if isinstance(value, list) for item in value]
+        else:
+            current = [value.get(key) for value in current if isinstance(value, dict)]
+    return [cast(Node, value) for value in current if isinstance(value, dict)]
 
 
-def _identifier_node(node: Node) -> Node | None:
-    current: Any = node
-    for key in _IDENTIFIER_PATHS.get(str(node.get("type")), ()):
-        current = current.get(key) if isinstance(current, dict) else None
-    return cast(Node, current) if isinstance(current, dict) and current is not node else None
+def _named_node(node: Node) -> Node:
+    """Оператор-выражение называется по своему выражению: `print(x)` — как вывод."""
+    expression = node.get("expression") if node.get("type") == "expression_statement" else None
+    return cast(Node, expression) if isinstance(expression, dict) else node
 
 
 __all__ = [

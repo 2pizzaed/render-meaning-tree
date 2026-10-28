@@ -64,6 +64,8 @@
 
 Блок `metadata` конструкта или действия задаёт, как объект называется в `<LANG>.localizedName` в LOQI (`src/serialization/localized_names.py`). Обычно имя собирается из ключа бандла `locale_trace_name`, `keyword`, идентификатора, номера строки и `begin`/`end` для граничных действий; `locale_pronoun` задаёт местоимение.
 
+Если правила метаданных не задают (простые операторы из `inline_atom_structure` и подобные), имя берётся по типу AST-узла из `src/resources/ast_node_names.json`: `metadata` в том же формате, например `n = 3` — «присваивание `n`», `print(x)` — «вывод на экран». Оператор-выражение (`expression_statement`) называется по своему выражению. Там же `identifier_path` задаёт путь к идентификатору узла для `identifier: true`; шаг `*` проходит по всем элементам списка (`lo, hi = ...` → «`lo, hi`»). Тип вне реестра называется «действие» (`statement`). Новый `locale_trace_name` реестра добавляется в оба бандла `definitions`.
+
 Вместо `locale_trace_name` можно указать `raw_explanation` — готовое имя-шаблон, которое заменяет все эти части (у `TraceAct` остаются только его приставки):
 
 ```yaml

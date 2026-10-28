@@ -17,6 +17,7 @@ from src.serialization.localized_names import (
     NameMetadata,
     NameParts,
     NamingContext,
+    ast_node_namings,
     format_localized_name,
     resolve_semantic_value,
 )
@@ -30,6 +31,9 @@ from src.serialization.loqi import (
     LoqiRenderResult,
     LoqiSerializer,
 )
+
+# Идентификатор в имени так, как он записан в метаданных LOQI.
+_ID = '<code class=\\"id\\">%s</code>'
 
 BUNDLE = MessageBundle(
     {
@@ -178,6 +182,38 @@ def trace_loqi(trace_registry: SituationRegistry) -> str:
 
 
 @pytest.fixture(scope="module")
+def statement_names() -> dict[str, dict[str, str]]:
+    """Метаданные операторов верхнего уровня по их тексту в коде Meaning Tree, с номером строки."""
+    registry = code_snippet_to_registry(
+        dedent(
+            """\
+            def f(a):
+                return a, a
+
+            n = 3
+            n -= 1
+            lo, hi = n, 2
+            lo, hi = f(n)
+            print(n)
+            xs = [n]
+            xs.append(n)
+            xs[0] = n
+            f(n)
+            n
+            """
+        )
+    )
+    _, loqi = registry_to_loqi(registry)
+    rendered = registry.code.code.splitlines()
+    names: dict[str, dict[str, str]] = {}
+    for object_id in re.findall(r"^obj (global_statements_structure_action_(?:first|next)_ast\d+) :", loqi, re.MULTILINE):
+        metadata = _object_metadata(loqi, object_id)
+        line = int(metadata["EN.localizedName"].rsplit(" ", 1)[1])
+        names[rendered[line - 1].strip()] = {**metadata, "line": str(line)}
+    return names
+
+
+@pytest.fixture(scope="module")
 def lines(trace_registry: SituationRegistry) -> dict[str, int]:
     """Номера строк в коде, сгенерированном Meaning Tree (его и видит студент)."""
     rendered = trace_registry.code.code.splitlines()
@@ -253,11 +289,38 @@ def test_atomic_inline_action_uses_inline_rule_metadata(
     assert metadata["pronoun"] == "he"
 
 
-def test_action_without_rule_metadata_gets_default_statement_name(trace_loqi: str) -> None:
-    metadata = _object_metadata(trace_loqi, "block_structure_action_first_ast31")  # i += 1
+@pytest.mark.parametrize(
+    ("statement", "en", "ru", "pronoun"),
+    [
+        ("n: int = 3", f"assignment {_ID % 'n'}", f"присваивание {_ID % 'n'}", "it"),
+        ("n -= 1", f"assignment {_ID % 'n'}", f"присваивание {_ID % 'n'}", "it"),
+        ("lo, hi = n, 2", f"assignment {_ID % 'lo, hi'}", f"присваивание {_ID % 'lo, hi'}", "it"),
+        ("lo, hi = f(n)", f"assignment {_ID % 'lo, hi'}", f"присваивание {_ID % 'lo, hi'}", "it"),
+        ("xs[0] = n", f"assignment {_ID % 'xs[0]'}", f"присваивание {_ID % 'xs[0]'}", "it"),
+        ("print(n)", "output", "вывод на экран", "he"),
+        ("xs.append(n)", f"method call {_ID % 'append'}", f"вызов метода {_ID % 'append'}", "he"),
+        ("f(n)", f"function call {_ID % 'f'}", f"вызов функции {_ID % 'f'}", "he"),
+        ("n", "statement", "действие", "it"),
+    ],
+)
+def test_statement_without_rule_metadata_is_named_by_ast_node_type(
+    statement_names: dict[str, dict[str, str]], statement: str, en: str, ru: str, pronoun: str
+) -> None:
+    metadata = statement_names[statement]
+    line = metadata["line"]
 
-    assert metadata["EN.localizedName"].startswith("statement on line ")
-    assert metadata["pronoun"] == "it"
+    assert (metadata["EN.localizedName"], metadata["RU.localizedName"], metadata["pronoun"]) == (
+        f"{en} on line {line}",
+        f"{ru} на строке {line}",
+        pronoun,
+    )
+
+
+def test_ast_node_names_are_translated_in_every_language() -> None:
+    bundle = load_bundle("definitions")
+    names = {naming.metadata.trace_name for naming in ast_node_namings().values() if naming.metadata is not None}
+
+    assert {lang: names - _definition_keys(bundle, lang) for lang in bundle.languages} == {"en": set(), "ru": set()}
 
 
 def test_every_action_and_construct_gets_localized_name(trace_loqi: str) -> None:

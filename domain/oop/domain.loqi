@@ -84,6 +84,7 @@ class Constraint {
 	obj prop interruption_mode: InterruptionType ;
 
 	obj prop condition_value: OptionalBool ;
+	// в один enum
 	obj prop type_matched: OptionalBool ; // только строгое равенство типа
 	obj prop type_compatible: OptionalBool ; // приведение типов разрешено
 
@@ -176,10 +177,11 @@ class ASTEntity {
 class Type : ASTEntity {
 	obj prop name: string ;
 	obj prop is_abstract: bool ;
+	obj prop is_primitive: bool ;
 
 	rel hasParentType(Type) : partial ;
 	rel inheritedFrom(Type): transitive to hasParentType ;
-	rel hasChildren(Type) : opposite to inheritedFrom ;
+	rel hasDescendants(Type) : opposite to inheritedFrom ;
 
 	rel implicitlyCastsTo(Type) ; // тип может быть приведен неявно к другому
 } [
@@ -188,6 +190,8 @@ class Type : ASTEntity {
 ]
 
 class CallArgument {
+	obj prop isDefault : bool ;
+
 	rel hasType(Type) : {* -> 1};
 	rel isInSignature(CallSignature): opposite to CallSignature->hasArguments ;
 
@@ -206,12 +210,15 @@ class CallArgument {
 class CallSignature {
 	obj prop name : string ;
 	obj prop staticDispatch: bool ;
+	obj prop requiredArgCount: int ;
+	obj prop totalArgCount: int ;
 
 	rel hasOwner(Type): {* -> 1} ; // может не принадлежать типу, тогда - функция, иначе - метод
 
 	rel hasReturnType(Type) : {* -> 1} ;
-	rel hasArguments(CallArgument): {* -> 1} ;
+	rel hasArguments(CallArgument): {* -> 1} ; // начало связного списка
 	
+	// не могут быть одновременно в одном объекте
 	rel belongsToFunctionBody(ConcreteConstruct): {* -> 1} ; // тело функции, в которую можно войти
 	rel belongsToCall(ConcreteConstruct) ; // вызовы, которые имеют данную сигнатуру
 } [

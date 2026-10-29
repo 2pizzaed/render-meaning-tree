@@ -35,6 +35,7 @@ dev = [
 [project.scripts]
 annotate-trace = "test.tools.annotate_trace:main"
 find-correct-trace-actions = "src.cli.find_correct_trace_actions:main"
+render-code-html = "src.cli.render_code_html:main"
 render-construct-automaton = "src.cli.render_construct_automaton:main"
 # main.py is not a package: importable only in the editable install (uv sync), not from a wheel.
 generate-problems = "main:main"

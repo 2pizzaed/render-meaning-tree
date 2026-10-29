@@ -110,6 +110,7 @@ uv run pyright
 | `uv run playground-e2e FILE [--seed N] [--target-language LANG]` | e2e-прогон playground без сервера: кнопки + Reason до конца программы, затем сверка Hint на каждом шаге |
 | `uv run annotate-trace FILE` | выполнить Python-фрагмент и вывести его с маркерами `<! … >` по реальной трассе |
 | `uv run find-correct-trace-actions` | последовательность действий findCorrect для фрагмента |
+| `uv run render-code-html (FILE \| --stdin --lang LANG) [-o OUT] [--no-buttons] [--no-style] [--no-icon-styles]` | статический HTML-сниппет кода (`templates/code_component.html`) в stdout или файл; язык файла — по расширению; со ссылкой на Remix Icon из CDN для иконок кнопок (кроме `--no-buttons` и `--no-icon-styles`) |
 | `uv run render-construct-automaton` | автомат переходов конструкции по правилам из `src/resources/constructs.yml` |
 | `uv run tree-loqi-to-xml` | перевести дерево TPG/LOQI в XML для диагностики синтаксиса |
 | `uv run validate-dsm` | проверить модель домена (DomainSolvingModel) |

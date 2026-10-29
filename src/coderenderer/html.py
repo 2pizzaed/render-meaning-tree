@@ -192,13 +192,16 @@ def serialize_ast_nodes(manager: CodeManager):
 
 
 def prepare_html_context(manager: CodeManager,
-                         answer_objects: dict[str, str] | None = None) -> dict[str, Any]:
+                         answer_objects: dict[str, str] | None = None,
+                         *,
+                         buttons: bool = True) -> dict[str, Any]:
     """
     Полный цикл обработки кода: от строки до контекста для шаблона.
 
     Args:
         manager: CodeManager, который уже обработал код и содержит AST и токены.
         answer_objects: Дополнительные объекты для отображения (например, результаты анализа)
+        buttons: Вставлять ли в код кнопки действий ControlFlowButtons.
 
     Returns:
         Словарь context для передачи в Jinja2 шаблон.
@@ -207,7 +210,8 @@ def prepare_html_context(manager: CodeManager,
     # Инъекции
     # В будущем здесь можно использовать cfg для фильтрации кнопок в ControlFlowButtons
     # Например: ControlFlowButtons.configure(cfg)
-    manager.apply_injections(ControlFlowButtons)
+    # Пустой набор инъекций оставляет в потоке только токены кода.
+    manager.apply_injections(ControlFlowButtons if buttons else [])
 
     # Получение потока и форматирование
     # Комментарии-маркеры <! … > задают значения условий и в код задачи не попадают.

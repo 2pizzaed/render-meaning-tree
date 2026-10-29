@@ -217,8 +217,7 @@ class CallSignature {
 
 	rel hasReturnType(Type) : {* -> 1} ;
 	rel hasArguments(CallArgument): {* -> 1} ; // начало связного списка
-	
-	// не могут быть одновременно в одном объекте
+
 	rel belongsToFunctionBody(ConcreteConstruct): {* -> 1} ; // тело функции, в которую можно войти
 	rel belongsToCall(ConcreteConstruct) ; // вызовы, которые имеют данную сигнатуру
 } [

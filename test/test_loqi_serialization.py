@@ -128,6 +128,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             role = "BEGIN";
             kind = "marker";
             is_opaque = false;
+            strict_order = true;
             generalization = "entry";
             hasEffects(effect_add_frame);
             belongsTo(construct_if_statement);
@@ -143,6 +144,7 @@ def test_serialize_loqi_construct_links_transitions_to_existing_actions() -> Non
             role = "END";
             kind = "marker";
             is_opaque = false;
+            strict_order = true;
             hasEffects(effect_break);
             belongsTo(construct_if_statement);
         }

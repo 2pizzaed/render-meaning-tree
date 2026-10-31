@@ -700,6 +700,11 @@
         "opaque": {
           "type": "boolean"
         },
+        "strict_order": {
+          "description": "Повторные действия этой роли выполняются только в порядке цепочки directlyBeforeOf. false разрешает любой ещё не выполненный экземпляр роли; цепочка остаётся порядком подсказки. По умолчанию true.",
+          "type": "boolean",
+          "default": true
+        },
         "identification": {
           "$ref": "#/$defs/identification"
         },

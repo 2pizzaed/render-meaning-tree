@@ -214,6 +214,9 @@ class ActionDeclaration(SharedDeclaration):
     role: str
     kind: str
     opaque: bool | None = None
+    # false: повторные действия этой роли можно выполнять в любом порядке.
+    # Цепочка directlyBeforeOf остаётся каноническим порядком подсказки.
+    strict_order: bool = True
     identification: Identification | None = None
     metadata: Metadata | None = None
     generalization: str | None = None
@@ -243,6 +246,7 @@ class ActionDeclaration(SharedDeclaration):
             role=data["role"],
             kind=data["kind"],
             opaque=data.get("opaque"),
+            strict_order=bool(data.get("strict_order", True)),
             identification=Identification.from_dict(data.get("identification")),
             metadata=Metadata.from_dict(data.get("metadata")),
             generalization=data.get("generalization"),

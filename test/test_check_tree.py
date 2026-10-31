@@ -88,6 +88,12 @@ class CheckCase:
     действие и индекс значения в его цепочке. Без него граф берёт ``NoValue``.
     ``expected_explanation`` — часть RU-объяснения conclude-узла, на котором
     остановилась проверка (различает ветки с одним skill).
+
+    ``student_steps`` — действия ``(адрес, occurrence)``, которые студент выбрал
+    до предпрогонки; каждое обязано пройти проверку. Вместе с ними
+    ``follows_reference=False`` нужен для действий со свободным порядком
+    (``strict_order: false``): трасса законно уходит от эталонного порядка, и
+    префикс эталона не проверяется.
     """
 
     id: str
@@ -105,6 +111,8 @@ class CheckCase:
     value_patches: tuple[ValuePatch, ...] = field(default_factory=tuple)
     value: tuple[ActionSpec, int] | None = None
     expected_explanation: str = ""
+    student_steps: tuple[tuple[ActionSpec, int], ...] = ()
+    follows_reference: bool = True
 
 
 # -- Программы-фикстуры --------------------------------------------------------
@@ -210,6 +218,46 @@ def f(x):
 
 y = f(1) + f(2)
 print(y)
+"""
+
+# Строка 7 отрендеренного кода: f(1) + f(2).
+CPP_TWO_CALLS = """
+int f(int x) { return x; }
+int main() { int y = f(1) + f(2); }
+"""
+
+# Строка 11: f(g(1) + g(2)), вызовы в порядке текста: f, g(1), g(2).
+CPP_UNORDERED_CALL_ARGUMENT = """
+int f(int x) { return x; }
+int g(int x) { return x; }
+int main() { int y = f(g(1) + g(2)); }
+"""
+
+# Строка 7: f(f(1)).
+CPP_NESTED_CALL = """
+int f(int x) { return x; }
+int main() { int y = f(f(1)); }
+"""
+
+# Строка 7: f(1) && f(2).
+CPP_AND_CALLS = """
+int f(int x) { return x; }
+int main() { int y = f(1) && f(2); }
+"""
+
+# Строка 7: (f(1) + f(2)) + f(3).
+CPP_NESTED_GROUPS = """
+int f(int x) { return x; }
+int main() { int y = (f(1) + f(2)) + f(3); }
+"""
+
+# Строка 7: `int a[2];`, строка 8: вызовы f(1) в индексе, f(2), f(3).
+CPP_INDEX_ASSIGN = """
+int f(int x) { return x; }
+int main() {
+    int a[2];
+    a[f(1)] = f(2) + f(3);
+}
 """
 
 NESTED_CALL = """
@@ -895,6 +943,108 @@ CHECK_CASES: list[Any] = [
         action=(5, "BEGIN", "func_call_structure"),
         expected_skills=("construct_entered_before_inner",),
         expected_correct=True,
+    ),
+    # --- C++: порядок вызовов в выражении ---
+    CheckCase(
+        # f(f(1)) не становится группой свободного порядка: аргумент раньше вызова.
+        id="cpp_nested_call_argument_begins_first",
+        language="c++",
+        code=CPP_NESTED_CALL,
+        action=(7, "BEGIN", "func_call_structure"),
+        action_occurrence=1,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        id="cpp_nested_outer_call_before_argument",
+        language="c++",
+        code=CPP_NESTED_CALL,
+        action=(7, "BEGIN", "func_call_structure"),
+        expected_skills=("actions_in_order",),
+    ),
+    CheckCase(
+        # Операнды + не упорядочены; эталон (подсказка) начинает с левого.
+        id="cpp_unordered_left_operand_first",
+        language="c++",
+        code=CPP_TWO_CALLS,
+        action=(7, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+    ),
+    CheckCase(
+        id="cpp_unordered_right_operand_first",
+        language="c++",
+        code=CPP_TWO_CALLS,
+        action=(7, "BEGIN", "func_call_structure"),
+        action_occurrence=1,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        follows_reference=False,
+    ),
+    CheckCase(
+        id="cpp_unordered_left_after_right",
+        language="c++",
+        code=CPP_TWO_CALLS,
+        student_steps=(((7, "BEGIN", "func_call_structure"), 1),),
+        advance_to=(7, "END", "func_call_structure"),
+        advance_action_occurrence=1,
+        action=(7, "BEGIN", "func_call_structure"),
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        follows_reference=False,
+    ),
+    CheckCase(
+        # Свободный порядок не разрешает повтор уже выполненного вызова.
+        id="cpp_unordered_right_not_repeated",
+        language="c++",
+        code=CPP_TWO_CALLS,
+        student_steps=(((7, "BEGIN", "func_call_structure"), 1),),
+        advance_to=(7, "END", "func_call_structure"),
+        advance_action_occurrence=1,
+        action=(7, "BEGIN", "func_call_structure"),
+        action_occurrence=1,
+        expected_skills=("passed_action_repeat",),
+        follows_reference=False,
+    ),
+    CheckCase(
+        # Группа в аргументе вызова: её операнды не упорядочены...
+        id="cpp_unordered_call_argument_right_first",
+        language="c++",
+        code=CPP_UNORDERED_CALL_ARGUMENT,
+        action=(11, "BEGIN", "func_call_structure"),
+        action_occurrence=2,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        follows_reference=False,
+    ),
+    CheckCase(
+        # ...но сам вызов ждёт весь аргумент.
+        id="cpp_unordered_call_argument_outer_first",
+        language="c++",
+        code=CPP_UNORDERED_CALL_ARGUMENT,
+        action=(11, "BEGIN", "func_call_structure"),
+        expected_skills=("actions_in_order",),
+    ),
+    CheckCase(
+        # В C++ правая часть присваивания вычисляется раньше индекса левой.
+        id="cpp_index_call_before_rhs",
+        language="c++",
+        code=CPP_INDEX_ASSIGN,
+        advance_to=(7, "first"),
+        action=(8, "BEGIN", "func_call_structure"),
+        expected_skills=("actions_in_order",),
+    ),
+    CheckCase(
+        # Внутри правой части порядок свободный: f(3) раньше f(2).
+        id="cpp_rhs_last_operand_first",
+        language="c++",
+        code=CPP_INDEX_ASSIGN,
+        advance_to=(7, "first"),
+        action=(8, "BEGIN", "func_call_structure"),
+        action_occurrence=2,
+        expected_skills=("construct_entered_before_inner",),
+        expected_correct=True,
+        follows_reference=False,
     ),
     CheckCase(
         # То же в return: вызов в аргументе выполняется раньше внешнего вызова.
@@ -1727,6 +1877,15 @@ def _advance_partial_trace(
     registry: SituationRegistry,
     case: CheckCase,
 ) -> None:
+    for spec, occurrence in case.student_steps:
+        registry.variables["A"] = _spec_action(registry, spec, occurrence=occurrence)
+        result = _run_check(tmp_path, registry)
+        assert result.result is True and not result.exceptions, (
+            f"student step {spec} (occurrence {occurrence}) was rejected: "
+            f"{_extract_skills(result)}\n{_trace_tail(result)}"
+        )
+        _restore_check_trace(registry, result)
+
     if case.advance_to is None:
         return
     target: Action | None = None
@@ -1879,6 +2038,12 @@ def _reference_trace_signature(case: CheckCase, tmp_path: Path) -> TraceSignatur
     return signature
 
 
+def _restore_check_trace(registry: SituationRegistry, result: ReasoningResult) -> None:
+    exported = result.artifacts.get("specificDomain")
+    assert isinstance(exported, str), "check tree did not export specificDomain"
+    restore_trace_from_loqi(exported, registry)
+
+
 def _assert_trace_invariants(
     registry: SituationRegistry,
     result: ReasoningResult,
@@ -1888,16 +2053,14 @@ def _assert_trace_invariants(
     before_signature: TraceSignature,
     reference: TraceSignature,
 ) -> None:
-    exported = result.artifacts.get("specificDomain")
-    assert isinstance(exported, str), "check tree did not export specificDomain"
-    restore_trace_from_loqi(exported, registry)
+    _restore_check_trace(registry, result)
     after_signature = _trace_signature(registry)
 
     # Проверка никогда не укорачивает трассу; предпрогонка и фиксация ответа
     # обязаны держать её префиксом эталонной трассы (доп. акты — только
     # прозрачные шаги корректного продолжения либо сам корректный ответ).
     assert len(after_signature) >= len(before_signature)
-    assert after_signature == reference[: len(after_signature)], (
+    assert not case.follows_reference or after_signature == reference[: len(after_signature)], (
         "trace diverged from the reference findCorrect trace:\n"
         f"  after:     {after_signature}\n"
         f"  reference: {reference[: len(after_signature)]}"

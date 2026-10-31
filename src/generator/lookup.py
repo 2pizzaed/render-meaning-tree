@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
-from src.json_search import JSONPath
+from src.generator.evaluation_order import steps_of
+from src.json_search import JSONPath, search_with_paths_dfs
 from src.model.situation import Construct
 from src.types import Node
-
-_INLINE_CALL_NODE_TYPES = frozenset({"function_call", "method_call"})
 
 
 def lookup_next_inline_compound_call_node(
     construct: Construct, previous_path: JSONPath | None
 ) -> tuple[Node, JSONPath] | None:
-    call_nodes = _iter_inline_call_nodes(construct.ast_node)
+    call_nodes = _inline_steps(construct)
     if previous_path is None:
         if not call_nodes:
             return None
@@ -29,18 +28,15 @@ def lookup_next_inline_compound_call_node(
     return None
 
 
-def _iter_inline_call_nodes(
-    value: Any, path: JSONPath = ()
-) -> list[tuple[JSONPath, Node]]:
-    result: list[tuple[JSONPath, Node]] = []
-    if isinstance(value, dict):
-        for key, child in value.items():
-            result.extend(_iter_inline_call_nodes(child, (*path, key)))
-        if value.get("type") in _INLINE_CALL_NODE_TYPES and isinstance(
-            value.get("id"), int
-        ):
-            result.append((path, cast(Node, value)))
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            result.extend(_iter_inline_call_nodes(child, (*path, index)))
-    return result
+def _inline_steps(construct: Construct) -> list[tuple[JSONPath, Node]]:
+    steps = steps_of(construct.ast_node, construct.owner.code.language)
+    step_ids = {step["id"] for step in steps}
+
+    def is_step(value: Any) -> bool:
+        return isinstance(value, dict) and value.get("id") in step_ids
+
+    paths = {
+        node["id"]: path
+        for path, node in search_with_paths_dfs(construct.ast_node, is_step)
+    }
+    return [(paths[step["id"]], step) for step in steps]

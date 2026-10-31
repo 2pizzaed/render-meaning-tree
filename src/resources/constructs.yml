@@ -932,6 +932,30 @@ call_statement_structure:
       to: content
       to_when_absent: END
 
+# Операнды, которые язык не упорядочивает (в C++ это, например, стороны + и индекса).
+# Конструкт не сопоставляется с узлом AST сам: его ставит генератор на оператор,
+# у которого каждый операнд даёт ровно один шаг. strict_order = false разрешает
+# любой ещё не выполненный content; цепочка остаётся порядком подсказки.
+# Вложенный вызов f(g(x)) сюда не попадает: аргумент стоит в строгой цепочке раньше вызова.
+eval_unordered_structure:
+  kind: inline.compound
+  preorder: true
+  ast_node:
+    query:
+      - type: __eval_unordered__
+  actions:
+    - role: content
+      kind: optional
+      opaque: false
+      strict_order: false
+  transitions:
+    - from: BEGIN
+      to: content
+      to_when_absent: END
+    - from: content
+      to: content
+      to_when_absent: END
+
 # --------------------------------
 # Заглушка для комментария и др. незначимых для CFG действий (без кнопок)
 # --------------------------------

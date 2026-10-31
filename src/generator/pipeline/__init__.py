@@ -12,6 +12,7 @@ from typing import Self, cast
 
 from src.ast_managers import CodeManager, NodePathElement
 from src.generator.automaton import ConstructTransitionAutomaton
+from src.generator.evaluation_order import unordered_member_steps
 from src.generator.fragment import (
     cyclomatic_complexity,
     first_code_line,
@@ -57,6 +58,9 @@ from src.types import Node, NodeQueryFormat
 __all__ = ["LearningProblemClassificationPipeline", "LearningProblemGeneratorPipeline"]
 
 logger = logging.getLogger(__name__)
+
+# Правило не сопоставляется с AST само: его выбирает _eval_group_declaration.
+_EVAL_GROUP_RULE = "eval_unordered_structure"
 
 type Branch = Pipeline[SituationRegistry]
 
@@ -152,7 +156,7 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         if ast_id in self.registry.constructs:
             return self.registry.constructs[ast_id]
         node_type: str = cast(str, node.get("type"))
-        construct_decl = self._locate_construct_declaration(node)
+        construct_decl = self._eval_group_declaration(ast_id, node) or self._locate_construct_declaration(node)
         if not construct_decl:
             # Ветви if и switch - части своего ветвления, а не самостоятельные операторы.
             is_branch = node_type == "condition_branch" or self.code.ast.instanceof(
@@ -171,7 +175,11 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
             return
         # Подвыражение с вызовами внутри оператора или условия выполняется через content
         # самого внешнего inline.compound: свой конструкт продублировал бы его действия.
-        if _is_inline_compound(construct_decl) and self._outer_inline_compound(ast_id) is not None:
+        if (
+            _is_inline_compound(construct_decl)
+            and construct_decl.name != _EVAL_GROUP_RULE
+            and self._outer_inline_compound(ast_id) is not None
+        ):
             return
         parent = self._build_parent_construct(ast_id)
         if parent is None and construct_decl is not self.root_rule:
@@ -186,9 +194,10 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
     def _build_parent_construct(self, ast_id: int) -> Construct | None:
         # Вызовы внутри оператора, в том числе в аргументах другого вызова, - плоские
         # действия content самого внешнего inline.compound, а не потомки ближайшего конструкта.
+        # Исключение - операнды группы свободного порядка: они действия самой группы.
         outer = self._outer_inline_compound(ast_id)
         if outer is not None:
-            return self._build_construct(*outer)
+            return self._build_construct(*(self._enclosing_eval_group(ast_id, outer[0]) or outer))
         par_node = self.code.ast.get_parent_of(ast_id)
         while par_node:
             par_node_id = cast(int | None, par_node.get("id"))
@@ -213,6 +222,31 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
                 outer = (par_node_id, par_node)
             par_node = self.code.ast.get_parent_of(par_node_id)
         return outer
+
+    def _eval_group_declaration(self, ast_id: int, node: Node) -> ConstructDeclaration | None:
+        """Правило группы для оператора со свободным порядком операндов внутри inline.compound."""
+        if unordered_member_steps(node, self.code.language) is None:
+            return None
+        outer = self._outer_inline_compound(ast_id)
+        if outer is None:
+            return None
+        # Вложенная группа входит в охватывающую: её участники - действия внешней группы.
+        if self._enclosing_eval_group(ast_id, outer[0]) is not None:
+            return None
+        return next((rule for rule in self.registry.rules if rule.name == _EVAL_GROUP_RULE), None)
+
+    def _enclosing_eval_group(self, ast_id: int, outer_id: int) -> tuple[int, Node] | None:
+        """Самая внешняя группа свободного порядка между узлом и внешним inline.compound."""
+        group: tuple[int, Node] | None = None
+        par_node = self.code.ast.get_parent_of(ast_id)
+        while par_node:
+            par_node_id = cast(int | None, par_node.get("id"))
+            if par_node_id is None or par_node_id == outer_id:
+                break
+            if unordered_member_steps(par_node, self.code.language) is not None:
+                group = par_node_id, par_node
+            par_node = self.code.ast.get_parent_of(par_node_id)
+        return group
 
     def _locate_construct_declaration(self, node: Node) -> ConstructDeclaration | None:
         return locate_construct_declaration_by_ast_node(
@@ -504,6 +538,12 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
 
         self._remove_construct_actions(root_construct)
         self.registry.constructs.pop(entry_point_path.id, None)
+        # Определения остальных функций переходят под новый корень: иначе у тела функции
+        # и вызывающего кода нет общего конструкта.
+        entry_construct = self.registry.constructs.get(entry_node_id)
+        for construct in self.registry.constructs.values():
+            if construct.parent is root_construct and construct is not entry_construct:
+                construct.parent = body_construct
 
         body_construct.rule = self.root_rule
         body_construct.parent = None

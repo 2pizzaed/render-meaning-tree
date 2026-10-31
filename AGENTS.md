@@ -2,16 +2,18 @@
 
 ## Skills To Use
 
-- When working with AST, Meaning Tree output, language translators, semantic nodes, serializers, or the embedded `meaning_tree/` project, use the `meaning-tree` skill. Prefer local project sources and local Maven source jars over memory or external documentation.
+- When working with AST, Meaning Tree output, language translators, semantic nodes, or serializers, use the `meaning-tree` skill. For routine integration work, use the skill, this project's integration code, and existing examples. Inspect implementation sources in the `meaning_tree/` submodule or local Maven source jars only to investigate a problem in the Meaning Tree implementation.
 - When diagnosing, explaining, extending, or validating the reasoner, thought process graphs, `.tpg` files, `.loqi` domain/tree files, DomainSolvingModel data, or CompPrehension reasoning behavior, use the `thought-process-graph` skill.
 - For syntax-sensitive TPG/LOQI work, ground conclusions in documentation or source code before proposing code. Use the skill references and, when needed, inspect the current TPG/LOQI grammar, builder/writer code, reasoner code, and local domain files.
 
 ## TPG And LOQI Safety
 
 - Do not modify `.tpg` or `.loqi` files without explicit developer approval for that specific change.
-- The same approval rule applies to TPG documentation: `docs/check_graph_idea.md`, `docs/findCorrect_graph_idea.md`, `docs/diagrams/` and any other `docs/` file describing thought process graphs. Propose the text for review instead of editing these files.
+- The same approval rule applies to all diagrams (including every file under `docs/diagrams/`) and TPG documentation: `docs/check_graph_idea.md`, `docs/findCorrect_graph_idea.md` and any other `docs/` file describing thought process graphs. Propose changes for review instead of editing these files.
 - For `.tpg` and `.loqi` requests, default to diagnosis: explain the suspected issue, cite the relevant file/construct, and propose a patch or replacement snippet for developer review.
 - Before recommending TPG/LOQI code, check that the syntax and constructs are valid for the current project. Validate against the relevant documentation, grammar, source implementation, or available conversion/validation tooling.
+- Before proposing a concrete `.tpg` change, use the `thought-process-graph` skill's `model` route and its `references/modeling-principles.md` to assess the rationale, readability, graph complexity, and effect on explanations and pedagogical questions. Prefer the smallest understandable change that expresses the underlying domain rule. Reject unnecessary branches, duplicated checks, and workarounds that merely make the current example pass or hide a defect elsewhere.
+- Briefly justify the proposed TPG change: which reasoning rule it represents, why existing graph logic cannot be reused or adjusted more simply, and why any added complexity is necessary. Syntax validation alone is insufficient.
 - If a proposed reasoner/domain change cannot be validated locally, say exactly what was checked and what remains unverified.
 
 ## Validation And Testing
@@ -48,7 +50,8 @@ Tip: Use Git Bash in Windows
 
 - Keep Python changes typed and consistent with existing module patterns.
 - Prefer small, focused edits over broad refactors.
-- When adding new code, reuse existing helper modules instead of re-implementing the same utility logic; in tests, prefer `test/helpers` utilities over new local helpers.
+- Before adding helpers or any other code, search the existing code for the same or similar behavior and assess reuse or a small, focused adaptation. Add new code only after checking that no suitable implementation exists or can be reused with a small change; in tests, check `test/helpers` first.
+- Introduce private helper functions or methods (`_...`) only when they reduce overall code volume and improve readability. Each must have one clear responsibility, a descriptive name, and a concise docstring stating its purpose. Avoid helpers that merely move code elsewhere or add an unnecessary layer of indirection.
 - Preserve generated/domain artifacts unless the developer explicitly asks to regenerate or update them.
 
 ## Solution Quality Review

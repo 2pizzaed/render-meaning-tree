@@ -221,23 +221,20 @@
     {% if call_value_menus %}
     <script>
         (() => {
-            // Dropdown значений вызова (docs/ideas/function_return_dropdown.md). Пункт
-            // доступен, если его подсказка есть у актов трассы BEGIN его места вызова.
-            // Без доступных пунктов кнопка отправляет свой ответ: завершение вызова без значения.
             const script = document.currentScript;
             const traceRoot = script.closest(".comp-ph-question") ?? document;
             for (const menu of script.parentElement.querySelectorAll(".call-value-menu")) {
                 const button = menu.previousElementSibling;
                 button.addEventListener("click", () => {
-                    let available = false;
+                    const available = [];
                     for (const option of menu.querySelectorAll("button[data-hint]")) {
                         const selector = `.trace-act[data-action="${option.dataset.action}"] .value-hint`;
                         const hints = Array.from(traceRoot.querySelectorAll(selector), (hint) => hint.textContent);
                         option.disabled = !hints.includes(option.dataset.hint);
-                        available ||= !option.disabled;
+                        if (!option.disabled) available.push(option);
                     }
-                    if (!available) {
-                        button.dispatchEvent(new CustomEvent("compph:on-answer-evaluated", { bubbles: true }));
+                    if (available.length < 2) {
+                        (available[0] ?? button).dispatchEvent(new CustomEvent("compph:on-answer-evaluated", { bubbles: true }));
                         return;
                     }
                     const rect = button.getBoundingClientRect();

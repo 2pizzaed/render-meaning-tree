@@ -32,8 +32,5 @@
   "multiple_assignment_statement": {
     "metadata": {"locale_trace_name": "assignment", "locale_pronoun": "it", "identifier": true},
     "identifier_path": ["targets", "*", "target"]
-  },
-  "print_values": {
-    "metadata": {"locale_trace_name": "output", "locale_pronoun": "he"}
   }
 }

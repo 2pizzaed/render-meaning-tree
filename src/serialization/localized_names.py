@@ -15,8 +15,14 @@
 ``continue``, ...) в представление не попадают, поэтому их метаданные ищутся по
 объявлениям правил. Если правила метаданных не задают (например, у простых
 операторов), они берутся по типу AST-узла из ``resources/ast_node_names.json``,
-а для типа вне этого реестра используется ``DEFAULT_NAME_METADATA`` — «действие».
-Там же для каждого типа узла задан путь к его идентификатору.
+а для типа вне этого реестра используется короткий код узла или «действие».
+Там же для каждого типа узла задан путь к его идентификатору. Тип имени и путь
+берутся только для самого узла, без перехода к вложенному выражению.
+
+Вызовы и присваивания дополняются кодом узла вместо идентификатора. Пробельные
+последовательности сворачиваются в один пробел; лимит — ``MAX_CODE_NAME_LENGTH``
+символов. Если код длиннее или недоступен, остаётся идентификатор, а без него —
+«действие». Определения функций и имена ролей сохраняют прежний формат.
 
 ``ActionSpec`` с собственными метаданными получает то же имя, что и его
 конкретные действия, но без номера строки и идентификатора: спецификация не
@@ -69,6 +75,8 @@ from src.types import Node
 ON_LINE_KEY = "on_line"
 TRACED_PREFIX_KEY = "traced_prefix"
 TRACED_SUFFIX_KEY = "traced_suffix"
+MAX_CODE_NAME_LENGTH = 48
+_CODE_NAME_KEYS = {"function_call", "method_call", "assignment", "statement"}
 
 # Роль граничного действия → ключ бандла, которым дополняется имя конструкции.
 BOUNDARY_KEYS: Mapping[str, str] = {"BEGIN": "begin", "END": "end"}
@@ -202,11 +210,18 @@ class NamingContext:
             return None
         return self.code.get_node_by_id(ast_id)
 
+    def short_code(self, ast_id: int | None) -> str | None:
+        if self.code is None or ast_id is None:
+            return None
+        code = self.code.code_piece(ast_id)
+        compact = " ".join(code.split()) if code else ""
+        return compact if compact and len(compact) <= MAX_CODE_NAME_LENGTH else None
+
     def identifier(self, ast_id: int | None) -> str | None:
         node = self.node(ast_id)
         if node is None or self.code is None:
             return None
-        names = [name for name_node in _identifier_nodes(_named_node(node)) if (name := self._name(name_node))]
+        names = [name for name_node in _identifier_nodes(node) if (name := self._name(name_node))]
         return ", ".join(names) or None
 
     def _name(self, name_node: Node) -> str | None:
@@ -218,7 +233,7 @@ class NamingContext:
 
     def node_type_metadata(self, ast_id: int | None) -> NameMetadata | None:
         node = self.node(ast_id)
-        naming = ast_node_namings().get(str(_named_node(node).get("type"))) if node is not None else None
+        naming = ast_node_namings().get(str(node.get("type"))) if node is not None else None
         return naming.metadata if naming is not None else None
 
     def inline_rule(self, ast_id: int | None) -> ConstructDeclaration | None:
@@ -344,7 +359,20 @@ def localized_name_entries(
     ctx: NamingContext,
 ) -> list[LoqiMetadataEntry]:
     line = ctx.line(parts.ast_id)
-    identifier = ctx.identifier(parts.ast_id) if parts.metadata.identifier else None
+    metadata = parts.metadata
+    identifier: str | None = None
+    if (
+        metadata.raw_explanation is None
+        and parts.ast_id is not None
+        and metadata.trace_name in _CODE_NAME_KEYS
+    ):
+        identifier = ctx.short_code(parts.ast_id) or ctx.identifier(parts.ast_id)
+        if identifier is None:
+            parts = replace(parts, metadata=DEFAULT_NAME_METADATA)
+        elif metadata.trace_name == "statement":
+            parts = replace(parts, metadata=replace(metadata, trace_name=None))
+    elif metadata.identifier:
+        identifier = ctx.identifier(parts.ast_id)
     entries = [
         LoqiMetadataEntry(
             name=localized_name_key(lang),
@@ -431,12 +459,6 @@ def _identifier_nodes(node: Node) -> list[Node]:
         else:
             current = [value.get(key) for value in current if isinstance(value, dict)]
     return [cast(Node, value) for value in current if isinstance(value, dict)]
-
-
-def _named_node(node: Node) -> Node:
-    """Оператор-выражение называется по своему выражению: `print(x)` — как вывод."""
-    expression = node.get("expression") if node.get("type") == "expression_statement" else None
-    return cast(Node, expression) if isinstance(expression, dict) else node
 
 
 __all__ = [

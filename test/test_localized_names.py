@@ -6,6 +6,7 @@ from textwrap import dedent
 
 import pytest
 
+from src.ast_managers import CodeManager
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_snippet_to_registry
@@ -19,6 +20,8 @@ from src.serialization.localized_names import (
     NamingContext,
     ast_node_namings,
     format_localized_name,
+    localized_name_entries,
+    resolve_action,
     resolve_semantic_value,
 )
 from src.serialization.loqi import (
@@ -31,8 +34,10 @@ from src.serialization.loqi import (
     LoqiRenderResult,
     LoqiSerializer,
 )
+from src.types import Node
+from test.helpers.trace import TraceBuilder, ast_node
 
-# Идентификатор в имени так, как он записан в метаданных LOQI.
+# Код или идентификатор в имени так, как он записан в метаданных LOQI.
 _ID = '<code class=\\"id\\">%s</code>'
 
 BUNDLE = MessageBundle(
@@ -269,14 +274,23 @@ def test_boundary_action_names_construct_with_same_ast_id(
     }
 
 
-def test_function_call_name_includes_identifier(
+def test_function_call_name_includes_code(
     trace_loqi: str, lines: dict[str, int]
 ) -> None:
     metadata = _object_metadata(trace_loqi, "construct_func_call_structure_ast28")
 
     assert metadata["EN.localizedName"] == (
-        f'function call <code class=\\"id\\">foo</code> on line {lines["while"]}'
+        f'function call <code class=\\"id\\">foo(i)</code> on line {lines["while"]}'
     )
+
+
+def test_function_definition_keeps_identifier(trace_loqi: str) -> None:
+    match = re.search(r"^obj (construct_func_def_structure_ast\d+) :", trace_loqi, re.MULTILINE)
+    assert match is not None
+    metadata = _object_metadata(trace_loqi, match[1])
+
+    assert metadata["EN.localizedName"] == f"function definition {_ID % 'foo'} on line 1"
+    assert metadata["RU.localizedName"] == f"определение функции {_ID % 'foo'} на строке 1"
 
 
 def test_atomic_inline_action_uses_inline_rule_metadata(
@@ -292,15 +306,15 @@ def test_atomic_inline_action_uses_inline_rule_metadata(
 @pytest.mark.parametrize(
     ("statement", "en", "ru", "pronoun"),
     [
-        ("n: int = 3", f"assignment {_ID % 'n'}", f"присваивание {_ID % 'n'}", "it"),
-        ("n -= 1", f"assignment {_ID % 'n'}", f"присваивание {_ID % 'n'}", "it"),
-        ("lo, hi = n, 2", f"assignment {_ID % 'lo, hi'}", f"присваивание {_ID % 'lo, hi'}", "it"),
-        ("lo, hi = f(n)", f"assignment {_ID % 'lo, hi'}", f"присваивание {_ID % 'lo, hi'}", "it"),
-        ("xs[0] = n", f"assignment {_ID % 'xs[0]'}", f"присваивание {_ID % 'xs[0]'}", "it"),
-        ("print(n)", "output", "вывод на экран", "he"),
-        ("xs.append(n)", f"method call {_ID % 'append'}", f"вызов метода {_ID % 'append'}", "he"),
-        ("f(n)", f"function call {_ID % 'f'}", f"вызов функции {_ID % 'f'}", "he"),
-        ("n", "statement", "действие", "it"),
+        ("n: int = 3", f"assignment {_ID % 'n: int = 3'}", f"присваивание {_ID % 'n: int = 3'}", "it"),
+        ("n -= 1", f"assignment {_ID % 'n -= 1'}", f"присваивание {_ID % 'n -= 1'}", "it"),
+        ("lo, hi = n, 2", f"assignment {_ID % 'lo, hi = n, 2'}", f"присваивание {_ID % 'lo, hi = n, 2'}", "it"),
+        ("lo, hi = f(n)", f"assignment {_ID % 'lo, hi = f(n)'}", f"присваивание {_ID % 'lo, hi = f(n)'}", "it"),
+        ("xs[0] = n", f"assignment {_ID % 'xs[0] = n'}", f"присваивание {_ID % 'xs[0] = n'}", "it"),
+        ("print(n)", _ID % "print(n)", _ID % "print(n)", "it"),
+        ("xs.append(n)", _ID % "xs.append(n)", _ID % "xs.append(n)", "it"),
+        ("f(n)", _ID % "f(n)", _ID % "f(n)", "it"),
+        ("n", _ID % "n", _ID % "n", "it"),
     ],
 )
 def test_statement_without_rule_metadata_is_named_by_ast_node_type(
@@ -314,6 +328,112 @@ def test_statement_without_rule_metadata_is_named_by_ast_node_type(
         f"{ru} на строке {line}",
         pronoun,
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_code"),
+    [
+        ("  foo(\r\n\t  value   )  ", "foo( value )"),
+        ("foo(" + "x" * 43 + ")", "foo(" + "x" * 43 + ")"),  # 48 символов
+        ("foo(" + "x" * 44 + ")", "foo"),
+        ("  foo(\n" + " " * 80 + "value)  ", "foo( value)"),
+        ('foo("<тег>&")', "foo(&quot;&lt;тег&gt;&amp;&quot;)"),
+        (None, "foo"),
+        (" \n\t ", "foo"),
+    ],
+)
+def test_call_code_name_is_compact_bounded_and_escaped(
+    source: str | None, expected_code: str
+) -> None:
+    call = ast_node(
+        1, "function_call", function=ast_node(2, "simple_identifier", name="foo")
+    )
+    builder = TraceBuilder(call)
+    source_map = builder.registry.code.source_map.copy()
+    source_map["source_code"] = source or ""
+    source_map["byte_positions"] = (
+        {"1": [0, len(source.encode("utf-8"))]} if source is not None else {}
+    )
+    code = CodeManager(builder.ast, source_map, {"type": "tokens", "items": []})
+    ctx = NamingContext(LoqiRenderResult((), ()), code)
+    parts = NameParts(NameMetadata("function_call", "he", identifier=True), ast_id=1)
+
+    entries = {
+        entry.name: entry.value
+        for entry in localized_name_entries(
+            parts, load_bundle("definitions"), ("en", "ru"), ctx
+        )
+    }
+
+    assert entries == {
+        "EN.localizedName": f'function call <code class="id">{expected_code}</code>',
+        "RU.localizedName": f'вызов функции <code class="id">{expected_code}</code>',
+        "pronoun": "he",
+    }
+
+
+@pytest.mark.parametrize("trace_name", ["statement", "assignment", "function_call"])
+def test_long_code_without_identifier_falls_back_to_statement(trace_name: str) -> None:
+    builder = TraceBuilder(ast_node(1, "unknown_expression"))
+    source = "x" * 49
+    source_map = builder.registry.code.source_map.copy()
+    source_map["source_code"] = source
+    source_map["byte_positions"] = {"1": [0, len(source)]}
+    code = CodeManager(builder.ast, source_map, {"type": "tokens", "items": []})
+    ctx = NamingContext(LoqiRenderResult((), ()), code)
+    parts = NameParts(NameMetadata(trace_name, "he", identifier=True), ast_id=1)
+
+    entries = {
+        entry.name: entry.value
+        for entry in localized_name_entries(
+            parts, load_bundle("definitions"), ("en", "ru"), ctx
+        )
+    }
+
+    assert entries == {
+        "EN.localizedName": "statement",
+        "RU.localizedName": "действие",
+        "pronoun": "it",
+    }
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        ast_node(2, "function_call", function=ast_node(3, "simple_identifier", name="foo")),
+        ast_node(2, "method_call", method_name=ast_node(3, "simple_identifier", name="foo")),
+        ast_node(2, "assignment_statement", target=ast_node(3, "simple_identifier", name="foo")),
+    ],
+)
+@pytest.mark.parametrize("source", ["foo(x)", "x" * 49, None])
+def test_expression_statement_does_not_inherit_nested_name(
+    expression: Node, source: str | None
+) -> None:
+    builder = TraceBuilder(ast_node(1, "expression_statement", expression=expression))
+    source_map = builder.registry.code.source_map.copy()
+    source_map["source_code"] = source or ""
+    source_map["byte_positions"] = (
+        {"1": [0, len(source)]} if source is not None else {}
+    )
+    code = CodeManager(builder.ast, source_map, {"type": "tokens", "items": []})
+    ctx = NamingContext(LoqiRenderResult((), ()), code)
+    action = LoqiObject("action", "ConcreteAction", properties=[LoqiProperty("ast_id", 1)])
+    parts = resolve_action(action, ctx)
+    assert parts is not None
+
+    entries = {
+        entry.name: entry.value
+        for entry in localized_name_entries(
+            parts, load_bundle("definitions"), ("en", "ru"), ctx
+        )
+    }
+
+    short_code = '<code class="id">foo(x)</code>'
+    assert entries == {
+        "EN.localizedName": short_code if source == "foo(x)" else "statement",
+        "RU.localizedName": short_code if source == "foo(x)" else "действие",
+        "pronoun": "it",
+    }
 
 
 def test_ast_node_names_are_translated_in_every_language() -> None:

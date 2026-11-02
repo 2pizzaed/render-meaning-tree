@@ -553,6 +553,44 @@ RECURSION_VALUES: tuple[ValuePatch, ...] = ((2, "first_cond", [True, True, False
 # -- Сценарии ------------------------------------------------------------------
 
 CHECK_CASES: list[Any] = [
+    CheckCase(
+        id="function_return_before_uncomputed_condition",
+        language="python",
+        code=RECURSION_ASSIGN_ANNOTATED,
+        advance_to=(8, "BEGIN", "func_call_structure"),
+        action=(5, "next"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((2, "first_cond", [False, True]),),
+    ),
+    CheckCase(
+        id="recursive_return_before_uncomputed_condition",
+        language="python",
+        code=RECURSION_ASSIGN_ANNOTATED,
+        advance_to=(4, "BEGIN", "func_call_structure"),
+        action=(5, "next"),
+        expected_skills=("inner_construct_finished_before_next",),
+        value_patches=((2, "first_cond", [False, True]),),
+    ),
+    CheckCase(
+        id="function_accepts_uncomputed_condition",
+        language="python",
+        code=RECURSION_ASSIGN_ANNOTATED,
+        advance_to=(8, "BEGIN", "func_call_structure"),
+        action=(2, "first_cond"),
+        expected_skills=("actions_in_order",),
+        expected_correct=True,
+        value_patches=((2, "first_cond", [False, True]),),
+    ),
+    CheckCase(
+        id="recursive_call_accepts_uncomputed_condition",
+        language="python",
+        code=RECURSION_ASSIGN_ANNOTATED,
+        advance_to=(4, "BEGIN", "func_call_structure"),
+        action=(2, "first_cond"),
+        expected_skills=("actions_in_order",),
+        expected_correct=True,
+        value_patches=((2, "first_cond", [False, True]),),
+    ),
     # --- Линейная последовательность операторов (случай 1.x идеи) ---
     CheckCase(
         id="plain_correct_next",

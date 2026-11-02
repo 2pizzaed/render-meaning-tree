@@ -8,6 +8,8 @@
 принята до завершения или принято больше ``--limit`` шагов. Второй прогон с пустой трассы
 просит Hint и сверяет каждую подсказку с действием первого прогона на том же шаге.
 Падение эндпоинта (``ok: false``) или расхождение подсказки - тоже ошибка, код выхода 1.
+У отклонённых действий проверяются индекс ошибки и объяснение. На первых трёх шагах
+с отказами Hint также должен отклонить ошибочную трассу (HTTP 409); она не продолжается.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from test.playground.app import SNIPPET_LANGUAGES_BY_SUFFIX, app
 
 DEFAULT_SEED = 1806
 DEFAULT_LIMIT = 100
+NEGATIVE_HINT_LIMIT = 3
 _ANSWER_OBJECTS_RE = re.compile(
     r'<script type="application/json" id="answer_objects">(.*?)</script>', re.DOTALL
 )
@@ -55,19 +58,51 @@ def press_buttons(
 ) -> list[str]:
     trace: list[str] = []
     start = 0
+    negative_hint_steps: set[int] = set()
     while True:
         for offset in range(len(actions)):
             index = (start + offset) % len(actions)
-            reasoning = _post(client, "/reason-trace", request, [*trace, actions[index]])["reasoning"]
+            candidate = [*trace, actions[index]]
+            payload = _post(client, "/reason-trace", request, candidate)
+            reasoning = payload["reasoning"]
             if _program_finished(reasoning):
                 return trace
             if reasoning["status"] == "correct":
                 if len(trace) == limit:
                     raise PlaygroundE2EError(f"Reason accepted more than {limit} steps")
                 trace.append(actions[index])
-                print(f"{len(trace)}. {actions[index]} (attempts: {offset + 1})", file=sys.stderr)
+                print(
+                    f"{len(trace)}. {actions[index]} (attempts: {offset + 1})",
+                    file=sys.stderr,
+                )
                 start = index + 1
                 break
+            if (
+                reasoning["status"] != "error"
+                or payload["failedStepIndex"] != len(trace)
+                or not any(text.strip() for text in reasoning["explanations"])
+            ):
+                raise PlaygroundE2EError(
+                    f"Reason returned an invalid rejection for trace {candidate}"
+                )
+            if (
+                len(negative_hint_steps) < NEGATIVE_HINT_LIMIT
+                and len(trace) not in negative_hint_steps
+            ):
+                response = client.post("/hint-trace", json={**request, "trace": candidate})
+                hint = response.get_json()
+                expected_error = (
+                    f"Trace is incorrect at step {len(candidate)}; fix it before requesting a hint."
+                )
+                if (
+                    response.status_code != 409
+                    or not hint
+                    or hint.get("ok") is not False
+                    or hint.get("error") != expected_error
+                ):
+                    raise PlaygroundE2EError(f"Hint did not reject trace {candidate}: {hint}")
+                negative_hint_steps.add(len(trace))
+                print(f"Negative Hint check at step {len(candidate)}: OK", file=sys.stderr)
         else:
             raise PlaygroundE2EError(f"Reason accepted no action button at step {len(trace) + 1}")
 

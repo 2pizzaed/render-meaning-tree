@@ -70,6 +70,42 @@ enum InterruptionStackAction {
 	EN.localizedName = "interruption stack action" ;
 ]
 
+enum TypeKind {
+	value [
+		RU.localizedName = "тип, хранимый по значению" ;
+		EN.localizedName = "value type" ;
+	],
+	pointer [
+		RU.localizedName = "тип, передаваемый по указателю" ;
+		EN.localizedName = "pointer type" ;
+	],
+	reference [
+		RU.localizedName = "ссылочный тип" ;
+		EN.localizedName = "reference type" ;
+	],
+} [
+	RU.localizedName = "представление типа в памяти" ;
+	EN.localizedName = "type memory representation" ;
+]
+
+enum TypeMatchingKind {
+	none [
+		RU.localizedName = "не соответствуют" ;
+		EN.localizedName = "not compatible" ;
+	],
+	strict [
+		RU.localizedName = "строгое соответствие" ;
+		EN.localizedName = "strict matching" ;
+	],
+	compatible [
+		RU.localizedName = "полное соответствие (включая наследников)" ;
+		EN.localizedName = "full matching" ;
+	]
+} [
+	RU.localizedName = "виды совместимости двух типов" ;
+	EN.localizedName = "type matching kind" ;
+]
+
 // -------- Правила предметной области --------
 
 class AbstractSpec {
@@ -82,11 +118,8 @@ class AbstractSpec {
 // Видимо придется создавать его всегда при переходах
 class Constraint {
 	obj prop interruption_mode: InterruptionType ;
-
 	obj prop condition_value: OptionalBool ;
-	// в один enum
-	obj prop type_matched: OptionalBool ; // только строгое равенство типа
-	obj prop type_compatible: OptionalBool ; // приведение типов разрешено
+	obj prop type_matched: TypeMatchingKind ; // только строгое равенство типа или приведение типов разрешено
 
 	// если не заданы - type_matched и type_compatible сравнивают по TraceState->hasInterruptionSemantic:
 	rel allowedFor(Type); // ограничение разрешает только указанные типы и их наследники
@@ -178,6 +211,7 @@ class ASTEntity {
 
 class Type : ASTEntity {
 	obj prop name: string ;
+	obj prop kind: TypeKind ;	
 	obj prop is_abstract: bool ;
 	obj prop is_primitive: bool ;
 
@@ -213,7 +247,7 @@ class CallSignature {
 	obj prop name : string ;
 	obj prop staticDispatch: bool ;
 	obj prop requiredArgCount: int ;
-	obj prop totalArgCount: int ;
+	obj prop totalArgCount: int ; // на случай аргументов по умолчанию
 
 	rel hasOwner(Type): {* -> 1} ; // может не принадлежать типу, тогда - функция, иначе - метод
 

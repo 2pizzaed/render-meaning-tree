@@ -20,7 +20,9 @@
 
 Use `uv` for project commands.
 
-- `uv run pytest` - run the test suite.
+Use pytest for routine validation. Do not run e2e checks automatically, including through pytest collection (`test/test_playground_e2e.py`). Run e2e only when explicitly requested by the user, and only on the dataset or input files they specified. Do not substitute another dataset or expand the requested dataset. If the requested dataset is unclear, clarify it before running e2e.
+
+- `uv run pytest --ignore=test/test_playground_e2e.py` - run the test suite without e2e; prefer specific relevant test files for focused changes.
 - `uv run ruff check .` - lint Python code and import ordering.
 - `uv run pyright` - type-check Python code.
 - `uv run find-correct-trace-actions` - inspect the sequence of actions produced by the `findCorrect` reasoning flow for a code snippet.
@@ -32,7 +34,7 @@ Use `uv` for project commands.
 - `uv run annotate-trace` - run a Python snippet and print it with `<! … >` value markers built from its real execution trace (`test/tools/annotate_trace.py`).
 - `uv run tree-loqi-to-xml` - convert a TPG/LOQI tree file to XML for syntax/build diagnostics.
 
-Run only the checks that are required by the task and the risk of the change. For small, local edits, prefer the narrowest relevant test, script, or validator instead of the full suite. If a change is broad, touches shared behavior, or affects core generation/reasoning paths, run the relevant test file; for large or cross-cutting changes, run `uv run pytest`.
+Run only the checks that are required by the task and the risk of the change. For small, local edits, prefer the narrowest relevant test, script, or validator instead of the full suite. If a change is broad, touches shared behavior, or affects core generation/reasoning paths, run the relevant test file; for large or cross-cutting changes, run `uv run pytest --ignore=test/test_playground_e2e.py`. The explicit-request rule for e2e still applies to broad changes.
 
 When changing Python code, run `ruff` and `pyright` when feasible, especially for non-trivial edits. When changing reasoning/domain behavior, also run the narrow script or validator that exercises the affected graph, LOQI file, or construct.
 

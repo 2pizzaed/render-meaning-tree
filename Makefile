@@ -16,7 +16,7 @@ run:
 test: test-parallel test-serial
 
 test-parallel:
-	uv run pytest -n $(PYTEST_XDIST_WORKERS) --dist=loadgroup -m "not serial"
+	uv run pytest -n $(PYTEST_XDIST_WORKERS) --dist=loadgroup -m "not serial and not e2e"
 
 test-serial:
 	uv run pytest -m serial

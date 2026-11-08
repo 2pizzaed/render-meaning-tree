@@ -98,7 +98,8 @@ Python-часть вызывает Java-инструменты (Meaning Tree, it
 Проверки:
 
 ```bash
-uv run pytest            # все тесты; make test — параллельно (xdist) и затем serial-тесты
+uv run pytest            # все тесты, кроме playground e2e; make test — параллельно (xdist) и затем serial-тесты
+uv run pytest -m e2e     # playground e2e: test_recursion_playground_e2e
 uv run ruff check .
 uv run pyright
 ```

@@ -45,9 +45,10 @@ tree-loqi-to-xml = "src.tree_loqi_to_xml:main"
 validate-dsm = "src.validate_dsm:main"
 
 [tool.pytest.ini_options]
-addopts = "-q -s --tb=short"
+addopts = "-q -s --tb=short -m \"not e2e\""
 markers = [
     "serial: tests that should run outside xdist parallel scheduling",
+    "e2e: playground end-to-end checks, excluded from the default run",
 ]
 # Все предупреждения скрыты, кроме перечисленных ниже (последнее совпавшее правило важнее).
 filterwarnings = [

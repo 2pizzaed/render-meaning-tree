@@ -14,6 +14,7 @@ from test.tools.playground_e2e import (
 )
 
 
+@pytest.mark.e2e
 @pytest.mark.parametrize(
     "code_file",
     [

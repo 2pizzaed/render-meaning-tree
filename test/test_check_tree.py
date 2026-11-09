@@ -1744,7 +1744,7 @@ CHECK_CASES: list[Any] = [
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(
-        # Выбран внешний вызов f(2): он ждёт вложенные вызовы.
+        # Выбран внешний вызов f(2), начатый в другом месте вызова.
         id="call_return_value_outer_activation",
         language="python",
         code=RECURSION_RETURN_ANNOTATED,
@@ -1752,7 +1752,7 @@ CHECK_CASES: list[Any] = [
         action=(3, "END", "func_call_structure"),
         value=((7, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="ещё не может завершиться",
+        expected_explanation="не относится к этому месту вызова",
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(

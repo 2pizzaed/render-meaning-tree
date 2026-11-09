@@ -23,6 +23,8 @@
 последовательности сворачиваются в один пробел; лимит — ``MAX_CODE_NAME_LENGTH``
 символов. Если код длиннее или недоступен, остаётся идентификатор, а без него —
 «действие». Определения функций и имена ролей сохраняют прежний формат.
+Возвраты дополняются именем ближайшего окружающего определения функции или метода;
+номер строки берётся у самого оператора возврата.
 
 ``ActionSpec`` с собственными метаданными получает то же имя, что и его
 конкретные действия, но без номера строки и идентификатора: спецификация не
@@ -225,7 +227,7 @@ class NamingContext:
         return ", ".join(names) or None
 
     def _name(self, name_node: Node) -> str | None:
-        name = name_node.get("name")
+        name = name_node.get("name") or name_node.get("repr_name")
         if isinstance(name, str) and name:
             return name
         name_id = name_node.get("id")
@@ -362,6 +364,19 @@ def localized_name_entries(
     metadata = parts.metadata
     identifier: str | None = None
     if (
+        metadata.raw_explanation is None
+        and metadata.trace_name == "return"
+        and ctx.code is not None
+        and parts.ast_id is not None
+    ):
+        path = ctx.code.ast.get_path(parts.ast_id)
+        definition = (
+            path.find_first_parent(lambda node: node.instanceof("function_definition"))
+            if path is not None
+            else None
+        )
+        identifier = ctx.identifier(definition.id) if definition is not None else None
+    elif (
         metadata.raw_explanation is None
         and parts.ast_id is not None
         and metadata.trace_name in _CODE_NAME_KEYS

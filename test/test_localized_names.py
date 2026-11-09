@@ -293,6 +293,73 @@ def test_function_definition_keeps_identifier(trace_loqi: str) -> None:
     assert metadata["RU.localizedName"] == f"определение функции {_ID % 'foo'} на строке 1"
 
 
+@pytest.mark.parametrize(
+    ("code", "language", "expected_functions"),
+    [
+        (
+            "def factorial(n):\n    return n\nfactorial(3)\n",
+            "python",
+            {"return n": "factorial"},
+        ),
+        (
+            "def factorial(n):\n    return factorial(n - 1)\nfactorial(3)\n",
+            "python",
+            {"return factorial(n - 1)": "factorial"},
+        ),
+        (
+            (
+                "def outer(n):\n"
+                "    def factorial(n):\n"
+                "        return n\n"
+                "    return factorial(n)\n"
+                "outer(3)\n"
+            ),
+            "python",
+            {"return n": "factorial", "return factorial(n)": "outer"},
+        ),
+        (
+            (
+                "class Main {\n"
+                "    static int factorial(int n) { return n; }\n"
+                "    public static void main(String[] args) { factorial(3); }\n"
+                "}\n"
+            ),
+            "java",
+            {"return n": "factorial"},
+        ),
+    ],
+)
+def test_return_name_includes_enclosing_function(
+    code: str, language: str, expected_functions: dict[str, str]
+) -> None:
+    registry = code_snippet_to_registry(code, language=language)
+    serializer, loqi = registry_to_loqi(registry)
+    return_names: dict[str, str] = {}
+    for action in registry.all_actions():
+        node = action.ast_node
+        if (
+            node is None
+            or node["type"] != "return_statement"
+            or action.rule.role in ("BEGIN", "END")
+        ):
+            continue
+        object_name = serializer.object_name(action)
+        assert object_name is not None
+        metadata = _object_metadata(loqi, object_name)
+        line = registry.code.code_line_number_by_id(node["id"])
+        statement = (registry.code.code_piece(node["id"]) or "").strip().rstrip(";")
+        expected_name = expected_functions[statement]
+        assert metadata["RU.localizedName"] == (
+            f"вычисление результата функции {_ID % expected_name} на строке {line}"
+        )
+        assert metadata["EN.localizedName"] == (
+            f"function result evaluation {_ID % expected_name} on line {line}"
+        )
+        return_names[statement] = expected_name
+
+    assert return_names == expected_functions
+
+
 def test_atomic_inline_action_uses_inline_rule_metadata(
     trace_loqi: str, lines: dict[str, int]
 ) -> None:

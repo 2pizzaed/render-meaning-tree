@@ -737,7 +737,7 @@ button.submit-btn:hover {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: "Consolas", monospace;
+    font-family: inherit;
     font-size: 12px;
     color: #1f2937;
 }
@@ -748,11 +748,20 @@ button.submit-btn:hover {
     text-overflow: ellipsis;
 }
 
+.trace-action-name code {
+    font-family: "Consolas", monospace;
+    font-size: inherit;
+    padding: 1px 3px;
+    border-radius: 3px;
+    background: #eef2f7;
+}
+
 .value-hint {
     flex: 0 1 auto;
     max-width: 45%;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-family: "Consolas", monospace;
     padding: 1px 5px;
     border-radius: 4px;
     background: #eef2f7;

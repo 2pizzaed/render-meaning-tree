@@ -44,23 +44,19 @@
         margin: 0; /* Убираем лишние отступы */
     }
 
-    /* выделение отступов - требует поддержки :has (современные браузеры, как минимум с конца 2023 года) */
-
-    .ctrl-flow-code-block .code-line > .token.whitespace {
-        position: relative;
-    }
-
+    /* Направляющие внутри отступа, без дополнительной линии на его правой границе. */
     .ctrl-flow-code-block .code-line > .token.whitespace:first-child {
-        --indent-step: 30px;
-        --ruler-offset: 10px;
-        background-image: linear-gradient(
+        --indent-step: 4ch;
+        --ruler-offset: 1px;
+        background-image: repeating-linear-gradient(
             to right,
             #c7c7c7 0 1px,
-            transparent 1px 100%
+            transparent 1px var(--indent-step)
         );
-        background-size: var(--indent-step) 100%;
+        background-size: 100% 100%;
         background-position: var(--ruler-offset) 0;
-        background-repeat: repeat-x;
+        background-repeat: no-repeat;
+        border-radius: 0;
     }
     /* Токены */
     .token {

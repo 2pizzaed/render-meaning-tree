@@ -714,6 +714,10 @@ func_call_structure:
     - role: END
       opaque: true
       kind: END.annotated
+      metadata:
+        # Возврат к месту вызова и код этого вызова.
+        locale_pronoun: "he"
+        raw_explanation: '${translate("function_call_end")} <code class="id">${ast_code}</code>'
       effects:
         - interruption_stop: return
   transitions:

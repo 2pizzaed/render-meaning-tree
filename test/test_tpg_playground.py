@@ -169,13 +169,14 @@ def test_call_value_steps_reach_check_and_hint(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.parametrize("with_trace", [False, True])
-def test_reasoning_explanations_include_both_languages(with_trace: bool) -> None:
+@pytest.mark.parametrize("correct", [False, True])
+def test_reasoning_explanations_include_both_languages(with_trace: bool, correct: bool) -> None:
     metadata = [
         {"name": "explanation", "locCode": "RU", "value": "Выполните <code>while</code>."},
         {"name": "explanation", "locCode": "EN", "value": "Execute <code>while</code>."},
     ]
     result = ReasoningResult(
-        result=False,
+        result=correct,
         final_node=TreeNode(
             "BranchResultNode",
             metadata=[
@@ -184,10 +185,10 @@ def test_reasoning_explanations_include_both_languages(with_trace: bool) -> None
             ],
         ),
         trace={
-            "branchResult": "ERROR",
+            "branchResult": "CORRECT" if correct else "ERROR",
             "elements": [{
                 "nodeType": "BranchResultNode",
-                "nodeResult": "ERROR",
+                "nodeResult": "CORRECT" if correct else "ERROR",
                 "metadata": metadata,
             }],
         } if with_trace else None,
@@ -483,6 +484,63 @@ def test_hint_trace_reports_finished_program(monkeypatch) -> None:
     assert payload["ok"] is True
     assert payload["finished"] is True
     assert payload["action"] is None
+
+
+@pytest.mark.parametrize("check_hint", [False, True])
+@pytest.mark.parametrize("finished", [False, True])
+def test_hint_check_explains_the_suggested_step(
+    monkeypatch: pytest.MonkeyPatch, check_hint: bool, finished: bool,
+) -> None:
+    builder = TraceBuilder(ast_node(1, "program_entry_point", body=[ast_node(2, "condition")]))
+    program = builder.construct(1, name="global_statements_structure")
+    action = builder.action(2, program, role="condition")
+    builder.act(program.begin_action())
+    serializer, _ = registry_to_loqi(builder.registry)
+    name = serializer.object_name(action)
+    assert name is not None
+    monkeypatch.setattr(playground_app, "load_situation", lambda *args: PlaygroundSituation(builder.registry))
+    calls: list[tuple[int, bool]] = []
+
+    def check(
+        directory: Path, registry: SituationRegistry, selected_trace: Sequence[TraceStep], **kwargs: object,
+    ) -> PipelineReasoningOutput:
+        calls.append((len(selected_trace), kwargs.get("json_trace") is True))
+        return PipelineReasoningOutput(
+            result=ReasoningResult(True, final_node=TreeNode("BranchResultNode", metadata=[
+                TreeNodeMetadataEntry("explanation", "EN", "Checked the last action."),
+            ])),
+            serializer=registry_to_loqi(registry)[0],
+            loqi_file=directory / "check.loqi", loqi_text="check input", exported_loqi=None,
+            trace_acts=[], trace_state=None, step_index=len(selected_trace) - 1,
+        )
+
+    def hint(directory: Path, registry: SituationRegistry, **kwargs: object) -> SimpleNamespace:
+        # findCorrect mutates its registry; main must start before the suggested step.
+        assert len(registry.trace_acts) == 1
+        hint_action = next(a for a in registry.all_actions() if a.rule.role == "condition")
+        registry.add(TraceAct(hint_action, None, registry))
+        return SimpleNamespace(
+            action=None if finished else hint_action, finished=finished, value=None,
+            output=SimpleNamespace(loqi_text="hint input"),
+        )
+
+    monkeypatch.setattr(playground_app, "check_graph_stepwise_reasoning", check)
+    monkeypatch.setattr(playground_app, "find_graph_next_correct_action", hint)
+    payload = playground_app.app.test_client().post(
+        "/hint-trace", json={"trace": [name], "check": check_hint},
+    ).get_json()
+
+    assert payload["ok"] is True
+    assert payload["finished"] is finished
+    if check_hint:
+        assert payload["reasoning"]["status"] == "correct"
+        assert payload["reasoning"]["explanations"] == ["Checked the last action."]
+        assert payload["loqi"] == "check input"
+        assert calls[-1] == (1 if finished else 2, True)
+    else:
+        assert "reasoning" not in payload
+        assert payload["loqi"] == "hint input"
+        assert calls == [(1, False)]
 
 
 def test_load_situation_with_seed_uses_first_generated_problem_values() -> None:

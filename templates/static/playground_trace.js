@@ -103,13 +103,14 @@ function hintAddedMessage(actions) {
 }
 
 // Тело запросов /reason-trace и /hint-trace: ситуация из формы Render и шаги трассы.
-function traceRequestBody(trace) {
+function traceRequestBody(trace, check = false) {
     return JSON.stringify({
         code: document.querySelector('textarea[name="code"]')?.value || "",
         language: document.querySelector('select[name="language"]')?.value || "java",
         target_language: document.querySelector('select[name="target_language"]')?.value || "",
         seed: document.querySelector('input[name="seed"]')?.value || "",
         trace,
+        check,
         no_cache: Boolean(document.getElementById("no-cache-checkbox")?.checked),
     });
 }
@@ -468,6 +469,7 @@ async function requestHint() {
     setHintControlBusy(true);
     button.textContent = "Hinting...";
     const added = [];
+    let lastPayload = null;
     try {
         for (let step = 1; step <= repeatCount; step++) {
             if (repeatCount > 1) {
@@ -477,7 +479,7 @@ async function requestHint() {
             const response = await fetch("/hint-trace", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: traceRequestBody(checkedTracePrefix()),
+                body: traceRequestBody(checkedTracePrefix(), step === repeatCount),
             });
             const payload = await response.json();
             // Трассу изменили, пока шёл этот запрос: серия больше не продолжает прежний префикс.
@@ -495,20 +497,39 @@ async function requestHint() {
             if (payload.finished) {
                 traceHints = payload.traceHints || [];
                 updateTraceView();
+                let finishedPayload = payload;
+                // Серия может закончиться раньше N: объясняем последний принятый шаг.
+                if (!payload.reasoning && checkedTracePrefix().length > 0) {
+                    const response = await fetch("/reason-trace", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: traceRequestBody(checkedTracePrefix()),
+                    });
+                    finishedPayload = await response.json();
+                    if (JSON.stringify(traceData) !== JSON.stringify(traceBefore)) return;
+                    rememberReasonerLoqi(finishedPayload, "Hint check");
+                    traceHints = finishedPayload.traceHints || [];
+                    setPendingErrorStep(finishedPayload.ok ? finishedPayload.failedStepIndex : null);
+                    updateTraceView();
+                }
                 renderHintResult(
                     "correct",
                     added.length === 0
                         ? "Program is fully traced: no next action, trace unchanged."
                         : `${hintAddedMessage(added)}. Program is fully traced.`,
+                    true,
+                    finishedPayload,
                 );
                 return;
             }
             appendTraceAction(payload.action);
             added.push(payload.action);
             traceHints = payload.traceHints || [];
+            lastPayload = payload;
             updateTraceView();
         }
-        renderHintResult("unknown", hintAddedMessage(added));
+        setPendingErrorStep(lastPayload?.failedStepIndex);
+        renderHintResult("unknown", hintAddedMessage(added), true, lastPayload);
     } catch (error) {
         renderReasoningResult({ok: false, error: String(error)});
     } finally {
@@ -517,7 +538,11 @@ async function requestHint() {
     }
 }
 
-function renderHintResult(status, message, scroll = true) {
+function renderHintResult(status, message, scroll = true, payload = null) {
+    if (payload && (!payload.ok || payload.reasoning)) {
+        renderReasoningResult({...payload, hintMessage: message});
+        return;
+    }
     renderReasoningResult(null);
     const statusBox = document.getElementById("reason-status");
     if (!statusBox) return;
@@ -609,6 +634,7 @@ function renderReasoningResult(payload) {
         headerLines.join(""),
         badgeParts.length > 0 ? `<div class="reason-alert-badges">${badgeParts.join("")}</div>` : "",
         "</div>",
+        payload.hintMessage ? `<div class="reason-line">${escapeHtml(payload.hintMessage)}</div>` : "",
         explanationHtml,
     ].join("");
 

@@ -344,6 +344,7 @@ def hint_trace():
     language = read_language(payload.get("language"), "java")
     target_language = read_target_language(payload.get("target_language"))
     selected_trace = payload.get("trace")
+    check_hint = payload.get("check") is True
     if not isinstance(selected_trace, list) or not all(
         isinstance(step, str) for step in selected_trace
     ):
@@ -358,6 +359,7 @@ def hint_trace():
         selected_actions = [step.action for step in selected_steps]
         trace_start = len(registry.trace_acts)
         hint_tmp = _playground_temp_dir("playground-hint-")
+        checked: PipelineReasoningOutput | None = None
         if selected_steps:
             # Восстанавливаем трассу (с прозрачными актами) пошаговой проверкой.
             checked = check_trace_steps(
@@ -368,6 +370,7 @@ def hint_trace():
                 situation_key=situation_key,
                 use_cache=payload.get("no_cache") is not True,
                 filename="playground-hint-check.loqi",
+                json_trace=check_hint,
             )
             if checked.result.result is not True or checked.result.exceptions:
                 step = (checked.step_index or 0) + 1
@@ -391,6 +394,21 @@ def hint_trace():
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
         )
         action_name = hint_step_name(serializer, hint)
+        if check_hint and action_name is not None:
+            # findCorrect уже дописал действие: main проверяет его от исходной ситуации.
+            checked_trace = [*selected_trace, action_name]
+            checked_registry = load_situation(*situation_key).registry.clone()
+            checked_serializer, _ = registry_to_loqi(checked_registry)
+            checked = check_trace_steps(
+                hint_tmp,
+                checked_registry,
+                checked_trace,
+                resolve_trace_steps(checked_serializer, checked_trace),
+                situation_key=situation_key,
+                use_cache=payload.get("no_cache") is not True,
+                filename="playground-hint-explanation.loqi",
+                json_trace=True,
+            )
     except Exception as e:
         traceback.print_exc()
         return jsonify(
@@ -408,7 +426,13 @@ def hint_trace():
                 [*selected_actions, hint.action] if hint.action is not None else selected_actions,
                 trace_start,
             ),
-            "loqi": hint.output.loqi_text,
+            "loqi": checked.loqi_text if check_hint and checked is not None else hint.output.loqi_text,
+            **({
+                "reasoning": serialize_reasoning_result(checked.result),
+                "failedStepIndex": (
+                    checked.step_index if checked.result.result is not True else None
+                ),
+            } if check_hint and checked is not None else {}),
         }
     )
 

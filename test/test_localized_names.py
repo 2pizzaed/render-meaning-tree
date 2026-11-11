@@ -45,11 +45,15 @@ BUNDLE = MessageBundle(
         "en": {
             "loop": "loop",
             "on_line": "on line",
+            "on_lines": "on lines",
             "function_call": "function call",
             "traced_prefix": "traced",
             "begin": "begin of",
         },
-        "ru": {"loop": "цикл", "on_line": "на строке", "traced_suffix": "в трассе", "begin": "начало"},
+        "ru": {
+            "loop": "цикл", "on_line": "на строке", "on_lines": "на строках",
+            "traced_suffix": "в трассе", "begin": "начало",
+        },
     }
 )
 
@@ -105,6 +109,23 @@ def test_format_localized_name_skips_affixes_missing_in_language() -> None:
     assert format_localized_name(traced, BUNDLE, "ru", line=3) == "цикл на строке 3 в трассе"
 
 
+@pytest.mark.parametrize("raw", [False, True])
+@pytest.mark.parametrize("end, ru, en", [
+    (3, "на строке 3", "on line 3"),
+    (5, "на строках 3-5", "on lines 3-5"),
+    (None, "на строке 3", "on line 3"),
+])
+def test_localized_name_formats_line_range(raw: bool, end: int | None, ru: str, en: str) -> None:
+    metadata = (
+        NameMetadata(None, raw_explanation="${translate('loop')} ${ast_location}")
+        if raw else NameMetadata("loop")
+    )
+    parts = NameParts(metadata)
+
+    assert format_localized_name(parts, BUNDLE, "ru", line=3, line_end=end) == f"цикл {ru}"
+    assert format_localized_name(parts, BUNDLE, "en", line=3, line_end=end) == f"loop {en}"
+
+
 def test_format_localized_name_puts_boundary_before_name_declined_in_russian() -> None:
     begin = NameParts(
         NameMetadata("loop", keyword="while"),
@@ -136,6 +157,15 @@ def test_raw_explanation_inserts_escaped_ast_code() -> None:
     assert format_localized_name(parts, BUNDLE, "en") == "traced begin of "
 
 
+@pytest.mark.parametrize("line", [None, 1, 17])
+def test_raw_explanation_inserts_ast_line(line: int | None) -> None:
+    parts = NameParts(NameMetadata(None, raw_explanation="${translate('on_line')} ${ast_line}"))
+    number = str(line) if line is not None else ""
+
+    assert format_localized_name(parts, BUNDLE, "ru", line=line) == f"на строке {number}"
+    assert format_localized_name(parts, BUNDLE, "en", line=line) == f"on line {number}"
+
+
 def test_raw_explanation_reads_ast_code_from_node_source() -> None:
     source = "  foo(\r\n\t  a < b   )  "
     call = ast_node(1, "function_call", function=ast_node(2, "simple_identifier", name="foo"))
@@ -153,6 +183,26 @@ def test_raw_explanation_reads_ast_code_from_node_source() -> None:
     }
 
     assert entries == {"EN.localizedName": "end foo( a &lt; b )"}
+
+
+@pytest.mark.parametrize("source, end_line", [("foo(1)\n", 1), ("while x:\n    x = 1\n    x = 2\n", 3)])
+def test_raw_explanation_reads_node_line_range(source: str, end_line: int) -> None:
+    registry = code_snippet_to_registry(source, language="python")
+    ctx = NamingContext(LoqiRenderResult((), ()), registry.code)
+    action = next(action for action in registry.all_actions() if action.rule.role == "first")
+    parts = NameParts(
+        NameMetadata(None, raw_explanation="${ast_line}-${ast_line_end}"), ast_id=action.ast_id,
+    )
+
+    entries = localized_name_entries(parts, BUNDLE, ("en",), ctx)
+
+    assert entries[0].value == f"1-{end_line}"
+
+
+def test_raw_explanation_without_node_line_range() -> None:
+    parts = NameParts(NameMetadata(None, raw_explanation="${ast_line}-${ast_line_end}"))
+
+    assert format_localized_name(parts, BUNDLE, "en") == "-"
 
 
 def test_raw_explanation_keeps_unresolved_templating_verbatim() -> None:
@@ -269,8 +319,8 @@ def test_construct_gets_localized_name_with_keyword_and_line(
     metadata = _object_metadata(trace_loqi, "construct_while_structure_ast54")
 
     assert metadata == {
-        "EN.localizedName": f"loop <code>while</code> on line {lines['while']}",
-        "RU.localizedName": f"цикл <code>while</code> на строке {lines['while']}",
+        "EN.localizedName": f"loop <code>while</code> on lines {lines['while']}-{lines['break']}",
+        "RU.localizedName": f"цикл <code>while</code> на строках {lines['while']}-{lines['break']}",
         "pronoun": "he",
     }
 
@@ -288,7 +338,7 @@ def test_action_prefers_own_metadata_over_construct(
     ("object_id", "en", "ru", "pronoun"),
     [
         ("while_structure_action_BEGIN_ast54", "begin of loop", "начало цикла", "it"),
-        ("while_structure_action_END_ast54", "end of loop", "конец цикла", "he"),
+        ("while_structure_action_END_ast54", "end of loop", "завершение цикла", "he"),
     ],
 )
 def test_boundary_action_names_construct_with_same_ast_id(
@@ -297,8 +347,8 @@ def test_boundary_action_names_construct_with_same_ast_id(
     metadata = _object_metadata(trace_loqi, object_id)
 
     assert metadata == {
-        "EN.localizedName": f"{en} <code>while</code> on line {lines['while']}",
-        "RU.localizedName": f"{ru} <code>while</code> на строке {lines['while']}",
+        "EN.localizedName": f"{en} <code>while</code> on lines {lines['while']}-{lines['break']}",
+        "RU.localizedName": f"{ru} <code>while</code> на строках {lines['while']}-{lines['break']}",
         "pronoun": pronoun,
     }
 
@@ -313,12 +363,12 @@ def test_function_call_name_includes_code(
     )
 
 
-def test_function_call_end_uses_return_phrase_and_call_code(trace_loqi: str) -> None:
+def test_function_call_end_uses_return_phrase_and_call_code(trace_loqi: str, lines: dict[str, int]) -> None:
     metadata = _object_metadata(trace_loqi, "func_call_structure_action_END_ast28")
 
     assert metadata == {
-        "EN.localizedName": f'return to call {_ID % "foo(i)"}',
-        "RU.localizedName": f'возврат к месту вызова {_ID % "foo(i)"}',
+        "EN.localizedName": f'return to call {_ID % "foo(i)"} on line {lines["while"]}',
+        "RU.localizedName": f'возврат к месту вызова {_ID % "foo(i)"} на строке {lines["while"]}',
         "pronoun": "he",
     }
 
@@ -328,8 +378,8 @@ def test_function_definition_keeps_identifier(trace_loqi: str) -> None:
     assert match is not None
     metadata = _object_metadata(trace_loqi, match[1])
 
-    assert metadata["EN.localizedName"] == f"function definition {_ID % 'foo'} on line 1"
-    assert metadata["RU.localizedName"] == f"определение функции {_ID % 'foo'} на строке 1"
+    assert metadata["EN.localizedName"] == f"function definition {_ID % 'foo'} on lines 1-2"
+    assert metadata["RU.localizedName"] == f"определение функции {_ID % 'foo'} на строках 1-2"
 
 
 @pytest.mark.parametrize(

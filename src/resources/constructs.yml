@@ -717,7 +717,7 @@ func_call_structure:
       metadata:
         # Возврат к месту вызова и код этого вызова.
         locale_pronoun: "he"
-        raw_explanation: '${translate("function_call_end")} <code class="id">${ast_code}</code>'
+        raw_explanation: '${translate("function_call_end")} <code class="id">${ast_code}</code> ${ast_location}'
       effects:
         - interruption_stop: return
   transitions:

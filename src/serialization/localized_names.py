@@ -41,10 +41,13 @@
 заменяет всё собранное выше (название, ``keyword``, идентификатор, номер строки и
 ``begin``/``end``); приставки ``TraceAct`` сохраняются. Для каждого языка
 раскрываются вызовы ``${translate("key")}`` (строка бандла, ``[case=...]``
-склоняет её в русском) и ``${ast_code}`` — исходный текст узла одной строкой
-с экранированием HTML; без кода подставляется пустая строка.
+склоняет её в русском), ``${ast_code}`` — исходный текст узла одной строкой
+с экранированием HTML, ``${ast_line}`` и ``${ast_line_end}`` — номера первой
+и последней строк узла. ``${ast_location}`` даёт локализованную подпись:
+«на строке 1» или «на строках 1-5»; обычные имена используют тот же формат.
+Без кода или номера строки соответствующая подстановка даёт пустую строку.
 Остальной текст, в том числе прочие ``${X}`` и экранирование ``\\$``, переносится
-без изменений. ``translate`` и ``ast_code`` есть только здесь: в шаблонах
+без изменений. Эти подстановки есть только здесь: в шаблонах
 объяснений TPG их нет.
 """
 
@@ -77,7 +80,6 @@ from src.serialization.loqi import (
 )
 from src.types import Node
 
-ON_LINE_KEY = "on_line"
 TRACED_PREFIX_KEY = "traced_prefix"
 TRACED_SUFFIX_KEY = "traced_suffix"
 MAX_CODE_NAME_LENGTH = 48
@@ -205,7 +207,7 @@ class NamingContext:
         }
         # Поиск строки проходит по всем токенам, а одно действие встречается
         # в трассе многократно.
-        self.line = cache(self._line)
+        self.line_range = cache(self._line_range)
 
     def construct_for(self, ast_id: int | None) -> LoqiObject | None:
         return self._constructs_by_ast_id.get(ast_id) if ast_id is not None else None
@@ -260,10 +262,11 @@ class NamingContext:
         )
         return rule if rule is not None and rule.is_atomic_inline else None
 
-    def _line(self, ast_id: int | None) -> int | None:
+    def _line_range(self, ast_id: int | None) -> tuple[int, int] | None:
+        """Номера первой и последней строк узла, если его позиция известна."""
         if self.code is None or ast_id is None:
             return None
-        return self.code.code_line_number_by_id(ast_id)
+        return self.code.line_number_range(ast_id)
 
 
 # Строка — готовое имя без перевода, одинаковое во всех языках.
@@ -367,7 +370,7 @@ def localized_name_entries(
     languages: tuple[str, ...],
     ctx: NamingContext,
 ) -> list[LoqiMetadataEntry]:
-    line = ctx.line(parts.ast_id)
+    line, line_end = ctx.line_range(parts.ast_id) or (None, None)
     metadata = parts.metadata
     identifier: str | None = None
     if (
@@ -400,7 +403,7 @@ def localized_name_entries(
         LoqiMetadataEntry(
             name=localized_name_key(lang),
             value=format_localized_name(
-                parts, bundle, lang, line=line, identifier=identifier, ast_code=ast_code
+                parts, bundle, lang, line=line, line_end=line_end, identifier=identifier, ast_code=ast_code
             ),
         )
         for lang in languages
@@ -416,12 +419,16 @@ def format_localized_name(
     lang: str,
     *,
     line: int | None = None,
+    line_end: int | None = None,
     identifier: str | None = None,
     ast_code: str = "",
 ) -> str:
     metadata = parts.metadata
     if metadata.raw_explanation is not None:
-        name = expand_raw_explanation(metadata.raw_explanation, bundle, lang, ast_code=ast_code)
+        name = expand_raw_explanation(
+            metadata.raw_explanation, bundle, lang, ast_code=ast_code,
+            ast_line=line, ast_line_end=line_end,
+        )
     else:
         words = [bundle.translate(metadata.trace_name, lang)] if metadata.trace_name else []
         if metadata.keyword:
@@ -429,7 +436,7 @@ def format_localized_name(
         if identifier:
             words.append(f'<code class="id">{escape(identifier)}</code>')
         if line is not None:
-            words.append(f"{bundle.translate(ON_LINE_KEY, lang)} {line}")
+            words.append(format_ast_location(bundle, lang, line, line_end))
         name = " ".join(words)
         if parts.boundary_key is not None:
             if lang == "ru":
@@ -440,10 +447,22 @@ def format_localized_name(
     return " ".join(word for word in affixed if word)
 
 
-def expand_raw_explanation(
-    template: str, bundle: MessageBundle, lang: str, *, ast_code: str = ""
+def format_ast_location(
+    bundle: MessageBundle, lang: str, line: int | None, line_end: int | None,
 ) -> str:
-    """Раскрывает ``${translate("key")}`` и ``${ast_code}`` для ``lang``.
+    """Локализованная подпись строки или диапазона строк узла."""
+    if line is None:
+        return ""
+    if line_end is not None and line_end != line:
+        return f"{bundle.translate('on_lines', lang)} {line}-{line_end}"
+    return f"{bundle.translate('on_line', lang)} {line}"
+
+
+def expand_raw_explanation(
+    template: str, bundle: MessageBundle, lang: str, *, ast_code: str = "",
+    ast_line: int | None = None, ast_line_end: int | None = None,
+) -> str:
+    """Раскрывает перевод, код узла и номера его строк для ``lang``.
 
     ``ast_code`` — исходный текст узла. В имя он попадает с экранированием HTML.
     """
@@ -454,7 +473,12 @@ def expand_raw_explanation(
 
     return interpolate(
         template,
-        {"ast_code": safe_code},
+        {
+            "ast_code": safe_code,
+            "ast_line": str(ast_line) if ast_line is not None else "",
+            "ast_line_end": str(ast_line_end) if ast_line_end is not None else "",
+            "ast_location": format_ast_location(bundle, lang, ast_line, ast_line_end),
+        },
         modifiers_for_language(lang),
         {"translate": translate},
         unescape=False,

@@ -281,11 +281,11 @@ def test_build_answer_objects_exports_action_names_only() -> None:
     assert all(str(value).split(",")[0] in names for value in answer_objects.values())
     for action in serializer.render_result().objects:
         if action.object_id.startswith("if_structure_action_BEGIN_"):
-            assert names[action.object_id]["RU"] == "начало ветвления на строке 1"
-            assert names[action.object_id]["EN"] == "begin of alternative on line 1"
+            assert names[action.object_id]["RU"] == "начало ветвления на строках 1-4"
+            assert names[action.object_id]["EN"] == "begin of alternative on lines 1-4"
         elif action.object_id.startswith("if_structure_action_END_"):
-            assert names[action.object_id]["RU"] == "завершение ветвления на строке 1"
-            assert names[action.object_id]["EN"] == "end of alternative on line 1"
+            assert names[action.object_id]["RU"] == "завершение ветвления на строках 1-4"
+            assert names[action.object_id]["EN"] == "end of alternative on lines 1-4"
 
 
 def test_reason_trace_continues_from_accepted_prefix(monkeypatch: pytest.MonkeyPatch) -> None:

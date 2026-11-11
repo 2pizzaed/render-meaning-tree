@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from src.generator.serialization import registry_to_loqi
+from src.generator.utilities import code_snippet_to_registry
 from src.model.rules import (
     ActionDeclaration,
     Behaviour,
@@ -26,6 +28,7 @@ from src.serialization.loqi import (
     LoqiAdapterContext,
     LoqiAdapterNotFoundError,
     LoqiObjectSpec,
+    LoqiRenderIndex,
     LoqiSerializationError,
     LoqiSerializer,
     LoqiVariableAssignment,
@@ -594,6 +597,8 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert "obj construct_demo_ast10 : ConcreteConstruct {" in rendered
     assert "ast_id = 10;" in rendered
     assert 'ast_type = "node_10";' in rendered
+    assert "ast_line =" not in rendered
+    assert "ast_line_end =" not in rendered
     assert "derivedFrom(construct_demo);" in rendered
     assert "hasActions(demo_action_BEGIN_ast10);" in rendered
     assert "hasActions(demo_action_body_ast11);" in rendered
@@ -608,6 +613,26 @@ def test_serialize_loqi_situation_construct_action_and_values() -> None:
     assert 'hint = "custom"' in rendered
     assert "directlyBeforeOf(semantic_value_action_10_11_body_1);" in rendered
     assert "directlyBeforeOf(demo_action_body_ast11);" in rendered
+
+
+def test_ast_entities_serialize_their_node_line_ranges() -> None:
+    registry = code_snippet_to_registry("while x:\n    x = 1\n    x = 2\n", language="python")
+    serializer, _ = registry_to_loqi(registry)
+    index = LoqiRenderIndex(serializer.render_result())
+    entities = [obj for obj in index.result.objects if obj.type_name in {"ConcreteAction", "ConcreteConstruct"}]
+
+    assert {obj.type_name for obj in entities} == {"ConcreteAction", "ConcreteConstruct"}
+    ranges: set[tuple[int, int]] = set()
+    for obj in entities:
+        ast_id = index.property_value(obj, "ast_id")
+        assert isinstance(ast_id, int)
+        expected = registry.code.line_number_range(ast_id)
+        assert expected is not None
+        assert index.property_value(obj, "ast_line") == expected[0]
+        assert index.property_value(obj, "ast_line_end") == expected[1]
+        ranges.add(expected)
+    assert (1, 3) in ranges
+    assert (2, 2) in ranges
 
 
 def test_serialize_loqi_situation_action_includes_inline_effects() -> None:

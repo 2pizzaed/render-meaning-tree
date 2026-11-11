@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.ast_managers import CodeManager
 from src.model.rules import (
     ActionDeclaration,
     CallStackAction,
@@ -15,6 +16,7 @@ from src.serialization.loqi import (
     LoqiAdapterContext,
     LoqiObjectRef,
     LoqiObjectSpec,
+    LoqiProperty,
     RelationshipLink,
     _normalize_object_name,
 )
@@ -42,10 +44,7 @@ class ConstructAdapter:
             relationships.append(ctx.relationship("hasParent", obj.parent))
 
         return LoqiObjectSpec(
-            properties=(
-                ctx.property("ast_id", obj.ast_id),
-                ctx.property("ast_type", _ast_type(obj)),
-            ),
+            properties=_ast_properties(obj, ctx),
             relationship_links=tuple(relationships),
         )
 
@@ -79,10 +78,7 @@ class ActionAdapter:
             relationships.append(ctx.relationship("directlyBeforeOf", next_action))
 
         return LoqiObjectSpec(
-            properties=(
-                ctx.property("ast_id", obj.ast_id if obj.ast_id is not None else -1),
-                ctx.property("ast_type", _ast_type(obj)),
-            ),
+            properties=_ast_properties(obj, ctx),
             relationship_links=tuple(relationships),
         )
 
@@ -354,12 +350,28 @@ def _next_by_identity[T](chain: list[T], item: T) -> T | None:
     return None
 
 
-def _ast_type(obj: Action | Construct) -> str:
+def _ast_properties(obj: Action | Construct, ctx: LoqiAdapterContext) -> tuple[LoqiProperty, ...]:
+    """Общие свойства ASTEntity, включая строки узла при известной позиции."""
     if isinstance(obj, Action) and obj.ast_type is not None:
-        return obj.ast_type
-    node = obj.ast_node
-    ast_type = node.get("type") if node else None
-    return ast_type if isinstance(ast_type, str) else ""
+        ast_type = obj.ast_type
+    else:
+        node = obj.ast_node
+        ast_type = node.get("type") if node else None
+    properties = (
+        ctx.property("ast_id", obj.ast_id if obj.ast_id is not None else -1),
+        ctx.property("ast_type", ast_type if isinstance(ast_type, str) else ""),
+    )
+    code = obj.owner.code
+    line_range = (
+        code.line_number_range(obj.ast_id)
+        if isinstance(code, CodeManager) and obj.ast_id is not None else None
+    )
+    if line_range is not None:
+        properties += (
+            ctx.property("ast_line", line_range[0]),
+            ctx.property("ast_line_end", line_range[1]),
+        )
+    return properties
 
 
 def _semantic_scope(owner: Any) -> str:

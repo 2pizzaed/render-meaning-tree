@@ -678,6 +678,10 @@ func_def_structure:
         property_path: 'declaration / name'
     - role: func_body
       kind: compound
+      metadata:
+        locale_trace_name: "function_body"
+        locale_pronoun: "it"
+        identifier: true
       identification:
         property: 'body'
   transitions:

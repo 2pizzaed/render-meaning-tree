@@ -375,7 +375,7 @@ def localized_name_entries(
     identifier: str | None = None
     if (
         metadata.raw_explanation is None
-        and metadata.trace_name == "return"
+        and metadata.trace_name in {"return", "function_body"}
         and ctx.code is not None
         and parts.ast_id is not None
     ):

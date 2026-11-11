@@ -39,6 +39,7 @@ import pytest
 from src.generator.helpers import line_actions
 from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
+from src.helpers.templating import interpolate
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
 from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult
@@ -1752,7 +1753,7 @@ CHECK_CASES: list[Any] = [
         action=(3, "END", "func_call_structure"),
         value=((7, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="не относится к этому месту вызова",
+        expected_explanation="ещё не может завершиться",
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(
@@ -1765,6 +1766,71 @@ CHECK_CASES: list[Any] = [
         value=((3, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
         expected_explanation="уже завершился",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="call_return_premature_value_at_own_site",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(7, "END", "func_call_structure"),
+        value=((7, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="ещё не может завершиться",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="call_return_ready_value_at_wrong_site",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(7, "END", "func_call_structure"),
+        value=((3, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="местом начала вызова <code>${V}</code>",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="call_return_used_value_at_wrong_site",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(3, "END", "func_call_structure"),
+        action=(7, "END", "func_call_structure"),
+        value=((3, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="уже завершился",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="call_return_value_before_call_start",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        action=(7, "END", "func_call_structure"),
+        value=((7, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="ещё не может завершиться",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="call_return_value_before_body_finished",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(2, "first_cond"),
+        action=(7, "END", "func_call_structure"),
+        value=((7, "END", "func_call_structure"), 0),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="ещё не может завершиться",
+        value_patches=RECURSION_VALUES,
+    ),
+    CheckCase(
+        id="call_return_outer_value_at_same_recursive_site",
+        language="python",
+        code=RECURSION_RETURN_ANNOTATED,
+        advance_to=(4, "next"),
+        action=(3, "END", "func_call_structure"),
+        value=((3, "END", "func_call_structure"), 1),
+        expected_skills=("call_return_matches_activation",),
+        expected_explanation="ещё не может завершиться",
         value_patches=RECURSION_VALUES,
     ),
 ]
@@ -1841,6 +1907,49 @@ def test_check_tree(tmp_path: Path, case: CheckCase) -> None:
         action=action,
         before_signature=before_signature,
         reference=reference,
+    )
+
+
+def test_premature_call_explanation_names_selected_function_body(tmp_path: Path) -> None:
+    case = CheckCase(
+        id="premature_outer_call_while_inner_returns",
+        language="python",
+        code='''
+def outer(n):
+    return inner(n)  # <! (-, "inner(1)") >
+
+def inner(n):
+    return n
+
+outer(1)  # <! (-, "outer(1)") >
+''',
+        advance_to=(6, "first"),
+        action=(9, "END", "func_call_structure"),
+        expected_skills=("call_return_matches_activation",),
+    )
+    registry = _build_registry(case.code, language=case.language)
+    _advance_partial_trace(tmp_path, registry, case)
+    action = _spec_action(registry, case.action)
+    registry.variables["A"] = action
+    registry.variables["V"] = action.values[0]
+
+    result = _run_check(tmp_path, registry)
+
+    assert result.result is False and not result.exceptions
+    assert "call_return_matches_activation" in _extract_skills(result)
+    body = result.variable_objects["FunctionBody"]
+    body_name = next(
+        entry["value"] for entry in body["metadata"]
+        if entry["name"] == "localizedName" and entry["locCode"] == "RU"
+    )
+    assert result.final_node is not None
+    template = next(
+        str(entry.value) for entry in result.final_node.metadata
+        if entry.name == "explanation" and entry.loc_code == "RU"
+    )
+    assert interpolate(template, {"V": "outer(1)", "FunctionBody": body_name}) == (
+        'Вызов <code>outer(1)</code> ещё не может завершиться, поскольку выполнение '
+        'тела функции <code class="id">outer</code> на строке 2 в этом вызове ещё не закончено.'
     )
 
 

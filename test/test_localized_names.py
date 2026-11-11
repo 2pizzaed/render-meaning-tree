@@ -382,6 +382,18 @@ def test_function_definition_keeps_identifier(trace_loqi: str) -> None:
     assert metadata["RU.localizedName"] == f"определение функции {_ID % 'foo'} на строках 1-2"
 
 
+def test_function_body_includes_enclosing_function(trace_loqi: str) -> None:
+    match = re.search(r"^obj (func_def_structure_action_func_body_ast\d+) :", trace_loqi, re.MULTILINE)
+    assert match is not None
+    metadata = _object_metadata(trace_loqi, match[1])
+
+    assert metadata == {
+        "EN.localizedName": f"function body {_ID % 'foo'} on line 2",
+        "RU.localizedName": f"тело функции {_ID % 'foo'} на строке 2",
+        "pronoun": "it",
+    }
+
+
 @pytest.mark.parametrize(
     ("code", "language", "expected_functions"),
     [

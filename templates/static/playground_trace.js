@@ -154,7 +154,7 @@ function buildTraceActionIdsByName() {
 }
 
 function findCodeButtonsForTraceAction(actionName) {
-    const actionIds = traceActionIdsByName.get(actionName) || [];
+    const actionIds = traceActionIdsByName.get(actionName.split(",")[0]) || [];
     const elementIds = actionIds.map((actionId) => `answer_${actionId}`);
     return Array.from(document.querySelectorAll(".injected-button[id^='answer_']"))
         .filter((button) => elementIds.includes(button.id));

@@ -204,6 +204,7 @@
     <script type="application/json" id="answer_objects">
         {{ answer_objects_json | safe }}
     </script>
+    <script type="application/json" id="trace_action_names">{{ trace_action_names | default({}) | tojson }}</script>
     {% if problem_loqi %}
     <script type="application/json" id="problem_loqi">{{ {"seed": seed, "loqi": problem_loqi} | tojson }}</script>
     {% endif %}

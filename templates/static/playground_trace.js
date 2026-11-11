@@ -6,6 +6,7 @@ var pendingErrorStepIndex = null;
 // Имя действия трассы, чьи кнопки подсвечены во фрагменте кода.
 var highlightedTraceAction = null;
 var traceActionIdsByName = buildTraceActionIdsByName();
+const traceActionNames = JSON.parse(document.getElementById("trace_action_names")?.textContent || "{}");
 // LOQI окна просмотра: задачи, сгенерированной по seed, до первого Reason/Hint,
 // затем LOQI, поданный в reasoner последним запуском.
 var loqiViewerText = null;
@@ -121,6 +122,7 @@ function initializeExplanationLanguage() {
     restoreSelectValue(select, EXPLANATION_LANGUAGE_STORAGE_KEY);
     select.addEventListener("change", () => {
         storeValue(EXPLANATION_LANGUAGE_STORAGE_KEY, select.value);
+        updateTraceView();
         if (lastReasoningPayload) renderReasoningResult(lastReasoningPayload);
     });
 }
@@ -287,7 +289,14 @@ function createTraceItem(traceAction, index) {
     label.title = traceAction;
     const actionName = document.createElement("span");
     actionName.className = "trace-action-name";
-    actionName.textContent = traceAction;
+    const language = document.getElementById("explanation-language")?.value || "EN";
+    const names = traceActionNames[item.dataset.action];
+    const localizedName = names?.[language] || names?.EN;
+    if (localizedName) {
+        actionName.innerHTML = renderExplanationText(localizedName);
+    } else {
+        actionName.textContent = traceAction;
+    }
     label.appendChild(actionName);
     if (typeof traceHints[index] === "string" && traceHints[index]) {
         const hint = document.createElement("span");

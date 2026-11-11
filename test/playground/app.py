@@ -604,6 +604,15 @@ def build_answer_objects(
         return None
     serializer, _ = registry_to_loqi(registry)
     buttons = extract_buttons_from_context(context)
+    context["trace_action_names"] = {
+        obj.object_id: {
+            language: name
+            for language in ("RU", "EN")
+            if isinstance(name := LoqiRenderIndex.metadata_value(obj, f"{language}.localizedName"), str)
+        }
+        for obj in serializer.render_result().objects
+        if obj.type_name == "ConcreteAction"
+    }
     answers: dict[str, object] = {
         str(button["action_id"]): resolve_button_action_name(
             registry,

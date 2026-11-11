@@ -276,6 +276,16 @@ def test_build_answer_objects_exports_action_names_only() -> None:
         isinstance(serializer.object_by_name(str(value)), Action)
         for value in answer_objects.values()
     )
+    names = context["trace_action_names"]
+    assert isinstance(names, dict)
+    assert all(str(value).split(",")[0] in names for value in answer_objects.values())
+    for action in serializer.render_result().objects:
+        if action.object_id.startswith("if_structure_action_BEGIN_"):
+            assert names[action.object_id]["RU"] == "начало ветвления на строке 1"
+            assert names[action.object_id]["EN"] == "begin of alternative on line 1"
+        elif action.object_id.startswith("if_structure_action_END_"):
+            assert names[action.object_id]["RU"] == "завершение ветвления на строке 1"
+            assert names[action.object_id]["EN"] == "end of alternative on line 1"
 
 
 def test_reason_trace_continues_from_accepted_prefix(monkeypatch: pytest.MonkeyPatch) -> None:

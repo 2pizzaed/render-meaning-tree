@@ -475,6 +475,11 @@ async function requestHint() {
     if (!button) return;
 
     const repeatCount = commitHintRepeat();
+    const repeatInput = document.getElementById("hint-repeat-count");
+    if (repeatInput) {
+        repeatInput.value = String(HINT_REPEAT_MIN);
+        commitHintRepeat();
+    }
     setHintControlBusy(true);
     button.textContent = "Hinting...";
     const added = [];

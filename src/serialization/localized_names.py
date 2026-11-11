@@ -37,12 +37,15 @@
 ``ConstructSpec``.
 
 Вместо ``locale_trace_name`` метаданные могут задать ``raw_explanation`` — готовое
-имя-шаблон, например ``${translate("begin")}[case='р'] ... ${X}``. Оно заменяет
-всё собранное выше (название, ``keyword``, идентификатор, номер строки и
+имя-шаблон, например ``${translate("begin")}[case='р'] ... ${ast_code}``. Оно
+заменяет всё собранное выше (название, ``keyword``, идентификатор, номер строки и
 ``begin``/``end``); приставки ``TraceAct`` сохраняются. Для каждого языка
-раскрываются только вызовы ``${translate("key")}`` (строка бандла, ``[case=...]``
-склоняет её в русском), остальной текст, в том числе ``${X}``, переносится без
-изменений. Функция ``translate`` есть только здесь: в шаблонах объяснений TPG её нет.
+раскрываются вызовы ``${translate("key")}`` (строка бандла, ``[case=...]``
+склоняет её в русском) и ``${ast_code}`` — исходный текст узла одной строкой
+с экранированием HTML; без кода подставляется пустая строка.
+Остальной текст, в том числе прочие ``${X}`` и экранирование ``\\$``, переносится
+без изменений. ``translate`` и ``ast_code`` есть только здесь: в шаблонах
+объяснений TPG их нет.
 """
 
 from __future__ import annotations
@@ -212,11 +215,15 @@ class NamingContext:
             return None
         return self.code.get_node_by_id(ast_id)
 
-    def short_code(self, ast_id: int | None) -> str | None:
+    def node_code(self, ast_id: int | None) -> str:
+        """Исходный текст узла одной строкой; пустая строка, если кода нет."""
         if self.code is None or ast_id is None:
-            return None
+            return ""
         code = self.code.code_piece(ast_id)
-        compact = " ".join(code.split()) if code else ""
+        return " ".join(code.split()) if code else ""
+
+    def short_code(self, ast_id: int | None) -> str | None:
+        compact = self.node_code(ast_id)
         return compact if compact and len(compact) <= MAX_CODE_NAME_LENGTH else None
 
     def identifier(self, ast_id: int | None) -> str | None:
@@ -388,10 +395,13 @@ def localized_name_entries(
             parts = replace(parts, metadata=replace(metadata, trace_name=None))
     elif metadata.identifier:
         identifier = ctx.identifier(parts.ast_id)
+    ast_code = ctx.node_code(parts.ast_id) if metadata.raw_explanation is not None else ""
     entries = [
         LoqiMetadataEntry(
             name=localized_name_key(lang),
-            value=format_localized_name(parts, bundle, lang, line=line, identifier=identifier),
+            value=format_localized_name(
+                parts, bundle, lang, line=line, identifier=identifier, ast_code=ast_code
+            ),
         )
         for lang in languages
     ]
@@ -407,10 +417,11 @@ def format_localized_name(
     *,
     line: int | None = None,
     identifier: str | None = None,
+    ast_code: str = "",
 ) -> str:
     metadata = parts.metadata
     if metadata.raw_explanation is not None:
-        name = expand_raw_explanation(metadata.raw_explanation, bundle, lang)
+        name = expand_raw_explanation(metadata.raw_explanation, bundle, lang, ast_code=ast_code)
     else:
         words = [bundle.translate(metadata.trace_name, lang)] if metadata.trace_name else []
         if metadata.keyword:
@@ -429,13 +440,25 @@ def format_localized_name(
     return " ".join(word for word in affixed if word)
 
 
-def expand_raw_explanation(template: str, bundle: MessageBundle, lang: str) -> str:
-    """Раскрывает в ``template`` только ``${translate("key")}[модификаторы]`` для ``lang``."""
+def expand_raw_explanation(
+    template: str, bundle: MessageBundle, lang: str, *, ast_code: str = ""
+) -> str:
+    """Раскрывает ``${translate("key")}`` и ``${ast_code}`` для ``lang``.
+
+    ``ast_code`` — исходный текст узла. В имя он попадает с экранированием HTML.
+    """
+    safe_code = escape(ast_code)
 
     def translate(key: object) -> str:
         return bundle.translate(str(key), lang)
 
-    return interpolate(template, {}, modifiers_for_language(lang), {"translate": translate}, unescape=False)
+    return interpolate(
+        template,
+        {"ast_code": safe_code},
+        modifiers_for_language(lang),
+        {"translate": translate},
+        unescape=False,
+    )
 
 
 def localized_name_key(lang: str) -> str:

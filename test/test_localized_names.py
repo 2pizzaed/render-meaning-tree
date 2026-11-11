@@ -126,6 +126,35 @@ def test_raw_explanation_replaces_composed_name_and_keeps_other_placeholders() -
     assert parts.pronoun is None
 
 
+def test_raw_explanation_inserts_escaped_ast_code() -> None:
+    raw = NameMetadata(None, raw_explanation="${translate('begin')} ${ast_code}")
+    parts = NameParts(raw, prefix_key=TRACED_PREFIX_KEY)
+
+    assert format_localized_name(parts, BUNDLE, "en", ast_code='a < b & "c"') == (
+        'traced begin of a &lt; b &amp; &quot;c&quot;'
+    )
+    assert format_localized_name(parts, BUNDLE, "en") == "traced begin of "
+
+
+def test_raw_explanation_reads_ast_code_from_node_source() -> None:
+    source = "  foo(\r\n\t  a < b   )  "
+    call = ast_node(1, "function_call", function=ast_node(2, "simple_identifier", name="foo"))
+    builder = TraceBuilder(call)
+    source_map = builder.registry.code.source_map.copy()
+    source_map["source_code"] = source
+    source_map["byte_positions"] = {"1": [0, len(source.encode("utf-8"))]}
+    code = CodeManager(builder.ast, source_map, {"type": "tokens", "items": []})
+    ctx = NamingContext(LoqiRenderResult((), ()), code)
+    parts = NameParts(NameMetadata(None, raw_explanation="end ${ast_code}"), ast_id=1)
+
+    entries = {
+        entry.name: entry.value
+        for entry in localized_name_entries(parts, BUNDLE, ("en",), ctx)
+    }
+
+    assert entries == {"EN.localizedName": "end foo( a &lt; b )"}
+
+
 def test_raw_explanation_keeps_unresolved_templating_verbatim() -> None:
     raw = "${X}[case='р'] $Y \\$Z ${translate(1, 2)} ${f('a')}"
 
@@ -282,6 +311,16 @@ def test_function_call_name_includes_code(
     assert metadata["EN.localizedName"] == (
         f'function call <code class=\\"id\\">foo(i)</code> on line {lines["while"]}'
     )
+
+
+def test_function_call_end_uses_return_phrase_and_call_code(trace_loqi: str) -> None:
+    metadata = _object_metadata(trace_loqi, "func_call_structure_action_END_ast28")
+
+    assert metadata == {
+        "EN.localizedName": f'return to call {_ID % "foo(i)"}',
+        "RU.localizedName": f'возврат к месту вызова {_ID % "foo(i)"}',
+        "pronoun": "he",
+    }
 
 
 def test_function_definition_keeps_identifier(trace_loqi: str) -> None:

@@ -4,7 +4,16 @@
             <button type="button" class="trace-action-button" onclick="clearTrace()">Clear trace</button>
             {% if not static_used %}
             <button type="button" id="reason-button" class="trace-action-button" onclick="reasonTrace()">Reason</button>
-            <button type="button" id="hint-button" class="trace-action-button" onclick="requestHint()">Hint</button>
+            <div class="hint-control" role="group" aria-label="Hint">
+                <button type="button" id="hint-button" class="trace-action-button" onclick="requestHint()">Hint</button>
+                <button type="button" id="hint-repeat-down" class="hint-repeat-step" onclick="stepHintRepeat(-1)"
+                        aria-label="Decrease hint count" title="Decrease hint count">−</button>
+                <input id="hint-repeat-count" class="hint-repeat-count" type="number" inputmode="numeric"
+                       min="1" max="48" step="1" value="1" autocomplete="off"
+                       aria-label="Number of hints" title="Repeat Hint this many times (1–48)">
+                <button type="button" id="hint-repeat-up" class="hint-repeat-step" onclick="stepHintRepeat(1)"
+                        aria-label="Increase hint count" title="Increase hint count">+</button>
+            </div>
             <button type="button" id="tracing-button" class="trace-action-button" onclick="openCorrectTrace()">Tracing</button>
             <label class="trace-checkbox"
                    title="Reason and Hint recheck the whole trace step by step instead of continuing from the longest already accepted prefix">

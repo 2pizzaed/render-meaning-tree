@@ -14,6 +14,9 @@ var loqiMatches = [];
 var loqiMatchIndex = -1;
 const EXPLANATION_LANGUAGE_STORAGE_KEY = "playground.trace.explanationLanguage";
 const NO_CACHE_STORAGE_KEY = "playground.trace.noCache";
+const HINT_REPEAT_STORAGE_KEY = "playground.trace.hintRepeat";
+const HINT_REPEAT_MIN = 1;
+const HINT_REPEAT_MAX = 48;
 var lastReasoningPayload = null;
 
 function initializeNoCache() {
@@ -21,6 +24,82 @@ function initializeNoCache() {
     if (!checkbox) return;
     checkbox.checked = readStoredValue(NO_CACHE_STORAGE_KEY) === "true";
     checkbox.addEventListener("change", () => storeValue(NO_CACHE_STORAGE_KEY, String(checkbox.checked)));
+}
+
+function clampHintRepeat(value) {
+    const parsed = Number.parseInt(String(value), 10);
+    if (!Number.isInteger(parsed)) return HINT_REPEAT_MIN;
+    return Math.min(HINT_REPEAT_MAX, Math.max(HINT_REPEAT_MIN, parsed));
+}
+
+function updateHintRepeatSteps() {
+    const input = document.getElementById("hint-repeat-count");
+    const down = document.getElementById("hint-repeat-down");
+    const up = document.getElementById("hint-repeat-up");
+    if (!input || input.disabled) return;
+    const parsed = Number.parseInt(input.value, 10);
+    const value = Number.isInteger(parsed) ? parsed : HINT_REPEAT_MIN;
+    if (down) down.disabled = value <= HINT_REPEAT_MIN;
+    if (up) up.disabled = value >= HINT_REPEAT_MAX;
+}
+
+function commitHintRepeat() {
+    const input = document.getElementById("hint-repeat-count");
+    if (!input) return HINT_REPEAT_MIN;
+    const count = clampHintRepeat(input.value);
+    input.value = String(count);
+    storeValue(HINT_REPEAT_STORAGE_KEY, input.value);
+    updateHintRepeatSteps();
+    return count;
+}
+
+function stepHintRepeat(delta) {
+    const input = document.getElementById("hint-repeat-count");
+    if (!input || input.disabled) return;
+    input.value = String(clampHintRepeat(clampHintRepeat(input.value) + delta));
+    storeValue(HINT_REPEAT_STORAGE_KEY, input.value);
+    updateHintRepeatSteps();
+}
+
+function initializeHintRepeat() {
+    const input = document.getElementById("hint-repeat-count");
+    if (!input) return;
+    const stored = readStoredValue(HINT_REPEAT_STORAGE_KEY);
+    input.value = String(clampHintRepeat(stored === null ? input.value : stored));
+    input.addEventListener("input", () => {
+        if (input.value === "") {
+            updateHintRepeatSteps();
+            return;
+        }
+        const parsed = Number.parseInt(input.value, 10);
+        if (Number.isInteger(parsed) && (parsed < HINT_REPEAT_MIN || parsed > HINT_REPEAT_MAX)) {
+            input.value = String(clampHintRepeat(parsed));
+        }
+        updateHintRepeatSteps();
+    });
+    input.addEventListener("change", commitHintRepeat);
+    input.addEventListener("blur", commitHintRepeat);
+    updateHintRepeatSteps();
+}
+
+function setHintControlBusy(busy) {
+    const button = document.getElementById("hint-button");
+    const input = document.getElementById("hint-repeat-count");
+    const down = document.getElementById("hint-repeat-down");
+    const up = document.getElementById("hint-repeat-up");
+    if (button) button.disabled = busy;
+    if (input) input.disabled = busy;
+    if (busy) {
+        if (down) down.disabled = true;
+        if (up) up.disabled = true;
+        return;
+    }
+    updateHintRepeatSteps();
+}
+
+function hintAddedMessage(actions) {
+    const list = actions.length === 1 ? actions[0] : `${actions.length} actions: ${actions.join(", ")}`;
+    return `Hint: added ${list}`;
 }
 
 // Тело запросов /reason-trace и /hint-trace: ситуация из формы Render и шаги трассы.
@@ -385,49 +464,66 @@ async function requestHint() {
     const button = document.getElementById("hint-button");
     if (!button) return;
 
-    button.disabled = true;
+    const repeatCount = commitHintRepeat();
+    setHintControlBusy(true);
     button.textContent = "Hinting...";
-    const requestedTrace = traceData.slice();
+    const added = [];
     try {
-        const response = await fetch("/hint-trace", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: traceRequestBody(checkedTracePrefix()),
-        });
-        const payload = await response.json();
-        if (JSON.stringify(traceData) !== JSON.stringify(requestedTrace)) return;
-        rememberReasonerLoqi(payload, "Hint");
-        if (!payload.ok) {
+        for (let step = 1; step <= repeatCount; step++) {
+            if (repeatCount > 1) {
+                renderHintResult("unknown", `Hint ${step}/${repeatCount}...`, false);
+            }
+            const traceBefore = traceData.slice();
+            const response = await fetch("/hint-trace", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: traceRequestBody(checkedTracePrefix()),
+            });
+            const payload = await response.json();
+            // Трассу изменили, пока шёл этот запрос: серия больше не продолжает прежний префикс.
+            if (JSON.stringify(traceData) !== JSON.stringify(traceBefore)) {
+                renderHintResult("unknown", "Hint stopped: the trace changed.");
+                return;
+            }
+            rememberReasonerLoqi(payload, "Hint");
+            if (!payload.ok) {
+                traceHints = payload.traceHints || [];
+                updateTraceView();
+                renderReasoningResult(payload);
+                return;
+            }
+            if (payload.finished) {
+                traceHints = payload.traceHints || [];
+                updateTraceView();
+                renderHintResult(
+                    "correct",
+                    added.length === 0
+                        ? "Program is fully traced: no next action, trace unchanged."
+                        : `${hintAddedMessage(added)}. Program is fully traced.`,
+                );
+                return;
+            }
+            appendTraceAction(payload.action);
+            added.push(payload.action);
             traceHints = payload.traceHints || [];
             updateTraceView();
-            renderReasoningResult(payload);
-            return;
         }
-        if (payload.finished) {
-            traceHints = payload.traceHints || [];
-            updateTraceView();
-            renderHintResult("correct", "Program is fully traced: no next action, trace unchanged.");
-            return;
-        }
-        appendTraceAction(payload.action);
-        traceHints = payload.traceHints || [];
-        updateTraceView();
-        renderHintResult("unknown", `Hint: added ${payload.action}`);
+        renderHintResult("unknown", hintAddedMessage(added));
     } catch (error) {
         renderReasoningResult({ok: false, error: String(error)});
     } finally {
-        button.disabled = false;
         button.textContent = "Hint";
+        setHintControlBusy(false);
     }
 }
 
-function renderHintResult(status, message) {
+function renderHintResult(status, message, scroll = true) {
     renderReasoningResult(null);
     const statusBox = document.getElementById("reason-status");
     if (!statusBox) return;
     statusBox.className = `reason-alert ${status}`;
     statusBox.textContent = message;
-    scrollToReasonStatus();
+    if (scroll) scrollToReasonStatus();
 }
 
 function scrollToReasonStatus() {
@@ -828,4 +924,5 @@ initializeLoqiModal();
 initializeProblemLoqi();
 initializeExplanationLanguage();
 initializeNoCache();
+initializeHintRepeat();
 updateTraceView();

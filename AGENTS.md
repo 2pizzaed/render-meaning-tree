@@ -19,11 +19,23 @@
 - Briefly justify the proposed TPG change: which reasoning rule it represents, why existing graph logic cannot be reused or adjusted more simply, and why any added complexity is necessary. Syntax validation alone is insufficient.
 - If a proposed reasoner or domain change cannot be validated locally, say exactly what was checked and what remains unverified.
 
+## TPG Explanation Quality
+
+1. For `conclude: error/false`, explain the selected answer's error without revealing the correct answer; identify the selected object or location when helpful.
+2. Explain the domain rule and its application to the situation, using only causes established by the graph's checks.
+3. Avoid vague «то»/«там»; use «этот»/«эти» only with clear referents. Prefer localized object names via substitutions such as `${A}[case='р']`.
+4. Write for beginners; terms already used in action and object names may be assumed familiar. Avoid internal engine terminology.
+5. Use short, direct sentences without tautology or unnecessary repetition; clarity takes priority over brevity.
+
+Check the rendered text with actual names and case modifiers, and keep RU/EN meanings aligned.
+
 ## Validation And Testing
 
 Use `uv` for project commands.
 
 Use pytest for routine validation. Run the playground e2e check only when the user explicitly asks for it, and only on the dataset or input files they specified. Do not substitute another dataset or expand the requested dataset. If the requested dataset is unclear, clarify it before running e2e.
+
+When checking existing TPG behavior on a snippet outside the test cases, analyze the scenario and add a self-contained case to the relevant tests using inline code or an existing fixture. Do not create a snippet file just to run tests or make tests depend on a path to the example file.
 
 - `uv run pytest` - run the test suite without playground e2e; prefer specific relevant test files for focused changes.
 - `uv run pytest -m e2e` - run the excluded playground e2e checks.

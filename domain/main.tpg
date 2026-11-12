@@ -1127,7 +1127,7 @@ tpg CtrlFlow_check(S: TraceState, P: TraceAct, A: ConcreteAction, V: SemanticVal
     ) out true else {
         conclude: error [
             skill = "call_return_matches_activation" ;
-            RU.explanation = "Действие ${A} не может быть выполнено, поскольку оно не является местом начала вызова <code>${V}</code>." ;
+            RU.explanation = "Действие ${A}[case='р'] не может быть выполнено, поскольку оно не является местом начала вызова <code>${V}</code>." ;
             EN.explanation = "The action ${A} cannot be executed because it does not correspond to the place where the call <code>${V}</code> started." ;
         ];
     };

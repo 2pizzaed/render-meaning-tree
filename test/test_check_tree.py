@@ -41,6 +41,11 @@ from src.generator.registry import SituationRegistry
 from src.generator.utilities import code_snippet_to_registry
 from src.helpers.templating import interpolate
 from src.helpers.tpg import restore_trace_from_loqi, solve_pipeline_reasoning
+from src.helpers.tpg.explanations import (
+    ExplanationType,
+    collect_explanations_from_trace,
+    flatten_explanation_texts,
+)
 from src.model.situation import Action, SemanticValue, TraceAct
 from src.tpg_domain import ReasoningResult
 
@@ -1128,6 +1133,24 @@ CHECK_CASES: list[Any] = [
         value_patches=((2, "first_cond", [False, True]),),
     ),
     CheckCase(
+        # Вызов в присваивании завершился, а акт самого присваивания ещё не записан:
+        # возврат к предыдущему оператору — повтор пройденного действия, а не общий отказ.
+        id="previous_statement_after_call_in_assignment_returned",
+        language="python",
+        code="""
+def f(n):
+    return n
+
+x = 1
+r = f(x)
+print(r)
+""",
+        advance_to=(6, "END", "func_call_structure"),
+        action=(5, "first"),
+        expected_skills=("passed_action_repeat",),
+        unexpected_skills=("actions_in_order",),
+    ),
+    CheckCase(
         # Второй выход подряд из хвостового вызова берёт следующее значение (down(1)).
         id="tail_call_second_exit_takes_next_value",
         language="python",
@@ -1952,6 +1975,51 @@ outer(1)  # <! (-, "outer(1)") >
         'тела функции <code class="id">outer</code> на строке 2 в этом вызове ещё не закончено.'
     )
 
+
+
+def test_branch_body_before_condition_explains_branch_start(tmp_path: Path) -> None:
+    # Сразу после входа в тело предыдущее на уровне ветвления — его невидимое начало:
+    # объяснение не называет его, а говорит, что ветвление начинается не с выбранного действия.
+    case = CheckCase(
+        id="branch_body_before_condition_after_function_entry",
+        language="python",
+        code="""
+def f(x):
+    if x > 0:
+        return 1
+    return 0
+
+f(1)
+""",
+        advance_to=(7, "BEGIN", "func_call_structure"),
+        action=(3, "first"),
+        expected_skills=("actions_in_order",),
+    )
+    registry = _build_registry(case.code, language=case.language)
+    _advance_partial_trace(tmp_path, registry, case)
+    registry.variables["A"] = _spec_action(registry, case.action)
+
+    result = solve_pipeline_reasoning(
+        tmp_path,
+        registry,
+        model_dir=Path("domain"),
+        filename="check.loqi",
+        tree=CHECK_TREE,
+        export_domain=True,
+        json_trace=True,
+        time_limit_seconds=SOLVE_TIME_LIMIT_SECONDS,
+        restore_exported_trace=False,
+    ).result
+
+    assert result.result is False and not result.exceptions
+    assert isinstance(result.trace, dict)
+    tree = collect_explanations_from_trace(ExplanationType.ERROR, result.trace)
+    assert flatten_explanation_texts(tree, loc_code="RU", variables={}) == [
+        (
+            "Выполнение ветвления на строках 2-3 начинается не с возврата из функции "
+            '<code class="id">f</code> на строке 3, поэтому выбранное действие сейчас не выполняется.'
+        )
+    ]
 
 # -- Построение ситуации -------------------------------------------------------
 

@@ -373,13 +373,14 @@ def test_function_call_end_uses_return_phrase_and_call_code(trace_loqi: str, lin
     }
 
 
-def test_function_definition_keeps_identifier(trace_loqi: str) -> None:
+def test_function_definition_is_named_as_function_body(trace_loqi: str) -> None:
+    # Определение выполняется только как тело при вызове, поэтому так и называется.
     match = re.search(r"^obj (construct_func_def_structure_ast\d+) :", trace_loqi, re.MULTILINE)
     assert match is not None
     metadata = _object_metadata(trace_loqi, match[1])
 
-    assert metadata["EN.localizedName"] == f"function definition {_ID % 'foo'} on lines 1-2"
-    assert metadata["RU.localizedName"] == f"определение функции {_ID % 'foo'} на строках 1-2"
+    assert metadata["EN.localizedName"] == f"function body {_ID % 'foo'} on lines 1-2"
+    assert metadata["RU.localizedName"] == f"тело функции {_ID % 'foo'} на строках 1-2"
 
 
 def test_function_body_includes_enclosing_function(trace_loqi: str) -> None:
@@ -390,6 +391,19 @@ def test_function_body_includes_enclosing_function(trace_loqi: str) -> None:
     assert metadata == {
         "EN.localizedName": f"function body {_ID % 'foo'} on line 2",
         "RU.localizedName": f"тело функции {_ID % 'foo'} на строке 2",
+        "pronoun": "it",
+    }
+
+
+def test_call_func_action_is_named_as_function_body(trace_loqi: str) -> None:
+    # Узел AST действия func — определение функции, но называется оно выполняемым телом.
+    match = re.search(r"^obj (func_call_structure_action_func_ast\d+\w*) :", trace_loqi, re.MULTILINE)
+    assert match is not None
+    metadata = _object_metadata(trace_loqi, match[1])
+
+    assert metadata == {
+        "EN.localizedName": f"function body {_ID % 'foo'} on lines 1-2",
+        "RU.localizedName": f"тело функции {_ID % 'foo'} на строках 1-2",
         "pronoun": "it",
     }
 
@@ -451,10 +465,10 @@ def test_return_name_includes_enclosing_function(
         statement = (registry.code.code_piece(node["id"]) or "").strip().rstrip(";")
         expected_name = expected_functions[statement]
         assert metadata["RU.localizedName"] == (
-            f"вычисление результата функции {_ID % expected_name} на строке {line}"
+            f"возврат из функции {_ID % expected_name} на строке {line}"
         )
         assert metadata["EN.localizedName"] == (
-            f"function result evaluation {_ID % expected_name} on line {line}"
+            f"function return {_ID % expected_name} on line {line}"
         )
         return_names[statement] = expected_name
 

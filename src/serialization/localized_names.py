@@ -380,8 +380,9 @@ def localized_name_entries(
         and parts.ast_id is not None
     ):
         path = ctx.code.ast.get_path(parts.ast_id)
+        # Сам узел тоже: у действия func вызова узел — это определение функции.
         definition = (
-            path.find_first_parent(lambda node: node.instanceof("function_definition"))
+            path.find_first(lambda node: node.instanceof("function_definition"))
             if path is not None
             else None
         )

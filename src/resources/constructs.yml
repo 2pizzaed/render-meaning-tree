@@ -667,7 +667,8 @@ func_def_structure:
   kind: compound.procedure.noop
   ast_node: ['function_definition', 'method_definition']
   metadata:
-    locale_trace_name: "function_def"
+    # Определение «выполняется» только как тело функции при вызове: так его и называем.
+    locale_trace_name: "function_body"
     locale_pronoun: "it"
     identifier: true
   actions:

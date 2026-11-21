@@ -1776,7 +1776,7 @@ print(r)
         action=(3, "END", "func_call_structure"),
         value=((7, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="ещё не может завершиться",
+        expected_explanation="ещё не выполнено до конца",
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(
@@ -1799,7 +1799,7 @@ print(r)
         action=(7, "END", "func_call_structure"),
         value=((7, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="ещё не может завершиться",
+        expected_explanation="ещё не выполнено до конца",
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(
@@ -1831,7 +1831,7 @@ print(r)
         action=(7, "END", "func_call_structure"),
         value=((7, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="ещё не может завершиться",
+        expected_explanation="ещё не выполнено до конца",
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(
@@ -1842,7 +1842,7 @@ print(r)
         action=(7, "END", "func_call_structure"),
         value=((7, "END", "func_call_structure"), 0),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="ещё не может завершиться",
+        expected_explanation="ещё не выполнено до конца",
         value_patches=RECURSION_VALUES,
     ),
     CheckCase(
@@ -1853,7 +1853,7 @@ print(r)
         action=(3, "END", "func_call_structure"),
         value=((3, "END", "func_call_structure"), 1),
         expected_skills=("call_return_matches_activation",),
-        expected_explanation="ещё не может завершиться",
+        expected_explanation="ещё не выполнено до конца",
         value_patches=RECURSION_VALUES,
     ),
 ]
@@ -1971,19 +1971,21 @@ outer(1)  # <! (-, "outer(1)") >
         if entry.name == "explanation" and entry.loc_code == "RU"
     )
     assert interpolate(template, {"V": "outer(1)", "FunctionBody": body_name}) == (
-        'Вызов <code>outer(1)</code> ещё не может завершиться, поскольку выполнение '
-        'тела функции <code class="id">outer</code> на строке 2 в этом вызове ещё не закончено.'
+        'Каждый вызов функции выполняет её тело отдельно. Для вызова <code>outer(1)</code> '
+        'тело функции <code class="id">outer</code> на строке 2 ещё не выполнено до конца, '
+        "поэтому этот вызов не может завершиться."
     )
 
 
 
-def test_branch_body_before_condition_explains_branch_start(tmp_path: Path) -> None:
-    # Сразу после входа в тело предыдущее на уровне ветвления — его невидимое начало:
-    # объяснение не называет его, а говорит, что ветвление начинается не с выбранного действия.
-    case = CheckCase(
-        id="branch_body_before_condition_after_function_entry",
-        language="python",
-        code="""
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        pytest.param(
+            CheckCase(
+                id="branch_body_before_condition_after_function_entry",
+                language="python",
+                code="""
 def f(x):
     if x > 0:
         return 1
@@ -1991,10 +1993,41 @@ def f(x):
 
 f(1)
 """,
-        advance_to=(7, "BEGIN", "func_call_structure"),
-        action=(3, "first"),
-        expected_skills=("actions_in_order",),
-    )
+                advance_to=(7, "BEGIN", "func_call_structure"),
+                action=(3, "first"),
+                expected_skills=("actions_in_order",),
+            ),
+            'Перед возвратом из функции <code class="id">f</code> на строке 3 должны выполниться '
+            "другие действия ветвления на строках 2-3, поэтому выбранное действие сейчас не выполняется.",
+            id="branch",
+        ),
+        pytest.param(
+            CheckCase(
+                id="second_statement_after_function_entry",
+                language="python",
+                code="""
+def f(a):
+    b = a + 1
+    c = b * 2
+    return c
+
+f(1)
+""",
+                advance_to=(7, "BEGIN", "func_call_structure"),
+                action=(3, "next"),
+                expected_skills=("actions_in_order",),
+            ),
+            'Перед присваиванием <code class="id">c: int = b * 2</code> на строке 3 должны выполниться '
+            "другие действия блока кода на строках 2-4, поэтому выбранное действие сейчас не выполняется.",
+            id="function_body",
+        ),
+    ],
+)
+def test_action_after_invisible_begin_explains_skipped_actions(
+    tmp_path: Path, case: CheckCase, expected: str
+) -> None:
+    # Предыдущее на уровне конструкции — её невидимое начало: объяснение не называет его
+    # и не раскрывает пропущенное действие, а говорит, что сначала выполняются другие действия.
     registry = _build_registry(case.code, language=case.language)
     _advance_partial_trace(tmp_path, registry, case)
     registry.variables["A"] = _spec_action(registry, case.action)
@@ -2014,12 +2047,7 @@ f(1)
     assert result.result is False and not result.exceptions
     assert isinstance(result.trace, dict)
     tree = collect_explanations_from_trace(ExplanationType.ERROR, result.trace)
-    assert flatten_explanation_texts(tree, loc_code="RU", variables={}) == [
-        (
-            "Выполнение ветвления на строках 2-3 начинается не с возврата из функции "
-            '<code class="id">f</code> на строке 3, поэтому выбранное действие сейчас не выполняется.'
-        )
-    ]
+    assert flatten_explanation_texts(tree, loc_code="RU", variables={}) == [expected]
 
 # -- Построение ситуации -------------------------------------------------------
 

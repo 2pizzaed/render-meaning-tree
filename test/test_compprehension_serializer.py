@@ -458,8 +458,9 @@ def test_partial_trace_concept_marks_reduced_student_steps(
     # У задачи четыре шага студента: M = 4 их не сокращает, как и M = 0.
     [metadata] = template["metadataList"]
     assert (PARTIAL_TRACE_CONCEPT in template["commonQuestion"]["concepts"]) is partial
-    assert (metadata["conceptBits"] != metadata["traceConceptBits"]) is partial
-    assert metadata["traceConceptBits"] == pack_flags(CONCEPTS, problem.concepts)
+    # Концепт можно сделать целевым: CompPrehension ищет целевые концепты в traceConceptBits.
+    assert metadata["traceConceptBits"] == metadata["conceptBits"]
+    assert (metadata["conceptBits"] != pack_flags(CONCEPTS, problem.concepts)) is partial
     # Вопрос, который флаги не меняют, совпадает с выгрузкой без флагов по имени и по TTL.
     default_name = question_name(problem.code, _tree_hash(statement), problem.values)
     assert (metadata["name"] != default_name) is partial

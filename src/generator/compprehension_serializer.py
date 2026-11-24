@@ -92,7 +92,6 @@ def problem_to_question_template(
     name = question_name(problem.code, tree_hash, problem.values, options)
     concepts = set(problem.concepts)
     # Опции сократили шаги студента: часть трассы выполнена в условии или выполнит тренажёр.
-    # Это свойство вопроса, а не трассы, поэтому в traceConceptBits его нет.
     if len(student_steps) < problem.student_steps:
         concepts.add(PARTIAL_TRACE_CONCEPT)
     concept_bits = pack_flags(CONCEPTS, concepts)
@@ -105,7 +104,7 @@ def problem_to_question_template(
         "conceptBits": concept_bits,
         "lawBits": 0,
         "violationBits": 0,
-        "traceConceptBits": pack_flags(CONCEPTS, problem.concepts),
+        "traceConceptBits": concept_bits,
         "skillBits": pack_flags(SKILLS, sorted(problem.skills)),
         "solutionStructuralComplexity": len(problem.registry.trace_acts),
         "integralComplexity": problem.complexity,

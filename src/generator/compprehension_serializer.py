@@ -16,14 +16,20 @@ import logging
 import re
 import tempfile
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from src.ast_managers import CodeManager
 from src.generator.concepts import CONCEPTS, PARTIAL_TRACE_CONCEPT
+from src.generator.helpers.call_values import has_call_values
 from src.generator.helpers.ui_trace import resolve_button_action
-from src.generator.problems import LearningProblem, ProblemGenerationConfig
+from src.generator.problems import (
+    GenerationOptions,
+    LearningProblem,
+    ProblemGenerationConfig,
+)
 from src.generator.question_html import QuestionHtml
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
@@ -55,6 +61,7 @@ LANGUAGE_TAG_BITS: dict[SupportedProgrammingLanguage, int] = {
 }
 QUESTION_NAME_EXCERPT_LENGTH = 48
 QUESTION_NAME_VALUES_HASH_LENGTH = 10
+DEFAULT_OPTIONS = GenerationOptions()
 
 # Символы, недопустимые в именах файлов, и всё, кроме букв, цифр, «-», «_», «.» и пробела.
 _FORBIDDEN_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -77,12 +84,12 @@ def problem_to_question_template(
     ``statement`` - ситуация условия (``problem_statement_registry``), ``html`` - HTML
     кода фрагмента (``render_question_html``).
     """
-    options = _config(statement).options
+    options = _effective_options(problem, statement)
     student_steps = options.student_steps_range(problem.student_steps)
     serializer, loqi = registry_to_loqi(statement)
     tree_hash = _tree_hash(statement.code)
     language = statement.code.language
-    name = question_name(problem.code, tree_hash, problem.values)
+    name = question_name(problem.code, tree_hash, problem.values, options)
     concepts = set(problem.concepts)
     # Опции сократили шаги студента: часть трассы выполнена в условии или выполнит тренажёр.
     # Это свойство вопроса, а не трассы, поэтому в traceConceptBits его нет.
@@ -140,18 +147,46 @@ def problem_to_question_template(
 
 
 def question_name(
-    code: str, tree_hash: int, values: Mapping[ActionKey, tuple[bool | None, ...]]
+    code: str,
+    tree_hash: int,
+    values: Mapping[ActionKey, tuple[bool | None, ...]],
+    options: GenerationOptions = DEFAULT_OPTIONS,
 ) -> str:
     """Имя вопроса: начало кода, пригодное для имени файла, хэш дерева и хэш значений.
 
     Имя определяется кодом и значениями задачи, а не сидом: загрузчик банка заменяет
-    вопрос с тем же именем.
+    вопрос с тем же именем. Флаги генерации, отличные от умолчаний, добавляют свой хэш
+    (``GenerationOptions.fingerprint``), чтобы банки с разными флагами не заменяли
+    вопросы друг друга.
     """
     excerpt = re.sub(r"\s+", " ", code).strip()
     excerpt = _NON_NAME_CHARS.sub("_", _FORBIDDEN_NAME_CHARS.sub("", excerpt))
     # Начальный комментарий на кириллице иначе даёт имя вида «_ _ _ _ 1 _ n def ...».
     excerpt = excerpt.lstrip("_ -.")[:QUESTION_NAME_EXCERPT_LENGTH].rstrip(" .")
-    return "_".join(part for part in (excerpt, str(tree_hash), _values_hash(values)) if part)
+    parts = [excerpt, str(tree_hash), _values_hash(values)]
+    if options != DEFAULT_OPTIONS:
+        parts.append(options.fingerprint())
+    return "_".join(part for part in parts if part)
+
+
+def _effective_options(problem: LearningProblem, statement: SituationRegistry) -> GenerationOptions:
+    """Флаги генерации, которые меняют этот вопрос; остальные - по умолчанию.
+
+    Вопрос, который флаги не меняют, совпадает с выгрузкой без них и по имени, и по
+    содержимому: загрузчик банка заменит его тем же вопросом, а не добавит дубль.
+    """
+    options = _config(statement).options
+    return replace(
+        options,
+        disable_call_dropdown=options.disable_call_dropdown and has_call_values(statement),
+        # Шаг после конца трассы тренажёр не встретит.
+        skip_steps_after=options.skip_steps_after
+        if options.skip_steps_after < problem.student_steps
+        else 0,
+        # В Python блоки прозрачны при любом значении флага.
+        explicit_compound_boundaries=options.explicit_compound_boundaries
+        or statement.code.language == "python",
+    )
 
 
 def _values_hash(values: Mapping[ActionKey, tuple[bool | None, ...]]) -> str:

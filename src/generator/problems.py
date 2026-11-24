@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass, field, fields
@@ -94,6 +95,20 @@ class GenerationOptions:
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
+
+    def fingerprint(self) -> str:
+        """Короткий хэш флагов для имени вопроса: первые 10 hex-символов SHA-256.
+
+        Хэшируются только флаги, отличные от умолчаний, с сортировкой ключей: новое поле
+        с умолчанием и порядок полей не меняют имена уже выгруженных вопросов.
+        """
+        changed = {
+            option.name: getattr(self, option.name)
+            for option in fields(self)
+            if getattr(self, option.name) != option.default
+        }
+        canonical = json.dumps(changed, sort_keys=True)
+        return hashlib.sha256(canonical.encode()).hexdigest()[:10]
 
     @classmethod
     def from_json(cls, text: str) -> Self:

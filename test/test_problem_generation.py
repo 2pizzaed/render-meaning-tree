@@ -1,4 +1,7 @@
+import hashlib
+import json
 import logging
+import re
 import textwrap
 from collections import Counter
 from dataclasses import replace
@@ -33,6 +36,15 @@ def test_generation_options_round_trip_json_and_reject_invalid_values():
 
     assert GenerationOptions.from_json(options.to_json()) == options
     assert GenerationOptions.from_json("{}") == GenerationOptions()
+    assert options.fingerprint() == GenerationOptions.from_json(options.to_json()).fingerprint()
+    assert re.fullmatch(r"[0-9a-f]{10}", options.fingerprint())
+    assert options.fingerprint() != GenerationOptions().fingerprint()
+    # Хэш - по флагам, отличным от умолчаний: поля с умолчанием в него не входят.
+    expected = json.dumps(
+        {"disable_call_dropdown": True, "skip_first_actions": 1, "skip_steps_after": 3},
+        sort_keys=True,
+    )
+    assert options.fingerprint() == hashlib.sha256(expected.encode()).hexdigest()[:10]
     for text in (
         "[]",
         '{"unknown": 1}',

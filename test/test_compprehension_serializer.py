@@ -86,6 +86,22 @@ def test_question_name_has_no_leading_underscores():
     assert re.fullmatch(r"3_[0-9a-f]{10}", empty_excerpt)
 
 
+def test_question_name_adds_hash_of_non_default_generation_options():
+    name = question_name("x = 1", 1, {})
+
+    assert question_name("x = 1", 1, {}, GenerationOptions()) == name
+    dropdown = question_name("x = 1", 1, {}, GenerationOptions(disable_call_dropdown=True))
+    skipped = question_name("x = 1", 1, {}, GenerationOptions(skip_first_actions=1))
+    assert re.fullmatch(rf"{re.escape(name)}_[0-9a-f]{{10}}", dropdown)
+    assert len({name, dropdown, skipped}) == 3
+
+
+def _tree_hash(statement: SituationRegistry) -> int:
+    tree_hash = statement.code.ast.root.get("unique_hash")
+    assert isinstance(tree_hash, int)
+    return tree_hash
+
+
 def test_question_name_cuts_code_excerpt():
     name = question_name("x = 1\n" * 20, -7, {})
 
@@ -265,6 +281,10 @@ def test_disabled_call_dropdown_leaves_step_out_without_values():
     assert soup.select(".call-value-menu, [data-comp-ph-custom-click]") == []
     # Значение вызова не отправляется, и граф не может поставить скилл его проверки.
     assert CALL_VALUE_SKILL not in problem.skills
+    # Вопрос без dropdown не заменяет в банке тот же вопрос с dropdown.
+    assert template["metadataList"][0]["name"] != question_name(
+        problem.code, _tree_hash(statement), problem.values
+    )
 
 
 def test_call_end_hints_follow_exit_order_of_sequential_calls():
@@ -440,6 +460,30 @@ def test_partial_trace_concept_marks_reduced_student_steps(
     assert (PARTIAL_TRACE_CONCEPT in template["commonQuestion"]["concepts"]) is partial
     assert (metadata["conceptBits"] != metadata["traceConceptBits"]) is partial
     assert metadata["traceConceptBits"] == pack_flags(CONCEPTS, problem.concepts)
+    # Вопрос, который флаги не меняют, совпадает с выгрузкой без флагов по имени и по TTL.
+    default_name = question_name(problem.code, _tree_hash(statement), problem.values)
+    assert (metadata["name"] != default_name) is partial
+    ttl = template["commonQuestion"]["questionData"]["statementFactsTTL"]
+    effective = skip_steps_after if partial else 0
+    assert re.search(rf':skip_steps_after\s+"{effective}"\^\^xsd:int', ttl)
+
+
+def test_disabled_call_dropdown_keeps_name_of_question_without_calls(
+    generated: tuple[LearningProblemGeneratorPipeline, list[LearningProblem]],
+):
+    pipeline, [problem, *_] = generated
+    statement = problem_statement_registry(pipeline.registry, problem)
+    assert statement.config is not None
+    statement.config = replace(
+        statement.config, options=GenerationOptions(disable_call_dropdown=True)
+    )
+
+    template = problem_to_question_template(problem, statement, render_question_html(statement))
+
+    # Без вызовов dropdown нет, и вопрос не отличается от основного банка.
+    assert template["metadataList"][0]["name"] == question_name(
+        problem.code, _tree_hash(statement), problem.values
+    )
 
 
 def test_skipping_all_student_steps_is_an_error():

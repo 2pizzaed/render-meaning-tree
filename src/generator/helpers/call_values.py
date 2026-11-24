@@ -83,6 +83,14 @@ def call_value_domain_info(
     return f"{end_name},{value_name}"
 
 
+def has_call_values(registry: SituationRegistry) -> bool:
+    """Есть ли у ситуации пункты dropdown: значения с подсказками у END размеченных вызовов."""
+    return any(
+        is_annotated_call_end(action) and any(value.hint for value in action.values)
+        for action in registry.all_actions()
+    )
+
+
 def is_annotated_call_end(action: Action) -> bool:
     return (
         action.rule.role == "END"

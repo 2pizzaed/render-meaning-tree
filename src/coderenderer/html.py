@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from src.ast_managers import CodeManager
 from src.coderenderer.entities import Button, RendererEntity, Token
@@ -265,11 +265,11 @@ def render_static_html(
 
     try:
         template = env.get_template(target_template_name)
-    except Exception as e:
+    except TemplateNotFound as e:
         raise FileNotFoundError(
             f"Template '{target_template_name}' not found in directory '{templates_dir}'. "
             f"Details: {e}"
-        )
+        ) from e
 
     # Рендеринг
     updated_context = {**context,

@@ -207,7 +207,7 @@ def index():
                 }
 
             except Exception as e:
-                traceback.print_exc()
+                app.logger.exception("Request failed")
                 error = f"{type(e).__name__}: {e!s}"
                 # Возвращаем базовый контекст, чтобы шаблон не упал
                 context["code"] = code
@@ -312,7 +312,7 @@ def reason_trace():
             json_trace=True,
         )
     except Exception as e:
-        traceback.print_exc()
+        app.logger.exception("Request failed")
         return jsonify(
             {"ok": False, "error": format_error(e), "loqi": _latest_loqi_text(reasoning_tmp)}
         ), 500
@@ -410,7 +410,7 @@ def hint_trace():
                 json_trace=True,
             )
     except Exception as e:
-        traceback.print_exc()
+        app.logger.exception("Request failed")
         return jsonify(
             {"ok": False, "error": format_error(e), "loqi": _latest_loqi_text(hint_tmp)}
         ), 500
@@ -464,7 +464,7 @@ def export_question():
         app.logger.warning("Question #%d for seed %s skipped: %s", index, payload.get("seed"), e)
         return jsonify({"ok": False, "skipped": True, "error": str(e)}), 422
     except Exception as e:
-        traceback.print_exc()
+        app.logger.exception("Request failed")
         return jsonify({"ok": False, "error": format_error(e)}), 500
 
     return jsonify(
@@ -572,7 +572,7 @@ def tracing():
         svg_path = render_dot_svg(dot_text, svg_tmp / "correct-trace.svg")
         svg_bytes = svg_path.read_bytes()
     except Exception as e:
-        traceback.print_exc()
+        app.logger.exception("Request failed")
         return format_error(e), 500, {"Content-Type": "text/plain; charset=utf-8"}
 
     return send_file(

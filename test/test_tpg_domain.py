@@ -85,9 +85,11 @@ def test_parse_expression_query_jsonl_builds_structured_result() -> None:
     raw_jsonl = "\n".join(
         [
             '{"type":"reasoner-output","value":"query started"}',
-            '{"type":"expression-query-result","objects":["obj_a","obj_b"],'
-            '"objectsLoqi":[{"name":"obj_a","loqi":"obj obj_a : Demo {}"},'
-            '{"name":"obj_b","loqi":"obj obj_b : Demo {}"}]}',
+            (
+                '{"type":"expression-query-result","objects":["obj_a","obj_b"],'
+                '"objectsLoqi":[{"name":"obj_a","loqi":"obj obj_a : Demo {}"},'
+                '{"name":"obj_b","loqi":"obj obj_b : Demo {}"}]}'
+            ),
             '{"type":"expression-trace","value":"Expression trace: ..."}',
             '{"type":"metric","name":"queryTime","seconds":0.1}',
         ]

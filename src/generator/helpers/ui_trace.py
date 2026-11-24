@@ -157,7 +157,7 @@ def _resolve_inline_compound_action(
     # действие - оператор или условие (first_cond), на него и ссылается кнопка.
     if not opaque_actions:
         return action
-    return sorted(opaque_actions, key=registry.action_order)[0]
+    return min(opaque_actions, key=registry.action_order)
 
 
 def _all_actions_matching(

@@ -58,6 +58,10 @@ filterwarnings = [
 
 [tool.ruff.lint]
 extend-select = ["I"]
+# TRY004: неверные внешние данные (JSONL, запросы ast_node, имена в трассе) — это
+# ValueError/LookupError, их ловят вызывающие; TypeError здесь исказил бы смысл.
+# FLY002: "\n".join(строк JSONL) в тестах читается лучше одной длинной строки.
+ignore = ["TRY004", "FLY002"]
 
 [tool.ruff]
 extend-exclude = ["test/data"]

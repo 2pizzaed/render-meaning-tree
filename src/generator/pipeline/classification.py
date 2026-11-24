@@ -25,7 +25,7 @@ from src.generator.problems import (
     ReasonerBudget,
 )
 from src.generator.registry import SituationRegistry
-from src.generator.skills import collect_skills
+from src.generator.skills import CALL_VALUE_SKILL, collect_skills
 from src.generator.value_annotations import bind_call_end_hints, strip_value_markers
 from src.generator.value_plan import ActionKey, ValueVariant, action_key
 from src.helpers.tpg.reasoning import solve_graph_full_reasoning
@@ -154,10 +154,15 @@ class LearningProblemClassificationPipeline(Pipeline[SituationRegistry]):
         concepts = frozenset(collect_concepts(ast, trace))
         student_steps = len(self._student_step_indexes())
         cyclomatic = _required(self.registry.fragment, "fragment").cyclomatic_complexity
+        skills = collect_skills(ast, trace)
+        if self.config.options.disable_call_dropdown:
+            # Без dropdown студент не присылает значение вызова, а граф ставит этот скилл
+            # только при проверке значения.
+            skills.discard(CALL_VALUE_SKILL)
         self.registry.metrics = ProblemMetrics(
             steps=steps,
             student_steps=student_steps,
-            skills=frozenset(collect_skills(ast, trace)),
+            skills=frozenset(skills),
             concepts=concepts,
             complexity=integral_complexity(student_steps, cyclomatic, len(concepts)),
         )

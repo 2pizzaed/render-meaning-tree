@@ -36,6 +36,8 @@ SKILLS: dict[str, int] = {
     "function_not_resumed_after_exit": bit(12),
     "call_return_matches_activation": bit(13),
 }
+# Проверка значения вызова, выбранного в dropdown кнопки step-out.
+CALL_VALUE_SKILL = "call_return_matches_activation"
 
 # Умения, которые может нарушить ошибочный ответ (skill у conclude: error).
 ERRORNEOUS_SKILLS: set[str] = {

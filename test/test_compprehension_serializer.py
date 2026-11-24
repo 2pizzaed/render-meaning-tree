@@ -26,6 +26,7 @@ from src.generator.problems import (
 )
 from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
+from src.generator.skills import CALL_VALUE_SKILL
 from src.generator.utilities import (
     code_snippet_to_question_templates,
     problem_statement_registry,
@@ -262,6 +263,8 @@ def test_disabled_call_dropdown_leaves_step_out_without_values():
     assert all("," not in answer["domainInfo"] for answer in answers)
     soup = BeautifulSoup(html.text, "html.parser")
     assert soup.select(".call-value-menu, [data-comp-ph-custom-click]") == []
+    # Значение вызова не отправляется, и граф не может поставить скилл его проверки.
+    assert CALL_VALUE_SKILL not in problem.skills
 
 
 def test_call_end_hints_follow_exit_order_of_sequential_calls():

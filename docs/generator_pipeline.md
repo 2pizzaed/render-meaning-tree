@@ -102,7 +102,7 @@
 
 `GenerationOptions` (`src/generator/problems.py`) — поле `options` у `ProblemGenerationConfig`; `to_json()` и `from_json()` переводят его в JSON-объект и обратно, неизвестные ключи и значения неверного типа — ошибка. Шаг студента — непрозрачное действие, на котором останавливается findCorrect; корневой акт шагом не считается.
 
-- `disable_call_dropdown` (`false`) — в HTML нет dropdown значений вызова, в `answerObjects` нет его пунктов; кнопка step-out остаётся ответом без значения (граф проверяет END как с `NoValue`).
+- `disable_call_dropdown` (`false`) — в HTML нет dropdown значений вызова, в `answerObjects` нет его пунктов; кнопка step-out остаётся ответом без значения (граф проверяет END как с `NoValue`). Скилл `call_return_matches_activation` граф ставит только при проверке присланного значения вызова, поэтому классификация ветки убирает его из скиллов задачи. Банк без dropdown отделяется от основного запретом этого скилла на этапе упражнения.
 - `skip_first_actions` (`0`) — N первых шагов студента уже выполнены в условии. N не меньше числа шагов задачи — `ValueError`.
 - `skip_steps_after` (`0`) — при M > 0 после M-го шага студента (номер с начала трассы, M > N) тренажёр сам выполняет оставшиеся; генератор пишет M в `TraceConfig.skip_steps_after` условия.
 - `explicit_compound_boundaries` (`true`) — в C++/Java BEGIN/END блоков непрозрачны и у скобок есть кнопки play/stop, а ветви и тела конструкций прозрачны (`_patch_rules_for_language`). При `false` C++/Java размечаются, как Python: блоки прозрачны, кнопок у скобок нет (`prepare_html_context(..., explicit_compound_boundaries=False)`). На Python флаг не влияет.

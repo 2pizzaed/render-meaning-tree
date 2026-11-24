@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from src.ast_managers import CodeManager
-from src.generator.concepts import CONCEPTS
+from src.generator.concepts import CONCEPTS, PARTIAL_TRACE_CONCEPT
 from src.generator.helpers.ui_trace import resolve_button_action
 from src.generator.problems import LearningProblem, ProblemGenerationConfig
 from src.generator.question_html import QuestionHtml
@@ -83,7 +83,11 @@ def problem_to_question_template(
     tree_hash = _tree_hash(statement.code)
     language = statement.code.language
     name = question_name(problem.code, tree_hash, problem.values)
-    concepts = sorted(problem.concepts)
+    concepts = set(problem.concepts)
+    # Опции сократили шаги студента: часть трассы выполнена в условии или выполнит тренажёр.
+    # Это свойство вопроса, а не трассы, поэтому в traceConceptBits его нет.
+    if len(student_steps) < problem.student_steps:
+        concepts.add(PARTIAL_TRACE_CONCEPT)
     concept_bits = pack_flags(CONCEPTS, concepts)
 
     metadata: dict[str, Any] = {
@@ -94,7 +98,7 @@ def problem_to_question_template(
         "conceptBits": concept_bits,
         "lawBits": 0,
         "violationBits": 0,
-        "traceConceptBits": concept_bits,
+        "traceConceptBits": pack_flags(CONCEPTS, problem.concepts),
         "skillBits": pack_flags(SKILLS, sorted(problem.skills)),
         "solutionStructuralComplexity": len(problem.registry.trace_acts),
         "integralComplexity": problem.complexity,
@@ -127,7 +131,7 @@ def problem_to_question_template(
                     statement, loqi + _trace_config_loqi(options.skip_steps_after)
                 ),
             },
-            "concepts": concepts,
+            "concepts": sorted(concepts),
             "negativeLaws": [],
             "tags": [language],
         },

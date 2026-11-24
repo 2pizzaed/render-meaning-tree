@@ -16,6 +16,7 @@ from src.generator.compprehension_serializer import (
     problem_to_question_template,
     question_name,
 )
+from src.generator.concepts import CONCEPTS, PARTIAL_TRACE_CONCEPT
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.pipeline.classification import integral_complexity
 from src.generator.problems import (
@@ -31,6 +32,7 @@ from src.generator.utilities import (
     problems_to_question_templates,
 )
 from src.generator.value_plan import ActionKey, action_key
+from src.helpers.bitflags import pack_flags
 from src.model.situation import SemanticValue
 
 SCHEMA_PATH = (
@@ -369,6 +371,8 @@ def test_template_metadata(templates: list[dict[str, Any]]):
         assert metadata["name"] == question["questionData"]["questionName"]
         assert question["tags"] == ["python"]
         assert {"if", "else"} & set(question["concepts"])
+        assert PARTIAL_TRACE_CONCEPT not in question["concepts"]
+        assert metadata["traceConceptBits"] == metadata["conceptBits"]
 
     names = [template["metadataList"][0]["name"] for template in templates]
     assert len(set(names)) == len(names)
@@ -407,9 +411,32 @@ def test_skipped_steps_are_in_statement_trace_and_not_in_solution_steps():
         ttl = template["commonQuestion"]["questionData"]["statementFactsTTL"]
         # Из четырёх шагов студента два уже выполнены, а после третьего - выполняет тренажёр.
         assert template["metadataList"][0]["solutionSteps"] == 1
+        assert PARTIAL_TRACE_CONCEPT in template["commonQuestion"]["concepts"]
         # Корневой акт, два шага студента и структурные действия перед ветвью.
         assert len(re.findall(r"rdf:type\s+:TraceAct\b", ttl)) > 3
         assert re.search(r':skip_steps_after\s+"3"\^\^xsd:int', ttl)
+
+
+@pytest.mark.parametrize(("skip_steps_after", "partial"), [(0, False), (4, False), (3, True)])
+def test_partial_trace_concept_marks_reduced_student_steps(
+    generated: tuple[LearningProblemGeneratorPipeline, list[LearningProblem]],
+    skip_steps_after: int,
+    partial: bool,
+):
+    pipeline, [problem, *_] = generated
+    statement = problem_statement_registry(pipeline.registry, problem)
+    assert statement.config is not None
+    statement.config = replace(
+        statement.config, options=GenerationOptions(skip_steps_after=skip_steps_after)
+    )
+
+    template = problem_to_question_template(problem, statement, render_question_html(statement))
+
+    # У задачи четыре шага студента: M = 4 их не сокращает, как и M = 0.
+    [metadata] = template["metadataList"]
+    assert (PARTIAL_TRACE_CONCEPT in template["commonQuestion"]["concepts"]) is partial
+    assert (metadata["conceptBits"] != metadata["traceConceptBits"]) is partial
+    assert metadata["traceConceptBits"] == pack_flags(CONCEPTS, problem.concepts)
 
 
 def test_skipping_all_student_steps_is_an_error():

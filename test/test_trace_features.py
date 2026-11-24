@@ -2,7 +2,12 @@ from collections.abc import Iterator
 
 import pytest
 
-from src.generator.concepts import CONCEPT_PREDICATES, CONCEPTS, collect_concepts
+from src.generator.concepts import (
+    CONCEPT_PREDICATES,
+    CONCEPTS,
+    PARTIAL_TRACE_CONCEPT,
+    collect_concepts,
+)
 from src.generator.skills import (
     ERRORNEOUS_SKILLS,
     SKILL_PREDICATES,
@@ -36,7 +41,7 @@ def test_empty_trace_has_no_features() -> None:
         name
         for group, flags in CONCEPTS.items()
         for name in (flags if isinstance(flags, dict) else [group])
-    }
+    } - {PARTIAL_TRACE_CONCEPT}
 
 
 def test_inactive_bodies_do_not_contribute_concepts() -> None:

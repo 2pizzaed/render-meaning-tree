@@ -72,7 +72,11 @@ CONCEPTS: dict[str, int | dict[str, int]] = {
     "recursion": bit(42),
     "loop_iteration": bit(43),
     "call_depth": bit(44),
+    # Свойство вопроса, а не трассы: ставит выгрузка, когда GenerationOptions
+    # сокращают шаги студента. Предиката по трассе у него нет.
+    "partial_trace": bit(45),
 }
+PARTIAL_TRACE_CONCEPT = "partial_trace"
 
 
 def has_pointers(ast: ASTNodeManager, trace: Sequence[TraceAct]) -> bool:

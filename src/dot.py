@@ -68,7 +68,7 @@ def render_dot_svg(dot_text: str, path: str | Path) -> Path:
         raise ValueError("Could not render DOT graph")
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    graphs[0].write_svg(str(output_path))  # type: ignore[attr-defined]
+    graphs[0].write_svg(str(output_path), encoding="utf-8")  # type: ignore[attr-defined]
     return output_path
 
 

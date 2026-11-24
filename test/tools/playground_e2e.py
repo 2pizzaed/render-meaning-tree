@@ -22,6 +22,7 @@ from pathlib import Path
 
 from flask.testing import FlaskClient
 
+from src.generator.problems import GenerationOptions
 from test.playground.app import SNIPPET_LANGUAGES_BY_SUFFIX, app
 
 DEFAULT_SEED = 1806
@@ -144,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         "language": args.language or SNIPPET_LANGUAGES_BY_SUFFIX[args.code_file.suffix.lower()],
         "target_language": args.target_language or "",
         "seed": str(args.seed),
+        "generation_options": args.features.to_json(),
     }
     request: dict[str, object] = {**form, "no_cache": args.no_cache}
     client = app.test_client()
@@ -187,7 +189,18 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         choices=sorted(set(SNIPPET_LANGUAGES_BY_SUFFIX.values())),
         help="Translate the snippet to this language, as the playground translation selector does.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--features",
+        default="{}",
+        help="Generation options (GenerationOptions) as a JSON object, as in generate-problems; "
+        "passed to Render, Reason and Hint.",
+    )
+    args = parser.parse_args(argv)
+    try:
+        args.features = GenerationOptions.from_json(args.features)
+    except (TypeError, ValueError) as error:
+        parser.error(f"--features: {error}")
+    return args
 
 
 if __name__ == "__main__":

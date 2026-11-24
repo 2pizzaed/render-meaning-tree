@@ -22,6 +22,7 @@ from typing import Any
 
 from src.generator.problems import (
     DEFAULT_SEED,
+    GenerationOptions,
     LearningProblem,
     ProblemGenerationConfig,
 )
@@ -91,7 +92,9 @@ def _generate_problems(
         textwrap.dedent(code),
         language=args.language,
         seed=args.seed,
-        config=replace(DEFAULT_CONFIG, top_k=args.top_k, selection=args.selection),
+        config=replace(
+            DEFAULT_CONFIG, top_k=args.top_k, selection=args.selection, options=args.features
+        ),
         origin=args.origin,
         origin_license=args.origin_license,
         target_language=args.target_language,
@@ -201,9 +204,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--origin-license",
         help="License of the code fragment source. Requires --origin.",
     )
+    parser.add_argument(
+        "--features",
+        default="{}",
+        help="Generation options (GenerationOptions) as a JSON object; omitted keys "
+        f"keep their defaults: {GenerationOptions().to_json()}.",
+    )
     args = parser.parse_args(argv)
     if args.origin_license is not None and args.origin is None:
         parser.error("--origin-license requires --origin")
+    try:
+        args.features = GenerationOptions.from_json(args.features)
+    except (TypeError, ValueError) as error:
+        parser.error(f"--features: {error}")
     return args
 
 

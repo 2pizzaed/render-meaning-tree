@@ -194,7 +194,8 @@ def serialize_ast_nodes(manager: CodeManager):
 def prepare_html_context(manager: CodeManager,
                          answer_objects: dict[str, str] | None = None,
                          *,
-                         buttons: bool = True) -> dict[str, Any]:
+                         buttons: bool = True,
+                         explicit_compound_boundaries: bool = True) -> dict[str, Any]:
     """
     Полный цикл обработки кода: от строки до контекста для шаблона.
 
@@ -202,16 +203,19 @@ def prepare_html_context(manager: CodeManager,
         manager: CodeManager, который уже обработал код и содержит AST и токены.
         answer_objects: Дополнительные объекты для отображения (например, результаты анализа)
         buttons: Вставлять ли в код кнопки действий ControlFlowButtons.
+        explicit_compound_boundaries: Кнопки play/stop у скобок блоков C++/Java
+            (GenerationOptions.explicit_compound_boundaries); без них блоки прозрачны.
 
     Returns:
         Словарь context для передачи в Jinja2 шаблон.
     """
 
-    # Инъекции
-    # В будущем здесь можно использовать cfg для фильтрации кнопок в ControlFlowButtons
-    # Например: ControlFlowButtons.configure(cfg)
     # Пустой набор инъекций оставляет в потоке только токены кода.
-    manager.apply_injections(ControlFlowButtons if buttons else [])
+    injections = ControlFlowButtons.declared_injections() if buttons else []
+    if not explicit_compound_boundaries:
+        block_buttons = {ControlFlowButtons.body_start_button, ControlFlowButtons.body_end_button}
+        injections = [injection for injection in injections if injection not in block_buttons]
+    manager.apply_injections(injections)
 
     # Получение потока и форматирование
     # Комментарии-маркеры <! … > задают значения условий и в код задачи не попадают.

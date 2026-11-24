@@ -15,6 +15,7 @@ from src.coderenderer.html import (
     render_static_html,
 )
 from src.generator.helpers.call_values import CallValueOption, call_value_menus
+from src.generator.problems import GenerationOptions
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 
@@ -32,11 +33,19 @@ class QuestionHtml:
 
 
 def render_question_html(statement: SituationRegistry) -> QuestionHtml:
-    """HTML кода задачи по ситуации условия: пункты dropdown зависят от её значений."""
-    context = prepare_html_context(statement.code)
+    """HTML кода задачи по ситуации условия: пункты dropdown зависят от её значений.
+
+    Флаги - ``GenerationOptions`` конфига ситуации: dropdown вызова и кнопки скобок блоков.
+    """
+    options = statement.config.options if statement.config else GenerationOptions()
+    context = prepare_html_context(
+        statement.code, explicit_compound_boundaries=options.explicit_compound_boundaries
+    )
     buttons = extract_buttons_from_context(context)
-    serializer, _ = registry_to_loqi(statement)
-    menus = call_value_menus(statement, buttons, serializer)
+    menus: dict[int, tuple[CallValueOption, ...]] = {}
+    if not options.disable_call_dropdown:
+        serializer, _ = registry_to_loqi(statement)
+        menus = call_value_menus(statement, buttons, serializer)
     context["call_value_menus"] = menus
     return QuestionHtml(
         text=_minify_question_html(

@@ -1,6 +1,7 @@
 import json
 import re
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -17,12 +18,17 @@ from src.generator.compprehension_serializer import (
 )
 from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.pipeline.classification import integral_complexity
-from src.generator.problems import LearningProblem, ProblemGenerationConfig
+from src.generator.problems import (
+    GenerationOptions,
+    LearningProblem,
+    ProblemGenerationConfig,
+)
 from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.utilities import (
     code_snippet_to_question_templates,
     problem_statement_registry,
+    problems_to_question_templates,
 )
 from src.generator.value_plan import ActionKey, action_key
 from src.model.situation import SemanticValue
@@ -232,6 +238,30 @@ def test_step_out_of_annotated_call_offers_every_call_of_function():
     assert soup.select_one("script") is not None
 
 
+def test_disabled_call_dropdown_leaves_step_out_without_values():
+    code = textwrap.dedent(
+        """
+        def f(n):
+            return n
+        f(1)  # <! (-, "f(1)") >
+        """
+    )
+    config = replace(FAST_CONFIG, options=GenerationOptions(disable_call_dropdown=True))
+    pipeline = LearningProblemGeneratorPipeline.from_code(prepare_code(code, "python"), config=config)
+    [problem] = pipeline.run().results()
+    statement = problem_statement_registry(pipeline.registry, problem)
+
+    html = render_question_html(statement)
+    template = problem_to_question_template(problem, statement, html)
+
+    answers = template["commonQuestion"]["questionData"]["answerObjects"]
+    assert html.call_value_menus == {}
+    assert "step-out" in {answer["hyperText"] for answer in answers}
+    assert all("," not in answer["domainInfo"] for answer in answers)
+    soup = BeautifulSoup(html.text, "html.parser")
+    assert soup.select(".call-value-menu, [data-comp-ph-custom-click]") == []
+
+
 def test_call_end_hints_follow_exit_order_of_sequential_calls():
     code = textwrap.dedent(
         """
@@ -364,6 +394,46 @@ def test_templates_without_origin_omit_origin_fields():
     metadata = template["metadataList"][0]
     assert "origin" not in metadata
     assert "originLicense" not in metadata
+
+
+def test_skipped_steps_are_in_statement_trace_and_not_in_solution_steps():
+    options = GenerationOptions(skip_first_actions=2, skip_steps_after=3)
+    templates = code_snippet_to_question_templates(
+        BRANCH_CODE, config=replace(FAST_CONFIG, options=options)
+    )
+
+    assert len(templates) == 2
+    for template in templates:
+        ttl = template["commonQuestion"]["questionData"]["statementFactsTTL"]
+        # Из четырёх шагов студента два уже выполнены, а после третьего - выполняет тренажёр.
+        assert template["metadataList"][0]["solutionSteps"] == 1
+        # Корневой акт, два шага студента и структурные действия перед ветвью.
+        assert len(re.findall(r"rdf:type\s+:TraceAct\b", ttl)) > 3
+        assert re.search(r':skip_steps_after\s+"3"\^\^xsd:int', ttl)
+
+
+def test_skipping_all_student_steps_is_an_error():
+    options = GenerationOptions(skip_first_actions=4)
+
+    with pytest.raises(ValueError, match="skip_first_actions=4"):
+        code_snippet_to_question_templates(BRANCH_CODE, config=replace(FAST_CONFIG, options=options))
+
+
+@pytest.mark.parametrize("explicit", [True, False])
+def test_explicit_compound_boundaries_control_cpp_block_buttons(explicit: bool):
+    code = "int x = 3;\nif (x > 2) {\n    x = 1;\n}\n"
+    options = GenerationOptions(explicit_compound_boundaries=explicit)
+    pipeline = LearningProblemGeneratorPipeline.from_code(
+        prepare_code(code, "c++"), config=replace(FAST_CONFIG, options=options)
+    )
+    problems = pipeline.run().results()
+    templates = problems_to_question_templates(pipeline, problems)
+
+    assert problems and len(templates) == len(problems)
+    for template in templates:
+        answers = template["commonQuestion"]["questionData"]["answerObjects"]
+        # Без явных границ BEGIN/END блоков прозрачны, как в Python: кнопки stop у «}» нет.
+        assert ("stop" in {answer["hyperText"] for answer in answers}) is explicit
 
 
 def test_repeated_function_calls_are_exported_with_answer_per_call():

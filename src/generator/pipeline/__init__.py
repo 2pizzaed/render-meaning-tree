@@ -139,7 +139,8 @@ class LearningProblemGeneratorPipeline(Pipeline[SituationRegistry]):
         self._patch_rules_for_language()
 
     def _patch_rules_for_language(self) -> None:
-        if self.code.language == "python":
+        # Без явных границ блоков C++/Java размечаются, как Python: по умолчанию правил.
+        if self.code.language == "python" or not self.config.options.explicit_compound_boundaries:
             return
 
         for construct in self.registry.rules:

@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
+import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Self
 
 if TYPE_CHECKING:
     from src.generator.registry import SituationRegistry
@@ -59,6 +60,63 @@ class ReasonerBudget:
 
 
 @dataclass(frozen=True, slots=True)
+class GenerationOptions:
+    """Флаги генерации задач; ``generate-problems --features`` задаёт их JSON-объектом.
+
+    Шаг студента - непрозрачное действие, на котором останавливается findCorrect;
+    корневой акт трассы шагом не считается.
+    """
+
+    # Не встраивать в HTML dropdown значений вызова у кнопок step-out и не создавать
+    # ответы его пунктов: кнопка step-out остаётся ответом без значения.
+    disable_call_dropdown: bool = False
+    # Сколько первых шагов студента уже выполнено в условии задачи.
+    skip_first_actions: int = 0
+    # > 0: после этого шага студента (номер с начала трассы) тренажёр сам выполняет
+    # оставшиеся; пишется в TraceConfig.skip_steps_after условия.
+    skip_steps_after: int = 0
+    # C++/Java: границы блоков - непрозрачные BEGIN/END с кнопками play/stop у скобок,
+    # а ветви и тела конструкций прозрачны. Иначе блоки прозрачны, как в Python.
+    explicit_compound_boundaries: bool = True
+
+    def __post_init__(self) -> None:
+        for option in fields(self):
+            value = getattr(self, option.name)
+            # bool - подкласс int, поэтому тип сравнивается точно.
+            if type(value) is not type(option.default):
+                raise TypeError(
+                    f"{option.name} must be {type(option.default).__name__}, got {value!r}"
+                )
+        if self.skip_first_actions < 0 or self.skip_steps_after < 0:
+            raise ValueError("skip_first_actions and skip_steps_after must not be negative")
+        if 0 < self.skip_steps_after <= self.skip_first_actions:
+            raise ValueError("skip_steps_after must be greater than skip_first_actions")
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+    @classmethod
+    def from_json(cls, text: str) -> Self:
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise ValueError("generation options must be a JSON object")
+        unknown = set(data) - {option.name for option in fields(cls)}
+        if unknown:
+            raise ValueError(f"unknown generation options: {', '.join(sorted(unknown))}")
+        return cls(**data)
+
+    def student_steps_range(self, student_steps: int) -> range:
+        """Номера (с 0) шагов студента задачи, которые он отмечает сам."""
+        if self.skip_first_actions >= student_steps:
+            raise ValueError(
+                f"skip_first_actions={self.skip_first_actions} leaves no steps "
+                f"in a problem with {student_steps} student step(s)"
+            )
+        end = min(self.skip_steps_after or student_steps, student_steps)
+        return range(self.skip_first_actions, end)
+
+
+@dataclass(frozen=True, slots=True)
 class ProblemGenerationConfig:
     """Параметры генерации задач; значения стартовые, подбираются на корпусе."""
 
@@ -83,6 +141,7 @@ class ProblemGenerationConfig:
     model_dir: Path = DEFAULT_MODEL_DIR
     # Где создавать временные каталоги LOQI веток; None - системный временный каталог.
     temp_root: Path | None = None
+    options: GenerationOptions = field(default_factory=GenerationOptions)
 
     def __post_init__(self) -> None:
         if self.selection not in ("score", "random"):

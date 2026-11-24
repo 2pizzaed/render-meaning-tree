@@ -23,7 +23,7 @@ from typing import Any
 from src.ast_managers import CodeManager
 from src.generator.concepts import CONCEPTS
 from src.generator.helpers.ui_trace import resolve_button_action
-from src.generator.problems import LearningProblem
+from src.generator.problems import LearningProblem, ProblemGenerationConfig
 from src.generator.question_html import QuestionHtml
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
@@ -77,6 +77,8 @@ def problem_to_question_template(
     ``statement`` - ситуация условия (``problem_statement_registry``), ``html`` - HTML
     кода фрагмента (``render_question_html``).
     """
+    options = _config(statement).options
+    student_steps = options.student_steps_range(problem.student_steps)
     serializer, loqi = registry_to_loqi(statement)
     tree_hash = _tree_hash(statement.code)
     language = statement.code.language
@@ -96,7 +98,7 @@ def problem_to_question_template(
         "skillBits": pack_flags(SKILLS, sorted(problem.skills)),
         "solutionStructuralComplexity": len(problem.registry.trace_acts),
         "integralComplexity": problem.complexity,
-        "solutionSteps": problem.student_steps,
+        "solutionSteps": len(student_steps),
         "distinctErrorsCount": len(problem.skills & ERRORNEOUS_SKILLS),
         "version": QUESTION_VERSION,
         "structureHash": str(tree_hash),
@@ -118,8 +120,12 @@ def problem_to_question_template(
                 "questionName": name,
                 "questionDomainType": QUESTION_DOMAIN_TYPE,
                 "options": copy.deepcopy(ORDER_OPTIONS),
-                "answerObjects": _answer_objects(name, problem, statement, serializer, html),
-                "statementFactsTTL": _statement_ttl(statement, loqi),
+                "answerObjects": _answer_objects(
+                    name, problem, statement, serializer, html, student_steps
+                ),
+                "statementFactsTTL": _statement_ttl(
+                    statement, loqi + _trace_config_loqi(options.skip_steps_after)
+                ),
             },
             "concepts": concepts,
             "negativeLaws": [],
@@ -156,13 +162,14 @@ def _answer_objects(
     statement: SituationRegistry,
     serializer: LoqiSerializer,
     html: QuestionHtml,
+    student_steps: range,
 ) -> list[dict[str, Any]]:
     """Ответы - кнопки HTML и пункты dropdown значений вызова; domainInfo - LOQI-имя
     действия ситуации, у пункта - ещё и имя значения через запятую.
 
     Кнопку без действия или с неоднозначным действием пропускаем с предупреждением,
-    но у каждого шага студента в корректной трассе (``student_step_indexes``) ответ
-    должен быть.
+    но у каждого шага студента ``student_steps`` (номера в ``student_step_indexes``)
+    ответ должен быть.
     """
     answers: list[dict[str, Any]] = []
     for button in html.buttons:
@@ -208,7 +215,7 @@ def _answer_objects(
     missing = sorted(
         {
             trace_serializer.object_name(trace[index].action) or repr(trace[index].action)
-            for index in problem.student_step_indexes
+            for index in (problem.student_step_indexes[step] for step in student_steps)
         }
         - answered
     )
@@ -217,10 +224,23 @@ def _answer_objects(
     return answers
 
 
-def _statement_ttl(statement: SituationRegistry, loqi: str) -> str:
-    config = statement.config
-    if config is None:
+def _trace_config_loqi(skip_steps_after: int) -> str:
+    """Значение TraceConfig.skip_steps_after условия.
+
+    В базовом домене у свойства нет значения: its_DomainModel не даёт LOQI ситуации
+    заменить значение, уже заданное базовым доменом, а дополнить объект даёт.
+    """
+    return f"\nobj TraceConfig : TraceConfigSpec {{\n\tskip_steps_after = {skip_steps_after} ;\n}}\n"
+
+
+def _config(statement: SituationRegistry) -> ProblemGenerationConfig:
+    if statement.config is None:
         raise RuntimeError("SituationRegistry.config is not set")
+    return statement.config
+
+
+def _statement_ttl(statement: SituationRegistry, loqi: str) -> str:
+    config = _config(statement)
     with tempfile.TemporaryDirectory(prefix="statement-", dir=config.temp_root) as directory:
         loqi_path = Path(directory) / "statement.loqi"
         loqi_path.write_text(loqi, encoding="utf-8")

@@ -11,6 +11,7 @@ from src.generator.pipeline import LearningProblemGeneratorPipeline
 from src.generator.problems import (
     DEFAULT_MODEL_DIR,
     DEFAULT_SEED,
+    GenerationOptions,
     LearningProblem,
     ProblemGenerationConfig,
 )
@@ -25,6 +26,32 @@ RECURSIVE_FACT = """
         return n * fact(n - 1)
     fact(3)
     """
+
+
+def test_generation_options_round_trip_json_and_reject_invalid_values():
+    options = GenerationOptions(disable_call_dropdown=True, skip_first_actions=1, skip_steps_after=3)
+
+    assert GenerationOptions.from_json(options.to_json()) == options
+    assert GenerationOptions.from_json("{}") == GenerationOptions()
+    for text in (
+        "[]",
+        '{"unknown": 1}',
+        '{"skip_first_actions": "1"}',
+        '{"disable_call_dropdown": 1}',
+        '{"skip_first_actions": -1}',
+        '{"skip_first_actions": 2, "skip_steps_after": 2}',
+    ):
+        with pytest.raises((TypeError, ValueError)):
+            GenerationOptions.from_json(text)
+
+
+def test_generation_options_student_steps_range():
+    assert GenerationOptions().student_steps_range(4) == range(4)
+    assert GenerationOptions(skip_first_actions=1, skip_steps_after=3).student_steps_range(4) == range(1, 3)
+    # Шаг после конца трассы тренажёр не встретит: студент проходит её до конца.
+    assert GenerationOptions(skip_steps_after=9).student_steps_range(4) == range(4)
+    with pytest.raises(ValueError):
+        GenerationOptions(skip_first_actions=4).student_steps_range(4)
 
 
 def _checked(code: str, language: str = "python") -> LearningProblemGeneratorPipeline:

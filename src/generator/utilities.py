@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from src.generator.problems import (
 from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.value_plan import action_key
+from src.helpers.tpg.reasoning import find_graph_next_correct_action
 from src.model.situation import SemanticValue
 from src.types import SupportedProgrammingLanguage
 
@@ -121,6 +123,29 @@ def problem_statement_registry(
     return statement
 
 
+def skip_statement_steps(statement: SituationRegistry, steps: int) -> None:
+    """Выполнить в трассе условия первые ``steps`` шагов студента.
+
+    Каждый вызов findCorrect доводит трассу до следующего шага студента вместе с
+    прозрачными и структурными действиями перед ним, а домен - до состояния после него.
+    """
+    if steps == 0:
+        return
+    config = statement.config
+    if config is None:
+        raise RuntimeError("SituationRegistry.config is not set")
+    with tempfile.TemporaryDirectory(prefix="statement-", dir=config.temp_root) as directory:
+        for _ in range(steps):
+            result = find_graph_next_correct_action(
+                Path(directory),
+                statement,
+                model_dir=config.model_dir,
+                time_limit_seconds=config.reasoner_time_limit_seconds,
+            )
+            if result.finished:
+                raise RuntimeError(f"findCorrect finished the program before {steps} step(s)")
+
+
 def code_snippet_to_question_templates(
     code: str,
     *,
@@ -150,15 +175,19 @@ def problems_to_question_templates(
     """Задачи выполненного ``pipeline`` в формате SerializableQuestionTemplate.
 
     Задача, которую нельзя упаковать (нет кнопок для действий трассы, сбой выгрузки
-    RDF), пропускается с предупреждением в логе.
+    RDF), пропускается с предупреждением в логе. ``skip_first_actions`` не меньше
+    числа шагов студента задачи - ошибка (ValueError).
     """
     if not problems:
         return []
 
+    options = pipeline.config.options
     created_at = datetime.now(UTC)
     templates: list[dict[str, Any]] = []
     for problem in problems:
+        student_steps = options.student_steps_range(problem.student_steps)
         statement = problem_statement_registry(pipeline.registry, problem)
+        skip_statement_steps(statement, student_steps.start)
         try:
             templates.append(
                 problem_to_question_template(

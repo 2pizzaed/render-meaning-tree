@@ -2,7 +2,7 @@ import argparse
 import traceback
 from collections import OrderedDict
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from functools import cache, lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -26,11 +26,19 @@ from src.generator.helpers.call_values import (
 )
 from src.generator.helpers.ui_trace import resolve_button_action_name
 from src.generator.pipeline import LearningProblemGeneratorPipeline
-from src.generator.problems import LearningProblem
+from src.generator.problems import (
+    GenerationOptions,
+    LearningProblem,
+    ProblemGenerationConfig,
+)
 from src.generator.question_html import render_question_html
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
-from src.generator.utilities import code_manager_to_registry, problem_statement_registry
+from src.generator.utilities import (
+    code_manager_to_registry,
+    problem_statement_registry,
+    skip_statement_steps,
+)
 from src.helpers.files import make_project_temp_dir
 from src.helpers.tpg import (
     NextCorrectActionOutput,
@@ -60,7 +68,8 @@ PLAYGROUND_REASON_MODEL_DIR = PROJECT_ROOT / "domain"
 PLAYGROUND_REASON_TREE: str | None = None
 PLAYGROUND_REASON_TIME_LIMIT_SECONDS = 30
 PLAYGROUND_SNIPPETS_DIR = PROJECT_ROOT / "test" / "data"
-# Ситуаций (код, языки, seed) в памяти: генерация задачи по seed занимает до минут.
+DEFAULT_GENERATION_OPTIONS = GenerationOptions()
+# Ситуаций (код, языки, seed, опции) в памяти: генерация задачи по seed занимает до минут.
 PLAYGROUND_SITUATION_CACHE_SIZE = 16
 # Принятых префиксов трассы в памяти; одна запись - экспортированный LOQI ситуации, ~70 КБ.
 PLAYGROUND_PREFIX_CACHE_SIZE = 256
@@ -121,13 +130,17 @@ def load_situation(
     language: SupportedProgrammingLanguage,
     target_language: SupportedProgrammingLanguage | Literal[""],
     seed: int | None,
+    options: GenerationOptions = DEFAULT_GENERATION_OPTIONS,
 ) -> PlaygroundSituation:
     """Ситуация по умолчанию, а при seed — первая по Q задача генератора."""
     manager = prepare_code(code, language, target_language=target_language or None)
+    config = ProblemGenerationConfig(options=options)
     if seed is None:
-        return PlaygroundSituation(code_manager_to_registry(manager))
+        registry = code_manager_to_registry(manager, config=config)
+        skip_statement_steps(registry, options.skip_first_actions)
+        return PlaygroundSituation(registry)
 
-    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, seed=seed, config=config)
     problems = pipeline.run().results()
     if not problems:
         reason = pipeline.termination_reason or "all value variants were rejected, see the server log"
@@ -137,8 +150,9 @@ def load_situation(
     problems = sorted(problems, key=lambda problem: -(problem.score or 0.0))
     problem = problems[0]
 
-    # Ситуация условия задачи: корневой акт и значения задачи, трасса строится заново.
     registry = problem_statement_registry(pipeline.registry, problem)
+    if options.skip_first_actions:
+        skip_statement_steps(registry, options.student_steps_range(problem.student_steps).start)
     _, problem_loqi = registry_to_loqi(registry)
     return PlaygroundSituation(
         registry,
@@ -156,7 +170,7 @@ def index():
     target_language: SupportedProgrammingLanguage | Literal[""] = ""
     seed_text = ""
     enable_trace = True
-    export_situation: dict[str, object] | None = None
+    rendered_situation: dict[str, object] | None = None
     context = {
         "lines": [],
         "nodes_json": "{}",
@@ -177,9 +191,18 @@ def index():
             error = "No language specified"
         else:
             try:
-                situation = load_situation(code, language, target_language, read_seed(seed_text))
+                options = GenerationOptions.from_json(
+                    request.form.get("generation_options") or "{}"
+                )
+                situation = load_situation(
+                    code, language, target_language, read_seed(seed_text), options
+                )
                 registry = situation.registry.clone()
-                context = prepare_html_context(registry.code, answer_objects={})
+                context = prepare_html_context(
+                    registry.code,
+                    answer_objects={},
+                    explicit_compound_boundaries=options.explicit_compound_boundaries,
+                )
                 answer_objects = build_answer_objects(
                     registry,
                     context,
@@ -197,12 +220,13 @@ def index():
                 context["language"] = language
                 context["target_language"] = target_language
                 context["enable_trace"] = enable_trace
-                # Параметры отрисованной ситуации: экспорт не зависит от правок формы после Render.
-                export_situation = {
+                # Снимок параметров для действий с уже отрисованной ситуацией.
+                rendered_situation = {
                     "code": code,
                     "language": language,
                     "target_language": target_language,
                     "seed": seed_text,
+                    "generation_options": options.to_json(),
                     "questionCount": len(situation.problems),
                 }
 
@@ -220,7 +244,8 @@ def index():
     context.setdefault("target_language", target_language)
     context.setdefault("enable_trace", enable_trace)
     context["seed"] = seed_text
-    context["export_situation"] = export_situation
+    context["rendered_situation"] = rendered_situation
+    context["generation_defaults"] = asdict(DEFAULT_GENERATION_OPTIONS)
     context["language_options"] = LANGUAGE_OPTIONS
     context["snippet"] = request.form.get("snippet", "") if request.method == "POST" else ""
     context["snippet_options"] = list_snippet_files(_snippets_dir())
@@ -294,7 +319,8 @@ def reason_trace():
 
     reasoning_tmp: Path | None = None
     try:
-        situation_key = (code, language, target_language, read_seed(payload.get("seed")))
+        options = GenerationOptions.from_json(payload.get("generation_options") or "{}")
+        situation_key = (code, language, target_language, read_seed(payload.get("seed")), options)
         registry = load_situation(*situation_key).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_steps = resolve_trace_steps(serializer, selected_trace)
@@ -352,7 +378,8 @@ def hint_trace():
 
     hint_tmp: Path | None = None
     try:
-        situation_key = (code, language, target_language, read_seed(payload.get("seed")))
+        options = GenerationOptions.from_json(payload.get("generation_options") or "{}")
+        situation_key = (code, language, target_language, read_seed(payload.get("seed")), options)
         registry = load_situation(*situation_key).registry.clone()
         serializer, _ = registry_to_loqi(registry)
         selected_steps = resolve_trace_steps(serializer, selected_trace)
@@ -393,7 +420,9 @@ def hint_trace():
             debug_enabled=True,
             time_limit_seconds=PLAYGROUND_REASON_TIME_LIMIT_SECONDS,
         )
-        action_name = hint_step_name(serializer, hint)
+        action_name = hint_step_name(
+            serializer, hint, include_call_value=not options.disable_call_dropdown
+        )
         if check_hint and action_name is not None:
             # findCorrect уже дописал действие: main проверяет его от исходной ситуации.
             checked_trace = [*selected_trace, action_name]
@@ -452,11 +481,18 @@ def export_question():
         seed = read_seed(payload.get("seed"))
         if seed is None:
             return jsonify({"ok": False, "error": "Questions are exported only for a seed."}), 400
-        situation = load_situation(code, language, target_language, seed)
+        options = GenerationOptions.from_json(payload.get("generation_options") or "{}")
+        situation = load_situation(code, language, target_language, seed, options)
         if situation.base_registry is None or not 0 <= index < len(situation.problems):
             return jsonify({"ok": False, "error": f"No problem #{index} for seed {seed}."}), 400
         problem = situation.problems[index]
         statement = problem_statement_registry(situation.base_registry, problem)
+        if options.skip_first_actions:
+            try:
+                student_steps = options.student_steps_range(problem.student_steps)
+            except ValueError as e:
+                raise QuestionTemplateError(str(e)) from e
+            skip_statement_steps(statement, student_steps.start)
         question = problem_to_question_template(
             problem, statement, render_question_html(statement)
         )
@@ -555,7 +591,11 @@ def tracing():
     try:
         solver_stops: set[int] = set()
         registry = load_situation(
-            code, language, target_language, read_seed(request.form.get("seed"))
+            code,
+            language,
+            target_language,
+            read_seed(request.form.get("seed")),
+            GenerationOptions.from_json(request.form.get("generation_options") or "{}"),
         ).registry.clone()
         solve_correct_trace(
             registry,
@@ -623,19 +663,25 @@ def build_answer_objects(
         if button.get("action_id") is not None
     }
     # Пункты dropdown значений вызова: шаблон кода выводит их у кнопок step-out.
-    menus = call_value_menus(registry, buttons, serializer)
+    menus = (
+        {}
+        if registry.config is not None and registry.config.options.disable_call_dropdown
+        else call_value_menus(registry, buttons, serializer)
+    )
     context["call_value_menus"] = menus
     for options in menus.values():
         answers.update({str(option.answer_id): option.domain_info for option in options})
     return answers
 
 
-def hint_step_name(serializer: LoqiSerializer, hint: NextCorrectActionOutput) -> str | None:
+def hint_step_name(
+    serializer: LoqiSerializer, hint: NextCorrectActionOutput, *, include_call_value: bool
+) -> str | None:
     """Шаг трассы подсказки: у END размеченного вызова - вместе с правильным значением,
     как у пункта dropdown."""
     if hint.action is None:
         return None
-    if hint.value is not None and is_annotated_call_end(hint.action):
+    if include_call_value and hint.value is not None and is_annotated_call_end(hint.action):
         step = call_value_domain_info(serializer, hint.action, hint.value)
         if step is not None:
             return step

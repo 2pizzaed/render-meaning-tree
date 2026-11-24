@@ -9,6 +9,58 @@ const renderCodeTextarea = renderForm?.querySelector('textarea[name="code"]');
 const renderLanguageSelect = renderForm?.querySelector('select[name="language"]');
 const renderTargetLanguageSelect = renderForm?.querySelector('select[name="target_language"]');
 const renderSeedInput = renderForm?.querySelector('input[name="seed"]');
+const renderedSituationTag = document.getElementById("rendered_situation");
+const RENDERED_SITUATION = renderedSituationTag ? JSON.parse(renderedSituationTag.textContent) : null;
+
+function initializeGenerationOptions() {
+    const dialog = document.getElementById("generation-options-dialog");
+    const openButton = document.getElementById("generation-options-button");
+    const optionsField = renderForm?.querySelector('input[name="generation_options"]');
+    if (!dialog || !openButton || !optionsField) return;
+
+    const storageKey = "playground.render.generationOptions";
+    const inputs = Array.from(dialog.querySelectorAll("input"));
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(storageKey)) ?? {};
+        for (const input of inputs) {
+            const value = saved[input.name];
+            if (input.type === "checkbox" && typeof value === "boolean") {
+                input.checked = value;
+            } else if (input.type === "number" && typeof value === "string") {
+                input.value = value;
+            }
+        }
+    } catch (error) {
+        console.warn("Unable to restore generation options:", error);
+    }
+
+    openButton.addEventListener("click", () => dialog.showModal());
+    dialog.addEventListener("input", () => {
+        const draft = Object.fromEntries(inputs.map((input) => [
+            input.name, input.type === "checkbox" ? input.checked : input.value,
+        ]));
+        try {
+            sessionStorage.setItem(storageKey, JSON.stringify(draft));
+        } catch (error) {
+            console.warn("Unable to store generation options:", error);
+        }
+    });
+    renderForm.addEventListener("submit", (event) => {
+        const invalid = inputs.find((input) => !input.validity.valid);
+        if (invalid) {
+            event.preventDefault();
+            dialog.showModal();
+            invalid.reportValidity();
+            return;
+        }
+        const options = Object.fromEntries(inputs.map((input) => [
+            input.name, input.type === "checkbox" ? input.checked : Number(input.value),
+        ]));
+        optionsField.value = JSON.stringify(options);
+    });
+}
+
+initializeGenerationOptions();
 
 function readStoredValue(key) {
     try {
@@ -409,9 +461,6 @@ function handleTokenClick(element) {
 }
 
 // --- Export ---
-const exportSituationTag = document.getElementById("export_situation");
-// Параметры отрисованной ситуации: экспорт не зависит от правок формы после Render.
-const EXPORT_SITUATION = exportSituationTag ? JSON.parse(exportSituationTag.textContent) : null;
 // Вкладка успевает загрузить документ, а браузер — начать скачивание; ссылку освобождаем позже.
 const EXPORT_URL_LIFETIME_MS = 60000;
 
@@ -476,10 +525,7 @@ async function fetchExportQuestion(index) {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-            code: EXPORT_SITUATION.code,
-            language: EXPORT_SITUATION.language,
-            target_language: EXPORT_SITUATION.target_language,
-            seed: EXPORT_SITUATION.seed,
+            ...RENDERED_SITUATION,
             index,
         }),
     });
@@ -488,7 +534,7 @@ async function fetchExportQuestion(index) {
 
 async function exportQuestions(mode) {
     const input = document.getElementById("export-question-count");
-    if (!EXPORT_SITUATION || !input?.reportValidity()) return;
+    if (!RENDERED_SITUATION || !input?.reportValidity()) return;
     const count = Number(input.value);
     if (count > 1 && typeof JSZip !== "function") {
         showExportError("JSZip is not loaded: the ZIP archive cannot be built.");
@@ -528,7 +574,7 @@ async function exportQuestions(mode) {
             const zip = new JSZip();
             questions.forEach(({name, question}) => zip.file(`${name}.json`, JSON.stringify(question, null, 2)));
             const archive = await zip.generateAsync({type: "blob", mimeType: "application/zip"});
-            deliverBlob(archive, `questions-seed-${EXPORT_SITUATION.seed}.zip`, "download");
+            deliverBlob(archive, `questions-seed-${RENDERED_SITUATION.seed}.zip`, "download");
         }
         const skippedText = skipped.length ? `, ${skipped.length} skipped (see the playground log)` : "";
         setExportStatus(count, count, `Exported ${questions.length} of ${count}${skippedText}.`);

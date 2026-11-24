@@ -14,6 +14,7 @@ from src.ast_managers import prepare_code
 from src.coderenderer.html import extract_buttons_from_context, prepare_html_context
 from src.generator.compprehension_serializer import QuestionTemplateError
 from src.generator.pipeline import LearningProblemGeneratorPipeline
+from src.generator.problems import GenerationOptions
 from src.generator.registry import SituationRegistry
 from src.generator.serialization import registry_to_loqi
 from src.generator.utilities import code_manager_to_registry
@@ -601,7 +602,7 @@ def test_index_embeds_problem_loqi_only_for_generated_problem(monkeypatch) -> No
     monkeypatch.setattr(
         playground_app,
         "load_situation",
-        lambda code, language, target_language, seed: default if seed is None else problem,
+        lambda code, language, target_language, seed, options: default if seed is None else problem,
     )
     client = playground_app.app.test_client()
     form = {"code": code, "language": "python", "target_language": ""}
@@ -627,7 +628,7 @@ def test_index_renders_export_tab_with_question_count_only_for_seed(monkeypatch)
     monkeypatch.setattr(
         playground_app,
         "load_situation",
-        lambda code, language, target_language, seed: default if seed is None else seeded,
+        lambda code, language, target_language, seed, options: default if seed is None else seeded,
     )
     client = playground_app.app.test_client()
     form = {"code": code, "language": "python", "target_language": ""}
@@ -641,6 +642,29 @@ def test_index_renders_export_tab_with_question_count_only_for_seed(monkeypatch)
     assert 'data-tab-name="tab-export"' in without_seed
     assert 'id="export-question-count"' not in without_seed
     assert "Render with a seed to export generated questions." in without_seed
+
+
+def test_render_and_hint_share_generation_options() -> None:
+    code = "if x:\n    y = 1\n"
+    options = GenerationOptions(skip_first_actions=1, disable_call_dropdown=True)
+    data = {"code": code, "language": "python", "generation_options": options.to_json()}
+    client = playground_app.app.test_client()
+
+    rendered = client.post("/", data=data).get_data(as_text=True)
+    assert 'id="generation-options-dialog"' in rendered
+    assert 'id="rendered_situation"' in rendered
+    situation = load_situation(code, "python", "", None, options)
+    assert situation.registry.config is not None
+    assert situation.registry.config.options == options
+    assert len(situation.registry.trace_acts) > 1
+    assert len(load_situation(code, "python", "", None).registry.trace_acts) == 1
+
+    hint = client.post("/hint-trace", json={**data, "trace": []}).get_json()
+    default_hint = client.post(
+        "/hint-trace", json={"code": code, "language": "python", "trace": []}
+    ).get_json()
+    assert hint["ok"] and default_hint["ok"]
+    assert hint["action"] != default_hint["action"]
 
 
 def _export_situation(monkeypatch) -> PlaygroundSituation:

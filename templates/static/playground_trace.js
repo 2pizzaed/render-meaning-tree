@@ -103,13 +103,10 @@ function hintAddedMessage(actions) {
     return `Hint: added ${list}`;
 }
 
-// Тело запросов /reason-trace и /hint-trace: ситуация из формы Render и шаги трассы.
+// Тело запросов /reason-trace и /hint-trace: параметры последнего Render и шаги трассы.
 function traceRequestBody(trace, check = false) {
     return JSON.stringify({
-        code: document.querySelector('textarea[name="code"]')?.value || "",
-        language: document.querySelector('select[name="language"]')?.value || "java",
-        target_language: document.querySelector('select[name="target_language"]')?.value || "",
-        seed: document.querySelector('input[name="seed"]')?.value || "",
+        ...RENDERED_SITUATION,
         trace,
         check,
         no_cache: Boolean(document.getElementById("no-cache-checkbox")?.checked),
@@ -571,15 +568,15 @@ function scrollToReasonStatus() {
 }
 
 function openCorrectTrace() {
+    if (!RENDERED_SITUATION) return;
     const form = document.createElement("form");
     form.method = "POST";
     form.action = "/tracing";
     form.target = "_blank";
     form.style.display = "none";
-    appendHiddenInput(form, "code", document.querySelector('textarea[name="code"]')?.value || "");
-    appendHiddenInput(form, "language", document.querySelector('select[name="language"]')?.value || "java");
-    appendHiddenInput(form, "target_language", document.querySelector('select[name="target_language"]')?.value || "");
-    appendHiddenInput(form, "seed", document.querySelector('input[name="seed"]')?.value || "");
+    for (const name of ["code", "language", "target_language", "seed", "generation_options"]) {
+        appendHiddenInput(form, name, RENDERED_SITUATION[name]);
+    }
     document.body.appendChild(form);
     form.submit();
     form.remove();

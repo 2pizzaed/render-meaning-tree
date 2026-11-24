@@ -47,9 +47,11 @@ def code_file_to_registry(
     return code_snippet_to_registry(code, language=language, mode=mode)
 
 
-def code_manager_to_registry(manager: CodeManager) -> SituationRegistry:
+def code_manager_to_registry(
+    manager: CodeManager, *, config: ProblemGenerationConfig | None = None
+) -> SituationRegistry:
     """Одна ситуация со значениями условий по умолчанию, без рассуждателя."""
-    pipeline = LearningProblemGeneratorPipeline.from_code(manager)
+    pipeline = LearningProblemGeneratorPipeline.from_code(manager, config=config)
     pipeline.run_until("assign_default_values")
     if pipeline.is_terminated:
         raise ValueError(f"Situation generation stopped: {pipeline.termination_reason}")

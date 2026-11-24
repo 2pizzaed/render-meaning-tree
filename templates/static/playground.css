@@ -99,7 +99,7 @@ button.submit-btn:hover {
     font-family: inherit;
 }
 
-.clear-cache-button {
+.sidebar-icon-button {
     flex: none;
     width: 34px;
     padding: 0;
@@ -111,18 +111,113 @@ button.submit-btn:hover {
     font-size: 16px;
 }
 
-.clear-cache-button:hover {
+.sidebar-icon-button:hover {
     background: #f4f7fb;
 }
 
-.clear-cache-button:disabled {
+#clear-cache-button:disabled {
     cursor: wait;
     opacity: 0.55;
 }
 
-.clear-cache-button.done {
+#clear-cache-button.done {
     color: #1a7f37;
     border-color: #1a7f37;
+}
+
+.generation-options-dialog {
+    width: min(460px, calc(100vw - 32px));
+    padding: 20px;
+    border: 1px solid #d6dbe4;
+    border-radius: 8px;
+    color: #243142;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.3);
+}
+
+.generation-options-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.generation-options-dialog header,
+.generation-options-dialog label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.generation-options-dialog h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.generation-options-dialog header button {
+    height: 34px;
+}
+
+.generation-options-dialog label {
+    margin: 0;
+    padding: 12px 0;
+    border-bottom: 1px solid #e4e8ee;
+}
+
+.generation-options-dialog label:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.generation-options-dialog small {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: normal;
+    color: #475569;
+}
+
+.generation-options-dialog input[type="number"] {
+    flex: none;
+    width: 76px;
+    padding: 8px;
+    border: 1px solid #aeb9c8;
+    border-radius: 4px;
+    font: inherit;
+}
+
+.generation-options-dialog input[role="switch"] {
+    appearance: none;
+    flex: none;
+    width: 40px;
+    height: 24px;
+    margin: 0;
+    padding: 3px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: #64748b;
+    cursor: pointer;
+}
+
+.generation-options-dialog input[role="switch"]:checked {
+    background: #0066cc;
+}
+
+.generation-options-dialog input[role="switch"]::before {
+    content: "";
+    display: block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+}
+
+.generation-options-dialog input[role="switch"]:checked::before {
+    margin-left: auto;
+}
+
+@media (forced-colors: active) {
+    .generation-options-dialog input[role="switch"] {
+        appearance: auto;
+        width: 24px;
+    }
 }
 
 .problem-info {

@@ -46,7 +46,12 @@
                     <input id="seed-input" name="seed" class="seed-input" type="number" step="1" value="{{ seed|default('') }}"
                            placeholder="Default condition values"
                            title="Render the first top-k problem generated with this seed. Empty: default condition values.">
-                    <button type="button" id="clear-cache-button" class="clear-cache-button" onclick="clearSituationCache()"
+                    <button type="button" id="generation-options-button" class="sidebar-icon-button"
+                            title="Generation options" aria-label="Generation options"
+                            aria-haspopup="dialog" aria-controls="generation-options-dialog">
+                        <i class="ri-settings-3-line" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" id="clear-cache-button" class="sidebar-icon-button" onclick="clearSituationCache()"
                             title="Clear cached situations and generated problems" aria-label="Clear cached situations and generated problems">
                         <i class="ri-refresh-line" aria-hidden="true"></i>
                     </button>
@@ -55,6 +60,7 @@
                 <div class="problem-info" title="Selected problem: condition values variant, steps N and score Q">{{ problem }}</div>
                 {% endif %}
             </div>
+            <input type="hidden" name="generation_options">
             <button type="submit" class="submit-btn">Render</button>
             {% if snippet_options %}
             <div class="form-group snippet-group">
@@ -71,6 +77,44 @@
             </div>
             {% endif %}
         </form>
+        <dialog id="generation-options-dialog" class="generation-options-dialog" aria-labelledby="generation-options-title">
+            <form method="dialog">
+                <header>
+                    <h2 id="generation-options-title">Generation options</h2>
+                    <button type="submit" formnovalidate class="sidebar-icon-button" title="Close" aria-label="Close">
+                        <i class="ri-close-line" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <label>
+                    <span>Disable call value dropdown
+                        <small>Use a single step-out button for annotated calls.</small>
+                    </span>
+                    <input type="checkbox" role="switch" name="disable_call_dropdown"
+                           {% if generation_defaults.disable_call_dropdown %}checked{% endif %}>
+                </label>
+                <label>
+                    <span>Explicit block boundaries
+                        <small>Show step buttons at block braces in C++ and Java.</small>
+                    </span>
+                    <input type="checkbox" role="switch" name="explicit_compound_boundaries"
+                           {% if generation_defaults.explicit_compound_boundaries %}checked{% endif %}>
+                </label>
+                <label>
+                    <span>Skip first actions
+                        <small>Run this many student steps before the task starts.</small>
+                    </span>
+                    <input type="number" name="skip_first_actions" min="0" step="1"
+                           value="{{ generation_defaults.skip_first_actions }}">
+                </label>
+                <label>
+                    <span>Skip steps after
+                        <small>For exported questions, CompPrehension runs the remaining steps after this step. 0 keeps all remaining steps.</small>
+                    </span>
+                    <input type="number" name="skip_steps_after" min="0" step="1"
+                           value="{{ generation_defaults.skip_steps_after }}">
+                </label>
+            </form>
+        </dialog>
     </div>
     {% endif %}
 
@@ -92,7 +136,7 @@
                 <button class="tab active" data-tab-name="tab-inspector" onclick="openTab(event, 'tab-inspector')">Node Inspector</button>
                 {% if source_map %}<button class="tab" data-tab-name="tab-source-map" onclick="openTab(event, 'tab-source-map')">Source Map</button>{% endif %}
                 {% if enable_trace and answer_objects %}<button class="tab" data-tab-name="tab-trace" onclick="openTab(event, 'tab-trace')">Answer Trace</button>{% endif %}
-                {% if export_situation and not static_used %}<button class="tab" data-tab-name="tab-export" onclick="openTab(event, 'tab-export')">Export</button>{% endif %}
+                {% if rendered_situation and not static_used %}<button class="tab" data-tab-name="tab-export" onclick="openTab(event, 'tab-export')">Export</button>{% endif %}
             </div>
             
             <div id="tab-inspector" class="tab-content active">
@@ -128,7 +172,7 @@
             </div>
             {% endif %}
 
-            {% if export_situation and not static_used %}
+            {% if rendered_situation and not static_used %}
             <div id="tab-export" class="tab-content">
                 <div class="export-list">
                     {% if source_map %}
@@ -157,13 +201,13 @@
                     {% endif %}
                     <div class="export-row">
                         <div class="export-label">Questions <span class="export-format">CompPrehension JSON, ZIP for several</span></div>
-                        {% if export_situation.questionCount %}
+                        {% if rendered_situation.questionCount %}
                         <div class="export-actions">
                             <input id="export-question-count" class="export-count" type="number" step="1"
-                                   min="1" max="{{ export_situation.questionCount }}" value="{{ export_situation.questionCount }}"
+                                   min="1" max="{{ rendered_situation.questionCount }}" value="{{ rendered_situation.questionCount }}"
                                    aria-label="Number of questions to export"
-                                   title="Top questions by Q generated with seed {{ export_situation.seed }}">
-                            <span class="export-hint">of {{ export_situation.questionCount }} (seed {{ export_situation.seed }})</span>
+                                   title="Top questions by Q generated with seed {{ rendered_situation.seed }}">
+                            <span class="export-hint">of {{ rendered_situation.questionCount }} (seed {{ rendered_situation.seed }})</span>
                             <button type="button" id="export-questions-open" class="export-button" onclick="exportQuestions('open')">
                                 <i class="ri-external-link-line" aria-hidden="true"></i> Open
                             </button>
@@ -196,8 +240,8 @@
         const SOURCE_MAP_DATA = {{ source_map | tojson }};
     </script>
 
-    {% if export_situation and not static_used %}
-    <script type="application/json" id="export_situation">{{ export_situation | tojson }}</script>
+    {% if rendered_situation and not static_used %}
+    <script type="application/json" id="rendered_situation">{{ rendered_situation | tojson }}</script>
     {% endif %}
 
     {% if enable_trace and answer_objects %}

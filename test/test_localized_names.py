@@ -395,6 +395,20 @@ def test_function_body_includes_enclosing_function(trace_loqi: str) -> None:
     }
 
 
+def test_function_body_block_is_named_as_function_body(trace_loqi: str) -> None:
+    # Блок кода на месте тела функции называется по этой роли, его начало — тоже.
+    match = re.search(r"^obj func_def_structure_action_func_body_ast(\d+) :", trace_loqi, re.MULTILINE)
+    assert match is not None
+
+    assert _object_metadata(trace_loqi, f"construct_block_structure_ast{match[1]}") == {
+        "EN.localizedName": f"function body {_ID % 'foo'} on line 2",
+        "RU.localizedName": f"тело функции {_ID % 'foo'} на строке 2",
+        "pronoun": "it",
+    }
+    begin = _object_metadata(trace_loqi, f"block_structure_action_BEGIN_ast{match[1]}")
+    assert begin["RU.localizedName"] == f"начало тела функции {_ID % 'foo'} на строке 2"
+
+
 def test_call_func_action_is_named_as_function_body(trace_loqi: str) -> None:
     # Узел AST действия func — определение функции, но называется оно выполняемым телом.
     match = re.search(r"^obj (func_call_structure_action_func_ast\d+\w*) :", trace_loqi, re.MULTILINE)

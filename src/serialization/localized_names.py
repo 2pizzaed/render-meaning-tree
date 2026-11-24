@@ -23,6 +23,9 @@
 последовательности сворачиваются в один пробел; лимит — ``MAX_CODE_NAME_LENGTH``
 символов. Если код длиннее или недоступен, остаётся идентификатор, а без него —
 «действие». Определения функций и имена ролей сохраняют прежний формат.
+Конструкция, узел которой занят составным действием (``kind: compound``) с
+собственными метаданными, называется по этому действию: блок кода в теле функции —
+«тело функции». Её ``BEGIN``/``END`` называются так же.
 Возвраты дополняются именем ближайшего окружающего определения функции или метода;
 номер строки берётся у самого оператора возврата.
 
@@ -205,12 +208,33 @@ class NamingContext:
             for construct in self.index.objects_of_type("ConcreteConstruct")
             if (ast_id := ast_id_of(construct)) is not None
         }
+        # Конструкция на месте составного действия с собственным именем называется по нему:
+        # блок кода в теле функции — «тело функции». Inline-действия не учитываются:
+        # условие и вызов функции в нём делят один узел, но вызов остаётся вызовом.
+        self._compound_role_metadata: dict[int, NameMetadata] = {}
+        for action in self.index.objects_of_type("ConcreteAction"):
+            spec = self.index.target(action, "derivedFrom")
+            kind = LoqiRenderIndex.property_value(spec, "kind") if spec is not None else None
+            ast_id = ast_id_of(action)
+            if (
+                isinstance(kind, str)
+                and kind.startswith("compound")
+                and ast_id in self._constructs_by_ast_id
+                and (metadata := NameMetadata.from_spec(spec)) is not None
+            ):
+                self._compound_role_metadata[ast_id] = metadata
         # Поиск строки проходит по всем токенам, а одно действие встречается
         # в трассе многократно.
         self.line_range = cache(self._line_range)
 
     def construct_for(self, ast_id: int | None) -> LoqiObject | None:
         return self._constructs_by_ast_id.get(ast_id) if ast_id is not None else None
+
+    def construct_metadata(self, construct: LoqiObject) -> NameMetadata | None:
+        """Имя конструкции: по составному действию на её месте, иначе по её Spec."""
+        ast_id = ast_id_of(construct)
+        role_metadata = self._compound_role_metadata.get(ast_id) if ast_id is not None else None
+        return role_metadata or NameMetadata.from_spec(self.index.target(construct, "derivedFrom"))
 
     def node(self, ast_id: int | None) -> Node | None:
         if self.code is None or ast_id is None:
@@ -275,7 +299,7 @@ type NameResolver = Callable[[LoqiObject, NamingContext], NameParts | str | None
 
 def resolve_construct(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     ast_id = ast_id_of(obj)
-    metadata = NameMetadata.from_spec(ctx.index.target(obj, "derivedFrom")) or ctx.node_type_metadata(ast_id)
+    metadata = ctx.construct_metadata(obj) or ctx.node_type_metadata(ast_id)
     return NameParts(metadata or DEFAULT_NAME_METADATA, ast_id)
 
 
@@ -290,7 +314,7 @@ def resolve_action(obj: LoqiObject, ctx: NamingContext) -> NameParts | None:
     spec = ctx.index.target(obj, "derivedFrom")
     metadata = NameMetadata.from_spec(spec)
     if metadata is None and (construct := ctx.construct_for(ast_id)) is not None:
-        metadata = NameMetadata.from_spec(ctx.index.target(construct, "derivedFrom"))
+        metadata = ctx.construct_metadata(construct)
     if metadata is None and (inline_rule := ctx.inline_rule(ast_id)) is not None:
         metadata = NameMetadata.from_metadata(inline_rule.metadata)
     if metadata is None:
